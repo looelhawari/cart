@@ -1,0 +1,68 @@
+import { Category } from '@/types';
+
+export const categories: Category[] = [
+  {
+    id: '1',
+    name: 'Fruits & Vegetables',
+    nameAr: 'الفواكه والخضروات',
+    icon: '🥬',
+    image: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=400',
+    productCount: 156,
+  },
+  {
+    id: '2',
+    name: 'Dairy & Eggs',
+    nameAr: 'الألبان والبيض',
+    icon: '🥛',
+    image: 'https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=400',
+    productCount: 89,
+  },
+  {
+    id: '3',
+    name: 'Meat & Poultry',
+    nameAr: 'اللحوم والدواجن',
+    icon: '🍖',
+    image: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=400',
+    productCount: 124,
+  },
+  {
+    id: '4',
+    name: 'Bakery',
+    nameAr: 'المخبوزات',
+    icon: '🍞',
+    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400',
+    productCount: 67,
+  },
+  {
+    id: '5',
+    name: 'Beverages',
+    nameAr: 'المشروبات',
+    icon: '🥤',
+    image: 'https://images.unsplash.com/photo-1534353341328-fba68d8a38a6?w=400',
+    productCount: 203,
+  },
+  {
+    id: '6',
+    name: 'Snacks',
+    nameAr: 'الوجبات الخفيفة',
+    icon: '🍿',
+    image: 'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=400',
+    productCount: 178,
+  },
+  {
+    id: '7',
+    name: 'Household',
+    nameAr: 'المنزل',
+    icon: '🧼',
+    image: 'https://images.unsplash.com/photo-1585421514738-01798e348b17?w=400',
+    productCount: 134,
+  },
+  {
+    id: '8',
+    name: 'Personal Care',
+    nameAr: 'العناية الشخصية',
+    icon: '🧴',
+    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400',
+    productCount: 91,
+  },
+];

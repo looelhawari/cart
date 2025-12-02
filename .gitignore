@@ -1,0 +1,34 @@
+# Root .gitignore for ElBaraka project
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.backup
+*.bak
+
+# Documentation (optional - uncomment if you don't want to track these)
+# IMPLEMENTATION_SUMMARY.md
+# TESTING_CHECKLIST.md
+# SETUP_AND_TESTING_GUIDE.md
