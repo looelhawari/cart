@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,13 +24,10 @@ import Spacing from "@/constants/Spacing";
 import { FloatingOrbs } from "@/components/FloatingOrbs";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/store";
-import { categories } from "@/data/categories";
-import {
-  products,
-  flashDeals,
-  bestSellers,
-  featuredProducts as featured,
-} from "@/data/products";
+import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
+import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
+import type { Product } from "@/types";
+import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { banners } from "@/data/banners";
 
 export default function HomeScreen() {
@@ -40,7 +38,69 @@ export default function HomeScreen() {
   });
 
   const { cart, user, isAuthenticated, resetApp } = useStore();
-  const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemsCount =
+    cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+
+  const [categoriesWithProducts, setCategoriesWithProducts] = useState<
+    CategoryWithProducts[]
+  >([]);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [flashDeals, setFlashDeals] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      console.log("🔄 Loading home screen data...");
+
+      const [categoriesRes, featuredRes, flashDealsRes] = await Promise.all([
+        getFeaturedCategoriesWithProducts().catch((err) => {
+          console.error("❌ Categories error:", err);
+          return { success: false, data: { categories: [] } };
+        }),
+        getFeaturedProducts().catch((err) => {
+          console.error("❌ Featured products error:", err);
+          return { success: false, data: { products: [] } };
+        }),
+        getFlashDeals().catch((err) => {
+          console.error("❌ Flash deals error:", err);
+          return { success: false, data: { products: [] } };
+        }),
+      ]);
+
+      console.log("✅ Categories response:", categoriesRes);
+      console.log("✅ Featured products response:", featuredRes);
+      console.log("✅ Flash deals response:", flashDealsRes);
+
+      if (categoriesRes.success) {
+        console.log(
+          `✅ Setting ${categoriesRes.data.categories.length} categories with products`
+        );
+        setCategoriesWithProducts(categoriesRes.data.categories);
+      }
+      if (featuredRes.success) {
+        console.log(
+          `✅ Setting ${featuredRes.data.products.length} featured products`
+        );
+        setFeaturedProducts(featuredRes.data.products.slice(0, 6));
+      }
+      if (flashDealsRes.success) {
+        console.log(
+          `✅ Setting ${flashDealsRes.data.products.length} flash deals`
+        );
+        setFlashDeals(flashDealsRes.data.products);
+      }
+    } catch (error) {
+      console.error("❌ Failed to load data:", error);
+    } finally {
+      setLoading(false);
+      console.log("✅ Loading complete");
+    }
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -54,11 +114,13 @@ export default function HomeScreen() {
       ? `${getGreeting()}, ${user.first_name}`
       : getGreeting();
 
-  if (!fontsLoaded) {
-    return null;
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={Colors.primary900} />
+      </View>
+    );
   }
-
-  const featuredProducts = featured;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -144,35 +206,6 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Categories</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesRow}
-            >
-              {categories.map((category) => (
-                <TouchableOpacity
-                  key={category.id}
-                  style={styles.categoryCard}
-                  onPress={() =>
-                    router.push(`/categories/${category.id}` as any)
-                  }
-                >
-                  <View style={styles.categoryIcon}>
-                    <Text style={styles.categoryEmoji}>{category.icon}</Text>
-                  </View>
-                  <Text style={styles.categoryName} numberOfLines={2}>
-                    {category.name}
-                  </Text>
-                  <Text style={styles.categoryCount}>
-                    {category.productCount} items
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
           {/* Flash Deals Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -182,7 +215,7 @@ export default function HomeScreen() {
                   <Text style={styles.timerText}>02:45:30</Text>
                 </View>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push("/deals/flash")}>
                 <Text style={styles.seeAll}>View All</Text>
               </TouchableOpacity>
             </View>
@@ -193,15 +226,48 @@ export default function HomeScreen() {
               contentContainerStyle={styles.horizontalScroll}
             >
               {flashDeals.map((product) => (
-                <View key={product.id} style={styles.horizontalItem}>
+                <View key={product.barcode} style={styles.horizontalItem}>
                   <ProductCard
                     product={product}
-                    onPress={() => router.push(`/product/${product.id}`)}
+                    onPress={() => router.push(`/product/${product.barcode}`)}
                   />
                 </View>
               ))}
             </ScrollView>
           </View>
+
+          {/* Category Sections with Products */}
+          {categoriesWithProducts.map((category) => (
+            <View key={category.id} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>{category.name_en}</Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push(`/categories/${category.id}` as any)
+                  }
+                >
+                  <Text style={styles.seeAll}>
+                    View All ({category.products_count})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalScroll}
+              >
+                {category.products.map((product) => (
+                  <View key={product.barcode} style={styles.horizontalItem}>
+                    <ProductCard
+                      product={product}
+                      onPress={() => router.push(`/product/${product.barcode}`)}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
 
           {/* Featured Products Grid */}
           <View style={styles.section}>
@@ -216,39 +282,14 @@ export default function HomeScreen() {
 
             <View style={styles.productsGrid}>
               {featuredProducts.map((product) => (
-                <View key={product.id} style={styles.productItem}>
+                <View key={product.barcode} style={styles.productItem}>
                   <ProductCard
                     product={product}
-                    onPress={() => router.push(`/product/${product.id}`)}
+                    onPress={() => router.push(`/product/${product.barcode}`)}
                   />
                 </View>
               ))}
             </View>
-          </View>
-
-          {/* Best Sellers Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Best Sellers 🔥</Text>
-              <TouchableOpacity>
-                <Text style={styles.seeAll}>See All</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScroll}
-            >
-              {bestSellers.map((product) => (
-                <View key={product.id} style={styles.horizontalItem}>
-                  <ProductCard
-                    product={product}
-                    onPress={() => router.push(`/product/${product.id}`)}
-                  />
-                </View>
-              ))}
-            </ScrollView>
           </View>
         </View>
       </ScrollView>
@@ -260,6 +301,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.neutralCloud,
+  },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   devResetButton: {
     position: "absolute",

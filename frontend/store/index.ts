@@ -56,12 +56,17 @@ interface StoreState {
   sendPhoneOtp: (phone: string) => Promise<void>;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<void>;
 
-  // Cart
-  cart: CartItem[];
-  addToCart: (product: Product) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  clearCart: () => void;
+  // Cart (integrated with backend)
+  cart: any | null;
+  cartLoading: boolean;
+  cartError: string | null;
+  fetchCart: () => Promise<void>;
+  addToCart: (productId: number, quantity?: number) => Promise<void>;
+  removeFromCart: (itemId: number) => Promise<void>;
+  updateQuantity: (itemId: number, quantity: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  applyPromoCodeToCart: (code: string) => Promise<void>;
+  removePromoCodeFromCart: () => Promise<void>;
 
   // Favorites
   favorites: string[];
@@ -110,7 +115,9 @@ export const useStore = create<StoreState>()(
           isAuthenticated: false,
           user: null,
           pendingUser: null,
-          cart: [],
+          cart: null,
+          cartLoading: false,
+          cartError: null,
           favorites: [],
           selectedAddress: null,
           selectedPaymentMethod: null,
@@ -249,39 +256,120 @@ export const useStore = create<StoreState>()(
         }));
       },
 
-      // Cart
-      cart: [],
+      // Cart (integrated with backend API)
+      cart: null,
+      cartLoading: false,
+      cartError: null,
 
-      addToCart: (product) =>
-        set((state) => {
-          const existing = state.cart.find((item) => item.id === product.id);
-          if (existing) {
-            return {
-              cart: state.cart.map((item) =>
-                item.id === product.id
-                  ? { ...item, quantity: item.quantity + 1 }
-                  : item
-              ),
-            };
-          }
-          return {
-            cart: [...state.cart, { ...product, quantity: 1 }],
-          };
-        }),
+      fetchCart: async () => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { getCart } = await import("@/services/api/cartApi");
+          const response = await getCart();
+          set({ cart: response.data.cart, cartLoading: false });
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to load cart",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
 
-      removeFromCart: (productId) =>
-        set((state) => ({
-          cart: state.cart.filter((item) => item.id !== productId),
-        })),
+      addToCart: async (productId: number, quantity: number = 1) => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { addToCart: addToCartApi } = await import(
+            "@/services/api/cartApi"
+          );
+          const response = await addToCartApi(productId, quantity);
+          set({ cart: response.data.cart, cartLoading: false });
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to add item to cart",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
 
-      updateQuantity: (productId, quantity) =>
-        set((state) => ({
-          cart: state.cart.map((item) =>
-            item.id === productId ? { ...item, quantity } : item
-          ),
-        })),
+      removeFromCart: async (itemId: number) => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { removeCartItem } = await import("@/services/api/cartApi");
+          await removeCartItem(itemId);
+          // Refresh cart after removal
+          await get().fetchCart();
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to remove item",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
 
-      clearCart: () => set({ cart: [] }),
+      updateQuantity: async (itemId: number, quantity: number) => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { updateCartItem } = await import("@/services/api/cartApi");
+          const response = await updateCartItem(itemId, quantity);
+          set({ cart: response.data.cart, cartLoading: false });
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to update quantity",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      clearCart: async () => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { clearCart: clearCartApi } = await import(
+            "@/services/api/cartApi"
+          );
+          await clearCartApi();
+          set({ cart: null, cartLoading: false });
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to clear cart",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      applyPromoCodeToCart: async (code: string) => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { applyPromoCode } = await import("@/services/api/cartApi");
+          const response = await applyPromoCode(code);
+          set({ cart: response.data.cart, cartLoading: false });
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to apply promo code",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      removePromoCodeFromCart: async () => {
+        set({ cartLoading: true, cartError: null });
+        try {
+          const { removePromoCode } = await import("@/services/api/cartApi");
+          const response = await removePromoCode();
+          set({ cart: response.data.cart, cartLoading: false });
+        } catch (error: any) {
+          set({
+            cartError: error.message || "Failed to remove promo code",
+            cartLoading: false,
+          });
+          throw error;
+        }
+      },
 
       // Favorites
       favorites: [],
@@ -406,12 +494,26 @@ export const useStore = create<StoreState>()(
         isAuthenticated: state.isAuthenticated,
         // DO NOT persist user object - fetch from server on app start
         // user: state.user,  // REMOVED for security
-        cart: state.cart,
+        // DO NOT persist cart - always fetch from server
+        // cart: state.cart,  // REMOVED - cart should be fetched from API
         favorites: state.favorites,
         addresses: state.addresses,
         paymentMethods: state.paymentMethods,
         orders: state.orders,
       }),
+      version: 2, // Increment version to trigger migration
+      migrate: (persistedState: any, version: number) => {
+        // Migration to handle old cart structure
+        if (version < 2) {
+          return {
+            ...persistedState,
+            cart: null, // Reset cart to null for API-based cart
+            cartLoading: false,
+            cartError: null,
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );

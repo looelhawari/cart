@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
@@ -6,34 +6,39 @@ import {
   Image,
   TouchableOpacity,
   SafeAreaView,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
+  Alert,
+} from "react-native";
+import { useRouter } from "expo-router";
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
+import { useStore } from "@/store";
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { resetApp } = useStore();
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
             <Text style={styles.logoEmoji}>🛒</Text>
           </View>
           <Text style={styles.brandName}>ELBARAKA</Text>
-          <Text style={styles.tagline}>Your daily groceries delivered fresh</Text>
+          <Text style={styles.tagline}>
+            Your daily groceries delivered fresh
+          </Text>
         </View>
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => router.push('/login')}
+            onPress={() => router.push("/login")}
             activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>Sign In</Text>
@@ -41,17 +46,41 @@ export default function WelcomeScreen() {
 
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => router.push('/signup')}
+            onPress={() => router.push("/signup")}
             activeOpacity={0.8}
           >
             <Text style={styles.secondaryButtonText}>Create Account</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => router.replace("/(tabs)")}
             style={styles.guestButton}
           >
             <Text style={styles.guestButtonText}>Continue as Guest</Text>
+          </TouchableOpacity>
+
+          {/* DEV ONLY: Reset Button */}
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                "Reset App Storage",
+                "This will clear all persisted data (cart, favorites, etc). Continue?",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Reset",
+                    style: "destructive",
+                    onPress: () => {
+                      resetApp();
+                      Alert.alert("Success", "App storage cleared!");
+                    },
+                  },
+                ]
+              );
+            }}
+            style={styles.devButton}
+          >
+            <Text style={styles.devButtonText}>🔧 Clear Storage (Dev)</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -66,22 +95,22 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xxxl,
   },
   logoContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoCircle: {
     width: 140,
     height: 140,
     borderRadius: 70,
     backgroundColor: Colors.primary900,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: Spacing.lg,
     shadowColor: Colors.primary900,
     shadowOffset: { width: 0, height: 8 },
@@ -94,16 +123,16 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 42,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
     color: Colors.primary900,
     letterSpacing: 2,
     marginBottom: Spacing.xs,
   },
   tagline: {
     fontSize: Typography.bodyLarge,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
   },
   buttonContainer: {
     gap: Spacing.md,
@@ -112,9 +141,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 56,
-    justifyContent: 'center',
+    justifyContent: "center",
     shadowColor: Colors.primary900,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -124,30 +153,43 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: Colors.neutralWhite,
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
   },
   secondaryButton: {
     backgroundColor: Colors.neutralWhite,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 56,
-    justifyContent: 'center',
+    justifyContent: "center",
     borderWidth: 2,
     borderColor: Colors.neutralGray,
   },
   secondaryButtonText: {
     color: Colors.neutralCharcoal,
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
   },
   guestButton: {
     paddingVertical: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   guestButtonText: {
     color: Colors.neutralMedium,
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: "Poppins_500Medium",
+  },
+  devButton: {
+    backgroundColor: Colors.accentRed,
+    paddingVertical: Spacing.sm,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: Spacing.lg,
+    opacity: 0.8,
+  },
+  devButtonText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.neutralWhite,
   },
 });

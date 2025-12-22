@@ -4,7 +4,13 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useStore } from "@/store";
-import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,17 +20,27 @@ function RootLayoutNav() {
   const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = useStore((state) => state.isAuthenticated);
-  const hasCompletedOnboarding = useStore((state) => state.hasCompletedOnboarding);
+  const hasCompletedOnboarding = useStore(
+    (state) => state.hasCompletedOnboarding
+  );
+  const fetchCart = useStore((state) => state.fetchCart);
+
+  // Fetch cart on app start
+  useEffect(() => {
+    fetchCart().catch((error) => {
+      console.log("Failed to fetch cart on startup:", error);
+    });
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (pathname === '/') {
+      if (pathname === "/") {
         if (!hasCompletedOnboarding) {
-          router.replace('/onboarding');
+          router.replace("/onboarding");
         } else if (!isAuthenticated) {
-          router.replace('/welcome');
+          router.replace("/welcome");
         } else {
-          router.replace('/(tabs)');
+          router.replace("/(tabs)");
         }
       }
     }, 100);
@@ -34,16 +50,28 @@ function RootLayoutNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen
+        name="onboarding"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="welcome"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="search" options={{ presentation: "modal", headerShown: true, title: "Search" }} />
+      <Stack.Screen
+        name="search"
+        options={{ presentation: "modal", headerShown: true, title: "Search" }}
+      />
       <Stack.Screen name="product" options={{ headerShown: false }} />
       <Stack.Screen name="checkout" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
       <Stack.Screen name="orders" options={{ headerShown: false }} />
-      <Stack.Screen name="notifications" options={{ headerShown: true, title: "Notifications" }} />
+      <Stack.Screen
+        name="notifications"
+        options={{ headerShown: true, title: "Notifications" }}
+      />
       <Stack.Screen name="complaints" options={{ headerShown: false }} />
       <Stack.Screen name="categories" options={{ headerShown: false }} />
       <Stack.Screen name="about" options={{ headerShown: false }} />

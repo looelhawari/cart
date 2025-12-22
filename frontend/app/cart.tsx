@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,62 +8,75 @@ import {
   StyleSheet,
   TextInput,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react-native';
-import { useStore } from '@/store';
-import Colors from '@/constants/Colors';
-import { Typography } from '@/constants/Typography';
-import { Spacing } from '@/constants/Spacing';
-import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/data/products';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Trash2, Plus, Minus, ShoppingBag } from "lucide-react-native";
+import { useStore } from "@/store";
+import Colors from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
+import { Spacing } from "@/constants/Spacing";
+import { ProductCard } from "@/components/ProductCard";
+import { products } from "@/data/products";
 
 export default function CartScreen() {
   const router = useRouter();
-  const { cart, removeFromCart, updateQuantity, clearCart, promoCode, applyPromoCode, removePromoCode } = useStore();
-  const [promoInput, setPromoInput] = useState('');
+  const {
+    cart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    applyPromoCodeToCart,
+    removePromoCodeFromCart,
+  } = useStore();
+  const [promoInput, setPromoInput] = useState("");
   const [promoExpanded, setPromoExpanded] = useState(false);
 
-  const subtotal = cart.reduce(
-    (sum, item) => sum + (item.salePrice || item.price) * item.quantity,
-    0
-  );
-  const deliveryFee = subtotal >= 50 ? 0 : 5.99;
-  const discount = promoCode === 'SAVE10' ? subtotal * 0.1 : 0;
-  const tax = (subtotal - discount) * 0.05;
-  const total = subtotal + deliveryFee - discount + tax;
+  const cartItems = cart?.items || [];
+  const subtotal = cart?.subtotal || 0;
+  const deliveryFee = cart?.delivery_fee || 0;
+  const discount = cart?.discount || 0;
+  const tax = cart?.tax || 0;
+  const total = cart?.total || 0;
 
-  const suggestedProducts = products.filter((p) => !cart.find((c) => c.id === p.id)).slice(0, 4);
+  const suggestedProducts = products
+    .filter((p) => !cartItems.find((c) => c.product.id === Number(p.id)))
+    .slice(0, 4);
 
-  const handleApplyPromo = () => {
-    if (promoInput.toUpperCase() === 'SAVE10') {
-      applyPromoCode(promoInput.toUpperCase());
-      setPromoInput('');
-      Alert.alert('Success', '10% discount applied!');
-    } else {
-      Alert.alert('Invalid Code', 'This promo code is not valid');
+  const handleApplyPromo = async () => {
+    try {
+      await applyPromoCodeToCart(promoInput.toUpperCase());
+      setPromoInput("");
+      Alert.alert("Success", "Promo code applied!");
+    } catch (error) {
+      Alert.alert("Invalid Code", "This promo code is not valid");
     }
   };
 
   const handleClearCart = () => {
     Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items from your cart?',
+      "Clear Cart",
+      "Are you sure you want to remove all items from your cart?",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => clearCart(),
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearCart();
+            } catch (error) {
+              console.error("Failed to clear cart:", error);
+            }
+          },
         },
       ]
     );
   };
 
-  if (cart.length === 0) {
+  if (cartItems.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Cart</Text>
         </View>
@@ -73,7 +86,7 @@ export default function CartScreen() {
           <Text style={styles.emptySubtitle}>Add items to get started</Text>
           <TouchableOpacity
             style={styles.startShoppingButton}
-            onPress={() => router.push('/(tabs)')}
+            onPress={() => router.push("/(tabs)")}
           >
             <Text style={styles.startShoppingText}>Start Shopping</Text>
           </TouchableOpacity>
@@ -83,7 +96,7 @@ export default function CartScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Cart</Text>
         <TouchableOpacity onPress={handleClearCart}>
@@ -91,28 +104,35 @@ export default function CartScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.cartItems}>
-          {cart.map((item) => (
+          {cartItems.map((item) => (
             <View key={item.id} style={styles.cartItem}>
-              <Image source={{ uri: item.image }} style={styles.itemImage} />
+              <Image
+                source={{ uri: item.product.image }}
+                style={styles.itemImage}
+              />
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={2}>
-                  {item.name}
+                  {item.product.name_en}
                 </Text>
-                <Text style={styles.itemPrice}>
-                  ${item.salePrice || item.price}
-                  <Text style={styles.itemUnit}>/{item.unit}</Text>
-                </Text>
+                <Text style={styles.itemPrice}>{item.price} EGP</Text>
                 <View style={styles.itemActions}>
                   <View style={styles.quantityControls}>
                     <TouchableOpacity
                       style={styles.quantityButton}
-                      onPress={() => {
-                        if (item.quantity === 1) {
-                          removeFromCart(item.id);
-                        } else {
-                          updateQuantity(item.id, item.quantity - 1);
+                      onPress={async () => {
+                        try {
+                          if (item.quantity === 1) {
+                            await removeFromCart(item.id);
+                          } else {
+                            await updateQuantity(item.id, item.quantity - 1);
+                          }
+                        } catch (error) {
+                          console.error("Failed to update cart:", error);
                         }
                       }}
                     >
@@ -121,19 +141,31 @@ export default function CartScreen() {
                     <Text style={styles.quantity}>{item.quantity}</Text>
                     <TouchableOpacity
                       style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.id, item.quantity + 1)}
+                      onPress={async () => {
+                        try {
+                          await updateQuantity(item.id, item.quantity + 1);
+                        } catch (error) {
+                          console.error("Failed to update cart:", error);
+                        }
+                      }}
                     >
                       <Plus size={16} color={Colors.primary900} />
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.itemTotal}>
-                    ${((item.salePrice || item.price) * item.quantity).toFixed(2)}
+                    {item.subtotal.toFixed(2)} EGP
                   </Text>
                 </View>
               </View>
               <TouchableOpacity
                 style={styles.removeButton}
-                onPress={() => removeFromCart(item.id)}
+                onPress={async () => {
+                  try {
+                    await removeFromCart(item.id);
+                  } catch (error) {
+                    console.error("Failed to remove item:", error);
+                  }
+                }}
               >
                 <Trash2 size={20} color={Colors.accentRed} />
               </TouchableOpacity>
@@ -181,7 +213,10 @@ export default function CartScreen() {
               onChangeText={setPromoInput}
               autoCapitalize="characters"
             />
-            <TouchableOpacity style={styles.promoApplyButton} onPress={handleApplyPromo}>
+            <TouchableOpacity
+              style={styles.promoApplyButton}
+              onPress={handleApplyPromo}
+            >
               <Text style={styles.promoApplyText}>Apply</Text>
             </TouchableOpacity>
           </View>
@@ -189,7 +224,9 @@ export default function CartScreen() {
 
         {promoCode && (
           <View style={styles.appliedPromo}>
-            <Text style={styles.appliedPromoText}>Promo &ldquo;{promoCode}&rdquo; applied!</Text>
+            <Text style={styles.appliedPromoText}>
+              Promo &ldquo;{promoCode}&rdquo; applied!
+            </Text>
             <TouchableOpacity onPress={removePromoCode}>
               <Text style={styles.removePromoText}>Remove</Text>
             </TouchableOpacity>
@@ -203,8 +240,10 @@ export default function CartScreen() {
           </View>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Delivery Fee</Text>
-            <Text style={[styles.priceValue, deliveryFee === 0 && styles.freeText]}>
-              {deliveryFee === 0 ? 'FREE' : `$${deliveryFee.toFixed(2)}`}
+            <Text
+              style={[styles.priceValue, deliveryFee === 0 && styles.freeText]}
+            >
+              {deliveryFee === 0 ? "FREE" : `$${deliveryFee.toFixed(2)}`}
             </Text>
           </View>
           {discount > 0 && (
@@ -227,7 +266,7 @@ export default function CartScreen() {
 
         <TouchableOpacity
           style={styles.checkoutButton}
-          onPress={() => router.push('/checkout/address')}
+          onPress={() => router.push("/checkout/address")}
         >
           <Text style={styles.checkoutText}>Proceed to Checkout</Text>
         </TouchableOpacity>
@@ -242,9 +281,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -263,8 +302,8 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.xl,
   },
   emptyTitle: {
@@ -298,7 +337,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   cartItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
     padding: Spacing.sm,
@@ -312,7 +351,7 @@ const styles = StyleSheet.create({
   },
   itemInfo: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   itemName: {
     fontSize: Typography.bodyBase,
@@ -329,13 +368,13 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
   },
   itemActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   quantityControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     backgroundColor: Colors.neutralLight,
     borderRadius: 12,
@@ -346,15 +385,15 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: Colors.neutralWhite,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   quantity: {
     fontSize: Typography.bodyBase,
     fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
     minWidth: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   itemTotal: {
     fontSize: Typography.bodyLarge,
@@ -384,7 +423,7 @@ const styles = StyleSheet.create({
     width: 160,
   },
   bottomSection: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
@@ -403,7 +442,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
   },
   promoSection: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
@@ -420,7 +459,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingHorizontal: Spacing.md,
     borderRadius: 12,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   promoApplyText: {
     fontSize: Typography.bodyBase,
@@ -428,10 +467,10 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
   },
   appliedPromo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.primary900 + '10',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: Colors.primary900 + "10",
     padding: Spacing.sm,
     borderRadius: 12,
     marginTop: Spacing.sm,
@@ -451,9 +490,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   priceLabel: {
     fontSize: Typography.bodyBase,
@@ -490,7 +529,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: Spacing.md,
   },
   checkoutText: {

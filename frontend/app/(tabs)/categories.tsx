@@ -1,119 +1,225 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Image,
-} from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ShoppingCart, Grid3x3, List } from 'lucide-react-native';
+  ActivityIndicator,
+  ImageBackground,
+  RefreshControl,
+  Dimensions,
+} from "react-native";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Search, ShoppingCart } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { categories } from '@/data/categories';
-import { useStore } from '@/store';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { getCategories } from "@/services/api/categoryApi";
+import type { Category } from "@/types";
+import { useStore } from "@/store";
+import {
+  getCachedImage,
+  preloadImages,
+  initImageCache,
+} from "@/services/cache/imageCache";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
-type ViewMode = 'grid' | 'list';
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = (width - Spacing.lg * 3) / 2;
 
 export default function CategoriesScreen() {
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cachedImages, setCachedImages] = useState<Map<number, string>>(
+    new Map()
+  );
   const { cart } = useStore();
-  const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemsCount =
+    cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
-  const renderCategoryCard = ({ item }: { item: typeof categories[0] }) => {
-    if (viewMode === 'grid') {
-      return (
-        <TouchableOpacity
-          style={styles.gridCard}
-          onPress={() => router.push(`/categories/${item.id}` as any)}
-          activeOpacity={0.7}
-        >
-          <Image source={{ uri: item.image }} style={styles.gridImage} />
-          <View style={styles.gridOverlay}>
-            <Text style={styles.gridEmoji}>{item.icon}</Text>
-            <Text style={styles.gridName}>{item.name}</Text>
-            <Text style={styles.gridCount}>{item.productCount} items</Text>
-          </View>
-        </TouchableOpacity>
+  useEffect(() => {
+    initImageCache();
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await getCategories();
+      console.log(
+        "✅ Categories response:",
+        JSON.stringify(response).substring(0, 200)
       );
+      if (response.success) {
+        console.log(
+          "✅ Total categories from API:",
+          response.data.categories.length
+        );
+
+        // Filter only root categories (parent_id is null) and sort by sort_order
+        const rootCategories = response.data.categories
+          .filter((cat: Category) => {
+            const isRoot = !cat.parent_id;
+            console.log(
+              `Category ${cat.id} "${cat.name_en}" - parent_id: ${cat.parent_id}, isRoot: ${isRoot}`
+            );
+            return isRoot;
+          })
+          .sort(
+            (a: Category, b: Category) =>
+              (a.sort_order || 0) - (b.sort_order || 0)
+          );
+
+        console.log(
+          "✅ Setting",
+          rootCategories.length,
+          "categories with products"
+        );
+        setCategories(rootCategories);
+
+        // Preload and cache all category images
+        const imageUrls = rootCategories
+          .map((cat: Category) => cat.image)
+          .filter(Boolean) as string[];
+
+        preloadImages(imageUrls).then(() => {
+          // Get cached URIs for all images
+          const imageCache = new Map<number, string>();
+          Promise.all(
+            rootCategories.map(async (cat: Category) => {
+              if (cat.image) {
+                const cachedUri = await getCachedImage(cat.image);
+                if (cachedUri) {
+                  imageCache.set(cat.id, cachedUri);
+                }
+              }
+            })
+          ).then(() => {
+            setCachedImages(imageCache);
+          });
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load categories:", error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadCategories();
+    setRefreshing(false);
+  };
+
+  const renderCategoryCard = ({ item }: { item: Category }) => {
+    const defaultImage =
+      "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800";
+    const imageUri = cachedImages.get(item.id) || item.image || defaultImage;
 
     return (
       <TouchableOpacity
-        style={styles.listCard}
+        style={styles.categoryCard}
         onPress={() => router.push(`/categories/${item.id}` as any)}
-        activeOpacity={0.7}
+        activeOpacity={0.9}
       >
-        <Image source={{ uri: item.image }} style={styles.listImage} />
-        <View style={styles.listContent}>
-          <View style={styles.listHeader}>
-            <Text style={styles.listEmoji}>{item.icon}</Text>
-            <Text style={styles.listName}>{item.name}</Text>
-          </View>
-          <Text style={styles.listCount}>{item.productCount} products available</Text>
-        </View>
+        <ImageBackground
+          source={{ uri: imageUri }}
+          style={styles.cardBackground}
+          imageStyle={styles.cardImage}
+          resizeMode="cover"
+        >
+          <LinearGradient
+            colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.7)"]}
+            style={styles.gradient}
+          >
+            {item.icon && <Text style={styles.iconText}>{item.icon}</Text>}
+            <Text style={styles.categoryName} numberOfLines={2}>
+              {item.name_en}
+            </Text>
+            {item.products_count !== undefined && item.products_count > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{item.products_count}</Text>
+              </View>
+            )}
+          </LinearGradient>
+        </ImageBackground>
       </TouchableOpacity>
     );
   };
 
+  const renderHeader = () => (
+    <View style={styles.listHeader}>
+      <Text style={styles.sectionTitle}>Explore All Categories</Text>
+      <Text style={styles.sectionSubtitle}>
+        Browse {categories.length} categories
+      </Text>
+    </View>
+  );
+
+  if (loading && categories.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <OfflineIndicator />
+        <ActivityIndicator size="large" color={Colors.primary900} />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <OfflineIndicator />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Categories</Text>
-        <View style={styles.headerActions}>
+        <View style={styles.headerRight}>
           <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push('/search')}
+            style={styles.headerIcon}
+            onPress={() => router.push("/search")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Search size={24} color={Colors.primary900} />
+            <Search size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push('/(tabs)/cart')}
+            style={styles.headerIcon}
+            onPress={() => router.push("/(tabs)/cart")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <ShoppingCart size={24} color={Colors.primary900} />
+            <ShoppingCart size={24} color={Colors.neutralCharcoal} />
             {cartItemsCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{cartItemsCount}</Text>
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {cartItemsCount > 99 ? "99+" : cartItemsCount}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* View Toggle */}
-      <View style={styles.toolbar}>
-        <Text style={styles.toolbarTitle}>{categories.length} Categories</Text>
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[styles.toggleButton, viewMode === 'grid' && styles.activeToggle]}
-            onPress={() => setViewMode('grid')}
-          >
-            <Grid3x3 size={20} color={viewMode === 'grid' ? Colors.neutralWhite : Colors.neutralMedium} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleButton, viewMode === 'list' && styles.activeToggle]}
-            onPress={() => setViewMode('list')}
-          >
-            <List size={20} color={viewMode === 'list' ? Colors.neutralWhite : Colors.neutralMedium} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Categories List */}
+      {/* 2-Column Grid - Premium Design */}
       <FlatList
         data={categories}
         renderItem={renderCategoryCard}
-        keyExtractor={(item) => item.id}
-        numColumns={viewMode === 'grid' ? 2 : 1}
-        key={viewMode}
-        contentContainerStyle={styles.listContainer}
+        keyExtractor={(item) => item.id.toString()}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        ListHeaderComponent={renderHeader}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary900}
+            colors={[Colors.primary900]}
+          />
+        }
       />
     </SafeAreaView>
   );
@@ -122,12 +228,16 @@ export default function CategoriesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutralCloud,
+    backgroundColor: Colors.neutralSnow,
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -135,149 +245,120 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.neutralGray,
   },
   headerTitle: {
-    fontSize: Typography.h2,
-    fontFamily: 'Poppins_700Bold',
+    fontSize: 20,
+    fontWeight: "700",
     color: Colors.neutralCharcoal,
   },
-  headerActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
   },
-  iconButton: {
-    position: 'relative',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerIcon: {
+    position: "relative",
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: Colors.accentRed,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: Colors.neutralWhite,
+  },
+  cartBadgeText: {
+    color: Colors.neutralWhite,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  listHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.neutralCharcoal,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: Colors.neutralMedium,
+  },
+  listContent: {
+    paddingBottom: Spacing.xl,
+  },
+  row: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  categoryCard: {
+    width: CARD_WIDTH,
+    height: 140,
+    borderRadius: 16,
+    overflow: "hidden",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    backgroundColor: Colors.neutralWhite,
+  },
+  cardBackground: {
+    width: "100%",
+    height: "100%",
+  },
+  cardImage: {
+    borderRadius: 16,
+  },
+  gradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  iconText: {
+    fontSize: 36,
+    marginBottom: 8,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  categoryName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.neutralWhite,
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   badge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: Colors.accentRed,
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: Colors.primary900,
     borderRadius: 12,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   badgeText: {
     color: Colors.neutralWhite,
-    fontSize: 10,
-    fontWeight: '700' as const,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-  },
-  toolbarTitle: {
-    fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_600SemiBold',
-    color: Colors.neutralCharcoal,
-  },
-  viewToggle: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-  },
-  toggleButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.neutralLight,
-  },
-  activeToggle: {
-    backgroundColor: Colors.primary900,
-  },
-  listContainer: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  gridCard: {
-    flex: 1,
-    height: 180,
-    borderRadius: 24,
-    overflow: 'hidden',
-    margin: Spacing.xs,
-    backgroundColor: Colors.neutralWhite,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  gridImage: {
-    width: '100%',
-    height: '100%',
-  },
-  gridOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: Spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    gap: 4,
-  },
-  gridEmoji: {
-    fontSize: 32,
-  },
-  gridName: {
-    fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_700Bold',
-    color: Colors.neutralWhite,
-  },
-  gridCount: {
-    fontSize: Typography.bodySmall,
-    fontFamily: 'Poppins_400Regular',
-    color: Colors.neutralWhite,
-    opacity: 0.9,
-  },
-  listCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  listImage: {
-    width: 120,
-    height: 120,
-  },
-  listContent: {
-    flex: 1,
-    padding: Spacing.md,
-    justifyContent: 'space-between',
-  },
-  listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  listEmoji: {
-    fontSize: 32,
-  },
-  listName: {
-    fontSize: Typography.h4,
-    fontFamily: 'Poppins_700Bold',
-    color: Colors.neutralCharcoal,
-    flex: 1,
-  },
-  listCount: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: 'Poppins_400Regular',
-    color: Colors.neutralMedium,
+    fontSize: 11,
+    fontWeight: "700",
   },
 });

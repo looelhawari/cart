@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,14 +7,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, Check, Edit } from 'lucide-react-native';
-import { useStore } from '@/store';
-import Colors from '@/constants/Colors';
-import { Typography } from '@/constants/Typography';
-import { Spacing } from '@/constants/Spacing';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { ArrowLeft, Check, Edit } from "lucide-react-native";
+import { useStore } from "@/store";
+import Colors from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
+import { Spacing } from "@/constants/Spacing";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
@@ -28,25 +28,25 @@ export default function CheckoutConfirmationScreen() {
     clearCart,
     addOrder,
   } = useStore();
-  
+
   const [accepted, setAccepted] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   const address = addresses.find((a) => a.id === selectedAddress);
   const payment = paymentMethods.find((p) => p.id === selectedPaymentMethod);
 
-  const subtotal = cart.reduce(
-    (sum, item) => sum + (item.salePrice || item.price) * item.quantity,
-    0
-  );
-  const deliveryFee = subtotal >= 50 ? 0 : 5.99;
-  const discount = promoCode === 'SAVE10' ? subtotal * 0.1 : 0;
-  const tax = (subtotal - discount) * 0.05;
-  const total = subtotal + deliveryFee - discount + tax;
+  const subtotal = cart?.subtotal || 0;
+  const deliveryFee = cart?.delivery_fee || 0;
+  const discount = cart?.discount || 0;
+  const tax = cart?.tax || 0;
+  const total = cart?.total || 0;
 
   const handlePlaceOrder = async () => {
     if (!accepted) {
-      Alert.alert('Terms & Conditions', 'Please accept the terms and conditions to continue');
+      Alert.alert(
+        "Terms & Conditions",
+        "Please accept the terms and conditions to continue"
+      );
       return;
     }
 
@@ -57,25 +57,30 @@ export default function CheckoutConfirmationScreen() {
         id: Date.now().toString(),
         orderNumber: `EB-${Date.now()}`,
         date: new Date().toISOString(),
-        status: 'processing' as const,
+        status: "processing" as const,
         subtotal,
         deliveryFee,
         discount,
         tax,
         total,
-        items: cart.map((item) => ({
-          productId: item.id,
-          name: item.name,
+        items: (cart?.items || []).map((item) => ({
+          productId: item.product.id.toString(),
+          name: item.product.name_en,
           quantity: item.quantity,
-          price: item.salePrice || item.price,
-          image: item.image,
+          price: item.price,
+          image: item.product.image,
         })),
         deliveryAddress: address
           ? `${address.street}, ${address.city}`
-          : 'No address selected',
-        paymentMethod: payment?.type === 'cod' ? 'Cash on Delivery' : `Card ••••${payment?.cardLastFour}`,
-        paymentStatus: 'pending' as const,
-        estimatedDelivery: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+          : "No address selected",
+        paymentMethod:
+          payment?.type === "cod"
+            ? "Cash on Delivery"
+            : `Card ••••${payment?.cardLastFour}`,
+        paymentStatus: "pending" as const,
+        estimatedDelivery: new Date(
+          Date.now() + 2 * 60 * 60 * 1000
+        ).toISOString(),
       };
 
       addOrder(newOrder);
@@ -86,16 +91,22 @@ export default function CheckoutConfirmationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review Order</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.progressBar}>
           <View style={[styles.progressDot, styles.progressDotActive]}>
             <Check size={18} color={Colors.neutralWhite} />
@@ -122,12 +133,14 @@ export default function CheckoutConfirmationScreen() {
               <Text style={styles.addressLabel}>{address.label}</Text>
               <Text style={styles.addressText}>
                 {address.street}
-                {address.apartment ? `, ${address.apartment}` : ''}
+                {address.apartment ? `, ${address.apartment}` : ""}
               </Text>
               <Text style={styles.addressText}>
                 {address.city}, {address.postalCode}
               </Text>
-              {address.phone && <Text style={styles.addressPhone}>{address.phone}</Text>}
+              {address.phone && (
+                <Text style={styles.addressPhone}>{address.phone}</Text>
+              )}
             </View>
           )}
         </View>
@@ -141,7 +154,7 @@ export default function CheckoutConfirmationScreen() {
           </View>
           {payment && (
             <View style={styles.paymentCard}>
-              {payment.type === 'card' ? (
+              {payment.type === "card" ? (
                 <>
                   <Text style={styles.paymentType}>Credit/Debit Card</Text>
                   <Text style={styles.paymentDetail}>
@@ -161,17 +174,20 @@ export default function CheckoutConfirmationScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Items</Text>
           <View style={styles.orderItems}>
-            {cart.map((item) => (
+            {(cart?.items || []).map((item) => (
               <View key={item.id} style={styles.orderItem}>
-                <Image source={{ uri: item.image }} style={styles.itemImage} />
+                <Image
+                  source={{ uri: item.product.image }}
+                  style={styles.itemImage}
+                />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName} numberOfLines={2}>
-                    {item.name}
+                    {item.product.name_en}
                   </Text>
                   <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
                 </View>
                 <Text style={styles.itemPrice}>
-                  ${((item.salePrice || item.price) * item.quantity).toFixed(2)}
+                  {item.subtotal.toFixed(2)} EGP
                 </Text>
               </View>
             ))}
@@ -183,29 +199,34 @@ export default function CheckoutConfirmationScreen() {
           <View style={styles.priceSummary}>
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Subtotal</Text>
-              <Text style={styles.priceValue}>${subtotal.toFixed(2)}</Text>
+              <Text style={styles.priceValue}>{subtotal.toFixed(2)} EGP</Text>
             </View>
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Delivery Fee</Text>
-              <Text style={[styles.priceValue, deliveryFee === 0 && styles.freeText]}>
-                {deliveryFee === 0 ? 'FREE' : `$${deliveryFee.toFixed(2)}`}
+              <Text
+                style={[
+                  styles.priceValue,
+                  deliveryFee === 0 && styles.freeText,
+                ]}
+              >
+                {deliveryFee === 0 ? "FREE" : `${deliveryFee.toFixed(2)} EGP`}
               </Text>
             </View>
             {discount > 0 && (
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Discount</Text>
                 <Text style={[styles.priceValue, styles.discountText]}>
-                  -${discount.toFixed(2)}
+                  -{discount.toFixed(2)} EGP
                 </Text>
               </View>
             )}
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Tax</Text>
-              <Text style={styles.priceValue}>${tax.toFixed(2)}</Text>
+              <Text style={styles.priceValue}>{tax.toFixed(2)} EGP</Text>
             </View>
             <View style={[styles.priceRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{total.toFixed(2)} EGP</Text>
             </View>
           </View>
         </View>
@@ -218,7 +239,7 @@ export default function CheckoutConfirmationScreen() {
             {accepted && <Check size={16} color={Colors.neutralWhite} />}
           </View>
           <Text style={styles.termsText}>
-            I agree to the{' '}
+            I agree to the{" "}
             <Text style={styles.termsLink}>Terms & Conditions</Text>
           </Text>
         </TouchableOpacity>
@@ -228,12 +249,15 @@ export default function CheckoutConfirmationScreen() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={[styles.placeOrderButton, isPlacingOrder && styles.buttonDisabled]}
+          style={[
+            styles.placeOrderButton,
+            isPlacingOrder && styles.buttonDisabled,
+          ]}
           onPress={handlePlaceOrder}
           disabled={isPlacingOrder}
         >
           <Text style={styles.placeOrderText}>
-            {isPlacingOrder ? 'Placing Order...' : 'Place Order'}
+            {isPlacingOrder ? "Placing Order..." : "Place Order"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -247,9 +271,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -261,8 +285,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h4,
@@ -273,9 +297,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   progressBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: Spacing.lg,
     backgroundColor: Colors.neutralWhite,
     marginBottom: Spacing.md,
@@ -285,8 +309,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.neutralGray,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   progressDotActive: {
     backgroundColor: Colors.primary900,
@@ -310,9 +334,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   sectionTitle: {
@@ -360,8 +384,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   orderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     backgroundColor: Colors.neutralLight,
     borderRadius: 12,
@@ -394,9 +418,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   priceLabel: {
     fontSize: Typography.bodyBase,
@@ -430,8 +454,8 @@ const styles = StyleSheet.create({
     color: Colors.primary900,
   },
   termsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
@@ -442,8 +466,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   checkboxActive: {
     backgroundColor: Colors.primary900,
@@ -468,7 +492,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   placeOrderText: {
     fontSize: Typography.bodyLarge,

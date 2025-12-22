@@ -32,8 +32,13 @@ class SecurityHeaders
         // Referrer policy
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-        // Content Security Policy (basic)
-        $response->headers->set('Content-Security-Policy', "default-src 'self'");
+        // CORS Headers for development
+        if (app()->environment('local')) {
+            $response->headers->set('Access-Control-Allow-Origin', '*');
+            $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+            $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+            $response->headers->set('Access-Control-Max-Age', '86400');
+        }
 
         return $response;
     }

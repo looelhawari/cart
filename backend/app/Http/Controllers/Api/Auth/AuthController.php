@@ -14,10 +14,12 @@ use App\Http\Requests\Auth\VerifyPhoneRequest;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Services\OtpService;
+use App\Services\CartService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use App\Services\CloudinaryService;
@@ -26,10 +28,12 @@ use Carbon\Carbon;
 class AuthController extends Controller
 {
     protected OtpService $otpService;
+    protected CartService $cartService;
 
-    public function __construct(OtpService $otpService)
+    public function __construct(OtpService $otpService, CartService $cartService)
     {
         $this->otpService = $otpService;
+        $this->cartService = $cartService;
     }
 
     /**
@@ -183,6 +187,17 @@ class AuthController extends Controller
         // Create new tokens
         $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addMinutes(30))->plainTextToken;
         $refreshToken = $user->createToken('refresh_token', ['refresh'], Carbon::now()->addDays(30))->plainTextToken;
+
+        // Merge guest cart if session ID is provided
+        $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
+        if ($sessionId) {
+            try {
+                $this->cartService->mergeGuestCart($sessionId, $user->id);
+            } catch (\Exception $e) {
+                // Log error but don't fail login
+                Log::error('Cart merge failed: ' . $e->getMessage());
+            }
+        }
 
         // Log successful login
         ActivityLog::log('user_logged_in', $user->id, 'User', $user->id);

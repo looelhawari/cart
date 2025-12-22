@@ -96,3 +96,40 @@ export interface ChangePasswordData {
   password: string;
   password_confirmation: string;
 }
+
+// Cart Types
+export interface Product {
+  id: number;
+  name_en: string;
+  name_ar: string;
+  image: string;
+  price: number;
+  sale_price: number | null;
+  stock_quantity: number;
+}
+
+export interface CartItem {
+  id: number;
+  product: Product;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+
+export interface PromoCode {
+  code: string;
+  type: "percentage" | "fixed_amount" | "free_delivery";
+  value: number;
+  discount_amount: number;
+}
+
+export interface Cart {
+  id: number;
+  items: CartItem[];
+  subtotal: number;
+  delivery_fee: number;
+  discount: number;
+  tax: number;
+  total: number;
+  items_count: number;
+}

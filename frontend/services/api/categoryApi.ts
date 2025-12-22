@@ -1,0 +1,212 @@
+import { API_BASE_URL } from "./base";
+import type { Category } from "@/types";
+import { cacheFirstFetch, networkFirstFetch } from "../cache/apiCache";
+
+export interface CategoriesResponse {
+  success: boolean;
+  data: {
+    categories: Category[];
+  };
+}
+
+export interface CategoryResponse {
+  success: boolean;
+  data: {
+    category: Category;
+  };
+}
+
+export interface CategoryProductsResponse {
+  success: boolean;
+  data: {
+    category: Category;
+    products: any[];
+    pagination: {
+      current_page: number;
+      per_page: number;
+      total: number;
+      last_page: number;
+    };
+  };
+}
+
+export interface CategoryWithProducts {
+  id: number;
+  name_en: string;
+  name_ar: string;
+  slug: string;
+  icon: string | null;
+  products_count: number;
+  products: any[];
+}
+
+export interface FeaturedCategoriesResponse {
+  success: boolean;
+  data: {
+    categories: CategoryWithProducts[];
+  };
+}
+
+/**
+ * Get categories with featured products for home page
+ */
+export const getFeaturedCategoriesWithProducts =
+  async (): Promise<FeaturedCategoriesResponse> => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/categories/featured-with-products`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          "Featured categories API error:",
+          response.status,
+          errorText
+        );
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("getFeaturedCategoriesWithProducts error:", error);
+      throw error;
+    }
+  };
+
+/**
+ * Get all categories
+ */
+export const getCategories = async (
+  useCache: boolean = true
+): Promise<CategoriesResponse> => {
+  const fetchFn = async () => {
+    const response = await fetch(`${API_BASE_URL}/categories`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Categories API error:", response.status, errorText);
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    return await response.json();
+  };
+
+  if (useCache) {
+    return await cacheFirstFetch("categories:all", fetchFn, {
+      ttl: 10 * 60 * 1000, // 10 minutes
+    });
+  }
+
+  return await fetchFn();
+};
+
+/**
+ * Get single category
+ */
+export const getCategory = async (
+  categoryId: number,
+  useCache: boolean = true
+): Promise<CategoryResponse> => {
+  const fetchFn = async () => {
+    const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    return await response.json();
+  };
+
+  if (useCache) {
+    return await cacheFirstFetch(`category:${categoryId}`, fetchFn, {
+      ttl: 10 * 60 * 1000, // 10 minutes
+    });
+  }
+
+  return await fetchFn();
+};
+
+/**
+ * Get category with its products
+ */
+export const getCategoryProducts = async (
+  categoryId: number,
+  filters?: {
+    subcategory_id?: number;
+    sort_by?: string;
+    sort_order?: string;
+    min_price?: number;
+    max_price?: number;
+    min_rating?: number;
+    in_stock?: boolean;
+    per_page?: number;
+    page?: number;
+  },
+  useCache: boolean = true
+): Promise<CategoryProductsResponse> => {
+  const queryParams = new URLSearchParams();
+  if (filters?.subcategory_id)
+    queryParams.append("subcategory_id", filters.subcategory_id.toString());
+  if (filters?.sort_by) queryParams.append("sort_by", filters.sort_by);
+  if (filters?.sort_order) queryParams.append("sort_order", filters.sort_order);
+  if (filters?.min_price)
+    queryParams.append("min_price", filters.min_price.toString());
+  if (filters?.max_price)
+    queryParams.append("max_price", filters.max_price.toString());
+  if (filters?.min_rating)
+    queryParams.append("min_rating", filters.min_rating.toString());
+  if (filters?.in_stock !== undefined)
+    queryParams.append("in_stock", filters.in_stock ? "1" : "0");
+  if (filters?.per_page)
+    queryParams.append("per_page", filters.per_page.toString());
+  if (filters?.page) queryParams.append("page", filters.page.toString());
+
+  const queryString = queryParams.toString();
+  const cacheKey = `category:${categoryId}:products${queryString ? `:${queryString}` : ""}`;
+
+  const fetchFn = async () => {
+    const url = `${API_BASE_URL}/categories/${categoryId}/products${queryString ? `?${queryString}` : ""}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw error;
+    }
+
+    return await response.json();
+  };
+
+  if (useCache) {
+    return await networkFirstFetch(cacheKey, fetchFn, 5 * 60 * 1000); // 5 minutes
+  }
+
+  return await fetchFn();
+};

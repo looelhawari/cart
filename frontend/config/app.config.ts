@@ -11,7 +11,7 @@
 export const API_CONFIG = {
   // Development URLs
   BASE_URL: __DEV__
-    ? "http://10.0.2.2:8000/api/v1" // Android emulator uses 10.0.2.2 to access host machine
+    ? "http://10.0.2.2:8000/api/v1" // Local network IP for Android emulator/device
     : "https://api.elbaraka.com/api/v1", // Production URL
 
   TIMEOUT: 30000, // 30 seconds
@@ -35,7 +35,7 @@ export const TOKEN_CONFIG = {
 
 // OTP Configuration
 export const OTP_CONFIG = {
-  LENGTH: 6,
+  LENGTH: 8,
   EXPIRY_MINUTES: 10,
   RESEND_TIMEOUT: 60, // seconds
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,41 +6,52 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, CreditCard, Banknote, Check } from 'lucide-react-native';
-import { useStore } from '@/store';
-import Colors from '@/constants/Colors';
-import { Typography } from '@/constants/Typography';
-import { Spacing } from '@/constants/Spacing';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { ArrowLeft, CreditCard, Banknote, Check } from "lucide-react-native";
+import { useStore } from "@/store";
+import Colors from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
+import { Spacing } from "@/constants/Spacing";
 
 export default function CheckoutPaymentScreen() {
   const router = useRouter();
-  const { paymentMethods, setSelectedPaymentMethod, selectedPaymentMethod, cart } = useStore();
-  const [paymentType, setPaymentType] = useState<'card' | 'cod'>('card');
+  const {
+    paymentMethods,
+    setSelectedPaymentMethod,
+    selectedPaymentMethod,
+    cart,
+  } = useStore();
+  const [paymentType, setPaymentType] = useState<"card" | "cod">("card");
 
-  const total = cart.reduce((sum, item) => sum + (item.salePrice || item.price) * item.quantity, 0);
+  const total = cart?.total || 0;
 
   const handleContinue = () => {
-    if (paymentType === 'card' && !selectedPaymentMethod) {
-      Alert.alert('Select Payment', 'Please select a payment method');
+    if (paymentType === "card" && !selectedPaymentMethod) {
+      Alert.alert("Select Payment", "Please select a payment method");
       return;
     }
-    router.push('/checkout/confirmation');
+    router.push("/checkout/confirmation");
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payment Method</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.progressBar}>
           <View style={[styles.progressDot, styles.progressDotActive]}>
             <Check size={18} color={Colors.neutralWhite} />
@@ -51,7 +62,9 @@ export default function CheckoutPaymentScreen() {
           </View>
           <View style={styles.progressLine} />
           <View style={styles.progressDot}>
-            <Text style={[styles.progressText, styles.progressTextInactive]}>3</Text>
+            <Text style={[styles.progressText, styles.progressTextInactive]}>
+              3
+            </Text>
           </View>
         </View>
 
@@ -59,18 +72,22 @@ export default function CheckoutPaymentScreen() {
           <TouchableOpacity
             style={[
               styles.paymentTypeCard,
-              paymentType === 'card' && styles.paymentTypeCardActive,
+              paymentType === "card" && styles.paymentTypeCardActive,
             ]}
-            onPress={() => setPaymentType('card')}
+            onPress={() => setPaymentType("card")}
           >
             <CreditCard
               size={24}
-              color={paymentType === 'card' ? Colors.primary900 : Colors.neutralMedium}
+              color={
+                paymentType === "card"
+                  ? Colors.primary900
+                  : Colors.neutralMedium
+              }
             />
             <Text
               style={[
                 styles.paymentTypeText,
-                paymentType === 'card' && styles.paymentTypeTextActive,
+                paymentType === "card" && styles.paymentTypeTextActive,
               ]}
             >
               Credit/Debit Card
@@ -80,18 +97,20 @@ export default function CheckoutPaymentScreen() {
           <TouchableOpacity
             style={[
               styles.paymentTypeCard,
-              paymentType === 'cod' && styles.paymentTypeCardActive,
+              paymentType === "cod" && styles.paymentTypeCardActive,
             ]}
-            onPress={() => setPaymentType('cod')}
+            onPress={() => setPaymentType("cod")}
           >
             <Banknote
               size={24}
-              color={paymentType === 'cod' ? Colors.primary900 : Colors.neutralMedium}
+              color={
+                paymentType === "cod" ? Colors.primary900 : Colors.neutralMedium
+              }
             />
             <Text
               style={[
                 styles.paymentTypeText,
-                paymentType === 'cod' && styles.paymentTypeTextActive,
+                paymentType === "cod" && styles.paymentTypeTextActive,
               ]}
             >
               Cash on Delivery
@@ -99,7 +118,7 @@ export default function CheckoutPaymentScreen() {
           </TouchableOpacity>
         </View>
 
-        {paymentType === 'card' && (
+        {paymentType === "card" && (
           <>
             <Text style={styles.sectionTitle}>Saved Cards</Text>
 
@@ -108,7 +127,8 @@ export default function CheckoutPaymentScreen() {
                 key={method.id}
                 style={[
                   styles.cardItem,
-                  selectedPaymentMethod === method.id && styles.cardItemSelected,
+                  selectedPaymentMethod === method.id &&
+                    styles.cardItemSelected,
                 ]}
                 onPress={() => setSelectedPaymentMethod(method.id)}
               >
@@ -116,8 +136,12 @@ export default function CheckoutPaymentScreen() {
                   <CreditCard size={20} color={Colors.primary900} />
                 </View>
                 <View style={styles.cardInfo}>
-                  <Text style={styles.cardNumber}>•••• •••• •••• {method.cardLastFour}</Text>
-                  <Text style={styles.cardExpiry}>Expires {method.expiryMonth}/{method.expiryYear}</Text>
+                  <Text style={styles.cardNumber}>
+                    •••• •••• •••• {method.cardLastFour}
+                  </Text>
+                  <Text style={styles.cardExpiry}>
+                    Expires {method.expiryMonth}/{method.expiryYear}
+                  </Text>
                 </View>
                 {selectedPaymentMethod === method.id && (
                   <View style={styles.checkCircle}>
@@ -129,23 +153,24 @@ export default function CheckoutPaymentScreen() {
 
             <TouchableOpacity
               style={styles.addCardButton}
-              onPress={() => router.push('/profile/payment')}
+              onPress={() => router.push("/profile/payment")}
             >
               <Text style={styles.addCardText}>+ Add New Card</Text>
             </TouchableOpacity>
           </>
         )}
 
-        {paymentType === 'cod' && (
+        {paymentType === "cod" && (
           <View style={styles.codInfo}>
             <Banknote size={48} color={Colors.primary900} />
             <Text style={styles.codTitle}>Cash on Delivery</Text>
             <Text style={styles.codDescription}>
-              Pay with cash when your order is delivered. Please keep exact change ready.
+              Pay with cash when your order is delivered. Please keep exact
+              change ready.
             </Text>
             <View style={styles.codNote}>
               <Text style={styles.codNoteText}>
-                Total Amount: ${total.toFixed(2)}
+                Total Amount: {total.toFixed(2)} EGP
               </Text>
             </View>
           </View>
@@ -155,7 +180,10 @@ export default function CheckoutPaymentScreen() {
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={handleContinue}
+        >
           <Text style={styles.continueText}>Continue to Review</Text>
         </TouchableOpacity>
       </View>
@@ -169,9 +197,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -183,8 +211,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h4,
@@ -195,9 +223,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   progressBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: Spacing.lg,
     backgroundColor: Colors.neutralWhite,
     marginBottom: Spacing.md,
@@ -207,8 +235,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.neutralGray,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   progressDotActive: {
     backgroundColor: Colors.primary900,
@@ -230,7 +258,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
   },
   paymentTypes: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
@@ -240,10 +268,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.sm,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   paymentTypeCardActive: {
     borderColor: Colors.primary900,
@@ -252,7 +280,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyMedium,
     fontWeight: Typography.semibold,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
   },
   paymentTypeTextActive: {
     color: Colors.primary900,
@@ -265,8 +293,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   cardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
@@ -274,7 +302,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.sm,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   cardItemSelected: {
     borderColor: Colors.primary900,
@@ -284,8 +312,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardInfo: {
     flex: 1,
@@ -305,8 +333,8 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: Colors.primary900,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   addCardButton: {
     backgroundColor: Colors.neutralWhite,
@@ -316,8 +344,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
-    borderStyle: 'dashed',
-    alignItems: 'center',
+    borderStyle: "dashed",
+    alignItems: "center",
   },
   addCardText: {
     fontSize: Typography.bodyLarge,
@@ -329,7 +357,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: Spacing.lg,
     marginHorizontal: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   codTitle: {
     fontSize: Typography.h3,
@@ -341,12 +369,12 @@ const styles = StyleSheet.create({
   codDescription: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: Spacing.md,
   },
   codNote: {
-    backgroundColor: Colors.primary900 + '10',
+    backgroundColor: Colors.primary900 + "10",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 12,
@@ -366,7 +394,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   continueText: {
     fontSize: Typography.bodyLarge,

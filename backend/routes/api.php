@@ -3,6 +3,9 @@
 use App\Http\Controllers\Api\AddressController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
+use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\ProductController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +32,33 @@ Route::prefix('v1')->group(function () {
 
     // Refresh token (no auth required) - throttled to 5 requests per minute
     Route::middleware('throttle:5,1')->post('auth/refresh', [AuthController::class, 'refreshToken']);
+
+    // Cart routes (guest or authenticated) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->prefix('cart')->group(function () {
+        Route::get('/', [CartController::class, 'index']);
+        Route::post('/items', [CartController::class, 'addItem']);
+        Route::put('/items/{id}', [CartController::class, 'updateItem']);
+        Route::delete('/items/{id}', [CartController::class, 'removeItem']);
+        Route::delete('/clear', [CartController::class, 'clear']);
+        Route::post('/apply-promo', [CartController::class, 'applyPromo']);
+        Route::delete('/remove-promo', [CartController::class, 'removePromo']);
+    });
+
+    // Product routes (public) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::get('products', [ProductController::class, 'index']);
+        Route::get('products/featured', [ProductController::class, 'featured']);
+        Route::get('products/flash-deals', [ProductController::class, 'flashDeals']);
+        Route::get('products/{barcode}', [ProductController::class, 'show']);
+    });
+
+    // Category routes (public) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->prefix('categories')->group(function () {
+        Route::get('/', [CategoryController::class, 'index']);
+        Route::get('/featured-with-products', [CategoryController::class, 'featuredWithProducts']);
+        Route::get('/{id}', [CategoryController::class, 'show']);
+        Route::get('/{id}/products', [CategoryController::class, 'products']);
+    });
 
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {

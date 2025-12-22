@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
@@ -6,27 +6,28 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react-native';
-import { router } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react-native";
+import { router } from "expo-router";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { Button } from '@/components/Button';
-import { useStore } from '@/store';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { Button } from "@/components/Button";
+import { useStore } from "@/store";
 
 export default function CartScreen() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useStore();
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = subtotal > 0 ? 5.99 : 0;
-  const total = subtotal + deliveryFee;
+  const cartItems = cart?.items || [];
+  const subtotal = cart?.subtotal || 0;
+  const deliveryFee = cart?.delivery_fee || 0;
+  const total = cart?.total || 0;
 
-  if (cart.length === 0) {
+  if (cartItems.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyContainer}>
           <ShoppingBag size={80} color={Colors.neutralGray} />
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
@@ -35,7 +36,7 @@ export default function CartScreen() {
           </Text>
           <Button
             title="Browse Products"
-            onPress={() => router.push('/(tabs)/categories')}
+            onPress={() => router.push("/(tabs)/categories")}
             variant="primary"
             fullWidth={false}
           />
@@ -45,33 +46,52 @@ export default function CartScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Cart ({cart.length})</Text>
-        <TouchableOpacity onPress={clearCart}>
+        <Text style={styles.title}>My Cart ({cartItems.length})</Text>
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              await clearCart();
+            } catch (error) {
+              console.error("Failed to clear cart:", error);
+            }
+          }}
+        >
           <Text style={styles.clearText}>Clear All</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
-        {cart.map((item) => (
+        {cartItems.map((item) => (
           <View key={item.id} style={styles.cartItem}>
-            <Image source={{ uri: item.image }} style={styles.itemImage} />
-            
+            <Image
+              source={{ uri: item.product.image }}
+              style={styles.itemImage}
+            />
+
             <View style={styles.itemDetails}>
               <Text style={styles.itemName} numberOfLines={2}>
-                {item.name}
+                {item.product.name_en}
               </Text>
-              <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-              
+              <Text style={styles.itemPrice}>
+                {parseFloat(item.price?.toString() || "0").toFixed(2)} EGP
+              </Text>
+
               <View style={styles.quantityRow}>
                 <TouchableOpacity
                   style={styles.quantityButton}
-                  onPress={() =>
-                    item.quantity > 1
-                      ? updateQuantity(item.id, item.quantity - 1)
-                      : removeFromCart(item.id)
-                  }
+                  onPress={async () => {
+                    try {
+                      if (item.quantity > 1) {
+                        await updateQuantity(item.id, item.quantity - 1);
+                      } else {
+                        await removeFromCart(item.id);
+                      }
+                    } catch (error) {
+                      console.error("Failed to update cart:", error);
+                    }
+                  }}
                 >
                   {item.quantity === 1 ? (
                     <Trash2 size={16} color={Colors.accentRed} />
@@ -79,12 +99,18 @@ export default function CartScreen() {
                     <Minus size={16} color={Colors.primary900} />
                   )}
                 </TouchableOpacity>
-                
+
                 <Text style={styles.quantity}>{item.quantity}</Text>
-                
+
                 <TouchableOpacity
                   style={styles.quantityButton}
-                  onPress={() => updateQuantity(item.id, item.quantity + 1)}
+                  onPress={async () => {
+                    try {
+                      await updateQuantity(item.id, item.quantity + 1);
+                    } catch (error) {
+                      console.error("Failed to update cart:", error);
+                    }
+                  }}
                 >
                   <Plus size={16} color={Colors.primary900} />
                 </TouchableOpacity>
@@ -93,7 +119,13 @@ export default function CartScreen() {
 
             <TouchableOpacity
               style={styles.removeButton}
-              onPress={() => removeFromCart(item.id)}
+              onPress={async () => {
+                try {
+                  await removeFromCart(item.id);
+                } catch (error) {
+                  console.error("Failed to remove item:", error);
+                }
+              }}
             >
               <Trash2 size={20} color={Colors.neutralMedium} />
             </TouchableOpacity>
@@ -103,15 +135,21 @@ export default function CartScreen() {
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>
+              {parseFloat(subtotal?.toString() || "0").toFixed(2)} EGP
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryValue}>${deliveryFee.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>
+              {parseFloat(deliveryFee?.toString() || "0").toFixed(2)} EGP
+            </Text>
           </View>
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>
+              {parseFloat(total?.toString() || "0").toFixed(2)} EGP
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -119,11 +157,13 @@ export default function CartScreen() {
       <View style={styles.footer}>
         <View style={styles.totalContainer}>
           <Text style={styles.footerLabel}>Total</Text>
-          <Text style={styles.footerTotal}>${total.toFixed(2)}</Text>
+          <Text style={styles.footerTotal}>
+            {parseFloat(total?.toString() || "0").toFixed(2)} EGP
+          </Text>
         </View>
         <Button
           title="Proceed to Checkout"
-          onPress={() => router.push('/checkout/address' as any)}
+          onPress={() => router.push("/checkout/address" as any)}
           variant="primary"
         />
       </View>
@@ -137,9 +177,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
@@ -158,12 +198,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   cartItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.neutralWhite,
     padding: Spacing.md,
     borderRadius: 24,
     marginBottom: Spacing.md,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -178,7 +218,7 @@ const styles = StyleSheet.create({
   itemDetails: {
     flex: 1,
     marginLeft: Spacing.md,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   itemName: {
     fontSize: Typography.bodyBase,
@@ -191,8 +231,8 @@ const styles = StyleSheet.create({
     color: Colors.primary900,
   },
   quantityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   quantityButton: {
@@ -200,23 +240,23 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   quantity: {
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.semibold,
     color: Colors.neutralCharcoal,
     minWidth: 30,
-    textAlign: 'center',
+    textAlign: "center",
   },
   removeButton: {
     padding: Spacing.xs,
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: Spacing.xl,
   },
   emptyTitle: {
@@ -229,7 +269,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.lg,
   },
   summary: {
@@ -239,9 +279,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.sm,
   },
   summaryLabel: {
@@ -275,16 +315,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralWhite,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 8,
   },
   totalContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   footerLabel: {

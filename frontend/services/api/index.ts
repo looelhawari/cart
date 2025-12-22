@@ -4,6 +4,7 @@ export * from "./base";
 export { authApi } from "./authApi";
 export { profileApi } from "./profileApi";
 export { addressApi } from "./addressApi";
+export { cartApi } from "./cartApi";
 
 // Default export for backward compatibility
 import { authApi } from "./authApi";

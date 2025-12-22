@@ -103,7 +103,7 @@ Fresh, premium, and delightful design with a professional grocery/retail theme f
 
 - EnsureFrontendRequestsAreStateful for Sanctum
 - ThrottleRequests for rate limiting
-- SubstituteBindings for route model binding
+- Substitute Bindings for route model binding
 - Custom JsonResponse middleware
 - API versioning middleware
 - Localization middleware

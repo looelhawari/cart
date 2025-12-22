@@ -87,7 +87,7 @@ CREATE TABLE categories (
     description_ar TEXT NULL,
     image VARCHAR(255) NULL,
     icon VARCHAR(255) NULL COMMENT 'Emoji or icon identifier for UI',
-    sort_order INT DEFAULT 0 COMMENT 'Display order within parent', 
+    sort_order INT DEFAULT 0 COMMENT 'Display order within parent',     
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -98,30 +98,15 @@ CREATE TABLE categories (
     INDEX idx_sort_order (sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Brands Table
-CREATE TABLE brands (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    slug VARCHAR(255) NOT NULL UNIQUE,
-    logo VARCHAR(255) NULL,
-    description TEXT NULL,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_slug (slug),
-    INDEX idx_is_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- Products Table
 CREATE TABLE products (
-    barcode BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    barcode BIGINT UNSIGNED PRIMARY KEY,
     name_en VARCHAR(255) NOT NULL,
     name_ar VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     image VARCHAR(255) NULL,
     description_en TEXT NULL,
     description_ar TEXT NULL,
-    brand_id BIGINT UNSIGNED NULL,
     price DECIMAL(10, 2) NOT NULL,
     sale_price DECIMAL(10, 2) NULL,
     cost_price DECIMAL(10, 2) NULL,
@@ -134,10 +119,7 @@ CREATE TABLE products (
     sales_count INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE SET NULL,
-    INDEX idx_sku (sku),
     INDEX idx_slug (slug),
-    INDEX idx_brand_id (brand_id),
     INDEX idx_is_active (is_active),
     INDEX idx_is_featured (is_featured),
     INDEX idx_price (price),
@@ -178,7 +160,7 @@ CREATE TABLE carts (
 CREATE TABLE cart_items (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     cart_id BIGINT UNSIGNED NOT NULL,
-    product_id BIGINT UNSIGNED NOT NULL,
+    product_id BIGINT UNSIGNED NOT NULL, 
     quantity INT NOT NULL DEFAULT 1,
     price DECIMAL(10, 2) NOT NULL COMMENT 'Price at time of adding to cart',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
