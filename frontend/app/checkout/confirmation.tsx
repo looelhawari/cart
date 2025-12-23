@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,39 +7,126 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { ArrowLeft, Check, Edit } from "lucide-react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import {
+  ArrowLeft,
+  Check,
+  Edit,
+  Calendar,
+  Clock,
+  CreditCard,
+  Wallet,
+} from "lucide-react-native";
 import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
+import {
+  getDeliverySlots,
+  getPaymentMethods,
+  DeliverySlot,
+  CheckoutPaymentMethod,
+} from "@/services/api/checkoutApi";
+import { createOrder } from "@/services/api/orderApi";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
-  const {
-    cart,
-    addresses,
-    selectedAddress,
-    paymentMethods,
-    selectedPaymentMethod,
-    promoCode,
-    clearCart,
-    addOrder,
-  } = useStore();
+  const params = useLocalSearchParams();
+  const addressId = params.addressId
+    ? parseInt(params.addressId as string)
+    : null;
+
+  const { cart, fetchCart } = useStore();
+
+  const [loading, setLoading] = useState(true);
+  const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<CheckoutPaymentMethod[]>(
+    []
+  );
+
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
+    "cod" | "card"
+  >("cod");
+  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(
+    null
+  );
 
   const [accepted, setAccepted] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-
-  const address = addresses.find((a) => a.id === selectedAddress);
-  const payment = paymentMethods.find((p) => p.id === selectedPaymentMethod);
 
   const subtotal = cart?.subtotal || 0;
   const deliveryFee = cart?.delivery_fee || 0;
   const discount = cart?.discount || 0;
   const tax = cart?.tax || 0;
   const total = cart?.total || 0;
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [slotsRes, paymentRes] = await Promise.all([
+        getDeliverySlots(),
+        getPaymentMethods(),
+      ]);
+
+      setDeliverySlots(
+        slotsRes.data.delivery_slots?.filter((s) => s.is_active) || []
+      );
+      setPaymentMethods(paymentRes.data.payment_methods || []);
+
+      // Auto-select tomorrow as default date
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setSelectedDate(tomorrow.toISOString().split("T")[0]);
+
+      // Auto-select first slot
+      if (slotsRes.data.delivery_slots?.[0]) {
+        setSelectedSlot(slotsRes.data.delivery_slots[0].slot);
+      }
+
+      // Auto-select default payment method
+      const defaultCard = paymentRes.data.payment_methods?.find(
+        (p) => p.is_default
+      );
+      if (defaultCard) {
+        setSelectedPaymentMethod("card");
+        setSelectedPaymentId(defaultCard.id);
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to load checkout data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getDateOptions = () => {
+    const dates = [];
+    const today = new Date();
+    for (let i = 1; i <= 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      dates.push({
+        value: date.toISOString().split("T")[0],
+        label:
+          i === 1
+            ? "Tomorrow"
+            : date.toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              }),
+      });
+    }
+    return dates;
+  };
 
   const handlePlaceOrder = async () => {
     if (!accepted) {
@@ -50,45 +137,66 @@ export default function CheckoutConfirmationScreen() {
       return;
     }
 
+    if (!addressId) {
+      Alert.alert("Error", "No delivery address selected");
+      return;
+    }
+
+    if (!selectedDate || !selectedSlot) {
+      Alert.alert("Error", "Please select a delivery date and time slot");
+      return;
+    }
+
+    if (selectedPaymentMethod === "card" && !selectedPaymentId) {
+      Alert.alert("Error", "Please select a payment card");
+      return;
+    }
+
     setIsPlacingOrder(true);
 
-    setTimeout(() => {
-      const newOrder = {
-        id: Date.now().toString(),
-        orderNumber: `EB-${Date.now()}`,
-        date: new Date().toISOString(),
-        status: "processing" as const,
-        subtotal,
-        deliveryFee,
-        discount,
-        tax,
-        total,
-        items: (cart?.items || []).map((item) => ({
-          productId: item.product.id.toString(),
-          name: item.product.name_en,
-          quantity: item.quantity,
-          price: item.price,
-          image: item.product.image,
-        })),
-        deliveryAddress: address
-          ? `${address.street}, ${address.city}`
-          : "No address selected",
-        paymentMethod:
-          payment?.type === "cod"
-            ? "Cash on Delivery"
-            : `Card ••••${payment?.cardLastFour}`,
-        paymentStatus: "pending" as const,
-        estimatedDelivery: new Date(
-          Date.now() + 2 * 60 * 60 * 1000
-        ).toISOString(),
-      };
+    try {
+      const response = await createOrder({
+        delivery_address_id: addressId,
+        delivery_date: selectedDate,
+        delivery_time_slot: selectedSlot,
+        payment_method: selectedPaymentMethod,
+        payment_method_id: selectedPaymentId || undefined,
+        promo_code: cart?.promo_code || undefined,
+      });
 
-      addOrder(newOrder);
-      clearCart();
+      // Refresh cart to clear it
+      await fetchCart();
+
+      // Navigate to success screen with order details
+      router.replace({
+        pathname: "/order-success" as any,
+        params: {
+          orderId: response.data.order.id,
+          orderNumber: response.data.order.order_number,
+          deliveryDate: selectedDate,
+          deliveryTime: selectedSlot,
+        },
+      });
+    } catch (error: any) {
+      Alert.alert(
+        "Order Failed",
+        error.message || "Failed to create order. Please try again."
+      );
+    } finally {
       setIsPlacingOrder(false);
-      router.replace(`/order-success?orderId=${newOrder.id}`);
-    }, 1500);
+    }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary900} />
+          <Text style={styles.loadingText}>Loading checkout...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -113,62 +221,149 @@ export default function CheckoutConfirmationScreen() {
           </View>
           <View style={[styles.progressLine, styles.progressLineActive]} />
           <View style={[styles.progressDot, styles.progressDotActive]}>
-            <Check size={18} color={Colors.neutralWhite} />
-          </View>
-          <View style={[styles.progressLine, styles.progressLineActive]} />
-          <View style={[styles.progressDot, styles.progressDotActive]}>
-            <Text style={styles.progressText}>3</Text>
+            <Text style={styles.progressText}>2</Text>
           </View>
         </View>
 
+        {/* Delivery Date Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Delivery Address</Text>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Edit size={18} color={Colors.primary900} />
-            </TouchableOpacity>
+            <Calendar size={20} color={Colors.primary900} />
+            <Text style={styles.sectionTitle}>Delivery Date</Text>
           </View>
-          {address && (
-            <View style={styles.addressCard}>
-              <Text style={styles.addressLabel}>{address.label}</Text>
-              <Text style={styles.addressText}>
-                {address.street}
-                {address.apartment ? `, ${address.apartment}` : ""}
-              </Text>
-              <Text style={styles.addressText}>
-                {address.city}, {address.postalCode}
-              </Text>
-              {address.phone && (
-                <Text style={styles.addressPhone}>{address.phone}</Text>
-              )}
-            </View>
-          )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.dateScroll}
+          >
+            {getDateOptions().map((date) => (
+              <TouchableOpacity
+                key={date.value}
+                style={[
+                  styles.dateOption,
+                  selectedDate === date.value && styles.dateOptionSelected,
+                ]}
+                onPress={() => setSelectedDate(date.value)}
+              >
+                <Text
+                  style={[
+                    styles.dateText,
+                    selectedDate === date.value && styles.dateTextSelected,
+                  ]}
+                >
+                  {date.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
+        {/* Delivery Time Slot Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
+            <Clock size={20} color={Colors.primary900} />
+            <Text style={styles.sectionTitle}>Delivery Time</Text>
+          </View>
+          <View style={styles.slotGrid}>
+            {deliverySlots.map((slot) => (
+              <TouchableOpacity
+                key={slot.slot}
+                style={[
+                  styles.slotOption,
+                  selectedSlot === slot.slot && styles.slotOptionSelected,
+                ]}
+                onPress={() => setSelectedSlot(slot.slot)}
+              >
+                <Text
+                  style={[
+                    styles.slotText,
+                    selectedSlot === slot.slot && styles.slotTextSelected,
+                  ]}
+                >
+                  {slot.slot}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Payment Method Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Wallet size={20} color={Colors.primary900} />
             <Text style={styles.sectionTitle}>Payment Method</Text>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Edit size={18} color={Colors.primary900} />
-            </TouchableOpacity>
           </View>
-          {payment && (
-            <View style={styles.paymentCard}>
-              {payment.type === "card" ? (
-                <>
-                  <Text style={styles.paymentType}>Credit/Debit Card</Text>
-                  <Text style={styles.paymentDetail}>
-                    •••• •••• •••• {payment.cardLastFour}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.paymentType}>Cash on Delivery</Text>
-                  <Text style={styles.paymentDetail}>Pay when you receive</Text>
-                </>
-              )}
+
+          {/* Cash on Delivery */}
+          <TouchableOpacity
+            style={[
+              styles.paymentOption,
+              selectedPaymentMethod === "cod" && styles.paymentOptionSelected,
+            ]}
+            onPress={() => {
+              setSelectedPaymentMethod("cod");
+              setSelectedPaymentId(null);
+            }}
+          >
+            <View style={styles.paymentInfo}>
+              <Wallet
+                size={20}
+                color={
+                  selectedPaymentMethod === "cod"
+                    ? Colors.primary900
+                    : Colors.neutralMedium
+                }
+              />
+              <View style={styles.paymentTextContainer}>
+                <Text style={styles.paymentType}>Cash on Delivery</Text>
+                <Text style={styles.paymentDetail}>Pay when you receive</Text>
+              </View>
             </View>
-          )}
+            {selectedPaymentMethod === "cod" && (
+              <Check size={20} color={Colors.primary900} />
+            )}
+          </TouchableOpacity>
+
+          {/* Saved Cards */}
+          {paymentMethods.map((card) => (
+            <TouchableOpacity
+              key={card.id}
+              style={[
+                styles.paymentOption,
+                selectedPaymentMethod === "card" &&
+                  selectedPaymentId === card.id &&
+                  styles.paymentOptionSelected,
+              ]}
+              onPress={() => {
+                setSelectedPaymentMethod("card");
+                setSelectedPaymentId(card.id);
+              }}
+            >
+              <View style={styles.paymentInfo}>
+                <CreditCard
+                  size={20}
+                  color={
+                    selectedPaymentMethod === "card" &&
+                    selectedPaymentId === card.id
+                      ? Colors.primary900
+                      : Colors.neutralMedium
+                  }
+                />
+                <View style={styles.paymentTextContainer}>
+                  <Text style={styles.paymentType}>
+                    {card.card_brand} ****{card.card_last4}
+                  </Text>
+                  <Text style={styles.paymentDetail}>
+                    Expires {card.expiry_month}/{card.expiry_year}
+                  </Text>
+                </View>
+              </View>
+              {selectedPaymentMethod === "card" &&
+                selectedPaymentId === card.id && (
+                  <Check size={20} color={Colors.primary900} />
+                )}
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.section}>
@@ -187,7 +382,7 @@ export default function CheckoutConfirmationScreen() {
                   <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
                 </View>
                 <Text style={styles.itemPrice}>
-                  {item.subtotal.toFixed(2)} EGP
+                  {parseFloat(item.subtotal?.toString() || "0").toFixed(2)} EGP
                 </Text>
               </View>
             ))}
@@ -270,6 +465,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.neutralCloud,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralMedium,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -335,8 +540,8 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
   sectionTitle: {
@@ -344,40 +549,91 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
   },
-  addressCard: {
+  dateScroll: {
+    marginHorizontal: -Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  dateOption: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: 16,
     backgroundColor: Colors.neutralLight,
-    borderRadius: 12,
-    padding: Spacing.sm,
+    marginRight: Spacing.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
-  addressLabel: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
+  dateOptionSelected: {
+    backgroundColor: Colors.primary100,
+    borderColor: Colors.primary900,
   },
-  addressText: {
+  dateText: {
     fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
     color: Colors.neutralMedium,
-    marginBottom: 4,
   },
-  addressPhone: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-    marginTop: Spacing.xs,
+  dateTextSelected: {
+    color: Colors.primary900,
   },
-  paymentCard: {
-    backgroundColor: Colors.neutralLight,
+  slotGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  slotOption: {
+    flex: 1,
+    minWidth: "48%",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderRadius: 12,
-    padding: Spacing.sm,
+    backgroundColor: Colors.neutralLight,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  slotOptionSelected: {
+    backgroundColor: Colors.primary100,
+    borderColor: Colors.primary900,
+  },
+  slotText: {
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
+    color: Colors.neutralMedium,
+  },
+  slotTextSelected: {
+    color: Colors.primary900,
+  },
+  paymentOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: 12,
+    backgroundColor: Colors.neutralLight,
+    marginBottom: Spacing.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  paymentOptionSelected: {
+    backgroundColor: Colors.primary100,
+    borderColor: Colors.primary900,
+  },
+  paymentInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  paymentTextContainer: {
+    flex: 1,
   },
   paymentType: {
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   paymentDetail: {
-    fontSize: Typography.bodyBase,
+    fontSize: Typography.bodyMedium,
     color: Colors.neutralMedium,
   },
   orderItems: {

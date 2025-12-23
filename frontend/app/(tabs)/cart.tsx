@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,9 +6,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  TextInput,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react-native";
+import { Minus, Plus, Trash2, ShoppingBag, Tag, X } from "lucide-react-native";
 import { router } from "expo-router";
 
 import Colors from "@/constants/Colors";
@@ -16,14 +19,63 @@ import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { Button } from "@/components/Button";
 import { useStore } from "@/store";
+import { GuestModal } from "@/components/GuestModal";
 
 export default function CartScreen() {
-  const { cart, updateQuantity, removeFromCart, clearCart } = useStore();
+  const {
+    cart,
+    updateQuantity,
+    removeFromCart,
+    clearCart,
+    applyPromoCodeToCart,
+    removePromoCodeFromCart,
+    user,
+  } = useStore();
+  const [promoCode, setPromoCode] = useState("");
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   const cartItems = cart?.items || [];
   const subtotal = cart?.subtotal || 0;
+  const discount = cart?.discount || 0;
   const deliveryFee = cart?.delivery_fee || 0;
+  const tax = cart?.tax || 0;
   const total = cart?.total || 0;
+  const appliedPromo = cart?.promo_code || null;
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+
+    setIsApplyingPromo(true);
+    try {
+      await applyPromoCodeToCart(promoCode.trim());
+      setPromoCode("");
+      Alert.alert("Success", "Promo code applied successfully!");
+    } catch (error: any) {
+      Alert.alert(
+        "Invalid Code",
+        error.message || "This promo code is not valid or has expired."
+      );
+    } finally {
+      setIsApplyingPromo(false);
+    }
+  };
+
+  const handleRemovePromo = async () => {
+    try {
+      await removePromoCodeFromCart();
+    } catch (error) {
+      console.error("Failed to remove promo:", error);
+    }
+  };
+
+  const handleCheckout = () => {
+    if (!user) {
+      setShowGuestModal(true);
+      return;
+    }
+    router.push("/checkout/address" as any);
+  };
 
   if (cartItems.length === 0) {
     return (
@@ -132,6 +184,59 @@ export default function CartScreen() {
           </View>
         ))}
 
+        {/* Promo Code Section */}
+        <View style={styles.promoContainer}>
+          <Text style={styles.promoTitle}>Have a promo code?</Text>
+
+          {appliedPromo ? (
+            <View style={styles.appliedPromoCard}>
+              <View style={styles.appliedPromoLeft}>
+                <Tag size={20} color={Colors.primary900} />
+                <View style={styles.appliedPromoText}>
+                  <Text style={styles.appliedPromoCode}>{appliedPromo}</Text>
+                  <Text style={styles.appliedPromoSaved}>
+                    You saved{" "}
+                    {parseFloat(discount?.toString() || "0").toFixed(2)} EGP!
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={handleRemovePromo}
+                style={styles.removePromoButton}
+              >
+                <X size={20} color={Colors.neutralMedium} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.promoInputRow}>
+              <TextInput
+                style={styles.promoInput}
+                placeholder="Enter promo code"
+                placeholderTextColor={Colors.neutralGray}
+                value={promoCode}
+                onChangeText={setPromoCode}
+                autoCapitalize="characters"
+                editable={!isApplyingPromo}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.applyButton,
+                  (!promoCode.trim() || isApplyingPromo) &&
+                    styles.applyButtonDisabled,
+                ]}
+                onPress={handleApplyPromo}
+                disabled={!promoCode.trim() || isApplyingPromo}
+              >
+                {isApplyingPromo ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Text style={styles.applyButtonText}>Apply</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -139,10 +244,28 @@ export default function CartScreen() {
               {parseFloat(subtotal?.toString() || "0").toFixed(2)} EGP
             </Text>
           </View>
+          {discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, styles.discountLabel]}>
+                Discount
+              </Text>
+              <Text style={[styles.summaryValue, styles.discountValue]}>
+                -{parseFloat(discount?.toString() || "0").toFixed(2)} EGP
+              </Text>
+            </View>
+          )}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Delivery Fee</Text>
             <Text style={styles.summaryValue}>
-              {parseFloat(deliveryFee?.toString() || "0").toFixed(2)} EGP
+              {deliveryFee === 0
+                ? "FREE"
+                : `${parseFloat(deliveryFee?.toString() || "0").toFixed(2)} EGP`}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Tax (14%)</Text>
+            <Text style={styles.summaryValue}>
+              {parseFloat(tax?.toString() || "0").toFixed(2)} EGP
             </Text>
           </View>
           <View style={[styles.summaryRow, styles.totalRow]}>
@@ -163,10 +286,16 @@ export default function CartScreen() {
         </View>
         <Button
           title="Proceed to Checkout"
-          onPress={() => router.push("/checkout/address" as any)}
+          onPress={handleCheckout}
           variant="primary"
         />
       </View>
+
+      <GuestModal
+        visible={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        message="Please sign in to proceed with checkout"
+      />
     </SafeAreaView>
   );
 }
@@ -335,6 +464,87 @@ const styles = StyleSheet.create({
   footerTotal: {
     fontSize: Typography.h2,
     fontWeight: Typography.bold,
+    color: Colors.primary900,
+  },
+  promoContainer: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 24,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  promoTitle: {
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.md,
+  },
+  promoInputRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  promoInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
+    borderRadius: 16,
+    paddingHorizontal: Spacing.md,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
+    backgroundColor: Colors.neutralLight,
+  },
+  applyButton: {
+    backgroundColor: Colors.primary900,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+  },
+  applyButtonDisabled: {
+    backgroundColor: Colors.neutralGray,
+  },
+  applyButtonText: {
+    color: Colors.neutralWhite,
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
+  },
+  appliedPromoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.primary100,
+    borderRadius: 16,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.primary900,
+  },
+  appliedPromoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  appliedPromoText: {
+    flex: 1,
+  },
+  appliedPromoCode: {
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.bold,
+    color: Colors.primary900,
+    marginBottom: 2,
+  },
+  appliedPromoSaved: {
+    fontSize: Typography.bodySmall,
+    color: Colors.primary700,
+  },
+  removePromoButton: {
+    padding: Spacing.xs,
+  },
+  discountLabel: {
+    color: Colors.primary900,
+  },
+  discountValue: {
     color: Colors.primary900,
   },
 });

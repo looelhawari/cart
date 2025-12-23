@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CheckoutController;
+use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use Illuminate\Support\Facades\Route;
 
@@ -78,6 +80,23 @@ Route::prefix('v1')->group(function () {
         Route::put('addresses/{id}', [AddressController::class, 'update']);
         Route::delete('addresses/{id}', [AddressController::class, 'destroy']);
         Route::post('addresses/{id}/default', [AddressController::class, 'setDefault']);
+
+        // Checkout endpoints
+        Route::prefix('checkout')->group(function () {
+            Route::get('/addresses', [CheckoutController::class, 'getAddresses']);
+            Route::get('/delivery-slots', [CheckoutController::class, 'getDeliverySlots']);
+            Route::get('/payment-methods', [CheckoutController::class, 'getPaymentMethods']);
+            Route::post('/calculate', [CheckoutController::class, 'calculateSummary']);
+        });
+
+        // Order endpoints
+        Route::prefix('orders')->group(function () {
+            Route::get('/', [OrderController::class, 'index']);
+            Route::post('/', [OrderController::class, 'store']);
+            Route::get('/{id}', [OrderController::class, 'show']);
+            Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
+            Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
+        });
 
         // Phone verification for social login users
         Route::post('auth/send-phone-otp', [SocialAuthController::class, 'sendPhoneOtp']);

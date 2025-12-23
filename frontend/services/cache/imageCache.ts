@@ -8,7 +8,7 @@ import { Platform } from "react-native";
  */
 
 const CACHE_DIR = `${FileSystem.cacheDirectory}images/`;
-const MAX_CACHE_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_CACHE_SIZE = 0.5 * 1024 * 1024 * 1024; // 500MB
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 interface CacheMetadata {
@@ -57,16 +57,16 @@ export const getCachedImage = async (
   try {
     // Validate and fix URL
     let validUrl = url.trim();
-    
+
     // Check if URL is malformed (missing 'h' in http/https)
-    if (validUrl.startsWith('ttps://') || validUrl.startsWith('ttp://')) {
+    if (validUrl.startsWith("ttps://") || validUrl.startsWith("ttp://")) {
       console.warn(`⚠️ Fixing malformed URL: ${validUrl}`);
-      validUrl = 'h' + validUrl;
+      validUrl = "h" + validUrl;
       console.log(`✅ Fixed URL: ${validUrl}`);
     }
-    
+
     // Validate URL scheme
-    if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://')) {
+    if (!validUrl.startsWith("http://") && !validUrl.startsWith("https://")) {
       console.error(`❌ Invalid URL scheme: ${validUrl}`);
       return url; // Return original as fallback
     }

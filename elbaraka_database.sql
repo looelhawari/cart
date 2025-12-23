@@ -596,7 +596,20 @@ INSERT INTO settings (`key`, value, type, description) VALUES
 -- Insert default admin user (password: 'password' - hashed with bcrypt)
 -- Note: Change password immediately in production!
 INSERT INTO users (first_name, last_name, email, phone, password, role, email_verified_at, is_active, is_verified) VALUES
-('Admin', 'User', 'admin@elbaraka.com', '+201000000000', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', NOW(), TRUE, TRUE);
+('Admin', 'User', 'admin@elbaraka.com', '+201000000000', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', NOW(), TRUE, TRUE),
+('Test', 'User', 'test@example.com', '+201234567890', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'customer', NOW(), TRUE, TRUE);
+
+-- Insert sample addresses for test user
+INSERT INTO addresses (user_id, label, street, city, is_default) VALUES
+(2, 'Home', '15 Tahrir Street, Apartment 5, Floor 3, Downtown', 'Cairo', TRUE),
+(2, 'Work', '42 Nile Corniche, Building 8, Suite 201', 'Giza', FALSE),
+(2, 'Parents House', '7 El Manial Street, Villa 12', 'Cairo', FALSE);
+
+-- Insert sample payment methods for test user
+INSERT INTO payment_methods (user_id, type, card_last_four, card_brand, token, is_default, expires_at) VALUES
+(2, 'card', '4242', 'visa', 'tok_visa_4242_test_token_12345', TRUE, '2027-12-31'),
+(2, 'card', '5555', 'mastercard', 'tok_mastercard_5555_test_token_67890', FALSE, '2026-08-31'),
+(2, 'card', '3782', 'amex', 'tok_amex_3782_test_token_11223', FALSE, '2028-03-31');
 
 -- Insert sample categories
 INSERT INTO categories (parent_id, name_en, name_ar, slug, sort_order, is_active) VALUES
