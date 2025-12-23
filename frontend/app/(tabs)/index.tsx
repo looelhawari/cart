@@ -172,7 +172,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <Text style={styles.greeting}>{greeting}! 👋</Text>
+          {/* <Text style={styles.greeting}>{greeting}! 👋</Text> */}
         </View>
 
         <View style={styles.content}>
