@@ -1,4 +1,4 @@
-import { apiRequest, API_BASE_URL, getAuthToken } from "./base";
+import { apiRequest, API_BASE_URL, getAuthToken, safeJsonParse } from "./base";
 import { UpdateProfileData, ChangePasswordData } from "./types";
 
 // Profile Management API
@@ -42,11 +42,11 @@ export const profileApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await safeJsonParse(response);
       throw error;
     }
 
-    return await response.json();
+    return await safeJsonParse(response);
   },
 
   // Delete avatar

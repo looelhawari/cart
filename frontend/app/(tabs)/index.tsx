@@ -29,6 +29,7 @@ import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
 import type { Product } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { banners } from "@/data/banners";
+import { API_CONFIG } from "@/config/app.config";
 
 export default function HomeScreen() {
   const [fontsLoaded] = useFonts({
@@ -55,50 +56,32 @@ export default function HomeScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
-      console.log("🔄 Loading home screen data...");
+
+      // Test API connectivity
+      console.log("🔍 Testing API connectivity...");
+      console.log("🔍 API Base URL:", API_CONFIG.BASE_URL);
 
       const [categoriesRes, featuredRes, flashDealsRes] = await Promise.all([
-        getFeaturedCategoriesWithProducts().catch((err) => {
-          console.error("❌ Categories error:", err);
-          return { success: false, data: { categories: [] } };
-        }),
-        getFeaturedProducts().catch((err) => {
-          console.error("❌ Featured products error:", err);
-          return { success: false, data: { products: [] } };
-        }),
-        getFlashDeals().catch((err) => {
-          console.error("❌ Flash deals error:", err);
-          return { success: false, data: { products: [] } };
-        }),
+        getFeaturedCategoriesWithProducts(),
+        getFeaturedProducts(),
+        getFlashDeals(),
       ]);
 
-      console.log("✅ Categories response:", categoriesRes);
-      console.log("✅ Featured products response:", featuredRes);
-      console.log("✅ Flash deals response:", flashDealsRes);
-
-      if (categoriesRes.success) {
-        console.log(
-          `✅ Setting ${categoriesRes.data.categories.length} categories with products`
-        );
+      if (categoriesRes.success && categoriesRes.data.categories.length > 0) {
         setCategoriesWithProducts(categoriesRes.data.categories);
       }
-      if (featuredRes.success) {
-        console.log(
-          `✅ Setting ${featuredRes.data.products.length} featured products`
-        );
+
+      if (featuredRes.success && featuredRes.data.products.length > 0) {
         setFeaturedProducts(featuredRes.data.products.slice(0, 6));
       }
-      if (flashDealsRes.success) {
-        console.log(
-          `✅ Setting ${flashDealsRes.data.products.length} flash deals`
-        );
+
+      if (flashDealsRes.success && flashDealsRes.data.products.length > 0) {
         setFlashDeals(flashDealsRes.data.products);
       }
     } catch (error) {
-      console.error("❌ Failed to load data:", error);
+      console.error("Failed to load home data:", error);
     } finally {
       setLoading(false);
-      console.log("✅ Loading complete");
     }
   };
 

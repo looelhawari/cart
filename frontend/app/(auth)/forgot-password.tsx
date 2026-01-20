@@ -257,7 +257,7 @@ export default function ForgotPasswordScreen() {
             />
             <TouchableOpacity
               onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              style={styles.eyeIcon}
+              style={styles.eyeIcon}  
             >
               {showConfirmPassword ? (
                 <EyeOff size={20} color={Colors.neutralMedium} />
@@ -289,7 +289,7 @@ export default function ForgotPasswordScreen() {
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+        style={styles.keyboardView} 
       >
         <View style={styles.header}>
           <TouchableOpacity

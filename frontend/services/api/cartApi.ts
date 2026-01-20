@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiRequest, API_BASE_URL } from "./base";
-import { Cart, CartItem } from "./types";
+import { API_BASE_URL, safeJsonParse } from "./base";
+import { Cart } from "./types";
 
 // Session ID management for guest carts
 const SESSION_ID_KEY = "guest_session_id";
@@ -15,9 +15,9 @@ const getSessionId = async (): Promise<string> => {
       /[xy]/g,
       function (c) {
         const r = (Math.random() * 16) | 0;
-        const v = c == "x" ? r : (r & 0x3) | 0x8;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
         return v.toString(16);
-      }
+      },
     );
     await AsyncStorage.setItem(SESSION_ID_KEY, sessionId);
   }
@@ -49,11 +49,11 @@ export const getCart = async (): Promise<{
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 /**
@@ -62,7 +62,7 @@ export const getCart = async (): Promise<{
  */
 export const addToCart = async (
   productId: number,
-  quantity: number = 1
+  quantity: number = 1,
 ): Promise<{ success: boolean; message: string; data: any }> => {
   const sessionId = await getSessionId();
 
@@ -79,11 +79,11 @@ export const addToCart = async (
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 /**
@@ -92,7 +92,7 @@ export const addToCart = async (
  */
 export const updateCartItem = async (
   itemId: number,
-  quantity: number
+  quantity: number,
 ): Promise<{ success: boolean; message: string; data: { cart: Cart } }> => {
   const sessionId = await getSessionId();
 
@@ -106,11 +106,11 @@ export const updateCartItem = async (
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 /**
@@ -118,7 +118,7 @@ export const updateCartItem = async (
  * DELETE /api/v1/cart/items/{id}
  */
 export const removeCartItem = async (
-  itemId: number
+  itemId: number,
 ): Promise<{ success: boolean; message: string }> => {
   const sessionId = await getSessionId();
 
@@ -131,11 +131,11 @@ export const removeCartItem = async (
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 /**
@@ -157,11 +157,11 @@ export const clearCart = async (): Promise<{
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 /**
@@ -169,7 +169,7 @@ export const clearCart = async (): Promise<{
  * POST /api/v1/cart/apply-promo
  */
 export const applyPromoCode = async (
-  code: string
+  code: string,
 ): Promise<{ success: boolean; message: string; data: any }> => {
   const sessionId = await getSessionId();
 
@@ -183,11 +183,11 @@ export const applyPromoCode = async (
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 /**
@@ -210,11 +210,11 @@ export const removePromoCode = async (): Promise<{
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await safeJsonParse(response);
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };
 
 // Export all cart operations

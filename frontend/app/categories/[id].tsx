@@ -36,6 +36,7 @@ const { width } = Dimensions.get("window");
 export default function CategoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState<Category | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<
@@ -51,15 +52,28 @@ export default function CategoryDetailScreen() {
   const cartItemsCount =
     cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
+  // Initial load only
   useEffect(() => {
     if (id) {
-      loadCategoryData();
+      loadCategoryData(true);
     }
-  }, [id, selectedSubcategoryId, sortBy, sortOrder]);
+  }, [id]);
 
-  const loadCategoryData = async () => {
+  // Filter changes - smooth updates without full loading state
+  useEffect(() => {
+    if (id && !loading) {
+      loadCategoryData(false);
+    }
+  }, [selectedSubcategoryId, sortBy, sortOrder]);
+
+  const loadCategoryData = async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+
       const params: any = {
         sort_by: sortBy,
         sort_order: sortOrder,
@@ -74,8 +88,8 @@ export default function CategoryDetailScreen() {
         setCategory(response.data.category);
         setProducts(response.data.products);
 
-        // Cache hero image
-        if (response.data.category.image) {
+        // Cache hero image only on initial load
+        if (isInitialLoad && response.data.category.image) {
           getCachedImage(response.data.category.image).then((cachedUri) => {
             if (cachedUri) {
               setCachedHeroImage(cachedUri);
@@ -86,7 +100,11 @@ export default function CategoryDetailScreen() {
     } catch (error) {
       console.error("Failed to load category:", error);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
   };
 
@@ -359,6 +377,12 @@ export default function CategoryDetailScreen() {
       {renderSortModal()}
 
       {/* Products */}
+      {refreshing ? (
+        <View style={styles.refreshingContainer}>
+          <ActivityIndicator size="small" color={Colors.primary900} />
+        </View>
+      ) : null}
+
       {products.length > 0 ? (
         <FlatList
           data={products}
@@ -368,6 +392,7 @@ export default function CategoryDetailScreen() {
           columnWrapperStyle={styles.productRow}
           contentContainerStyle={styles.productsGrid}
           showsVerticalScrollIndicator={false}
+          style={{ opacity: refreshing ? 0.6 : 1 }}
         />
       ) : loading ? (
         <View style={[styles.centered, { flex: 1 }]}>
@@ -592,6 +617,18 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: Colors.neutralMedium,
+  },
+  refreshingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  refreshingText: {
+    fontSize: 13,
+    color: Colors.neutralMedium,
+    fontWeight: "500",
   },
   // Old Subcategory Row Styles (kept for backwards compatibility)
   listContent: {

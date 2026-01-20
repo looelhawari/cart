@@ -45,37 +45,32 @@ const getCacheKey = (url: string): string => {
  * Get cached image URI or download if not cached
  */
 export const getCachedImage = async (
-  url: string | undefined
+  url: string | undefined,
 ): Promise<string | undefined> => {
   if (!url) return undefined;
 
-  // Return original URL for web platform
+  // Fix escaped backslashes in URLs
+  const cleanUrl = url.replace(/\\\//g, "/");
+
+  // Validate URL format
+  try {
+    new URL(cleanUrl);
+  } catch (error) {
+    console.error("Invalid image URL:", cleanUrl);
+    return undefined;
+  }
+
+  // Return cleaned URL for web platform
   if (Platform.OS === "web") {
-    return url;
+    return cleanUrl;
   }
 
   try {
-    // Validate and fix URL
-    let validUrl = url.trim();
-
-    // Check if URL is malformed (missing 'h' in http/https)
-    if (validUrl.startsWith("ttps://") || validUrl.startsWith("ttp://")) {
-      console.warn(`⚠️ Fixing malformed URL: ${validUrl}`);
-      validUrl = "h" + validUrl;
-      console.log(`✅ Fixed URL: ${validUrl}`);
-    }
-
-    // Validate URL scheme
-    if (!validUrl.startsWith("http://") && !validUrl.startsWith("https://")) {
-      console.error(`❌ Invalid URL scheme: ${validUrl}`);
-      return url; // Return original as fallback
-    }
-
-    const cacheKey = getCacheKey(validUrl);
+    const cacheKey = getCacheKey(cleanUrl);
     const localUri = `${CACHE_DIR}${cacheKey}`;
 
     // Check if already in memory cache
-    const metadata = metadataCache.get(validUrl);
+    const metadata = metadataCache.get(cleanUrl);
     if (metadata) {
       const fileInfo = await FileSystem.getInfoAsync(metadata.localUri);
       if (fileInfo.exists) {
@@ -91,8 +86,8 @@ export const getCachedImage = async (
     const fileInfo = await FileSystem.getInfoAsync(localUri);
     if (fileInfo.exists) {
       const stat = fileInfo as FileSystem.FileInfo & { size?: number };
-      metadataCache.set(validUrl, {
-        url: validUrl,
+      metadataCache.set(cleanUrl, {
+        url: cleanUrl,
         localUri,
         timestamp: Date.now(),
         size: stat.size || 0,
@@ -102,7 +97,8 @@ export const getCachedImage = async (
 
     // Download and cache the image
     await initImageCache();
-    const downloadResult = await FileSystem.downloadAsync(validUrl, localUri);
+    // Download image
+    const downloadResult = await FileSystem.downloadAsync(cleanUrl, localUri);
 
     if (downloadResult.status === 200) {
       const downloadedFileInfo = await FileSystem.getInfoAsync(localUri);
@@ -110,8 +106,8 @@ export const getCachedImage = async (
         size?: number;
       };
 
-      metadataCache.set(validUrl, {
-        url: validUrl,
+      metadataCache.set(cleanUrl, {
+        url: cleanUrl,
         localUri,
         timestamp: Date.now(),
         size: stat.size || 0,
@@ -123,12 +119,12 @@ export const getCachedImage = async (
       return localUri;
     }
 
-    // Return original URL if download fails
-    return url;
+    // Return cleaned URL if download fails
+    return cleanUrl;
   } catch (error) {
     console.error("Image cache error:", error);
-    // Return original URL as fallback
-    return url;
+    // Return cleaned URL as fallback
+    return cleanUrl;
   }
 };
 
@@ -144,8 +140,8 @@ export const preloadImages = async (urls: string[]): Promise<void> => {
         getCachedImage(url).catch((error) => {
           console.warn(`Failed to preload image ${url}:`, error);
           return null;
-        })
-      )
+        }),
+      ),
     );
   } catch (error) {
     console.error("Failed to preload images:", error);
@@ -183,7 +179,7 @@ const cleanCacheIfNeeded = async (): Promise<void> => {
     if (totalSize > MAX_CACHE_SIZE) {
       // Sort by timestamp (oldest first)
       const entries = Array.from(metadataCache.entries()).sort(
-        (a, b) => a[1].timestamp - b[1].timestamp
+        (a, b) => a[1].timestamp - b[1].timestamp,
       );
 
       let freedSpace = 0;

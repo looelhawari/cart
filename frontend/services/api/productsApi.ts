@@ -39,7 +39,7 @@ const buildQueryString = (params?: Record<string, any>): string => {
     .filter(([_, value]) => value !== undefined && value !== null)
     .map(
       ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
+        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
     )
     .join("&");
   return query ? `?${query}` : "";
@@ -50,7 +50,7 @@ const buildQueryString = (params?: Record<string, any>): string => {
  */
 export const getProducts = async (
   filters?: ProductFilters,
-  useCache: boolean = true
+  useCache: boolean = true,
 ): Promise<ProductsResponse> => {
   const queryString = buildQueryString(filters);
   const cacheKey = `products:all${queryString}`;
@@ -65,11 +65,16 @@ export const getProducts = async (
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw error;
+      console.error("Products API error:", response.status);
+      return { success: false, data: { products: [] } };
     }
 
-    return await response.json();
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      return { success: false, data: { products: [] } };
+    }
+
+    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -84,7 +89,7 @@ export const getProducts = async (
  */
 export const getProduct = async (
   barcode: number | string,
-  useCache: boolean = true
+  useCache: boolean = true,
 ): Promise<ProductResponse> => {
   const fetchFn = async () => {
     const response = await fetch(`${API_BASE_URL}/products/${barcode}`, {
@@ -96,11 +101,15 @@ export const getProduct = async (
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw error;
+      throw new Error(`Product not found: ${barcode}`);
     }
 
-    return await response.json();
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      throw new Error("Empty response from API");
+    }
+
+    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -117,6 +126,11 @@ export const getProduct = async (
  */
 export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
   try {
+    console.log(
+      "📡 Fetching featured products from:",
+      `${API_BASE_URL}/products/featured`,
+    );
+
     const response = await fetch(`${API_BASE_URL}/products/featured`, {
       method: "GET",
       headers: {
@@ -125,17 +139,39 @@ export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
       },
     });
 
+    console.log("📡 Featured products response status:", response.status);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Featured products API error:", response.status, errorText);
-      throw new Error(`API Error: ${response.status}`);
+      console.error("Featured products API error:", response.status);
+      return { success: false, data: { products: [] } };
     }
 
-    const data = await response.json();
+    const text = await response.text();
+    console.log("📡 Featured products response length:", text.length, "chars");
+
+    if (!text || text.trim().length === 0) {
+      console.warn("Empty response from featured products API");
+      return { success: false, data: { products: [] } };
+    }
+
+    // Check if response is HTML
+    if (text.trim().startsWith("<")) {
+      console.error(
+        "Server returned HTML instead of JSON:",
+        text.substring(0, 200),
+      );
+      return { success: false, data: { products: [] } };
+    }
+
+    const data = JSON.parse(text);
+    console.log(
+      "✅ Featured products loaded:",
+      data.data?.products?.length || 0,
+    );
     return data;
   } catch (error) {
     console.error("getFeaturedProducts error:", error);
-    throw error;
+    return { success: false, data: { products: [] } };
   }
 };
 
@@ -153,16 +189,15 @@ export const getFlashDeals = async (): Promise<ProductsResponse> => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Flash deals API error:", response.status, errorText);
-      throw new Error(`API Error: ${response.status}`);
+      console.error("Flash deals API error:", response.status);
+      return { success: false, data: { products: [] } };
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
     console.error("getFlashDeals error:", error);
-    throw error;
+    return { success: false, data: { products: [] } };
   }
 };
 
@@ -171,21 +206,30 @@ export const getFlashDeals = async (): Promise<ProductsResponse> => {
  */
 export const searchProducts = async (
   query: string,
-  filters?: Partial<ProductFilters>
+  filters?: Partial<ProductFilters>,
 ): Promise<ProductsResponse> => {
-  const queryString = buildQueryString({ search: query, ...filters });
-  const response = await fetch(`${API_BASE_URL}/products${queryString}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-  });
+  try {
+    const queryString = buildQueryString({ search: query, ...filters });
+    const response = await fetch(`${API_BASE_URL}/products${queryString}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw error;
+    if (!response.ok) {
+      return { success: false, data: { products: [] } };
+    }
+
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      return { success: false, data: { products: [] } };
+    }
+
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("searchProducts error:", error);
+    return { success: false, data: { products: [] } };
   }
-
-  return await response.json();
 };

@@ -53,6 +53,11 @@ export interface FeaturedCategoriesResponse {
 export const getFeaturedCategoriesWithProducts =
   async (): Promise<FeaturedCategoriesResponse> => {
     try {
+      console.log(
+        "📡 Fetching featured categories from:",
+        `${API_BASE_URL}/categories/featured-with-products`,
+      );
+
       const response = await fetch(
         `${API_BASE_URL}/categories/featured-with-products`,
         {
@@ -61,24 +66,25 @@ export const getFeaturedCategoriesWithProducts =
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-        }
+        },
       );
 
+      console.log("📡 Featured categories response status:", response.status);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          "Featured categories API error:",
-          response.status,
-          errorText
-        );
-        throw new Error(`API Error: ${response.status}`);
+        console.error("Featured categories API error:", response.status);
+        return { success: false, data: { categories: [] } };
       }
 
       const data = await response.json();
+      console.log(
+        "✅ Featured categories loaded:",
+        data.data?.categories?.length || 0,
+      );
       return data;
     } catch (error) {
       console.error("getFeaturedCategoriesWithProducts error:", error);
-      throw error;
+      return { success: false, data: { categories: [] } };
     }
   };
 
@@ -86,7 +92,7 @@ export const getFeaturedCategoriesWithProducts =
  * Get all categories
  */
 export const getCategories = async (
-  useCache: boolean = true
+  useCache: boolean = true,
 ): Promise<CategoriesResponse> => {
   const fetchFn = async () => {
     const response = await fetch(`${API_BASE_URL}/categories`, {
@@ -98,12 +104,16 @@ export const getCategories = async (
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Categories API error:", response.status, errorText);
-      throw new Error(`API Error: ${response.status}`);
+      console.error("Categories API error:", response.status);
+      return { success: false, data: { categories: [] } };
     }
 
-    return await response.json();
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      return { success: false, data: { categories: [] } };
+    }
+
+    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -120,7 +130,7 @@ export const getCategories = async (
  */
 export const getCategory = async (
   categoryId: number,
-  useCache: boolean = true
+  useCache: boolean = true,
 ): Promise<CategoryResponse> => {
   const fetchFn = async () => {
     const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
@@ -132,10 +142,15 @@ export const getCategory = async (
     });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+      throw new Error(`Category not found: ${categoryId}`);
     }
 
-    return await response.json();
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      throw new Error("Empty response from API");
+    }
+
+    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -163,7 +178,7 @@ export const getCategoryProducts = async (
     per_page?: number;
     page?: number;
   },
-  useCache: boolean = true
+  useCache: boolean = true,
 ): Promise<CategoryProductsResponse> => {
   const queryParams = new URLSearchParams();
   if (filters?.subcategory_id)
@@ -197,11 +212,15 @@ export const getCategoryProducts = async (
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw error;
+      throw new Error(`API Error: ${response.status}`);
     }
 
-    return await response.json();
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      throw new Error("Empty response from API");
+    }
+
+    return JSON.parse(text);
   };
 
   if (useCache) {
