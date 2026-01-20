@@ -9,6 +9,7 @@ import {
   ImageBackground,
   RefreshControl,
   Dimensions,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -36,7 +37,7 @@ export default function CategoriesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cachedImages, setCachedImages] = useState<Map<number, string>>(
-    new Map()
+    new Map(),
   );
   const { cart } = useStore();
   const cartItemsCount =
@@ -53,12 +54,12 @@ export default function CategoriesScreen() {
       const response = await getCategories();
       console.log(
         "✅ Categories response:",
-        JSON.stringify(response).substring(0, 200)
+        JSON.stringify(response).substring(0, 200),
       );
       if (response.success) {
         console.log(
           "✅ Total categories from API:",
-          response.data.categories.length
+          response.data.categories.length,
         );
 
         // Filter only root categories (parent_id is null) and sort by sort_order
@@ -66,19 +67,19 @@ export default function CategoriesScreen() {
           .filter((cat: Category) => {
             const isRoot = !cat.parent_id;
             console.log(
-              `Category ${cat.id} "${cat.name_en}" - parent_id: ${cat.parent_id}, isRoot: ${isRoot}`
+              `Category ${cat.id} "${cat.name_en}" - parent_id: ${cat.parent_id}, isRoot: ${isRoot}`,
             );
             return isRoot;
           })
           .sort(
             (a: Category, b: Category) =>
-              (a.sort_order || 0) - (b.sort_order || 0)
+              (a.sort_order || 0) - (b.sort_order || 0),
           );
 
         console.log(
           "✅ Setting",
           rootCategories.length,
-          "categories with products"
+          "categories with products",
         );
         setCategories(rootCategories);
 
@@ -98,7 +99,7 @@ export default function CategoriesScreen() {
                   imageCache.set(cat.id, cachedUri);
                 }
               }
-            })
+            }),
           ).then(() => {
             setCachedImages(imageCache);
           });
@@ -106,6 +107,11 @@ export default function CategoriesScreen() {
       }
     } catch (error) {
       console.error("Failed to load categories:", error);
+      Alert.alert(
+        "Connection Error",
+        "Unable to load categories. Please make sure you're connected to the internet and the server is running.",
+        [{ text: "Retry", onPress: loadCategories }, { text: "OK" }],
+      );
     } finally {
       setLoading(false);
     }

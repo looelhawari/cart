@@ -4,7 +4,32 @@ import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 // API Configuration
 export const API_BASE_URL = API_CONFIG.BASE_URL;
 
-// Helper: Safely parse JSON response
+// Helper: Safely parse JSON from response - handles all error cases
+export const safeResponseJson = async (response: Response): Promise<any> => {
+  try {
+    // Use response.json() directly - it handles encoding properly
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    // Only log actual parsing failures
+    if (error instanceof SyntaxError) {
+      console.warn("Failed to parse JSON response from server");
+      return {
+        success: false,
+        data: {},
+        message: "Invalid JSON response from server",
+      };
+    }
+    console.warn("Error reading response:", error);
+    return {
+      success: false,
+      data: {},
+      message: "Failed to read server response",
+    };
+  }
+};
+
+// Helper: Safely parse JSON response (legacy - throws errors)
 export const safeJsonParse = async (response: Response): Promise<any> => {
   const text = await response.text();
 

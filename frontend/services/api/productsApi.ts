@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./base";
+import { API_BASE_URL, safeResponseJson } from "./base";
 import type { Product } from "@/types";
 import { cacheFirstFetch, networkFirstFetch } from "../cache/apiCache";
 
@@ -56,25 +56,29 @@ export const getProducts = async (
   const cacheKey = `products:all${queryString}`;
 
   const fetchFn = async () => {
-    const response = await fetch(`${API_BASE_URL}/products${queryString}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/products${queryString}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      console.error("Products API error:", response.status);
+      if (!response.ok) {
+        console.error("Products API error:", response.status);
+        return { success: false, data: { products: [] } };
+      }
+
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        return { success: false, data: { products: [] } };
+      }
+      return data;
+    } catch (error) {
+      console.error("getProducts error:", error);
       return { success: false, data: { products: [] } };
     }
-
-    const text = await response.text();
-    if (!text || text.trim().length === 0) {
-      return { success: false, data: { products: [] } };
-    }
-
-    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -92,24 +96,28 @@ export const getProduct = async (
   useCache: boolean = true,
 ): Promise<ProductResponse> => {
   const fetchFn = async () => {
-    const response = await fetch(`${API_BASE_URL}/products/${barcode}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/${barcode}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`Product not found: ${barcode}`);
+      if (!response.ok) {
+        throw new Error(`Product not found: ${barcode}`);
+      }
+
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        throw new Error(`Failed to load product: ${barcode}`);
+      }
+      return data;
+    } catch (error) {
+      console.error(`getProduct(${barcode}) error:`, error);
+      throw error;
     }
-
-    const text = await response.text();
-    if (!text || text.trim().length === 0) {
-      throw new Error("Empty response from API");
-    }
-
-    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -126,11 +134,6 @@ export const getProduct = async (
  */
 export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
   try {
-    console.log(
-      "📡 Fetching featured products from:",
-      `${API_BASE_URL}/products/featured`,
-    );
-
     const response = await fetch(`${API_BASE_URL}/products/featured`, {
       method: "GET",
       headers: {
@@ -139,35 +142,15 @@ export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
       },
     });
 
-    console.log("📡 Featured products response status:", response.status);
-
     if (!response.ok) {
       console.error("Featured products API error:", response.status);
       return { success: false, data: { products: [] } };
     }
 
-    const text = await response.text();
-    console.log("📡 Featured products response length:", text.length, "chars");
-
-    if (!text || text.trim().length === 0) {
-      console.warn("Empty response from featured products API");
+    const data = await safeResponseJson(response);
+    if (!data.success) {
       return { success: false, data: { products: [] } };
     }
-
-    // Check if response is HTML
-    if (text.trim().startsWith("<")) {
-      console.error(
-        "Server returned HTML instead of JSON:",
-        text.substring(0, 200),
-      );
-      return { success: false, data: { products: [] } };
-    }
-
-    const data = JSON.parse(text);
-    console.log(
-      "✅ Featured products loaded:",
-      data.data?.products?.length || 0,
-    );
     return data;
   } catch (error) {
     console.error("getFeaturedProducts error:", error);
@@ -193,7 +176,10 @@ export const getFlashDeals = async (): Promise<ProductsResponse> => {
       return { success: false, data: { products: [] } };
     }
 
-    const data = await response.json();
+    const data = await safeResponseJson(response);
+    if (!data.success) {
+      return { success: false, data: { products: [] } };
+    }
     return data;
   } catch (error) {
     console.error("getFlashDeals error:", error);
@@ -222,12 +208,11 @@ export const searchProducts = async (
       return { success: false, data: { products: [] } };
     }
 
-    const text = await response.text();
-    if (!text || text.trim().length === 0) {
+    const data = await safeResponseJson(response);
+    if (!data.success) {
       return { success: false, data: { products: [] } };
     }
-
-    return JSON.parse(text);
+    return data;
   } catch (error) {
     console.error("searchProducts error:", error);
     return { success: false, data: { products: [] } };

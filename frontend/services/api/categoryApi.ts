@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./base";
+import { API_BASE_URL, safeResponseJson } from "./base";
 import type { Category } from "@/types";
 import { cacheFirstFetch, networkFirstFetch } from "../cache/apiCache";
 
@@ -76,11 +76,10 @@ export const getFeaturedCategoriesWithProducts =
         return { success: false, data: { categories: [] } };
       }
 
-      const data = await response.json();
-      console.log(
-        "✅ Featured categories loaded:",
-        data.data?.categories?.length || 0,
-      );
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        return { success: false, data: { categories: [] } };
+      }
       return data;
     } catch (error) {
       console.error("getFeaturedCategoriesWithProducts error:", error);
@@ -95,25 +94,29 @@ export const getCategories = async (
   useCache: boolean = true,
 ): Promise<CategoriesResponse> => {
   const fetchFn = async () => {
-    const response = await fetch(`${API_BASE_URL}/categories`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      console.error("Categories API error:", response.status);
+      if (!response.ok) {
+        console.error("Categories API error:", response.status);
+        return { success: false, data: { categories: [] } };
+      }
+
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        return { success: false, data: { categories: [] } };
+      }
+      return data;
+    } catch (error) {
+      console.error("getCategories error:", error);
       return { success: false, data: { categories: [] } };
     }
-
-    const text = await response.text();
-    if (!text || text.trim().length === 0) {
-      return { success: false, data: { categories: [] } };
-    }
-
-    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -133,24 +136,28 @@ export const getCategory = async (
   useCache: boolean = true,
 ): Promise<CategoryResponse> => {
   const fetchFn = async () => {
-    const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`Category not found: ${categoryId}`);
+      if (!response.ok) {
+        throw new Error(`Category not found: ${categoryId}`);
+      }
+
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        throw new Error(`Failed to load category: ${categoryId}`);
+      }
+      return data;
+    } catch (error) {
+      console.error(`getCategory(${categoryId}) error:`, error);
+      throw error;
     }
-
-    const text = await response.text();
-    if (!text || text.trim().length === 0) {
-      throw new Error("Empty response from API");
-    }
-
-    return JSON.parse(text);
   };
 
   if (useCache) {
@@ -201,26 +208,30 @@ export const getCategoryProducts = async (
   const cacheKey = `category:${categoryId}:products${queryString ? `:${queryString}` : ""}`;
 
   const fetchFn = async () => {
-    const url = `${API_BASE_URL}/categories/${categoryId}/products${queryString ? `?${queryString}` : ""}`;
+    try {
+      const url = `${API_BASE_URL}/categories/${categoryId}/products${queryString ? `?${queryString}` : ""}`;
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        throw new Error("Failed to load category products");
+      }
+      return data;
+    } catch (error) {
+      console.error("getCategoryProducts error:", error);
+      throw error;
     }
-
-    const text = await response.text();
-    if (!text || text.trim().length === 0) {
-      throw new Error("Empty response from API");
-    }
-
-    return JSON.parse(text);
   };
 
   if (useCache) {
