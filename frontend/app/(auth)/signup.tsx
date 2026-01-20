@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -27,6 +27,8 @@ import {
   ArrowLeft,
   Check,
   Lock as LockIcon,
+  Edit3,
+  RefreshCw,
 } from "lucide-react-native";
 
 type Step = 1 | 2 | 3 | 4;
@@ -49,6 +51,68 @@ export default function SignupScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpTimer, setOtpTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+
+  const checkEmailAvailability = async (emailToCheck: string) => {
+    try {
+      setIsCheckingEmail(true);
+      setEmailError("");
+
+      const response = await fetch(
+        "http://10.0.2.2:8000/api/v1/auth/check-email",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: emailToCheck }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok && data.errors?.email) {
+        setEmailError(data.errors.email[0]);
+      }
+    } catch (error) {
+      console.log("Email check error:", error);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const checkPhoneAvailability = async (phoneToCheck: string) => {
+    try {
+      setIsCheckingPhone(true);
+      setPhoneError("");
+
+      const response = await fetch(
+        "http://10.0.2.2:8000/api/v1/auth/check-phone",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ phone: phoneToCheck }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok && data.errors?.phone) {
+        setPhoneError(data.errors.phone[0]);
+      }
+    } catch (error) {
+      console.log("Phone check error:", error);
+    } finally {
+      setIsCheckingPhone(false);
+    }
+  };
 
   const validateStep1 = () => {
     if (!firstName.trim()) {
@@ -63,8 +127,16 @@ export default function SignupScreen() {
       Alert.alert("Error", "Please enter your email");
       return false;
     }
+    if (emailError) {
+      Alert.alert("Error", emailError);
+      return false;
+    }
     if (!phone.trim()) {
       Alert.alert("Error", "Please enter your phone number");
+      return false;
+    }
+    if (phoneError) {
+      Alert.alert("Error", phoneError);
       return false;
     }
     return true;
@@ -103,8 +175,23 @@ export default function SignupScreen() {
           language,
         });
         setStep(3);
+        // Start OTP timer
+        startOtpTimer();
       } catch (error: any) {
-        Alert.alert("Error", error.message || "Registration failed");
+        // Parse validation errors
+        if (error.errors) {
+          if (error.errors.email) {
+            setEmailError(error.errors.email[0]);
+            setStep(1); // Go back to Step 1 to show email error
+          }
+          if (error.errors.phone) {
+            setPhoneError(error.errors.phone[0]);
+            setStep(1); // Go back to Step 1 to show phone error
+          }
+          Alert.alert("Validation Error", error.message || "Please check your input");
+        } else {
+          Alert.alert("Error", error.message || "Registration failed");
+        }
       } finally {
         setLoading(false);
       }
@@ -112,6 +199,102 @@ export default function SignupScreen() {
   };
 
   const verifyEmail = useStore((state) => state.verifyEmail);
+
+  // Email validation effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (email && email.includes("@")) {
+        checkEmailAvailability(email);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  // Phone validation effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (phone && phone.length >= 10) {
+        checkPhoneAvailability(phone);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [phone]);
+
+  // OTP Timer Effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (step === 3 && otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [step, otpTimer]);
+
+  const startOtpTimer = () => {
+    setOtpTimer(60);
+    setCanResend(false);
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend || isResending) return;
+
+    try {
+      setIsResending(true);
+      // Call resend OTP API (new endpoint)
+      const response = await fetch(
+        "http://10.0.2.2:8000/api/v1/auth/resend-otp",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert("Success", "OTP has been resent to your email");
+        startOtpTimer();
+      } else {
+        Alert.alert("Error", data.message || "Failed to resend OTP");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to resend OTP");
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleEditEmail = () => {
+    Alert.alert(
+      "Edit Email",
+      "Do you want to change your email address?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Yes, Edit",
+          onPress: () => {
+            setStep(1);
+            setOtp("");
+          },
+        },
+      ]
+    );
+  };
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
@@ -191,7 +374,7 @@ export default function SignupScreen() {
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Email</Text>
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, emailError && styles.inputError]}>
             <Mail
               size={20}
               color={Colors.neutralMedium}
@@ -202,16 +385,23 @@ export default function SignupScreen() {
               placeholder="Enter your email"
               placeholderTextColor={Colors.neutralMedium}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setEmailError(""); // Clear error when user types
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
             />
+            {isCheckingEmail && (
+              <ActivityIndicator size="small" color={Colors.primary900} style={styles.inputLoader} />
+            )}
           </View>
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
         </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Phone Number</Text>
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, phoneError && styles.inputError]}>
             <Phone
               size={20}
               color={Colors.neutralMedium}
@@ -222,10 +412,17 @@ export default function SignupScreen() {
               placeholder="+20 123 456 7890"
               placeholderTextColor={Colors.neutralMedium}
               value={phone}
-              onChangeText={setPhone}
+              onChangeText={(text) => {
+                setPhone(text);
+                setPhoneError(""); // Clear error when user types
+              }}
               keyboardType="phone-pad"
             />
+            {isCheckingPhone && (
+              <ActivityIndicator size="small" color={Colors.primary900} style={styles.inputLoader} />
+            )}
           </View>
+          {phoneError ? <Text style={styles.errorText}>{phoneError}</Text> : null}
         </View>
 
         <View style={styles.inputContainer}>
@@ -402,7 +599,7 @@ export default function SignupScreen() {
               style={[
                 styles.requirementText,
                 /[!@#$%^&*(),.?":{}|<>]/.test(password) &&
-                  styles.requirementMet,
+                styles.requirementMet,
               ]}
             >
               One special character
@@ -416,10 +613,18 @@ export default function SignupScreen() {
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>Verify Your Account</Text>
-      <Text style={styles.stepSubtitle}>
-        Enter the 6-digit code sent to{"\n"}
-        {email}
-      </Text>
+      <View style={styles.emailDisplayContainer}>
+        <Text style={styles.stepSubtitle}>
+          Enter the 6-digit code sent to
+        </Text>
+        <View style={styles.emailRow}>
+          <Text style={styles.emailText}>{email}</Text>
+          <TouchableOpacity onPress={handleEditEmail} style={styles.editButton}>
+            <Edit3 size={16} color={Colors.primary900} />
+            <Text style={styles.editText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <View style={styles.otpContainer}>
         <TextInput
@@ -434,10 +639,27 @@ export default function SignupScreen() {
         />
       </View>
 
-      <TouchableOpacity style={styles.resendButton} disabled={otpTimer > 0}>
-        <Text style={styles.resendText}>
-          {otpTimer > 0 ? `Resend code in ${otpTimer}s` : "Resend Code"}
-        </Text>
+      <TouchableOpacity
+        style={[
+          styles.resendButton,
+          !canResend && styles.resendButtonDisabled
+        ]}
+        disabled={!canResend || isResending}
+        onPress={handleResendOtp}
+      >
+        {isResending ? (
+          <ActivityIndicator size="small" color={Colors.primary900} />
+        ) : (
+          <View style={styles.resendContent}>
+            <RefreshCw size={16} color={canResend ? Colors.primary900 : Colors.neutralMedium} />
+            <Text style={[
+              styles.resendText,
+              !canResend && styles.resendTextDisabled
+            ]}>
+              {canResend ? "Resend Code" : `Resend in ${otpTimer}s`}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -762,5 +984,55 @@ const styles = StyleSheet.create({
   },
   languageTextActive: {
     color: Colors.neutralWhite,
+  },
+  inputError: {
+    borderColor: Colors.accentRed,
+  },
+  errorText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.accentRed,
+    marginTop: Spacing.xs,
+  },
+  emailDisplayContainer: {
+    marginBottom: Spacing.md,
+  },
+  emailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.xs,
+  },
+  emailText: {
+    fontSize: Typography.bodyLarge,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.primary900,
+    marginRight: Spacing.sm,
+  },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  editText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.primary900,
+  },
+  resendContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  resendButtonDisabled: {
+    opacity: 0.5,
+  },
+  resendTextDisabled: {
+    color: Colors.neutralMedium,
+  },
+  inputLoader: {
+    marginLeft: Spacing.xs,
   },
 });

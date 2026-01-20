@@ -545,5 +545,131 @@ class AuthController extends Controller
             'message' => 'Password changed successfully',
         ]);
     }
+
+    /**
+     * Resend OTP for email verification.
+     */
+    public function resendOtp(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found.',
+            ], 404);
+        }
+
+        // Only allow resending OTP for unverified users
+        if ($user->is_verified) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email is already verified.',
+            ], 400);
+        }
+
+        // Generate and send new OTP
+        $otp = $this->otpService->createEmailVerificationOtp($user->email);
+        $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP has been resent to your email.',
+        ]);
+    }
+
+    /**
+     * Check if email is available.
+     */
+    public function checkEmail(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Check if email exists and is verified
+        $user = User::where('email', $request->email)->first();
+
+        if ($user && $user->is_verified) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email already exists',
+                'errors' => [
+                    'email' => ['The email has already been taken.'],
+                ],
+            ], 422);
+        }
+
+        // If user exists but not verified, delete the old account (allow re-registration)
+        if ($user && !$user->is_verified) {
+            $user->delete();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Email is available',
+        ]);
+    }
+
+    /**
+     * Check if phone is available.
+     */
+    public function checkPhone(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'phone' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Check if phone exists and is verified
+        $user = User::where('phone', $request->phone)->first();
+
+        if ($user && $user->is_verified) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Phone number already exists',
+                'errors' => [
+                    'phone' => ['The phone number has already been taken.'],
+                ],
+            ], 422);
+        }
+
+        // If user exists but not verified, delete the old account (allow re-registration)
+        if ($user && !$user->is_verified) {
+            $user->delete();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Phone number is available',
+        ]);
+    }
 }
 

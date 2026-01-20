@@ -22,10 +22,13 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['guest', 'throttle:5,1'])->group(function () {
         Route::post('auth/register', [AuthController::class, 'register']);
         Route::post('auth/verify-email', [AuthController::class, 'verifyEmail']);
+        Route::post('auth/resend-otp', [AuthController::class, 'resendOtp']);
         Route::post('auth/login', [AuthController::class, 'login']);
         Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('auth/verify-reset-otp', [AuthController::class, 'verifyResetOtp']);
         Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
+        Route::post('auth/check-email', [AuthController::class, 'checkEmail']);
+        Route::post('auth/check-phone', [AuthController::class, 'checkPhone']);
 
         // Social authentication
         Route::post('auth/google', [SocialAuthController::class, 'google']);
