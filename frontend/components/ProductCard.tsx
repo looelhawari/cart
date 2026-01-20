@@ -134,15 +134,19 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: `${Colors.neutralGray}50`,
+    width: 180,
+    height: 320,  
   },
   imageContainer: {
     position: "relative",
     width: "100%",
-    height: 160,
+    height: 140,
+    backgroundColor: Colors.neutralCloud,
   },
   image: {
     width: "100%",
     height: "100%",
+    resizeMode: "cover",
   },
   favoriteButton: {
     position: "absolute",
@@ -176,37 +180,43 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.sm,
+    flex: 1,
+    justifyContent: "space-between",
   },
   name: {
     fontSize: Typography.bodyMedium,
     fontWeight: Typography.semibold,
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.xs,
+    height: 36,
   },
   ratingContainer: {
     marginBottom: Spacing.xs,
+    height: 20,
   },
   priceRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: Spacing.sm,
+    flexWrap: "wrap", 
+    minHeight: 28,
   },
   price: {
-    fontSize: Typography.h4,
+    fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.primary900,
   },
   salePrice: {
-    fontSize: Typography.h4,
+    fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.primary900,
+    marginRight: Spacing.xs,
   },
   originalPrice: {
-    fontSize: Typography.bodyMedium,
+    fontSize: Typography.bodySmall,
     fontWeight: Typography.medium,
     color: Colors.neutralMedium,
     textDecorationLine: "line-through",
-    marginLeft: Spacing.xs,
   },
 
   addButton: {

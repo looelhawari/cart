@@ -4,6 +4,56 @@ import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 // API Configuration
 export const API_BASE_URL = API_CONFIG.BASE_URL;
 
+// Helper: Safely parse JSON from response - handles all error cases
+export const safeResponseJson = async (response: Response): Promise<any> => {
+  try {
+    // Use response.json() directly - it handles encoding properly
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    // Only log actual parsing failures
+    if (error instanceof SyntaxError) {
+      console.warn("Failed to parse JSON response from server");
+      return {
+        success: false,
+        data: {},
+        message: "Invalid JSON response from server",
+      };
+    }
+    console.warn("Error reading response:", error);
+    return {
+      success: false,
+      data: {},
+      message: "Failed to read server response",
+    };
+  }
+};
+
+// Helper: Safely parse JSON response (legacy - throws errors)
+export const safeJsonParse = async (response: Response): Promise<any> => {
+  const text = await response.text();
+
+  if (!text || text.trim().length === 0) {
+    throw new Error("Empty response from server");
+  }
+
+  // Check if response is HTML (error page)
+  if (text.trim().startsWith("<") || text.trim().startsWith("<!DOCTYPE")) {
+    console.error(
+      "Server returned HTML instead of JSON. Response:",
+      text.substring(0, 200),
+    );
+    throw new Error("Server error - please check if the backend is running");
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("JSON parse error. Response text:", text.substring(0, 300));
+    throw new Error("Invalid JSON response from server");
+  }
+};
+
 // Helper: Get current access token
 export const getAuthToken = async (): Promise<string | null> => {
   return await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
@@ -29,7 +79,7 @@ export const clearAuthData = async () => {
 // Main API request function
 export const apiRequest = async <T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> => {
   const token = await getAuthToken();
 
@@ -46,9 +96,14 @@ export const apiRequest = async <T>(
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    let error;
+    try {
+      error = await safeJsonParse(response);
+    } catch {
+      error = { message: `HTTP ${response.status}: ${response.statusText}` };
+    }
     throw error;
   }
 
-  return await response.json();
+  return await safeJsonParse(response);
 };

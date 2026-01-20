@@ -31,6 +31,7 @@ import {
   CheckoutPaymentMethod,
 } from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
+import { initiatePayment } from "@/services/api/paymentsApi";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function CheckoutConfirmationScreen() {
   const [loading, setLoading] = useState(true);
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<CheckoutPaymentMethod[]>(
-    []
+    [],
   );
 
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -53,7 +54,7 @@ export default function CheckoutConfirmationScreen() {
     "cod" | "card"
   >("cod");
   const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(
-    null
+    null,
   );
 
   const [accepted, setAccepted] = useState(false);
@@ -78,7 +79,7 @@ export default function CheckoutConfirmationScreen() {
       ]);
 
       setDeliverySlots(
-        slotsRes.data.delivery_slots?.filter((s) => s.is_active) || []
+        slotsRes.data.delivery_slots?.filter((s) => s.is_active) || [],
       );
       setPaymentMethods(paymentRes.data.payment_methods || []);
 
@@ -94,7 +95,7 @@ export default function CheckoutConfirmationScreen() {
 
       // Auto-select default payment method
       const defaultCard = paymentRes.data.payment_methods?.find(
-        (p) => p.is_default
+        (p) => p.is_default,
       );
       if (defaultCard) {
         setSelectedPaymentMethod("card");
@@ -132,7 +133,7 @@ export default function CheckoutConfirmationScreen() {
     if (!accepted) {
       Alert.alert(
         "Terms & Conditions",
-        "Please accept the terms and conditions to continue"
+        "Please accept the terms and conditions to continue",
       );
       return;
     }
@@ -164,23 +165,69 @@ export default function CheckoutConfirmationScreen() {
         promo_code: cart?.promo_code || undefined,
       });
 
-      // Refresh cart to clear it
-      await fetchCart();
+      const orderId = response.data.order.id;
 
-      // Navigate to success screen with order details
-      router.replace({
-        pathname: "/order-success" as any,
-        params: {
-          orderId: response.data.order.id,
-          orderNumber: response.data.order.order_number,
-          deliveryDate: selectedDate,
-          deliveryTime: selectedSlot,
-        },
-      });
+      // If online payment, initiate Paymob payment
+      if (selectedPaymentMethod === "card") {
+        try {
+          const { user } = useStore.getState();
+
+          // Get delivery address from store
+          const deliveryAddress = useStore
+            .getState()
+            .addresses.find((addr) => addr.id === addressId.toString());
+
+          const paymentResponse = await initiatePayment({
+            order_id: orderId,
+            payment_method: "CARD", // Use CARD for online payments, WALLET for mobile wallets
+            billing_data: {
+              first_name: user?.first_name || "Customer",
+              last_name: user?.last_name || "",
+              email: user?.email || "customer@example.com",
+              phone_number: user?.phone || "+201234567890",
+              city: deliveryAddress?.city || "Cairo",
+              street: deliveryAddress?.address || "Unknown",
+            },
+          });
+
+          if (paymentResponse.success) {
+            // Navigate to payment WebView screen
+            router.replace({
+              pathname: "/payment" as any,
+              params: {
+                iframeUrl: paymentResponse.data.iframe_url,
+                orderId: orderId.toString(),
+              },
+            });
+          } else {
+            throw new Error("Failed to initiate payment");
+          }
+        } catch (paymentError: any) {
+          Alert.alert(
+            "Payment Error",
+            paymentError.message ||
+              "Failed to initiate payment. Please try again.",
+          );
+          setIsPlacingOrder(false);
+          return;
+        }
+      } else {
+        // COD payment - refresh cart and navigate to success
+        await fetchCart();
+        router.replace({
+          pathname: "/order-success" as any,
+          params: {
+            orderId: orderId.toString(),
+            orderNumber: response.data.order.order_number,
+            deliveryDate: selectedDate,
+            deliveryTime: selectedSlot,
+          },
+        });
+      }
     } catch (error: any) {
       Alert.alert(
         "Order Failed",
-        error.message || "Failed to create order. Please try again."
+        error.message || "Failed to create order. Please try again.",
       );
     } finally {
       setIsPlacingOrder(false);

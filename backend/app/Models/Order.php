@@ -74,6 +74,22 @@ class Order extends Model
     }
 
     /**
+     * Get the Paymob payments for this order
+     */
+    public function paymobPayments(): HasMany
+    {
+        return $this->hasMany(PaymobPayment::class);
+    }
+
+    /**
+     * Get the latest successful Paymob payment
+     */
+    public function successfulPayment()
+    {
+        return $this->paymobPayments()->where('status', 'PAID')->latest()->first();
+    }
+
+    /**
      * Get status label for display
      */
     public function getStatusLabelAttribute(): string
