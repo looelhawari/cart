@@ -220,27 +220,36 @@ class PaymentController extends Controller
             if ($success && $transactionId) {
                 $payment->markAsPaid($transactionId, $data);
 
-                // Update order
-                $order = $payment->order;
-                $order->update([
-                    'payment_status' => 'completed',
-                    'status' => 'confirmed',
-                ]);
+                // Check if this is a wallet recharge (internal_order_id starts with WALLET-)
+                if (str_starts_with($payment->internal_order_id, 'WALLET-')) {
+                    // Handle wallet recharge
+                    app(WalletController::class)->handleRechargeCallback($payment);
+                } else {
+                    // Handle order payment
+                    $order = $payment->order;
+                    $order->update([
+                        'payment_status' => 'completed',
+                        'status' => 'confirmed',
+                    ]);
 
-                Log::info('Payment marked as paid', [
-                    'payment_id' => $payment->id,
-                    'order_id' => $order->id,
-                    'transaction_id' => $transactionId,
-                ]);
+                    Log::info('Payment marked as paid', [
+                        'payment_id' => $payment->id,
+                        'order_id' => $order->id,
+                        'transaction_id' => $transactionId,
+                    ]);
+                }
             } else {
                 $errorMessage = $data['data']['message'] ?? 'Payment failed';
                 $payment->markAsFailed($errorMessage, $data);
 
-                // Update order
-                $order = $payment->order;
-                $order->update([
-                    'payment_status' => 'failed',
-                ]);
+                // Check if this is NOT a wallet recharge
+                if (!str_starts_with($payment->internal_order_id, 'WALLET-')) {
+                    // Update order
+                    $order = $payment->order;
+                    $order->update([
+                        'payment_status' => 'failed',
+                    ]);
+                }
 
                 Log::warning('Payment marked as failed', [
                     'payment_id' => $payment->id,

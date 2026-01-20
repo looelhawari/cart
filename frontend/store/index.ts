@@ -20,6 +20,8 @@ interface User {
   full_name: string;
   email: string;
   phone: string;
+  date_of_birth: string | null;
+  gender: 'male' | 'female' | 'other' | null;
   avatar: string | null;
   language: "en" | "ar";
   role: "customer" | "admin";
@@ -203,9 +205,10 @@ export const useStore = create<StoreState>()(
         await authApi.resetPassword(data);
       },
 
-      updateProfile: (data: Partial<User>) => {
+      updateProfile: async (data: Partial<User>) => {
+        const response = await authApi.updateProfile(data);
         set((state) => ({
-          user: state.user ? { ...state.user, ...data } : null,
+          user: state.user ? { ...state.user, ...response.data.user } : null,
         }));
       },
 

@@ -5,7 +5,7 @@ export default function ProfileLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
+        headerShown: false,
         headerBackTitle: 'Back',
         headerStyle: {
           backgroundColor: '#fff',
@@ -16,24 +16,27 @@ export default function ProfileLayout() {
       <Stack.Screen
         name="favorites"
         options={{
+          headerShown: true,
           title: 'My Favorites',
         }}
       />
       <Stack.Screen
         name="addresses"
         options={{
-          title: 'My Addresses',
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="help"
         options={{
+          headerShown: true,
           title: 'Help & Support',
         }}
       />
       <Stack.Screen
         name="settings"
         options={{
+          headerShown: true,
           title: 'Settings',
         }}
       />

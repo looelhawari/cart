@@ -61,12 +61,12 @@ export interface Order {
   orderNumber: string;
   date: string;
   status:
-    | "processing"
-    | "confirmed"
-    | "preparing"
-    | "out_for_delivery"
-    | "delivered"
-    | "cancelled";
+  | "processing"
+  | "confirmed"
+  | "preparing"
+  | "out_for_delivery"
+  | "delivered"
+  | "cancelled";
   subtotal: number;
   deliveryFee: number;
   discount: number;
@@ -135,18 +135,22 @@ export interface Cart {
 }
 
 export interface Address {
-  id: string;
-  label: string;
+  id: number;
+  user_id: number;
+  label: 'Home' | 'Work' | 'Other';
+  recipient_name: string;
+  phone: string;
   street: string;
+  building?: string;
+  floor?: string;
   apartment?: string;
   city: string;
-  state?: string;
-  postalCode?: string;
+  area?: string;
   landmark?: string;
-  phone?: string;
-  latitude?: number;
-  longitude?: number;
-  isDefault: boolean;
+  notes?: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Review {

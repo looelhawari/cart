@@ -40,13 +40,29 @@ interface MenuItem {
 }
 
 export default function ProfileScreen() {
-  const { user, fetchProfile, logout } = useStore();
+  const { user, fetchProfile, logout, isAuthenticated } = useStore();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
+    // Check if user is authenticated before loading
+    if (!isAuthenticated) {
+      Alert.alert(
+        "Not Logged In",
+        "Please login to view your profile.",
+        [
+          {
+            text: "Login",
+            onPress: () => router.replace("/login")
+          }
+        ]
+      );
+      setLoading(false);
+      return;
+    }
+
     loadProfile();
-  }, []);
+  }, [isAuthenticated]);
 
   const loadProfile = async () => {
     try {
@@ -54,7 +70,25 @@ export default function ProfileScreen() {
       await fetchProfile();
     } catch (error: any) {
       console.error("Failed to load profile:", error);
-      Alert.alert("Error", "Failed to load profile. Please try again.");
+
+      // Check if unauthenticated
+      if (error?.message === "Unauthenticated." || error?.message === "TOKEN_EXPIRED") {
+        Alert.alert(
+          "Session Expired",
+          "Your session has expired. Please login again.",
+          [
+            {
+              text: "Login",
+              onPress: () => {
+                logout();
+                router.replace("/login");
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert("Error", "Failed to load profile. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -108,13 +142,6 @@ export default function ProfileScreen() {
     },
     {
       id: "4",
-      title: "Payment Methods",
-      icon: <CreditCard size={24} color={Colors.primary900} />,
-      route: "/profile/payment",
-      color: Colors.primary900,
-    },
-    {
-      id: "4.5",
       title: "My Wallet",
       icon: <Wallet size={24} color={Colors.primary700} />,
       route: "/profile/wallet",

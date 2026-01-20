@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,69 +20,200 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CreditCard,
+  Smartphone,
+  X,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
+import { API_CONFIG } from '@/config/app.config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Transaction {
-  id: string;
+  id: number;
   type: 'credit' | 'debit';
   description: string;
-  amount: number;
-  date: string;
-  balance: number;
+  amount: string;
+  balance_before: string;
+  balance_after: string;
+  created_at: string;
 }
 
-const transactions: Transaction[] = [
-  {
-    id: '1',
-    type: 'credit',
-    description: 'Added to wallet',
-    amount: 100,
-    date: '2025-01-15',
-    balance: 342,
-  },
-  {
-    id: '2',
-    type: 'debit',
-    description: 'Order #ORD-2025-0123',
-    amount: 45.5,
-    date: '2025-01-14',
-    balance: 242,
-  },
-  {
-    id: '3',
-    type: 'credit',
-    description: 'Refund - Order #ORD-2025-0120',
-    amount: 22.75,
-    date: '2025-01-12',
-    balance: 287.5,
-  },
-  {
-    id: '4',
-    type: 'debit',
-    description: 'Order #ORD-2025-0118',
-    amount: 67.25,
-    date: '2025-01-10',
-    balance: 264.75,
-  },
-];
+interface WalletData {
+  balance: number;
+  total_credited: number;
+  total_debited: number;
+  transactions: Transaction[];
+}
 
 export default function WalletScreen() {
-  const [balance] = useState(342.0);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'rewards'>('transactions');
+  const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [amount, setAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'WALLET'>('CARD');
+  const [recharging, setRecharging] = useState(false);
 
-  const handleAddMoney = () => {
-    console.log('Add money:', amount);
-    setShowAddMoney(false);
-    setAmount('');
+  useEffect(() => {
+    loadWallet();
+  }, []);
+
+  const getToken = async () => {
+    return await AsyncStorage.getItem('access_token');
   };
 
-  const quickAmounts = [10, 25, 50, 100, 200];
+  const loadWallet = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken();
+
+      console.log('Token retrieved:', token ? 'Token exists' : 'No token');
+
+      if (!token) {
+        Alert.alert('Error', 'Please login to view your wallet');
+        router.replace('/login');
+        return;
+      }
+
+      console.log('Calling wallet API:', `${API_CONFIG.BASE_URL}/wallet`);
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/wallet`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Wallet data received:', data);
+
+      if (data.success) {
+        setWalletData(data.data);
+      } else {
+        throw new Error(data.message || 'Failed to load wallet');
+      }
+    } catch (error: any) {
+      console.error('Failed to load wallet', error);
+      Alert.alert('Error', error.message || 'Failed to load wallet');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadWallet();
+    setRefreshing(false);
+  };
+
+  const handleQuickAmount = (value: number) => {
+    setAmount(value.toString());
+  };
+
+  const handleAddMoney = async () => {
+    const amountNum = parseFloat(amount);
+    if (!amount || amountNum < 10) {
+      Alert.alert('Error', 'Minimum recharge amount is 10 EGP');
+      return;
+    }
+    if (amountNum > 10000) {
+      Alert.alert('Error', 'Maximum recharge amount is 10,000 EGP');
+      return;
+    }
+
+    try {
+      setRecharging(true);
+      const token = await getToken();
+      const response = await fetch(`${API_CONFIG.BASE_URL}/wallet/recharge`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: amountNum,
+          payment_method: paymentMethod,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setShowAddMoney(false);
+        setAmount('');
+
+        // Open Paymob iframe in browser
+        Alert.alert(
+          'Complete Payment',
+          'You will be redirected to complete your payment securely with Paymob.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => {
+                // Here you would open the iframe_url in a WebView or browser
+                console.log('Payment URL:', data.data.iframe_url);
+                // For now, just reload wallet after 5 seconds to check for update
+                setTimeout(() => loadWallet(), 5000);
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Error', data.message || 'Failed to initiate recharge');
+      }
+    } catch (error) {
+      console.error('Recharge failed', error);
+      Alert.alert('Error', 'Failed to process recharge');
+    } finally {
+      setRecharging(false);
+    }
+  };
+
+  const quickAmounts = [100, 200, 500, 1000];
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={24} color={Colors.neutralCharcoal} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>My Wallet</Text>
+          <View style={styles.headerButton} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary900} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -92,13 +226,16 @@ export default function WalletScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        
+
         <Text style={styles.headerTitle}>My Wallet</Text>
-        
+
         <View style={styles.headerButton} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Balance Card */}
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeader}>
@@ -107,9 +244,11 @@ export default function WalletScreen() {
             </View>
             <Text style={styles.balanceLabel}>Total Balance</Text>
           </View>
-          
-          <Text style={styles.balanceAmount}>${balance.toFixed(2)}</Text>
-          
+
+          <Text style={styles.balanceAmount}>
+            {walletData?.balance.toFixed(2) || '0.00'} EGP
+          </Text>
+
           <View style={styles.balanceActions}>
             <TouchableOpacity
               style={styles.actionButton}
@@ -122,40 +261,13 @@ export default function WalletScreen() {
           </View>
         </View>
 
-        {/* Tabs */}
-        <View style={styles.tabs}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'transactions' && styles.tabActive]}
-            onPress={() => setActiveTab('transactions')}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === 'transactions' && styles.tabTextActive,
-              ]}
-            >
-              Transactions
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'rewards' && styles.tabActive]}
-            onPress={() => setActiveTab('rewards')}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[styles.tabText, activeTab === 'rewards' && styles.tabTextActive]}
-            >
-              Rewards
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Transactions Section */}
+        <Text style={styles.sectionTitle}>Recent Transactions</Text>
 
         {/* Content */}
-        {activeTab === 'transactions' ? (
-          <View style={styles.transactionsSection}>
-            {transactions.map((transaction) => (
+        <View style={styles.transactionsSection}>
+          {walletData && walletData.transactions && walletData.transactions.length > 0 ? (
+            walletData.transactions.map((transaction) => (
               <View key={transaction.id} style={styles.transactionCard}>
                 <View style={styles.transactionLeft}>
                   <View
@@ -170,23 +282,22 @@ export default function WalletScreen() {
                     ]}
                   >
                     {transaction.type === 'credit' ? (
-                      <ArrowDownLeft
-                        size={20}
-                        color={Colors.primary900}
-                      />
+                      <ArrowDownLeft size={20} color={Colors.primary900} />
                     ) : (
                       <ArrowUpRight size={20} color={Colors.accentRed} />
                     )}
                   </View>
-                  
+
                   <View style={styles.transactionInfo}>
                     <Text style={styles.transactionDescription}>
                       {transaction.description}
                     </Text>
-                    <Text style={styles.transactionDate}>{transaction.date}</Text>
+                    <Text style={styles.transactionDate}>
+                      {formatDate(transaction.created_at)}
+                    </Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.transactionRight}>
                   <Text
                     style={[
@@ -199,26 +310,24 @@ export default function WalletScreen() {
                       },
                     ]}
                   >
-                    {transaction.type === 'credit' ? '+' : '-'}$
-                    {transaction.amount.toFixed(2)}
+                    {transaction.type === 'credit' ? '+' : '-'}
+                    {parseFloat(transaction.amount).toFixed(2)} EGP
                   </Text>
                   <Text style={styles.transactionBalance}>
-                    Bal: ${transaction.balance.toFixed(2)}
+                    Bal: {parseFloat(transaction.balance_after).toFixed(2)} EGP
                   </Text>
                 </View>
               </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.rewardsSection}>
+            ))
+          ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateTitle}>No Rewards Yet</Text>
+              <Text style={styles.emptyStateTitle}>No Transactions Yet</Text>
               <Text style={styles.emptyStateText}>
-                Complete orders to earn rewards
+                Add money to your wallet to get started
               </Text>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </ScrollView>
 
       {/* Add Money Modal */}
@@ -230,8 +339,13 @@ export default function WalletScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Money to Wallet</Text>
-            
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Money to Wallet</Text>
+              <TouchableOpacity onPress={() => setShowAddMoney(false)}>
+                <X size={24} color={Colors.neutralCharcoal} />
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.quickAmounts}>
               {quickAmounts.map((quickAmount) => (
                 <TouchableOpacity
@@ -240,50 +354,85 @@ export default function WalletScreen() {
                     styles.quickAmountButton,
                     amount === quickAmount.toString() && styles.quickAmountButtonActive,
                   ]}
-                  onPress={() => setAmount(quickAmount.toString())}
+                  onPress={() => handleQuickAmount(quickAmount)}
                   activeOpacity={0.7}
                 >
                   <Text
                     style={[
                       styles.quickAmountText,
-                      amount === quickAmount.toString() &&
-                        styles.quickAmountTextActive,
+                      amount === quickAmount.toString() && styles.quickAmountTextActive,
                     ]}
                   >
-                    ${quickAmount}
+                    {quickAmount} EGP
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            
+
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Custom Amount</Text>
               <View style={styles.inputWrapper}>
-                <Text style={styles.currencySymbol}>$</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="0.00"
+                  placeholder="Enter amount"
                   placeholderTextColor={Colors.neutralMedium}
                   keyboardType="decimal-pad"
                   value={amount}
                   onChangeText={setAmount}
                 />
+                <Text style={styles.currencyText}>EGP</Text>
               </View>
+              <Text style={styles.inputHint}>Min: 10 EGP • Max: 10,000 EGP</Text>
             </View>
-            
+
             <View style={styles.paymentMethodSection}>
               <Text style={styles.paymentMethodLabel}>Payment Method</Text>
-              <TouchableOpacity style={styles.paymentMethodCard} activeOpacity={0.7}>
+
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethodCard,
+                  paymentMethod === 'CARD' && styles.paymentMethodCardActive,
+                ]}
+                onPress={() => setPaymentMethod('CARD')}
+                activeOpacity={0.7}
+              >
                 <View style={styles.paymentMethodLeft}>
                   <CreditCard size={24} color={Colors.primary900} />
                   <View>
-                    <Text style={styles.paymentMethodTitle}>Credit Card</Text>
-                    <Text style={styles.paymentMethodSubtitle}>•••• 1234</Text>
+                    <Text style={styles.paymentMethodTitle}>Credit/Debit Card</Text>
+                    <Text style={styles.paymentMethodSubtitle}>Visa, Mastercard, Amex</Text>
                   </View>
                 </View>
+                {paymentMethod === 'CARD' && (
+                  <View style={styles.selectedCheck}>
+                    <ArrowDownLeft size={16} color={Colors.neutralWhite} />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethodCard,
+                  paymentMethod === 'WALLET' && styles.paymentMethodCardActive,
+                ]}
+                onPress={() => setPaymentMethod('WALLET')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.paymentMethodLeft}>
+                  <Smartphone size={24} color={Colors.accentOrange} />
+                  <View>
+                    <Text style={styles.paymentMethodTitle}>Mobile Wallet</Text>
+                    <Text style={styles.paymentMethodSubtitle}>Vodafone, Orange, Etisalat</Text>
+                  </View>
+                </View>
+                {paymentMethod === 'WALLET' && (
+                  <View style={styles.selectedCheck}>
+                    <ArrowDownLeft size={16} color={Colors.neutralWhite} />
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
@@ -292,17 +441,21 @@ export default function WalletScreen() {
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
                   styles.modalAddButton,
-                  !amount && styles.modalAddButtonDisabled,
+                  (!amount || recharging) && styles.modalAddButtonDisabled,
                 ]}
                 onPress={handleAddMoney}
-                disabled={!amount}
+                disabled={!amount || recharging}
                 activeOpacity={0.9}
               >
-                <Text style={styles.modalAddText}>Add Money</Text>
+                {recharging ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Text style={styles.modalAddText}>Continue to Payment</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -541,18 +694,54 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.xs,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  inputHint: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginTop: Spacing.xs,
+  },
+  currencyText: {
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
+    color: Colors.neutralMedium,
+  },
+  paymentMethodCardActive: {
+    backgroundColor: `${Colors.primary900}10`,
+    borderWidth: 2,
+    borderColor: Colors.primary900,
+  },
+  selectedCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary900,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.neutralLight,
     borderRadius: 16,
     paddingHorizontal: Spacing.md,
-  },
-  currencySymbol: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginRight: Spacing.xs,
+    justifyContent: 'space-between',
   },
   input: {
     flex: 1,
@@ -577,6 +766,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralLight,
     padding: Spacing.md,
     borderRadius: 16,
+    marginBottom: Spacing.sm,
   },
   paymentMethodLeft: {
     flexDirection: 'row',

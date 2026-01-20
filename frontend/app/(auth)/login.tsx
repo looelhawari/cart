@@ -102,15 +102,21 @@ export default function LoginScreen() {
       await login(email, password);
       router.replace("/(tabs)");
     } catch (error: any) {
-      // Check if user needs phone verification
+      // Check if user needs email verification
       if (error.requires_verification) {
         Alert.alert(
-          "Verification Required",
-          error.message || "Please verify your phone number",
+          "Email Verification Required",
+          error.message || "Please verify your email address to continue",
           [
             {
               text: "Verify Now",
-              onPress: () => router.push("/(auth)/signup"), // Or create a separate verify screen
+              onPress: () => {
+                // Navigate to signup with email pre-filled and go directly to OTP step
+                router.push({
+                  pathname: "/(auth)/signup",
+                  params: { email: email, step: "3" },
+                });
+              },
             },
             { text: "Cancel", style: "cancel" },
           ]

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -15,15 +16,17 @@ import { ArrowLeft, Eye, EyeOff, Check, X } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
+import { authApi } from '@/services/api';
 
 export default function ChangePasswordScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const passwordRequirements = [
     { text: 'At least 8 characters', met: newPassword.length >= 8 },
@@ -35,7 +38,7 @@ export default function ChangePasswordScreen() {
   const allRequirementsMet = passwordRequirements.every((req) => req.met);
   const passwordsMatch = newPassword === confirmPassword && newPassword.length > 0;
 
-  const handleUpdatePassword = () => {
+  const handleUpdatePassword = async () => {
     if (!currentPassword) {
       Alert.alert('Error', 'Please enter your current password');
       return;
@@ -51,10 +54,25 @@ export default function ChangePasswordScreen() {
       return;
     }
 
-    // Mock password update
-    Alert.alert('Success', 'Your password has been updated successfully', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+    setLoading(true);
+    try {
+      await authApi.changePassword({
+        current_password: currentPassword,
+        password: newPassword,
+        password_confirmation: confirmPassword,
+      });
+
+      Alert.alert('Success', 'Your password has been updated successfully', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to update password. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -68,9 +86,9 @@ export default function ChangePasswordScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        
+
         <Text style={styles.headerTitle}>Change Password</Text>
-        
+
         <View style={styles.headerButton} />
       </View>
 
@@ -197,14 +215,18 @@ export default function ChangePasswordScreen() {
         <TouchableOpacity
           style={[
             styles.updateButton,
-            (!allRequirementsMet || !passwordsMatch || !currentPassword) &&
-              styles.updateButtonDisabled,
+            ((!allRequirementsMet || !passwordsMatch || !currentPassword) || loading) &&
+            styles.updateButtonDisabled,
           ]}
           onPress={handleUpdatePassword}
-          disabled={!allRequirementsMet || !passwordsMatch || !currentPassword}
+          disabled={!allRequirementsMet || !passwordsMatch || !currentPassword || loading}
           activeOpacity={0.9}
         >
-          <Text style={styles.updateButtonText}>Update Password</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={Colors.neutralWhite} />
+          ) : (
+            <Text style={styles.updateButtonText}>Update Password</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

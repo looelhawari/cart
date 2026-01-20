@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\ForceJsonResponse::class,
             \App\Http\Middleware\SecurityHeaders::class,
         ]);
+
+        // Prevent authentication redirects for API requests
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

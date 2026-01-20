@@ -8,48 +8,204 @@ import {
   TextInput,
   Image,
   Alert,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Camera, Save } from "lucide-react-native";
+import { ArrowLeft, Camera, Save, Trash2 } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
+import { authApi } from "@/services/api";
 
 export default function EditProfileScreen() {
-  const { user, updateProfile } = useStore();
+  const { user, updateProfile, fetchProfile } = useStore();
 
-  const [name, setName] = useState(user?.name || "");
+  const [firstName, setFirstName] = useState(user?.first_name || "");
+  const [lastName, setLastName] = useState(user?.last_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
-  const [dateOfBirth, setDateOfBirth] = useState(user?.dateOfBirth || "");
-  const [gender, setGender] = useState<"male" | "female" | "other">(
-    user?.gender || "male"
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
+    user?.date_of_birth ? new Date(user.date_of_birth) : null
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [gender, setGender] = useState<"male" | "female" | "other" | null>(
+    user?.gender || null
+  );
+  const [loading, setLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  const handleSave = () => {
-    if (!name.trim() || !email.trim() || !phone.trim()) {
+  const handleSave = async () => {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
-    updateProfile({
-      name,
-      email,
-      phone,
-      dateOfBirth,
-      gender,
+    setLoading(true);
+    try {
+      const updateData: any = {
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone,
+      };
+
+      // Only include date_of_birth if it has a value
+      if (dateOfBirth) {
+        updateData.date_of_birth = dateOfBirth.toISOString().split('T')[0];
+      }
+
+      // Only include gender if it has a value
+      if (gender) {
+        updateData.gender = gender;
+      }
+
+      await updateProfile(updateData);
+
+      Alert.alert("Success", "Profile updated successfully", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.message || "Failed to update profile. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    // Request permissions
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Please grant camera roll permissions to change your profile picture."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
     });
 
-    Alert.alert("Success", "Profile updated successfully", [
-      { text: "OK", onPress: () => router.back() },
-    ]);
+    if (!result.canceled && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Please grant camera permissions to take a photo."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    setUploadingAvatar(true);
+    try {
+      // Create form data
+      const formData: any = new FormData();
+
+      // Get file extension
+      const fileExtension = uri.split('.').pop() || 'jpg';
+      const fileName = `avatar_${Date.now()}.${fileExtension}`;
+
+      formData.append("avatar", {
+        uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+        type: `image/${fileExtension}`,
+        name: fileName,
+      } as any);
+
+      await authApi.uploadAvatar(formData);
+      await fetchProfile();
+      Alert.alert("Success", "Profile picture updated successfully");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to upload image");
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleChangePhoto = () => {
-    Alert.alert("Change Photo", "Photo upload feature (coming soon)");
+    Alert.alert(
+      "Change Profile Picture",
+      "Choose an option",
+      [
+        {
+          text: "Take Photo",
+          onPress: handleTakePhoto,
+        },
+        {
+          text: "Choose from Library",
+          onPress: handlePickImage,
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleDeleteAvatar = async () => {
+    Alert.alert(
+      "Delete Profile Picture",
+      "Are you sure you want to delete your profile picture?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setUploadingAvatar(true);
+            try {
+              await authApi.deleteAvatar();
+              await fetchProfile();
+              Alert.alert("Success", "Profile picture deleted");
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to delete picture");
+            } finally {
+              setUploadingAvatar(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+    if (selectedDate) {
+      setDateOfBirth(selectedDate);
+    }
   };
 
   return (
@@ -70,8 +226,13 @@ export default function EditProfileScreen() {
           style={styles.headerButton}
           onPress={handleSave}
           activeOpacity={0.7}
+          disabled={loading}
         >
-          <Save size={20} color={Colors.primary900} />
+          {loading ? (
+            <ActivityIndicator size="small" color={Colors.primary900} />
+          ) : (
+            <Save size={20} color={Colors.primary900} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -82,19 +243,36 @@ export default function EditProfileScreen() {
         {/* Profile Photo */}
         <View style={styles.photoSection}>
           <View style={styles.photoContainer}>
-            <Image
-              source={{
-                uri: user?.avatar || "https://i.pravatar.cc/300?img=12",
-              }}
-              style={styles.photo}
-            />
-            <TouchableOpacity
-              style={styles.photoButton}
-              onPress={handleChangePhoto}
-              activeOpacity={0.9}
-            >
-              <Camera size={20} color={Colors.neutralWhite} />
-            </TouchableOpacity>
+            {uploadingAvatar ? (
+              <View style={styles.photoLoading}>
+                <ActivityIndicator size="large" color={Colors.primary900} />
+              </View>
+            ) : (
+              <>
+                <Image
+                  source={{
+                    uri: user?.avatar || "https://i.pravatar.cc/300?img=12",
+                  }}
+                  style={styles.photo}
+                />
+                <TouchableOpacity
+                  style={styles.photoButton}
+                  onPress={handleChangePhoto}
+                  activeOpacity={0.9}
+                >
+                  <Camera size={20} color={Colors.neutralWhite} />
+                </TouchableOpacity>
+                {user?.avatar && (
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={handleDeleteAvatar}
+                    activeOpacity={0.9}
+                  >
+                    <Trash2 size={18} color={Colors.neutralWhite} />
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
           <Text style={styles.photoLabel}>Change Photo</Text>
         </View>
@@ -105,18 +283,19 @@ export default function EditProfileScreen() {
             <Text style={styles.label}>First Name *</Text>
             <TextInput
               style={styles.input}
-              value={name}
-              onChangeText={setName}
+              value={firstName}
+              onChangeText={setFirstName}
               placeholder="Enter your first name"
               placeholderTextColor={Colors.neutralMedium}
             />
           </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Last Name *</Text>
             <TextInput
               style={styles.input}
-              value={name}
-              onChangeText={setName}
+              value={lastName}
+              onChangeText={setLastName}
               placeholder="Enter your last name"
               placeholderTextColor={Colors.neutralMedium}
             />
@@ -149,13 +328,33 @@ export default function EditProfileScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date of Birth</Text>
-            <TextInput
+            <TouchableOpacity
               style={styles.input}
-              value={dateOfBirth}
-              onChangeText={setDateOfBirth}
-              placeholder="DD/MM/YYYY"
-              placeholderTextColor={Colors.neutralMedium}
-            />
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.dateText,
+                  !dateOfBirth && styles.placeholderText,
+                ]}
+              >
+                {dateOfBirth
+                  ? dateOfBirth.toLocaleDateString()
+                  : "Select date of birth"}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={dateOfBirth || new Date(2000, 0, 1)}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={onDateChange}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+              />
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -228,11 +427,16 @@ export default function EditProfileScreen() {
 
           {/* Save Button */}
           <TouchableOpacity
-            style={styles.saveButton}
+            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
             onPress={handleSave}
             activeOpacity={0.9}
+            disabled={loading}
           >
-            <Text style={styles.saveButtonText}>Save Changes</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color={Colors.neutralWhite} />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Changes</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -286,6 +490,16 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: Colors.primary900,
   },
+  photoLoading: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.neutralLight,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
+    borderColor: Colors.primary900,
+  },
   photoButton: {
     position: "absolute",
     bottom: 0,
@@ -294,6 +508,19 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.primary900,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: Colors.neutralWhite,
+  },
+  deleteButton: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.error,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
@@ -325,6 +552,13 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
+  },
+  dateText: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
+  },
+  placeholderText: {
+    color: Colors.neutralMedium,
   },
   genderRow: {
     flexDirection: "row",
@@ -370,6 +604,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: 16,
     alignItems: "center",
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveButtonText: {
     fontSize: Typography.bodyBase,

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -106,6 +107,13 @@ Route::prefix('v1')->group(function () {
         Route::prefix('payments')->group(function () {
             Route::post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
             Route::get('/order/{orderId}/status', [PaymentController::class, 'getPaymentStatus']);
+        });
+
+        // Wallet endpoints (protected)
+        Route::prefix('wallet')->group(function () {
+            Route::get('/', [WalletController::class, 'index']);
+            Route::get('/transactions', [WalletController::class, 'transactions']);
+            Route::post('/recharge', [WalletController::class, 'recharge']);
         });
 
         // Phone verification for social login users

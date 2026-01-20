@@ -44,6 +44,8 @@ export interface User {
   full_name: string;
   email: string;
   phone: string;
+  date_of_birth: string | null;
+  gender: 'male' | 'female' | 'other' | null;
   avatar: string | null;
   language: "en" | "ar";
   role: "customer" | "admin" | "super_admin";
@@ -355,6 +357,9 @@ export const authApi = {
     last_name?: string;
     email?: string;
     phone?: string;
+    date_of_birth?: string;
+    gender?: 'male' | 'female' | 'other';
+    language?: 'en' | 'ar';
   }) {
     return apiRequest("/profile", {
       method: "PUT",

@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -35,14 +35,17 @@ type Step = 1 | 2 | 3 | 4;
 
 export default function SignupScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const register = useStore((state) => state.register);
 
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(
+    params.step ? parseInt(params.step as string) as Step : 1
+  );
   const [loading, setLoading] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState((params.email as string) || "");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -58,7 +61,12 @@ export default function SignupScreen() {
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
 
-  const checkEmailAvailability = async (emailToCheck: string) => {
+  // Start OTP timer if coming from login with step=3
+  useEffect(() => {
+    if (params.step === "3") {
+      startOtpTimer();
+    }
+  }, []); const checkEmailAvailability = async (emailToCheck: string) => {
     try {
       setIsCheckingEmail(true);
       setEmailError("");

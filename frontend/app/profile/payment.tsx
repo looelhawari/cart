@@ -8,17 +8,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
-import { ArrowLeft, CreditCard, Plus, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Wallet, CheckCircle, Info } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
-import { Button } from '@/components/Button';
-
-const paymentMethods = [
-  { id: '1', type: 'Visa', last4: '4242', isDefault: true },
-  { id: '2', type: 'Mastercard', last4: '8888', isDefault: false },
-];
 
 export default function PaymentMethodsScreen() {
   return (
@@ -37,34 +31,65 @@ export default function PaymentMethodsScreen() {
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
-            {paymentMethods.map((method) => (
-              <View key={method.id} style={styles.methodCard}>
-                <View style={styles.methodLeft}>
-                  <View style={styles.iconContainer}>
-                    <CreditCard size={24} color={Colors.primary900} />
-                  </View>
-                  <View>
-                    <Text style={styles.methodType}>{method.type}</Text>
-                    <Text style={styles.methodNumber}>•••• {method.last4}</Text>
-                    {method.isDefault && (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultText}>Default</Text>
-                      </View>
-                    )}
+            {/* Info Banner */}
+            <View style={styles.infoBanner}>
+              <Info size={20} color={Colors.primary900} />
+              <Text style={styles.infoText}>
+                Payment is securely processed by Paymob. Choose your preferred payment method during checkout.
+              </Text>
+            </View>
+
+            {/* Available Payment Methods */}
+            <Text style={styles.sectionTitle}>Available Payment Methods</Text>
+
+            {/* Card Payment */}
+            <View style={styles.methodCard}>
+              <View style={styles.methodLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: `${Colors.primary900}15` }]}>
+                  <CreditCard size={28} color={Colors.primary900} />
+                </View>
+                <View style={styles.methodInfo}>
+                  <Text style={styles.methodType}>Credit / Debit Card</Text>
+                  <Text style={styles.methodDescription}>
+                    Visa, Mastercard, American Express
+                  </Text>
+                  <View style={styles.secureRow}>
+                    <CheckCircle size={14} color={Colors.success} />
+                    <Text style={styles.secureText}>Secure payment via Paymob</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.deleteButton}>
-                  <Trash2 size={20} color={Colors.accentRed} />
-                </TouchableOpacity>
               </View>
-            ))}
+            </View>
 
-            <Button
-              title="Add New Card"
-              onPress={() => router.push('/profile/add-card')}
-              icon={<Plus size={20} color={Colors.neutralWhite} />}
-              variant="primary"
-            />
+            {/* Mobile Wallet */}
+            <View style={styles.methodCard}>
+              <View style={styles.methodLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: `${Colors.accentOrange}15` }]}>
+                  <Wallet size={28} color={Colors.accentOrange} />
+                </View>
+                <View style={styles.methodInfo}>
+                  <Text style={styles.methodType}>Mobile Wallet</Text>
+                  <Text style={styles.methodDescription}>
+                    Vodafone Cash, Orange Money, Etisalat Cash
+                  </Text>
+                  <View style={styles.secureRow}>
+                    <CheckCircle size={14} color={Colors.success} />
+                    <Text style={styles.secureText}>Fast & convenient</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Note */}
+            <View style={styles.noteContainer}>
+              <Text style={styles.noteTitle}>💳 How it works</Text>
+              <Text style={styles.noteText}>
+                • Select your payment method during checkout{'\n'}
+                • Complete payment securely through Paymob{'\n'}
+                • Your payment info is never stored on our servers{'\n'}
+                • All transactions are encrypted and PCI-compliant
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -80,63 +105,95 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
   },
-  methodCard: {
+  infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: `${Colors.primary900}10`,
+    borderRadius: 16,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: `${Colors.primary900}20`,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralCharcoal,
+    lineHeight: 20,
+  },
+  sectionTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.md,
+  },
+  methodCard: {
     backgroundColor: Colors.neutralWhite,
     borderRadius: 20,
-    padding: Spacing.md,
+    padding: Spacing.lg,
     marginBottom: Spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 8,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
   },
   methodLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.md,
-    flex: 1,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: `${Colors.primary900}15`,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  methodInfo: {
+    flex: 1,
+  },
   methodType: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
+    fontSize: Typography.bodyLarge,
+    fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
     marginBottom: 4,
   },
-  methodNumber: {
+  methodDescription: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralMedium,
-    marginBottom: 4,
+    marginBottom: Spacing.sm,
   },
-  defaultBadge: {
-    backgroundColor: Colors.primary900,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  defaultText: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralWhite,
-    fontWeight: Typography.semibold,
-  },
-  deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${Colors.accentRed}15`,
+  secureRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+  },
+  secureText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.success,
+    fontWeight: Typography.medium,
+  },
+  noteContainer: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+  noteTitle: {
+    fontSize: Typography.bodyLarge,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.sm,
+  },
+  noteText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    lineHeight: 22,
   },
 });

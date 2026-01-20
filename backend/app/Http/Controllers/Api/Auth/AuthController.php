@@ -443,6 +443,8 @@ class AuthController extends Controller
                     'last_name' => $user->last_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'date_of_birth' => $user->date_of_birth,
+                    'gender' => $user->gender,
                     'avatar' => $user->avatar,
                     'language' => $user->language,
                 ],
@@ -620,11 +622,7 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // If user exists but not verified, delete the old account (allow re-registration)
-        if ($user && !$user->is_verified) {
-            $user->delete();
-        }
-
+        // If user exists but not verified, it's okay (they can re-register)
         return response()->json([
             'success' => true,
             'message' => 'Email is available',
@@ -661,15 +659,10 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // If user exists but not verified, delete the old account (allow re-registration)
-        if ($user && !$user->is_verified) {
-            $user->delete();
-        }
-
+        // If user exists but not verified, it's okay (they can re-register)
         return response()->json([
             'success' => true,
             'message' => 'Phone number is available',
         ]);
     }
 }
-
