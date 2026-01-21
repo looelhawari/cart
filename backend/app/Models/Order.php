@@ -20,11 +20,17 @@ class Order extends Model
         'payment_method',
         'payment_status',
         'delivery_address_id',
+        'delivery_address_snapshot',
+        'promo_code_snapshot',
         'delivery_date',
         'delivery_time_slot',
         'notes',
         'cancelled_at',
         'cancellation_reason',
+        'refunded_at',
+        'refund_reason',
+        'refunded_amount',
+        'refunded_by',
     ];
 
     protected $casts = [
@@ -33,10 +39,14 @@ class Order extends Model
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
         'total' => 'decimal:2',
+        'refunded_amount' => 'decimal:2',
         'delivery_date' => 'date',
         'cancelled_at' => 'datetime',
+        'refunded_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'delivery_address_snapshot' => 'array',
+        'promo_code_snapshot' => 'array',
     ];
 
     protected $appends = ['status_label', 'payment_status_label'];
@@ -55,6 +65,14 @@ class Order extends Model
     public function deliveryAddress(): BelongsTo
     {
         return $this->belongsTo(Address::class, 'delivery_address_id');
+    }
+
+    /**
+     * Get the admin who processed the refund
+     */
+    public function refundedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'refunded_by');
     }
 
     /**

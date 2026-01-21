@@ -21,7 +21,7 @@ export default function CheckoutAddressScreen() {
   const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(
-    null
+    null,
   );
 
   useEffect(() => {
@@ -31,17 +31,29 @@ export default function CheckoutAddressScreen() {
   const fetchAddresses = async () => {
     try {
       setLoading(true);
+      console.log("📍 Fetching checkout addresses...");
       const response = await getAddresses();
-      setAddresses(response.data.addresses || []);
+      console.log(
+        "📍 Addresses response:",
+        JSON.stringify(response).substring(0, 300),
+      );
+
+      // apiRequest returns the full Laravel response: { success, data: { addresses: [...] } }
+      // So we need to access response.data.addresses
+      const addressList = response.data?.addresses || response.addresses || [];
+      setAddresses(addressList);
+      console.log("📍 Set addresses count:", addressList.length);
 
       // Auto-select default address
-      const defaultAddress = response.data.addresses?.find(
-        (addr) => addr.is_default
+      const defaultAddress = addressList.find(
+        (addr: CheckoutAddress) => addr.is_default,
       );
       if (defaultAddress) {
         setSelectedAddressId(defaultAddress.id);
+        console.log("📍 Auto-selected default address:", defaultAddress.id);
       }
     } catch (error: any) {
+      console.error("📍 Error fetching addresses:", error);
       Alert.alert("Error", error.message || "Failed to load addresses");
     } finally {
       setLoading(false);
@@ -54,7 +66,7 @@ export default function CheckoutAddressScreen() {
       return;
     }
     router.push({
-      pathname: "/checkout/confirmation" as any,
+      pathname: "/checkout/payment" as any,
       params: { addressId: selectedAddressId },
     });
   };

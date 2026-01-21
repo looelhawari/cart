@@ -1,4 +1,4 @@
-import api from "./index";
+import { apiRequest } from "./base";
 
 export interface DeliverySlot {
   slot: string;
@@ -56,34 +56,45 @@ export const checkoutApi = {
    * Get available delivery time slots
    */
   getDeliverySlots: () => {
-    return api.get<{ delivery_slots: DeliverySlot[] }>(
-      "/checkout/delivery-slots"
-    );
+    return apiRequest<{
+      success: boolean;
+      data: { delivery_slots: DeliverySlot[] };
+    }>("/checkout/delivery-slots", { method: "GET" });
   },
 
   /**
    * Get user's saved delivery addresses
    */
   getAddresses: () => {
-    return api.get<{ addresses: CheckoutAddress[] }>("/checkout/addresses");
+    return apiRequest<{
+      success: boolean;
+      data: { addresses: CheckoutAddress[] };
+    }>("/checkout/addresses", {
+      method: "GET",
+    });
   },
 
   /**
    * Get user's saved payment methods
    */
   getPaymentMethods: () => {
-    return api.get<{ payment_methods: CheckoutPaymentMethod[] }>(
-      "/checkout/payment-methods"
-    );
+    return apiRequest<{
+      success: boolean;
+      data: { payment_methods: CheckoutPaymentMethod[] };
+    }>("/checkout/payment-methods", { method: "GET" });
   },
 
   /**
    * Calculate order summary with promo code (if any)
    */
   calculateSummary: (promoCode?: string) => {
-    return api.post<{ summary: OrderSummary }>("/checkout/calculate", {
-      promo_code: promoCode,
-    });
+    return apiRequest<{ success: boolean; data: { summary: OrderSummary } }>(
+      "/checkout/calculate",
+      {
+        method: "POST",
+        body: JSON.stringify({ promo_code: promoCode }),
+      },
+    );
   },
 };
 

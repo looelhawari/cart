@@ -25,7 +25,7 @@ class CategoryController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => ['categories' => $categories],
-            ], 200, [], JSON_UNESCAPED_UNICODE);
+            ], 200, ['Content-Type' => 'application/json; charset=utf-8'], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

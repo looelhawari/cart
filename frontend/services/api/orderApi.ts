@@ -1,4 +1,5 @@
-import api from "./index";
+import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
+import { getSessionId } from "./cartApi";
 
 export interface OrderItem {
   id: number;
@@ -68,50 +69,123 @@ export const orderApi = {
   /**
    * Get user's orders with optional status filter
    */
-  getOrders: (status?: string, page: number = 1) => {
-    return api.get<{
-      orders: {
-        data: Order[];
-        total: number;
-        per_page: number;
-        current_page: number;
-      };
-    }>("/orders", { params: { status, page } });
+  getOrders: async (status?: string, page: number = 1) => {
+    const token = await getAuthToken();
+    const queryParams = new URLSearchParams();
+    if (status) queryParams.append("status", status);
+    queryParams.append("page", page.toString());
+
+    const response = await fetch(`${API_BASE_URL}/orders?${queryParams}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await safeJsonParse(response);
+      throw error;
+    }
+
+    return await safeJsonParse(response);
   },
 
   /**
    * Get a single order by ID
    */
-  getOrder: (orderId: number) => {
-    return api.get<{ order: Order }>(`/orders/${orderId}`);
+  getOrder: async (orderId: number) => {
+    const token = await getAuthToken();
+
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await safeJsonParse(response);
+      throw error;
+    }
+
+    return await safeJsonParse(response);
   },
 
   /**
    * Create a new order from cart
    */
-  createOrder: (data: CreateOrderData) => {
-    return api.post<{ order: Order; message: string }>("/orders", data);
+  createOrder: async (data: CreateOrderData) => {
+    const token = await getAuthToken();
+    const sessionId = await getSessionId();
+
+    const response = await fetch(`${API_BASE_URL}/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        "X-Session-ID": sessionId,
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await safeJsonParse(response);
+      throw error;
+    }
+
+    return await safeJsonParse(response);
   },
 
   /**
    * Cancel an order
    */
-  cancelOrder: (orderId: number, reason: string) => {
-    return api.post<{ order: Order; message: string }>(
-      `/orders/${orderId}/cancel`,
-      {
-        cancellation_reason: reason,
-      }
-    );
+  cancelOrder: async (orderId: number, reason: string) => {
+    const token = await getAuthToken();
+
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ cancellation_reason: reason }),
+    });
+
+    if (!response.ok) {
+      const error = await safeJsonParse(response);
+      throw error;
+    }
+
+    return await safeJsonParse(response);
   },
 
   /**
    * Reorder (add order items back to cart)
    */
-  reorder: (orderId: number) => {
-    return api.post<{ cart: any; message: string }>(
-      `/orders/${orderId}/reorder`
-    );
+  reorder: async (orderId: number) => {
+    const token = await getAuthToken();
+
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/reorder`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await safeJsonParse(response);
+      throw error;
+    }
+
+    return await safeJsonParse(response);
   },
 };
 

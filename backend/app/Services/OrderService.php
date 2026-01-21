@@ -9,6 +9,7 @@ use App\Models\OrderStatusHistory;
 use App\Models\Product;
 use App\Models\PromoCode;
 use App\Models\User;
+use App\Models\UserAddress;
 use Illuminate\Support\Facades\DB;
 
 class OrderService
@@ -66,6 +67,9 @@ class OrderService
             // Calculate total
             $total = $cartTotals['subtotal'] + $deliveryFee + $tax - $discount;
 
+            // Load delivery address for snapshot
+            $deliveryAddress = UserAddress::findOrFail($deliveryAddressId);
+
             // Create order
             $order = Order::create([
                 'user_id' => $userId,
@@ -82,6 +86,26 @@ class OrderService
                 'delivery_date' => $deliveryDate,
                 'delivery_time_slot' => $deliveryTimeSlot,
                 'notes' => $notes,
+                // ADDRESS-01: Snapshot delivery address
+                'delivery_address_snapshot' => [
+                    'address_line_1' => $deliveryAddress->address_line_1,
+                    'address_line_2' => $deliveryAddress->address_line_2,
+                    'city' => $deliveryAddress->city,
+                    'state' => $deliveryAddress->state,
+                    'zip_code' => $deliveryAddress->zip_code,
+                    'country' => $deliveryAddress->country ?? 'Egypt',
+                    'phone' => $deliveryAddress->phone,
+                    'recipient_name' => $deliveryAddress->recipient_name ?? $deliveryAddress->user->first_name . ' ' . $deliveryAddress->user->last_name,
+                    'type' => $deliveryAddress->type,
+                    'is_default' => $deliveryAddress->is_default,
+                ],
+                // PROMO-01: Snapshot promo code details if applied
+                'promo_code_snapshot' => $promoCode ? [
+                    'code' => $promoCode->code,
+                    'type' => $promoCode->type,
+                    'value' => $promoCode->value,
+                    'discount_amount' => $discount,
+                ] : null,
             ]);
 
             // Create order items from cart items
@@ -197,7 +221,7 @@ class OrderService
     }
 
     /**
-     * Cancel order
+     * Cancel order with automatic refund
      */
     public function cancelOrder(int $orderId, int $userId, string $reason): Order
     {
@@ -211,6 +235,12 @@ class OrderService
             foreach ($order->items as $item) {
                 $item->product->increment('stock_quantity', $item->quantity);
                 $item->product->decrement('sales_count', $item->quantity);
+            }
+
+            // Process refund if payment was completed
+            if ($order->payment_status === 'completed') {
+                $refundService = app(RefundService::class);
+                $refundService->refundOrder($order, $reason);
             }
 
             // Update order

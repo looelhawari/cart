@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AddressController;
+use App\Http\Controllers\Api\Admin\RefundController as AdminRefundController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
@@ -92,6 +93,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/delivery-slots', [CheckoutController::class, 'getDeliverySlots']);
             Route::get('/payment-methods', [CheckoutController::class, 'getPaymentMethods']);
             Route::post('/calculate', [CheckoutController::class, 'calculateSummary']);
+            Route::post('/process-payment', [CheckoutController::class, 'processPayment']);
+            Route::get('/payment-options/{orderId}', [CheckoutController::class, 'getPaymentOptions']);
+            Route::post('/validate-promo', [CheckoutController::class, 'validatePromoCode']);
         });
 
         // Order endpoints
@@ -119,6 +123,15 @@ Route::prefix('v1')->group(function () {
         // Phone verification for social login users
         Route::post('auth/send-phone-otp', [SocialAuthController::class, 'sendPhoneOtp']);
         Route::post('auth/verify-phone-otp', [SocialAuthController::class, 'verifyPhoneOtp']);
+
+        // Admin routes (requires admin role)
+        Route::middleware('admin')->prefix('admin')->group(function () {
+            Route::prefix('refunds')->group(function () {
+                Route::post('/full', [AdminRefundController::class, 'fullRefund']);
+                Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
+                Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
+            });
+        });
     });
 
     // Paymob callbacks (public - no auth required, HMAC verified internally)

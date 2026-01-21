@@ -109,7 +109,7 @@ class OrderController extends Controller
         $validator = Validator::make($request->all(), [
             'delivery_address_id' => 'required|integer|exists:addresses,id',
             'payment_method' => 'required|in:cash_on_delivery,card,wallet',
-            'payment_method_id' => 'required_if:payment_method,card|nullable|integer|exists:payment_methods,id',
+            'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
             'delivery_date' => 'nullable|date|after_or_equal:today',
             'delivery_time_slot' => 'nullable|string',
             'notes' => 'nullable|string|max:500',

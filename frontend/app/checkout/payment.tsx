@@ -6,52 +6,97 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, CreditCard, Banknote, Check } from "lucide-react-native";
-import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 
 export default function CheckoutPaymentScreen() {
   const router = useRouter();
-  const {
-    paymentMethods,
-    setSelectedPaymentMethod,
-    selectedPaymentMethod,
-    cart,
-  } = useStore();
-  const [paymentType, setPaymentType] = useState<"card" | "cod">("card");
+  const params = useLocalSearchParams();
+  const addressId = params.addressId as string;
 
-  const total = cart?.total || 0;
+  const [paymentType, setPaymentType] = useState<"card" | "cod">("cod");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [cvv, setCvv] = useState("");
+
+  const formatCardNumber = (text: string) => {
+    const cleaned = text.replace(/\D/g, "");
+    const formatted = cleaned.match(/.{1,4}/g)?.join(" ") || cleaned;
+    return formatted.substring(0, 19);
+  };
+
+  const formatExpiryDate = (text: string) => {
+    const cleaned = text.replace(/\D/g, "");
+    if (cleaned.length >= 2) {
+      return `${cleaned.substring(0, 2)}/${cleaned.substring(2, 4)}`;
+    }
+    return cleaned;
+  };
+
+  const validateCard = () => {
+    if (paymentType === "cod") return true;
+
+    if (cardNumber.replace(/\s/g, "").length !== 16) {
+      Alert.alert("Invalid Card", "Card number must be 16 digits");
+      return false;
+    }
+
+    if (!cardName.trim()) {
+      Alert.alert("Invalid Card", "Enter cardholder name");
+      return false;
+    }
+
+    if (expiryDate.length !== 5) {
+      Alert.alert("Invalid Expiry", "Use MM/YY format");
+      return false;
+    }
+
+    if (cvv.length !== 3) {
+      Alert.alert("Invalid CVV", "CVV must be 3 digits");
+      return false;
+    }
+
+    return true;
+  };
 
   const handleContinue = () => {
-    if (paymentType === "card" && !selectedPaymentMethod) {
-      Alert.alert("Select Payment", "Please select a payment method");
-      return;
-    }
-    router.push("/checkout/confirmation");
+    if (!validateCard()) return;
+
+    router.push({
+      pathname: "/checkout/confirmation",
+      params: {
+        addressId,
+        paymentType,
+        ...(paymentType === "card" && {
+          cardNumber: cardNumber.replace(/\s/g, ""),
+          cardName,
+          expiryDate,
+          cvv,
+        }),
+      },
+    });
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={router.back}>
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payment Method</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Progress */}
         <View style={styles.progressBar}>
           <View style={[styles.progressDot, styles.progressDotActive]}>
             <Check size={18} color={Colors.neutralWhite} />
@@ -62,12 +107,11 @@ export default function CheckoutPaymentScreen() {
           </View>
           <View style={styles.progressLine} />
           <View style={styles.progressDot}>
-            <Text style={[styles.progressText, styles.progressTextInactive]}>
-              3
-            </Text>
+            <Text style={styles.progressTextInactive}>3</Text>
           </View>
         </View>
 
+        {/* Payment Types */}
         <View style={styles.paymentTypes}>
           <TouchableOpacity
             style={[
@@ -76,22 +120,8 @@ export default function CheckoutPaymentScreen() {
             ]}
             onPress={() => setPaymentType("card")}
           >
-            <CreditCard
-              size={24}
-              color={
-                paymentType === "card"
-                  ? Colors.primary900
-                  : Colors.neutralMedium
-              }
-            />
-            <Text
-              style={[
-                styles.paymentTypeText,
-                paymentType === "card" && styles.paymentTypeTextActive,
-              ]}
-            >
-              Credit/Debit Card
-            </Text>
+            <CreditCard size={24} color={Colors.primary900} />
+            <Text style={styles.paymentTypeText}>Card</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -101,90 +131,72 @@ export default function CheckoutPaymentScreen() {
             ]}
             onPress={() => setPaymentType("cod")}
           >
-            <Banknote
-              size={24}
-              color={
-                paymentType === "cod" ? Colors.primary900 : Colors.neutralMedium
-              }
-            />
-            <Text
-              style={[
-                styles.paymentTypeText,
-                paymentType === "cod" && styles.paymentTypeTextActive,
-              ]}
-            >
-              Cash on Delivery
-            </Text>
+            <Banknote size={24} color={Colors.primary900} />
+            <Text style={styles.paymentTypeText}>Cash</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Card Form */}
         {paymentType === "card" && (
-          <>
-            <Text style={styles.sectionTitle}>Saved Cards</Text>
+          <View style={styles.cardForm}>
+            <TextInput
+              style={styles.input}
+              placeholder="Card Number"
+              value={cardNumber}
+              onChangeText={(t) => setCardNumber(formatCardNumber(t))}
+              keyboardType="numeric"
+            />
 
-            {paymentMethods.map((method) => (
-              <TouchableOpacity
-                key={method.id}
-                style={[
-                  styles.cardItem,
-                  selectedPaymentMethod === method.id &&
-                    styles.cardItemSelected,
-                ]}
-                onPress={() => setSelectedPaymentMethod(method.id)}
-              >
-                <View style={styles.cardIcon}>
-                  <CreditCard size={20} color={Colors.primary900} />
-                </View>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardNumber}>
-                    •••• •••• •••• {method.cardLastFour}
-                  </Text>
-                  <Text style={styles.cardExpiry}>
-                    Expires {method.expiryMonth}/{method.expiryYear}
-                  </Text>
-                </View>
-                {selectedPaymentMethod === method.id && (
-                  <View style={styles.checkCircle}>
-                    <Check size={16} color={Colors.neutralWhite} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
+            <TextInput
+              style={styles.input}
+              placeholder="Cardholder Name"
+              value={cardName}
+              onChangeText={setCardName}
+            />
 
-            <TouchableOpacity
-              style={styles.addCardButton}
-              onPress={() => router.push("/profile/payment")}
-            >
-              <Text style={styles.addCardText}>+ Add New Card</Text>
-            </TouchableOpacity>
-          </>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={[styles.input, { flex: 1, marginRight: Spacing.sm }]}
+                placeholder="MM/YY"
+                value={expiryDate}
+                onChangeText={(t) => setExpiryDate(formatExpiryDate(t))}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="CVV"
+                value={cvv}
+                onChangeText={(t) =>
+                  setCvv(t.replace(/\D/g, "").substring(0, 3))
+                }
+                keyboardType="numeric"
+                secureTextEntry
+              />
+            </View>
+          </View>
         )}
 
+        {/* COD */}
         {paymentType === "cod" && (
           <View style={styles.codInfo}>
             <Banknote size={48} color={Colors.primary900} />
             <Text style={styles.codTitle}>Cash on Delivery</Text>
             <Text style={styles.codDescription}>
-              Pay with cash when your order is delivered. Please keep exact
-              change ready.
+              Pay when your order arrives.
             </Text>
-            <View style={styles.codNote}>
-              <Text style={styles.codNoteText}>
-                Total Amount: {total.toFixed(2)} EGP
-              </Text>
-            </View>
           </View>
         )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
 
+      {/* Bottom */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.continueButton}
           onPress={handleContinue}
         >
-          <Text style={styles.continueText}>Continue to Review</Text>
+          <Text style={styles.continueText}>Continue</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -192,20 +204,16 @@ export default function CheckoutPaymentScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
+  container: { flex: 1, backgroundColor: Colors.neutralCloud },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    padding: Spacing.md,
     backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralLight,
   },
+
   backButton: {
     width: 40,
     height: 40,
@@ -214,22 +222,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   headerTitle: {
     fontSize: Typography.h4,
     fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
   },
-  scrollView: {
-    flex: 1,
-  },
+
   progressBar: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.lg,
-    backgroundColor: Colors.neutralWhite,
-    marginBottom: Spacing.md,
+    padding: Spacing.lg,
   },
+
   progressDot: {
     width: 36,
     height: 36,
@@ -238,167 +242,87 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  progressDotActive: {
-    backgroundColor: Colors.primary900,
-  },
-  progressText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
-  progressTextInactive: {
-    color: Colors.neutralMedium,
-  },
-  progressLine: {
-    width: 60,
-    height: 2,
-    backgroundColor: Colors.neutralGray,
-  },
-  progressLineActive: {
-    backgroundColor: Colors.primary900,
-  },
+
+  progressDotActive: { backgroundColor: Colors.primary900 },
+
+  progressText: { color: Colors.neutralWhite, fontWeight: "bold" },
+
+  progressTextInactive: { color: Colors.neutralMedium },
+
+  progressLine: { width: 60, height: 2, backgroundColor: Colors.neutralGray },
+
+  progressLineActive: { backgroundColor: Colors.primary900 },
+
   paymentTypes: {
     flexDirection: "row",
+    padding: Spacing.md,
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
   },
+
   paymentTypeCard: {
     flex: 1,
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
     padding: Spacing.md,
     alignItems: "center",
-    gap: Spacing.sm,
-    borderWidth: 2,
-    borderColor: "transparent",
   },
+
   paymentTypeCardActive: {
+    borderWidth: 2,
     borderColor: Colors.primary900,
   },
-  paymentTypeText: {
-    fontSize: Typography.bodyMedium,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralMedium,
-    textAlign: "center",
+
+  paymentTypeText: { fontWeight: "600" },
+
+  cardForm: {
+    backgroundColor: Colors.neutralWhite,
+    margin: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: 16,
   },
-  paymentTypeTextActive: {
-    color: Colors.primary900,
-  },
-  sectionTitle: {
-    fontSize: Typography.h4,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    paddingHorizontal: Spacing.md,
+
+  input: {
+    backgroundColor: Colors.neutralLight,
+    borderRadius: 12,
+    padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  cardItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.md,
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  cardItemSelected: {
-    borderColor: Colors.primary900,
-  },
-  cardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.neutralLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  cardNumber: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
-  },
-  cardExpiry: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary900,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addCardButton: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.md,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.sm,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    borderStyle: "dashed",
-    alignItems: "center",
-  },
-  addCardText: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.semibold,
-    color: Colors.primary900,
-  },
+
+  inputRow: { flexDirection: "row" },
+
   codInfo: {
     backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
+    margin: Spacing.md,
     padding: Spacing.lg,
-    marginHorizontal: Spacing.md,
+    borderRadius: 16,
     alignItems: "center",
   },
+
   codTitle: {
     fontSize: Typography.h3,
     fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginTop: Spacing.sm,
   },
+
   codDescription: {
-    fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: Spacing.md,
   },
-  codNote: {
-    backgroundColor: Colors.primary900 + "10",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 12,
-  },
-  codNoteText: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-  },
+
   bottomBar: {
     backgroundColor: Colors.neutralWhite,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutralLight,
     padding: Spacing.md,
   },
+
   continueButton: {
     backgroundColor: Colors.primary900,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
+    padding: Spacing.md,
+    borderRadius: 12,
     alignItems: "center",
   },
+
   continueText: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
     color: Colors.neutralWhite,
+    fontWeight: "bold",
   },
 });

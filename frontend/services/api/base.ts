@@ -7,20 +7,54 @@ export const API_BASE_URL = API_CONFIG.BASE_URL;
 // Helper: Safely parse JSON from response - handles all error cases
 export const safeResponseJson = async (response: Response): Promise<any> => {
   try {
-    // Use response.json() directly - it handles encoding properly
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    // Only log actual parsing failures
-    if (error instanceof SyntaxError) {
-      console.warn("Failed to parse JSON response from server");
+    // For React Native, we need to handle UTF-8 encoding properly
+    // Read as blob first, then decode as UTF-8
+    const blob = await response.blob();
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsText(blob, "UTF-8");
+    });
+
+    // Check if empty
+    if (!text || text.trim().length === 0) {
+      console.warn("Empty response from server");
+      return {
+        success: false,
+        data: {},
+        message: "Empty response from server",
+      };
+    }
+
+    // Check if response is HTML (error page)
+    if (text.trim().startsWith("<") || text.trim().startsWith("<!DOCTYPE")) {
+      console.error("Server returned HTML instead of JSON");
+      console.error("Response preview:", text.substring(0, 200));
+      return {
+        success: false,
+        data: {},
+        message: "Server error - received HTML instead of JSON",
+      };
+    }
+
+    try {
+      // Parse the UTF-8 text as JSON
+      const data = JSON.parse(text);
+      return data;
+    } catch (parseError) {
+      console.error("Failed to parse JSON response from server");
+      console.error("Response text preview:", text.substring(0, 300));
+      console.error("Parse error:", parseError);
+
       return {
         success: false,
         data: {},
         message: "Invalid JSON response from server",
       };
     }
-    console.warn("Error reading response:", error);
+  } catch (error) {
+    console.error("Error reading response:", error);
     return {
       success: false,
       data: {},

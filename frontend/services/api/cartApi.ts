@@ -6,7 +6,7 @@ import { Cart } from "./types";
 const SESSION_ID_KEY = "guest_session_id";
 
 // Helper: Get or create session ID for guest users
-const getSessionId = async (): Promise<string> => {
+export const getSessionId = async (): Promise<string> => {
   let sessionId = await AsyncStorage.getItem(SESSION_ID_KEY);
 
   if (!sessionId) {

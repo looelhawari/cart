@@ -95,21 +95,42 @@ export const getCategories = async (
 ): Promise<CategoriesResponse> => {
   const fetchFn = async () => {
     try {
+      console.log("📡 Fetching categories from:", `${API_BASE_URL}/categories`);
+
       const response = await fetch(`${API_BASE_URL}/categories`, {
         method: "GET",
         headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json; charset=utf-8",
         },
       });
 
+      console.log(
+        "📡 Categories response status:",
+        response.status,
+        "OK:",
+        response.ok,
+      );
+
       if (!response.ok) {
-        console.error("Categories API error:", response.status);
+        console.error(
+          "Categories API error:",
+          response.status,
+          response.statusText,
+        );
         return { success: false, data: { categories: [] } };
       }
 
       const data = await safeResponseJson(response);
+      console.log(
+        "📡 Categories data parsed:",
+        data.success,
+        "Count:",
+        data.data?.categories?.length || 0,
+      );
+
       if (!data.success) {
+        console.error("Categories API returned success=false");
         return { success: false, data: { categories: [] } };
       }
       return data;
@@ -122,6 +143,7 @@ export const getCategories = async (
   if (useCache) {
     return await cacheFirstFetch("categories:all", fetchFn, {
       ttl: 10 * 60 * 1000, // 10 minutes
+      forceRefresh: false, // Allow cache but it will be fresh from server if expired
     });
   }
 

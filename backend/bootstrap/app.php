@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'force.json' => \App\Http\Middleware\ForceJsonResponse::class,
             'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
         ]);
 
         // Apply ForceJsonResponse and SecurityHeaders to all API routes

@@ -38,24 +38,36 @@ class WalletController extends Controller
                 ], 401);
             }
 
-            // Get or create wallet
+            // Get or create wallet (balance computed from ledger)
             $wallet = UserWallet::firstOrCreate(
-                ['user_id' => $user->id],
-                ['balance' => 0, 'total_credited' => 0, 'total_debited' => 0]
+                ['user_id' => $user->id]
             );
 
             // Get recent transactions
             $transactions = $wallet->transactions()
                 ->orderBy('created_at', 'desc')
                 ->limit(20)
-                ->get();
+                ->get()
+                ->map(function ($transaction) {
+                    return [
+                        'id' => $transaction->id,
+                        'type' => $transaction->type,
+                        'amount' => (float) $transaction->amount,
+                        'balance_before' => (float) $transaction->balance_before,
+                        'balance_after' => (float) $transaction->balance_after,
+                        'description' => $transaction->description,
+                        'reference_type' => $transaction->reference_type,
+                        'reference_id' => $transaction->reference_id,
+                        'created_at' => $transaction->created_at->toIso8601String(),
+                    ];
+                });
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'balance' => (float) $wallet->balance,
-                    'total_credited' => (float) $wallet->total_credited,
-                    'total_debited' => (float) $wallet->total_debited,
+                    'balance' => $wallet->balance,
+                    'total_credited' => $wallet->total_credited,
+                    'total_debited' => $wallet->total_debited,
                     'transactions' => $transactions,
                 ],
             ]);
@@ -121,168 +133,7 @@ class WalletController extends Controller
         }
     }
 
-    /**
-     * Initiate wallet recharge with Paymob
-     * POST /api/v1/wallet/recharge
-     */
-    public function recharge(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:10|max:10000',
-            'payment_method' => 'required|in:CARD,WALLET',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $user = $request->user();
-            $amount = (float) $request->amount;
-            $paymentMethod = $request->payment_method;
-
-            // Get or create wallet
-            $wallet = UserWallet::firstOrCreate(
-                ['user_id' => $user->id],
-                ['balance' => 0, 'total_credited' => 0, 'total_debited' => 0]
-            );
-
-            // Convert amount to cents
-            $amountCents = (int) ($amount * 100);
-
-            // Generate unique internal reference
-            $internalOrderId = 'WALLET-' . $user->id . '-' . time();
-
-            // Step 1: Authenticate with Paymob
-            $authToken = $this->paymobService->authenticate();
-
-            // Step 2: Register order with Paymob
-            $paymobOrderId = $this->paymobService->registerOrder(
-                $authToken,
-                $amountCents,
-                $internalOrderId
-            );
-
-            // Prepare billing data
-            $billingData = [
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-                'phone_number' => $user->phone,
-                'apartment' => 'NA',
-                'floor' => 'NA',
-                'building' => 'NA',
-                'street' => 'NA',
-                'city' => 'Cairo',
-                'country' => 'Egypt',
-                'state' => 'Cairo',
-                'postal_code' => 'NA',
-                'shipping_method' => 'NA',
-            ];
-
-            // Step 3: Generate payment key
-            $paymentToken = $this->paymobService->generatePaymentKey(
-                $authToken,
-                $amountCents,
-                $paymobOrderId,
-                $billingData,
-                $paymentMethod
-            );
-
-            // Get integration ID
-            $integrationId = $this->paymobService->getIntegrationId($paymentMethod);
-
-            // Don't store in paymob_payments - that's only for orders
-            // Wallet recharge will be tracked via wallet_transactions when callback arrives
-
-            DB::commit();
-
-            // Get iframe URL
-            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'internal_order_id' => $internalOrderId,
-                    'paymob_order_id' => $paymobOrderId,
-                    'payment_token' => $paymentToken,
-                    'iframe_url' => $iframeUrl,
-                    'amount' => $amount,
-                    'currency' => 'EGP',
-                ],
-            ]);
-
-        } catch (Exception $e) {
-            DB::rollBack();
-
-            Log::error('Wallet recharge failed', [
-                'error' => $e->getMessage(),
-                'user_id' => $request->user()->id ?? null,
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to initiate wallet recharge. Please try again.',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Handle Paymob callback for wallet recharge
-     * This is called by PaymentController after verifying the webhook
-     */
-    public function handleRechargeCallback(PaymobPayment $payment): void
-    {
-        try {
-            // Extract wallet ID from internal_order_id
-            // Format: WALLET-{user_id}-{timestamp}
-            $parts = explode('-', $payment->internal_order_id);
-            if (count($parts) !== 3 || $parts[0] !== 'WALLET') {
-                Log::error('Invalid wallet recharge reference', [
-                    'internal_order_id' => $payment->internal_order_id,
-                ]);
-                return;
-            }
-
-            $userId = (int) $parts[1];
-
-            // Get wallet
-            $wallet = UserWallet::where('user_id', $userId)->first();
-
-            if (!$wallet) {
-                Log::error('Wallet not found for recharge', [
-                    'user_id' => $userId,
-                ]);
-                return;
-            }
-
-            // Credit the wallet
-            $amount = $payment->amount_cents / 100;
-            $wallet->credit(
-                $amount,
-                'Wallet recharge via ' . $payment->payment_method,
-                'PaymobPayment',
-                $payment->id
-            );
-
-            Log::info('Wallet recharged successfully', [
-                'wallet_id' => $wallet->id,
-                'amount' => $amount,
-                'payment_id' => $payment->id,
-            ]);
-
-        } catch (Exception $e) {
-            Log::error('Failed to process wallet recharge callback', [
-                'error' => $e->getMessage(),
-                'payment_id' => $payment->id,
-            ]);
-        }
-    }
+    // REMOVED: recharge() method - Spec forbids direct wallet top-ups via payment gateway
+    // REMOVED: handleRechargeCallback() method - Users can only receive wallet credits via order refunds
 }
+

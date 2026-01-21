@@ -116,4 +116,56 @@ export const authApi = {
   async getProfile() {
     return apiRequest("/profile", { method: "GET" });
   },
+
+  // Update user profile
+  async updateProfile(data: any) {
+    return apiRequest("/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Social login with Google
+  async socialGoogle(data: { token: string }) {
+    const response = await apiRequest<AuthResponse>("/auth/social/google", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    if (response.data?.access_token && response.data?.refresh_token) {
+      await saveTokens(response.data.access_token, response.data.refresh_token);
+    }
+
+    return response;
+  },
+
+  // Social login with Apple
+  async socialApple(data: { token: string; user?: any }) {
+    const response = await apiRequest<AuthResponse>("/auth/social/apple", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    if (response.data?.access_token && response.data?.refresh_token) {
+      await saveTokens(response.data.access_token, response.data.refresh_token);
+    }
+
+    return response;
+  },
+
+  // Send phone OTP for social login users
+  async sendPhoneOtp(data: { phone: string }) {
+    return apiRequest("/auth/send-phone-otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Verify phone OTP
+  async verifyPhoneOtp(data: { phone: string; otp: string }) {
+    return apiRequest("/auth/verify-phone-otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
 };

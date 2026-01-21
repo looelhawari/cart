@@ -14,7 +14,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
   Check,
-  Edit,
   Calendar,
   Clock,
   CreditCard,
@@ -24,12 +23,7 @@ import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
-import {
-  getDeliverySlots,
-  getPaymentMethods,
-  DeliverySlot,
-  CheckoutPaymentMethod,
-} from "@/services/api/checkoutApi";
+import { getDeliverySlots, DeliverySlot } from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
 import { initiatePayment } from "@/services/api/paymentsApi";
 
@@ -39,24 +33,18 @@ export default function CheckoutConfirmationScreen() {
   const addressId = params.addressId
     ? parseInt(params.addressId as string)
     : null;
+  const paymentType = (params.paymentType as string) || "cod";
+  const cardNumber = params.cardNumber as string;
+  const cardName = params.cardName as string;
+  const expiryDate = params.expiryDate as string;
+  const cvv = params.cvv as string;
 
-  const { cart, fetchCart } = useStore();
+  const { cart, fetchCart, user } = useStore();
 
   const [loading, setLoading] = useState(true);
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<CheckoutPaymentMethod[]>(
-    [],
-  );
-
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<string>("");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
-    "cod" | "card"
-  >("cod");
-  const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(
-    null,
-  );
-
   const [accepted, setAccepted] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
@@ -73,15 +61,13 @@ export default function CheckoutConfirmationScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [slotsRes, paymentRes] = await Promise.all([
-        getDeliverySlots(),
-        getPaymentMethods(),
-      ]);
+      const slotsRes = await getDeliverySlots();
 
-      setDeliverySlots(
-        slotsRes.data.delivery_slots?.filter((s) => s.is_active) || [],
-      );
-      setPaymentMethods(paymentRes.data.payment_methods || []);
+      console.log("Delivery slots response:", slotsRes);
+
+      const slots = slotsRes.data.delivery_slots || slotsRes.data.slots || [];
+      const activeSlots = slots.filter((s: any) => s.is_active !== false);
+      setDeliverySlots(activeSlots);
 
       // Auto-select tomorrow as default date
       const tomorrow = new Date();
@@ -89,20 +75,14 @@ export default function CheckoutConfirmationScreen() {
       setSelectedDate(tomorrow.toISOString().split("T")[0]);
 
       // Auto-select first slot
-      if (slotsRes.data.delivery_slots?.[0]) {
-        setSelectedSlot(slotsRes.data.delivery_slots[0].slot);
+      if (activeSlots.length > 0) {
+        setSelectedSlot(activeSlots[0].slot);
       }
 
-      // Auto-select default payment method
-      const defaultCard = paymentRes.data.payment_methods?.find(
-        (p) => p.is_default,
-      );
-      if (defaultCard) {
-        setSelectedPaymentMethod("card");
-        setSelectedPaymentId(defaultCard.id);
-      }
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to load checkout data");
+      await fetchCart();
+    } catch (error) {
+      console.error("Error loading checkout data:", error);
+      Alert.alert("Error", "Failed to load checkout data");
     } finally {
       setLoading(false);
     }
@@ -148,11 +128,6 @@ export default function CheckoutConfirmationScreen() {
       return;
     }
 
-    if (selectedPaymentMethod === "card" && !selectedPaymentId) {
-      Alert.alert("Error", "Please select a payment card");
-      return;
-    }
-
     setIsPlacingOrder(true);
 
     try {
@@ -160,33 +135,25 @@ export default function CheckoutConfirmationScreen() {
         delivery_address_id: addressId,
         delivery_date: selectedDate,
         delivery_time_slot: selectedSlot,
-        payment_method: selectedPaymentMethod,
-        payment_method_id: selectedPaymentId || undefined,
+        payment_method: paymentType === "cod" ? "cod" : "card",
         promo_code: cart?.promo_code || undefined,
       });
 
       const orderId = response.data.order.id;
 
       // If online payment, initiate Paymob payment
-      if (selectedPaymentMethod === "card") {
+      if (paymentType === "card") {
         try {
-          const { user } = useStore.getState();
-
-          // Get delivery address from store
-          const deliveryAddress = useStore
-            .getState()
-            .addresses.find((addr) => addr.id === addressId.toString());
-
           const paymentResponse = await initiatePayment({
             order_id: orderId,
-            payment_method: "CARD", // Use CARD for online payments, WALLET for mobile wallets
+            payment_method: "CARD",
             billing_data: {
               first_name: user?.first_name || "Customer",
               last_name: user?.last_name || "",
               email: user?.email || "customer@example.com",
               phone_number: user?.phone || "+201234567890",
-              city: deliveryAddress?.city || "Cairo",
-              street: deliveryAddress?.address || "Unknown",
+              city: "Cairo",
+              street: "Unknown",
             },
           });
 
@@ -334,83 +301,35 @@ export default function CheckoutConfirmationScreen() {
           </View>
         </View>
 
-        {/* Payment Method Section */}
+        {/* Payment Method Summary */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Wallet size={20} color={Colors.primary900} />
             <Text style={styles.sectionTitle}>Payment Method</Text>
           </View>
-
-          {/* Cash on Delivery */}
-          <TouchableOpacity
-            style={[
-              styles.paymentOption,
-              selectedPaymentMethod === "cod" && styles.paymentOptionSelected,
-            ]}
-            onPress={() => {
-              setSelectedPaymentMethod("cod");
-              setSelectedPaymentId(null);
-            }}
-          >
-            <View style={styles.paymentInfo}>
-              <Wallet
-                size={20}
-                color={
-                  selectedPaymentMethod === "cod"
-                    ? Colors.primary900
-                    : Colors.neutralMedium
-                }
-              />
-              <View style={styles.paymentTextContainer}>
-                <Text style={styles.paymentType}>Cash on Delivery</Text>
-                <Text style={styles.paymentDetail}>Pay when you receive</Text>
-              </View>
-            </View>
-            {selectedPaymentMethod === "cod" && (
-              <Check size={20} color={Colors.primary900} />
-            )}
-          </TouchableOpacity>
-
-          {/* Saved Cards */}
-          {paymentMethods.map((card) => (
-            <TouchableOpacity
-              key={card.id}
-              style={[
-                styles.paymentOption,
-                selectedPaymentMethod === "card" &&
-                  selectedPaymentId === card.id &&
-                  styles.paymentOptionSelected,
-              ]}
-              onPress={() => {
-                setSelectedPaymentMethod("card");
-                setSelectedPaymentId(card.id);
-              }}
-            >
-              <View style={styles.paymentInfo}>
-                <CreditCard
-                  size={20}
-                  color={
-                    selectedPaymentMethod === "card" &&
-                    selectedPaymentId === card.id
-                      ? Colors.primary900
-                      : Colors.neutralMedium
-                  }
-                />
+          <View style={styles.summaryRow}>
+            {paymentType === "cod" ? (
+              <View style={styles.paymentSummary}>
+                <Wallet size={20} color={Colors.neutralMedium} />
                 <View style={styles.paymentTextContainer}>
-                  <Text style={styles.paymentType}>
-                    {card.card_brand} ****{card.card_last4}
-                  </Text>
+                  <Text style={styles.paymentType}>Cash on Delivery</Text>
+                  <Text style={styles.paymentDetail}>Pay when you receive</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.paymentSummary}>
+                <CreditCard size={20} color={Colors.neutralMedium} />
+                <View style={styles.paymentTextContainer}>
+                  <Text style={styles.paymentType}>Credit/Debit Card</Text>
                   <Text style={styles.paymentDetail}>
-                    Expires {card.expiry_month}/{card.expiry_year}
+                    {cardNumber
+                      ? `****${cardNumber.slice(-4)}`
+                      : "Card Payment"}
                   </Text>
                 </View>
               </View>
-              {selectedPaymentMethod === "card" &&
-                selectedPaymentId === card.id && (
-                  <Check size={20} color={Colors.primary900} />
-                )}
-            </TouchableOpacity>
-          ))}
+            )}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -682,6 +601,16 @@ const styles = StyleSheet.create({
   paymentDetail: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralMedium,
+  },
+  summaryRow: {
+    backgroundColor: Colors.neutralLight,
+    borderRadius: 12,
+    padding: Spacing.md,
+  },
+  paymentSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   orderItems: {
     gap: Spacing.sm,
