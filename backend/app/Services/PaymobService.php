@@ -30,7 +30,10 @@ class PaymobService
     public function authenticate(): string
     {
         try {
-            $response = Http::post("{$this->baseUrl}/auth/tokens", [
+            $response = Http::timeout(30)
+                ->connectTimeout(10)
+                ->retry(3, 100)
+                ->post("{$this->baseUrl}/auth/tokens", [
                 'api_key' => $this->apiKey,
             ]);
 
@@ -67,7 +70,10 @@ class PaymobService
         array $items = []
     ): int {
         try {
-            $response = Http::post("{$this->baseUrl}/ecommerce/orders", [
+            $response = Http::timeout(30)
+                ->connectTimeout(10)
+                ->retry(3, 100)
+                ->post("{$this->baseUrl}/ecommerce/orders", [
                 'auth_token' => $authToken,
                 'delivery_needed' => 'false',
                 'amount_cents' => $amountCents,
@@ -116,7 +122,10 @@ class PaymobService
                 ? $this->walletIntegrationId
                 : $this->cardIntegrationId;
 
-            $response = Http::post("{$this->baseUrl}/acceptance/payment_keys", [
+            $response = Http::timeout(30)
+                ->connectTimeout(10)
+                ->retry(3, 100)
+                ->post("{$this->baseUrl}/acceptance/payment_keys", [
                 'auth_token' => $authToken,
                 'amount_cents' => $amountCents,
                 'expiration' => 3600, // 1 hour

@@ -19,7 +19,6 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
 
     // Check if empty
     if (!text || text.trim().length === 0) {
-      console.warn("Empty response from server");
       return {
         success: false,
         data: {},
@@ -29,8 +28,6 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
 
     // Check if response is HTML (error page)
     if (text.trim().startsWith("<") || text.trim().startsWith("<!DOCTYPE")) {
-      console.error("Server returned HTML instead of JSON");
-      console.error("Response preview:", text.substring(0, 200));
       return {
         success: false,
         data: {},
@@ -43,10 +40,12 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
       const data = JSON.parse(text);
       return data;
     } catch (parseError) {
-      console.error("Failed to parse JSON response from server");
-      console.error("Response text preview:", text.substring(0, 300));
-      console.error("Parse error:", parseError);
-
+      if (__DEV__) {
+        console.error(
+          "Failed to parse JSON. Preview:",
+          text.substring(0, 200) + "...",
+        );
+      }
       return {
         success: false,
         data: {},
@@ -54,7 +53,6 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
       };
     }
   } catch (error) {
-    console.error("Error reading response:", error);
     return {
       success: false,
       data: {},
@@ -73,17 +71,19 @@ export const safeJsonParse = async (response: Response): Promise<any> => {
 
   // Check if response is HTML (error page)
   if (text.trim().startsWith("<") || text.trim().startsWith("<!DOCTYPE")) {
-    console.error(
-      "Server returned HTML instead of JSON. Response:",
-      text.substring(0, 200),
-    );
     throw new Error("Server error - please check if the backend is running");
   }
 
   try {
     return JSON.parse(text);
   } catch (error) {
-    console.error("JSON parse error. Response text:", text.substring(0, 300));
+    // Only log first 200 chars to avoid console overflow
+    if (__DEV__) {
+      console.error(
+        "JSON parse error. Response preview:",
+        text.substring(0, 200) + "...",
+      );
+    }
     throw new Error("Invalid JSON response from server");
   }
 };

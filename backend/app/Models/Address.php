@@ -17,17 +17,8 @@ class Address extends Model
     protected $fillable = [
         'user_id',
         'label',
-        'recipient_name',
-        'phone',
         'street',
-        'building',
-        'floor',
-        'apartment',
         'city',
-        'area',
-        'postal_code',
-        'landmark',
-        'notes',
         'is_default',
     ];
 

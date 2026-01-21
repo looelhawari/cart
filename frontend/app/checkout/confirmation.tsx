@@ -17,7 +17,7 @@ import {
   Calendar,
   Clock,
   CreditCard,
-  Wallet,
+  Banknote,
 } from "lucide-react-native";
 import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
@@ -34,10 +34,6 @@ export default function CheckoutConfirmationScreen() {
     ? parseInt(params.addressId as string)
     : null;
   const paymentType = (params.paymentType as string) || "cod";
-  const cardNumber = params.cardNumber as string;
-  const cardName = params.cardName as string;
-  const expiryDate = params.expiryDate as string;
-  const cvv = params.cvv as string;
 
   const { cart, fetchCart, user } = useStore();
 
@@ -62,8 +58,6 @@ export default function CheckoutConfirmationScreen() {
     try {
       setLoading(true);
       const slotsRes = await getDeliverySlots();
-
-      console.log("Delivery slots response:", slotsRes);
 
       const slots = slotsRes.data.delivery_slots || slotsRes.data.slots || [];
       const activeSlots = slots.filter((s: any) => s.is_active !== false);
@@ -131,18 +125,19 @@ export default function CheckoutConfirmationScreen() {
     setIsPlacingOrder(true);
 
     try {
+      // Create order first (with pending payment status)
       const response = await createOrder({
         delivery_address_id: addressId,
         delivery_date: selectedDate,
         delivery_time_slot: selectedSlot,
-        payment_method: paymentType === "cod" ? "cod" : "card",
+        payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
         promo_code: cart?.promo_code || undefined,
       });
 
       const orderId = response.data.order.id;
 
-      // If online payment, initiate Paymob payment
       if (paymentType === "card") {
+        // Initiate Paymob payment AFTER order created
         try {
           const paymentResponse = await initiatePayment({
             order_id: orderId,
@@ -157,8 +152,8 @@ export default function CheckoutConfirmationScreen() {
             },
           });
 
-          if (paymentResponse.success) {
-            // Navigate to payment WebView screen
+          if (paymentResponse.success && paymentResponse.data) {
+            // Navigate to Paymob payment gateway
             router.replace({
               pathname: "/payment" as any,
               params: {
@@ -179,7 +174,7 @@ export default function CheckoutConfirmationScreen() {
           return;
         }
       } else {
-        // COD payment - refresh cart and navigate to success
+        // COD - refresh cart and navigate to success
         await fetchCart();
         router.replace({
           pathname: "/order-success" as any,
@@ -304,13 +299,13 @@ export default function CheckoutConfirmationScreen() {
         {/* Payment Method Summary */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Wallet size={20} color={Colors.primary900} />
+            <CreditCard size={20} color={Colors.primary900} />
             <Text style={styles.sectionTitle}>Payment Method</Text>
           </View>
           <View style={styles.summaryRow}>
             {paymentType === "cod" ? (
               <View style={styles.paymentSummary}>
-                <Wallet size={20} color={Colors.neutralMedium} />
+                <Banknote size={20} color={Colors.neutralMedium} />
                 <View style={styles.paymentTextContainer}>
                   <Text style={styles.paymentType}>Cash on Delivery</Text>
                   <Text style={styles.paymentDetail}>Pay when you receive</Text>
@@ -320,11 +315,9 @@ export default function CheckoutConfirmationScreen() {
               <View style={styles.paymentSummary}>
                 <CreditCard size={20} color={Colors.neutralMedium} />
                 <View style={styles.paymentTextContainer}>
-                  <Text style={styles.paymentType}>Credit/Debit Card</Text>
+                  <Text style={styles.paymentType}>Card Payment</Text>
                   <Text style={styles.paymentDetail}>
-                    {cardNumber
-                      ? `****${cardNumber.slice(-4)}`
-                      : "Card Payment"}
+                    Secure payment via Paymob
                   </Text>
                 </View>
               </View>

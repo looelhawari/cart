@@ -109,7 +109,13 @@ Route::prefix('v1')->group(function () {
 
         // Payment endpoints (protected)
         Route::prefix('payments')->group(function () {
+            // Pre-check payment (NEW - validates Paymob BEFORE order creation)
+            Route::post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
+
+            // Initiate payment (creates payment record)
             Route::post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
+
+            // Get payment status
             Route::get('/order/{orderId}/status', [PaymentController::class, 'getPaymentStatus']);
         });
 

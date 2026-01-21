@@ -23,6 +23,117 @@ class PaymentController extends Controller
     }
 
     /**
+     * Pre-check payment capability BEFORE order creation (NEW - Industry Standard Flow).
+     * This endpoint validates Paymob WITHOUT creating an internal order.
+     * Prevents users from reaching "Place Order" if payment cannot be initiated.
+     *
+     * POST /api/v1/payments/paymob/pre-check
+     */
+    public function preCheckPayment(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'payment_method' => 'required|in:CARD,WALLET',
+            'amount' => 'required|numeric|min:0.01',
+            'billing_data' => 'required|array',
+            'billing_data.first_name' => 'required|string|max:255',
+            'billing_data.last_name' => 'required|string|max:255',
+            'billing_data.email' => 'required|email',
+            'billing_data.phone_number' => 'required|string',
+            'billing_data.city' => 'required|string',
+            'billing_data.street' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            // Convert amount to cents
+            $amountCents = (int) ($request->amount * 100);
+
+            // Generate temporary unique ID (not tied to any order yet)
+            $tempOrderId = 'PRECHECK-' . auth()->id() . '-' . time();
+
+            // Step 1: Authenticate with Paymob
+            $authToken = $this->paymobService->authenticate();
+
+            // Step 2: Register order with Paymob (validates integration)
+            $paymobOrderId = $this->paymobService->registerOrder(
+                $authToken,
+                $amountCents,
+                $tempOrderId
+            );
+
+            // Prepare billing data for Paymob
+            $billingData = array_merge($request->billing_data, [
+                'apartment' => 'NA',
+                'floor' => 'NA',
+                'building' => 'NA',
+                'shipping_method' => 'NA',
+                'postal_code' => 'NA',
+                'country' => 'Egypt',
+                'state' => $request->billing_data['city'] ?? 'Cairo',
+            ]);
+
+            // Step 3: Generate payment key (validates credentials)
+            $paymentToken = $this->paymobService->generatePaymentKey(
+                $authToken,
+                $amountCents,
+                $paymobOrderId,
+                $billingData,
+                $request->payment_method
+            );
+
+            // Get integration ID
+            $integrationId = $this->paymobService->getIntegrationId($request->payment_method);
+
+            // Get iframe URL
+            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
+
+            // Cache payment data for order creation (expires in 30 minutes)
+            $cacheKey = 'payment_precheck_' . auth()->id();
+            cache()->put($cacheKey, [
+                'paymob_order_id' => $paymobOrderId,
+                'payment_token' => $paymentToken,
+                'amount_cents' => $amountCents,
+                'billing_data' => $billingData,
+                'payment_method' => $request->payment_method,
+                'integration_id' => $integrationId,
+                'temp_order_id' => $tempOrderId,
+            ], now()->addMinutes(30));
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment_token' => $paymentToken,
+                    'iframe_url' => $iframeUrl,
+                    'amount' => $request->amount,
+                    'currency' => 'EGP',
+                    'expires_at' => now()->addMinutes(30)->toIso8601String(),
+                ],
+                'message' => 'Payment pre-check successful. Proceed to order summary.',
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Payment pre-check failed', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment service temporarily unavailable. Please try again or choose Cash on Delivery.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 503);
+        }
+    }
+
+    /**
      * Initiate payment with Paymob.
      *
      * POST /api/v1/payments/paymob/initiate
@@ -226,6 +337,12 @@ class PaymentController extends Controller
                     'payment_status' => 'completed',
                     'status' => 'confirmed',
                 ]);
+
+                // NOW clear the cart - payment is confirmed
+                $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
+                if ($cart) {
+                    app(\App\Services\CartService::class)->clearCart($cart);
+                }
 
                 Log::info('Payment marked as paid', [
                     'payment_id' => $payment->id,

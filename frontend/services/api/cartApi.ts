@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_BASE_URL, safeJsonParse } from "./base";
+import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
 import { Cart } from "./types";
 
 // Session ID management for guest carts
@@ -39,12 +39,14 @@ export const getCart = async (): Promise<{
   data: { cart: Cart };
 }> => {
   const sessionId = await getSessionId();
+  const token = await getAuthToken();
 
   const response = await fetch(`${API_BASE_URL}/cart`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
 
@@ -63,7 +65,8 @@ export const getCart = async (): Promise<{
 export const addToCart = async (
   productId: number,
   quantity: number = 1,
-): Promise<{ success: boolean; message: string; data: any }> => {
+): Promise<{ success: boolean; message: string; data: { cart: Cart } }> => {
+  const token = await getAuthToken();
   const sessionId = await getSessionId();
 
   const response = await fetch(`${API_BASE_URL}/cart/items`, {
@@ -71,6 +74,7 @@ export const addToCart = async (
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
     body: JSON.stringify({
       product_id: productId,
@@ -95,12 +99,14 @@ export const updateCartItem = async (
   quantity: number,
 ): Promise<{ success: boolean; message: string; data: { cart: Cart } }> => {
   const sessionId = await getSessionId();
+  const token = await getAuthToken();
 
   const response = await fetch(`${API_BASE_URL}/cart/items/${itemId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
     body: JSON.stringify({ quantity }),
   });
@@ -121,12 +127,14 @@ export const removeCartItem = async (
   itemId: number,
 ): Promise<{ success: boolean; message: string }> => {
   const sessionId = await getSessionId();
+  const token = await getAuthToken();
 
   const response = await fetch(`${API_BASE_URL}/cart/items/${itemId}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
 
@@ -147,12 +155,14 @@ export const clearCart = async (): Promise<{
   message: string;
 }> => {
   const sessionId = await getSessionId();
+  const token = await getAuthToken();
 
   const response = await fetch(`${API_BASE_URL}/cart/clear`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
 
@@ -172,12 +182,14 @@ export const applyPromoCode = async (
   code: string,
 ): Promise<{ success: boolean; message: string; data: any }> => {
   const sessionId = await getSessionId();
+  const token = await getAuthToken();
 
   const response = await fetch(`${API_BASE_URL}/cart/apply-promo`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
     body: JSON.stringify({ code }),
   });
@@ -200,12 +212,14 @@ export const removePromoCode = async (): Promise<{
   data: { cart: Cart };
 }> => {
   const sessionId = await getSessionId();
+  const token = await getAuthToken();
 
   const response = await fetch(`${API_BASE_URL}/cart/remove-promo`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
 

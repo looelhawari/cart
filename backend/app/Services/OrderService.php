@@ -5,11 +5,10 @@ namespace App\Services;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\OrderStatusHistory;
+// use App\Models\OrderStatusHistory; // Table not created yet
 use App\Models\Product;
 use App\Models\PromoCode;
 use App\Models\User;
-use App\Models\UserAddress;
 use Illuminate\Support\Facades\DB;
 
 class OrderService
@@ -47,7 +46,7 @@ class OrderService
             // Calculate cart totals
             $cartTotals = $this->cartService->calculateTotals($cart);
 
-            if ($cartTotals['item_count'] === 0) {
+            if ($cartTotals['items_count'] === 0) {
                 throw new \Exception('Cannot create order from empty cart');
             }
 
@@ -67,9 +66,6 @@ class OrderService
             // Calculate total
             $total = $cartTotals['subtotal'] + $deliveryFee + $tax - $discount;
 
-            // Load delivery address for snapshot
-            $deliveryAddress = UserAddress::findOrFail($deliveryAddressId);
-
             // Create order
             $order = Order::create([
                 'user_id' => $userId,
@@ -86,29 +82,10 @@ class OrderService
                 'delivery_date' => $deliveryDate,
                 'delivery_time_slot' => $deliveryTimeSlot,
                 'notes' => $notes,
-                // ADDRESS-01: Snapshot delivery address
-                'delivery_address_snapshot' => [
-                    'address_line_1' => $deliveryAddress->address_line_1,
-                    'address_line_2' => $deliveryAddress->address_line_2,
-                    'city' => $deliveryAddress->city,
-                    'state' => $deliveryAddress->state,
-                    'zip_code' => $deliveryAddress->zip_code,
-                    'country' => $deliveryAddress->country ?? 'Egypt',
-                    'phone' => $deliveryAddress->phone,
-                    'recipient_name' => $deliveryAddress->recipient_name ?? $deliveryAddress->user->first_name . ' ' . $deliveryAddress->user->last_name,
-                    'type' => $deliveryAddress->type,
-                    'is_default' => $deliveryAddress->is_default,
-                ],
-                // PROMO-01: Snapshot promo code details if applied
-                'promo_code_snapshot' => $promoCode ? [
-                    'code' => $promoCode->code,
-                    'type' => $promoCode->type,
-                    'value' => $promoCode->value,
-                    'discount_amount' => $discount,
-                ] : null,
             ]);
 
             // Create order items from cart items
+            $cart->load('items.product');
             foreach ($cart->items as $cartItem) {
                 $product = $cartItem->product;
 
@@ -141,15 +118,19 @@ class OrderService
             }
 
             // Create initial status history
-            OrderStatusHistory::create([
-                'order_id' => $order->id,
-                'status' => 'pending',
-                'notes' => 'Order created',
-                'created_by' => $userId,
-            ]);
+            // OrderStatusHistory::create([
+            //     'order_id' => $order->id,
+            //     'status' => 'pending',
+            //     'notes' => 'Order created',
+            //     'created_by' => $userId,
+            // ]);
 
-            // Clear cart after successful order
-            $this->cartService->clearCart($cart);
+            // CRITICAL: DO NOT clear cart here for card payments
+            // Cart should only be cleared AFTER successful payment confirmation
+            // For COD, we can clear immediately
+            if ($paymentMethod === 'cash_on_delivery') {
+                $this->cartService->clearCart($cart);
+            }
 
             return $order->load(['items.product', 'deliveryAddress', 'user']);
         });
@@ -216,7 +197,7 @@ class OrderService
     {
         return Order::where('id', $orderId)
             ->where('user_id', $userId)
-            ->with(['items.product', 'deliveryAddress', 'statusHistory'])
+            ->with(['items.product', 'deliveryAddress'])
             ->firstOrFail();
     }
 
@@ -251,12 +232,12 @@ class OrderService
             ]);
 
             // Record status change
-            OrderStatusHistory::create([
-                'order_id' => $order->id,
-                'status' => 'cancelled',
-                'notes' => 'Order cancelled by customer: ' . $reason,
-                'created_by' => $userId,
-            ]);
+            // OrderStatusHistory::create([
+            //     'order_id' => $order->id,
+            //     'status' => 'cancelled',
+            //     'notes' => 'Order cancelled by customer: ' . $reason,
+            //     'created_by' => $userId,
+            // ]);
 
             return $order->fresh(['items.product', 'deliveryAddress']);
         });

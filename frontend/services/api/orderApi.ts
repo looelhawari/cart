@@ -1,4 +1,9 @@
-import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
+import {
+  API_BASE_URL,
+  safeJsonParse,
+  safeResponseJson,
+  getAuthToken,
+} from "./base";
 import { getSessionId } from "./cartApi";
 
 export interface OrderItem {
@@ -84,12 +89,14 @@ export const orderApi = {
       },
     });
 
+    // Use safeResponseJson to handle JSON errors gracefully
+    const data = await safeResponseJson(response);
+
     if (!response.ok) {
-      const error = await safeJsonParse(response);
-      throw error;
+      throw new Error(data.message || `HTTP ${response.status}`);
     }
 
-    return await safeJsonParse(response);
+    return data;
   },
 
   /**

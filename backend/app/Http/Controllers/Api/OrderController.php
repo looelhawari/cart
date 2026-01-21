@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CreateOrderRequest;
 use App\Models\Cart;
 use App\Models\PromoCode;
 use App\Services\CartService;
@@ -39,7 +40,7 @@ class OrderController extends Controller
             }
 
             $status = $request->query('status');
-            $perPage = $request->query('per_page', 20);
+            $perPage = $request->query('per_page', 10);
 
             $orders = $this->orderService->getUserOrders($user->id, $status, $perPage);
 
@@ -104,26 +105,8 @@ class OrderController extends Controller
      * Create order from cart
      * POST /api/v1/orders
      */
-    public function store(Request $request): JsonResponse
+    public function store(CreateOrderRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'delivery_address_id' => 'required|integer|exists:addresses,id',
-            'payment_method' => 'required|in:cash_on_delivery,card,wallet',
-            'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
-            'delivery_date' => 'nullable|date|after_or_equal:today',
-            'delivery_time_slot' => 'nullable|string',
-            'notes' => 'nullable|string|max:500',
-            'promo_code' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 400);
-        }
-
         try {
             $user = $request->user();
 

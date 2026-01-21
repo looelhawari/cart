@@ -5,8 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -21,65 +19,13 @@ export default function CheckoutPaymentScreen() {
   const addressId = params.addressId as string;
 
   const [paymentType, setPaymentType] = useState<"card" | "cod">("cod");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [cvv, setCvv] = useState("");
-
-  const formatCardNumber = (text: string) => {
-    const cleaned = text.replace(/\D/g, "");
-    const formatted = cleaned.match(/.{1,4}/g)?.join(" ") || cleaned;
-    return formatted.substring(0, 19);
-  };
-
-  const formatExpiryDate = (text: string) => {
-    const cleaned = text.replace(/\D/g, "");
-    if (cleaned.length >= 2) {
-      return `${cleaned.substring(0, 2)}/${cleaned.substring(2, 4)}`;
-    }
-    return cleaned;
-  };
-
-  const validateCard = () => {
-    if (paymentType === "cod") return true;
-
-    if (cardNumber.replace(/\s/g, "").length !== 16) {
-      Alert.alert("Invalid Card", "Card number must be 16 digits");
-      return false;
-    }
-
-    if (!cardName.trim()) {
-      Alert.alert("Invalid Card", "Enter cardholder name");
-      return false;
-    }
-
-    if (expiryDate.length !== 5) {
-      Alert.alert("Invalid Expiry", "Use MM/YY format");
-      return false;
-    }
-
-    if (cvv.length !== 3) {
-      Alert.alert("Invalid CVV", "CVV must be 3 digits");
-      return false;
-    }
-
-    return true;
-  };
 
   const handleContinue = () => {
-    if (!validateCard()) return;
-
     router.push({
       pathname: "/checkout/confirmation",
       params: {
         addressId,
         paymentType,
-        ...(paymentType === "card" && {
-          cardNumber: cardNumber.replace(/\s/g, ""),
-          cardName,
-          expiryDate,
-          cvv,
-        }),
       },
     });
   };
@@ -136,43 +82,15 @@ export default function CheckoutPaymentScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Card Form */}
+        {/* Card Payment Description */}
         {paymentType === "card" && (
-          <View style={styles.cardForm}>
-            <TextInput
-              style={styles.input}
-              placeholder="Card Number"
-              value={cardNumber}
-              onChangeText={(t) => setCardNumber(formatCardNumber(t))}
-              keyboardType="numeric"
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Cardholder Name"
-              value={cardName}
-              onChangeText={setCardName}
-            />
-
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginRight: Spacing.sm }]}
-                placeholder="MM/YY"
-                value={expiryDate}
-                onChangeText={(t) => setExpiryDate(formatExpiryDate(t))}
-                keyboardType="numeric"
-              />
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="CVV"
-                value={cvv}
-                onChangeText={(t) =>
-                  setCvv(t.replace(/\D/g, "").substring(0, 3))
-                }
-                keyboardType="numeric"
-                secureTextEntry
-              />
-            </View>
+          <View style={styles.paymentDescription}>
+            <CreditCard size={48} color={Colors.primary900} />
+            <Text style={styles.descriptionTitle}>Secure Card Payment</Text>
+            <Text style={styles.descriptionText}>
+              You will be redirected to our secure payment gateway to enter your
+              card details.
+            </Text>
           </View>
         )}
 
@@ -204,7 +122,10 @@ export default function CheckoutPaymentScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutralCloud },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.neutralCloud,
+  },
 
   header: {
     flexDirection: "row",
@@ -226,6 +147,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Typography.h4,
     fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
   },
 
   progressBar: {
@@ -243,15 +165,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  progressDotActive: { backgroundColor: Colors.primary900 },
+  progressDotActive: {
+    backgroundColor: Colors.primary900,
+  },
 
-  progressText: { color: Colors.neutralWhite, fontWeight: "bold" },
+  progressText: {
+    color: Colors.neutralWhite,
+    fontWeight: "bold",
+  },
 
-  progressTextInactive: { color: Colors.neutralMedium },
+  progressTextInactive: {
+    color: Colors.neutralMedium,
+  },
 
-  progressLine: { width: 60, height: 2, backgroundColor: Colors.neutralGray },
+  progressLine: {
+    width: 60,
+    height: 2,
+    backgroundColor: Colors.neutralGray,
+  },
 
-  progressLineActive: { backgroundColor: Colors.primary900 },
+  progressLineActive: {
+    backgroundColor: Colors.primary900,
+  },
 
   paymentTypes: {
     flexDirection: "row",
@@ -272,28 +207,38 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary900,
   },
 
-  paymentTypeText: { fontWeight: "600" },
+  paymentTypeText: {
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
 
-  cardForm: {
+  paymentDescription: {
     backgroundColor: Colors.neutralWhite,
     margin: Spacing.md,
-    padding: Spacing.lg,
+    padding: Spacing.xl,
     borderRadius: 16,
+    alignItems: "center",
   },
 
-  input: {
-    backgroundColor: Colors.neutralLight,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+  descriptionTitle: {
+    fontSize: Typography.h3,
+    fontWeight: Typography.bold,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    color: Colors.neutralCharcoal,
   },
 
-  inputRow: { flexDirection: "row" },
+  descriptionText: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    lineHeight: 22,
+  },
 
   codInfo: {
     backgroundColor: Colors.neutralWhite,
     margin: Spacing.md,
-    padding: Spacing.lg,
+    padding: Spacing.xl,
     borderRadius: 16,
     alignItems: "center",
   },
@@ -302,11 +247,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.h3,
     fontWeight: Typography.bold,
     marginTop: Spacing.sm,
+    color: Colors.neutralCharcoal,
   },
 
   codDescription: {
     color: Colors.neutralMedium,
     textAlign: "center",
+    marginTop: Spacing.sm,
   },
 
   bottomBar: {

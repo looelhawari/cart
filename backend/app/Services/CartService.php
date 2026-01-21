@@ -17,8 +17,32 @@ class CartService
     public function getCart(?int $userId = null, ?string $sessionId = null): Cart
     {
         if ($userId) {
+            // Try to get user's cart
             $cart = Cart::where('user_id', $userId)->first();
 
+            // If user has a session ID, check for guest cart and merge
+            if ($sessionId) {
+                $guestCart = Cart::where('session_id', $sessionId)
+                    ->whereNull('user_id')
+                    ->first();
+
+                if ($guestCart) {
+                    if ($cart) {
+                        // Merge guest cart into user cart
+                        $this->mergeCarts($guestCart, $cart);
+                        $guestCart->delete();
+                    } else {
+                        // Convert guest cart to user cart
+                        $guestCart->update([
+                            'user_id' => $userId,
+                            'session_id' => null,
+                        ]);
+                        $cart = $guestCart;
+                    }
+                }
+            }
+
+            // Create new user cart if none exists
             if (!$cart) {
                 $cart = Cart::create(['user_id' => $userId]);
             }
@@ -35,7 +59,33 @@ class CartService
             }
         }
 
+        // Load cart items with product relationship
+        $cart->load('items.product');
+
         return $cart;
+    }
+
+    /**
+     * Merge items from source cart into destination cart
+     */
+    private function mergeCarts(Cart $sourceCart, Cart $destinationCart): void
+    {
+        foreach ($sourceCart->items as $sourceItem) {
+            $existingItem = $destinationCart->items()
+                ->where('product_id', $sourceItem->product_id)
+                ->first();
+
+            if ($existingItem) {
+                // Update quantity and use latest price
+                $existingItem->update([
+                    'quantity' => $existingItem->quantity + $sourceItem->quantity,
+                    'price' => $sourceItem->price,
+                ]);
+            } else {
+                // Move item to destination cart
+                $sourceItem->update(['cart_id' => $destinationCart->id]);
+            }
+        }
     }
 
     /**

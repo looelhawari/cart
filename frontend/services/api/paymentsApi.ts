@@ -2,7 +2,7 @@ import { apiRequest } from "./base";
 
 export interface InitiatePaymentRequest {
   order_id: number;
-  payment_method: "CARD" | "WALLET";
+  payment_method: "CARD";
   billing_data: {
     first_name: string;
     last_name: string;
@@ -31,7 +31,7 @@ export interface PaymentStatusResponse {
     status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
     amount: number;
     currency: string;
-    payment_method: "CARD" | "WALLET";
+    payment_method: "CARD";
     paid_at: string | null;
     transaction_id: string | null;
   };
@@ -39,7 +39,7 @@ export interface PaymentStatusResponse {
 }
 
 /**
- * Initiate payment with Paymob
+ * Initiate payment with Paymob AFTER order creation (Industry Standard)
  */
 export const initiatePayment = async (
   data: InitiatePaymentRequest,

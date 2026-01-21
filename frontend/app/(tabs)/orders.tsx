@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,29 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, Clock, Truck, CheckCircle, XCircle, ShoppingBag } from 'lucide-react-native';
-import { router } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Package,
+  Clock,
+  Truck,
+  CheckCircle,
+  XCircle,
+  ShoppingBag,
+} from "lucide-react-native";
+import { router } from "expo-router";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { getOrders, Order } from '@/services/api/orderApi';
-import { useStore } from '@/store';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { getOrders, Order } from "@/services/api/orderApi";
+import { useStore } from "@/store";
 
-type TabType = 'all' | 'active' | 'delivered' | 'cancelled';
+type TabType = "all" | "active" | "delivered" | "cancelled";
 
 export default function OrdersScreen() {
   const { user } = useStore();
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [activeTab, setActiveTab] = useState<TabType>("all");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,11 +45,15 @@ export default function OrdersScreen() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const statusFilter = activeTab === 'all' ? undefined : activeTab;
+      const statusFilter = activeTab === "all" ? undefined : activeTab;
       const response = await getOrders(statusFilter);
-      setOrders(response.data.orders.data || []);
+
+      // Backend returns { success, data: { orders: [...], pagination: {...} } }
+      // orders is an array, not a paginated object
+      const ordersData = response.data.orders || [];
+      setOrders(ordersData);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to load orders');
+      Alert.alert("Error", error.message || "Failed to load orders");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -56,16 +67,14 @@ export default function OrdersScreen() {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyContainer}>
           <Package size={80} color={Colors.neutralGray} />
           <Text style={styles.emptyTitle}>Please Login</Text>
-          <Text style={styles.emptyText}>
-            Sign in to view your orders
-          </Text>
+          <Text style={styles.emptyText}>Sign in to view your orders</Text>
           <TouchableOpacity
             style={styles.loginButton}
-            onPress={() => router.push('/(auth)/login')}
+            onPress={() => router.push("/(auth)/login")}
           >
             <Text style={styles.loginButtonText}>Login</Text>
           </TouchableOpacity>
@@ -75,19 +84,19 @@ export default function OrdersScreen() {
   }
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
-      case 'processing':
+      case "pending":
+      case "processing":
         return <Clock size={20} color={Colors.accentOrange} />;
-      case 'confirmed':
-      case 'preparing':
+      case "confirmed":
+      case "preparing":
         return <Package size={20} color={Colors.primary700} />;
-      case 'out_for_delivery':
-      case 'shipped':
+      case "out_for_delivery":
+      case "shipped":
         return <Truck size={20} color={Colors.primary900} />;
-      case 'delivered':
+      case "delivered":
         return <CheckCircle size={20} color={Colors.primary700} />;
-      case 'cancelled':
-      case 'failed':
+      case "cancelled":
+      case "failed":
         return <XCircle size={20} color={Colors.accentRed} />;
       default:
         return <Package size={20} color={Colors.neutralMedium} />;
@@ -96,19 +105,19 @@ export default function OrdersScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-      case 'processing':
+      case "pending":
+      case "processing":
         return Colors.accentOrange;
-      case 'confirmed':
-      case 'preparing':
+      case "confirmed":
+      case "preparing":
         return Colors.primary700;
-      case 'out_for_delivery':
-      case 'shipped':
+      case "out_for_delivery":
+      case "shipped":
         return Colors.primary900;
-      case 'delivered':
+      case "delivered":
         return Colors.primary700;
-      case 'cancelled':
-      case 'failed':
+      case "cancelled":
+      case "failed":
         return Colors.accentRed;
       default:
         return Colors.neutralMedium;
@@ -116,24 +125,31 @@ export default function OrdersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>My Orders</Text>
       </View>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
-        {(['all', 'active', 'delivered', 'cancelled'] as TabType[]).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {(["all", "active", "delivered", "cancelled"] as TabType[]).map(
+          (tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab && styles.activeTabText,
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ),
+        )}
       </View>
 
       {loading ? (
@@ -149,7 +165,7 @@ export default function OrdersScreen() {
           </Text>
           <TouchableOpacity
             style={styles.shopButton}
-            onPress={() => router.push('/(tabs)')}
+            onPress={() => router.push("/(tabs)")}
           >
             <Text style={styles.shopButtonText}>Start Shopping</Text>
           </TouchableOpacity>
@@ -159,7 +175,11 @@ export default function OrdersScreen() {
           style={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary900]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary900]}
+            />
           }
         >
           {orders.map((order) => (
@@ -172,16 +192,26 @@ export default function OrdersScreen() {
                 <View style={styles.orderHeaderLeft}>
                   <Text style={styles.orderNumber}>{order.order_number}</Text>
                   <Text style={styles.orderDate}>
-                    {new Date(order.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
+                    {new Date(order.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
                     })}
                   </Text>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    { backgroundColor: getStatusColor(order.status) + "20" },
+                  ]}
+                >
                   {getStatusIcon(order.status)}
-                  <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+                  <Text
+                    style={[
+                      styles.statusText,
+                      { color: getStatusColor(order.status) },
+                    ]}
+                  >
                     {order.status_label}
                   </Text>
                 </View>
@@ -191,13 +221,18 @@ export default function OrdersScreen() {
                 {order.items?.slice(0, 2).map((item) => (
                   <View key={item.id} style={styles.miniItem}>
                     {item.product?.image && (
-                      <Image source={{ uri: item.product.image }} style={styles.miniImage} />
+                      <Image
+                        source={{ uri: item.product.image }}
+                        style={styles.miniImage}
+                      />
                     )}
                   </View>
                 ))}
                 {(order.items?.length || 0) > 2 && (
                   <View style={styles.moreItems}>
-                    <Text style={styles.moreItemsText}>+{(order.items?.length || 0) - 2}</Text>
+                    <Text style={styles.moreItemsText}>
+                      +{(order.items?.length || 0) - 2}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -232,7 +267,7 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   tabContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     gap: Spacing.sm,
@@ -241,7 +276,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.sm,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: Colors.neutralWhite,
   },
   activeTab: {
@@ -257,13 +292,13 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: Spacing.xl,
   },
   emptyTitle: {
@@ -276,7 +311,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.lg,
   },
   shopButton: {
@@ -310,16 +345,16 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: Spacing.md,
     marginBottom: Spacing.md,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: Spacing.md,
   },
   orderHeaderLeft: {
@@ -336,8 +371,8 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
   },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
@@ -348,7 +383,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
   },
   orderItems: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.xs,
     marginBottom: Spacing.md,
   },
@@ -356,11 +391,11 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   miniImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     backgroundColor: Colors.neutralLight,
   },
   moreItems: {
@@ -368,8 +403,8 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 12,
     backgroundColor: Colors.neutralLight,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   moreItemsText: {
     fontSize: Typography.bodySmall,
@@ -377,9 +412,9 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
   },
   orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.neutralLight,

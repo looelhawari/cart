@@ -85,11 +85,12 @@ class Order extends Model
 
     /**
      * Get the order status history
+     * Note: Disabled until order_status_history table is created
      */
-    public function statusHistory(): HasMany
-    {
-        return $this->hasMany(OrderStatusHistory::class);
-    }
+    // public function statusHistory(): HasMany
+    // {
+    //     return $this->hasMany(OrderStatusHistory::class);
+    // }
 
     /**
      * Get the Paymob payments for this order
