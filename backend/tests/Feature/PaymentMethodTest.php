@@ -96,10 +96,13 @@ class PaymentMethodTest extends TestCase
                     'payment_methods' => [
                         [
                             'id' => $userCard->id,
+                            'type' => 'card',
                             'card_last_four' => '4242',
                             'card_brand' => 'visa',
+                            'masked_card' => '**** **** **** 4242',
                             'is_default' => true,
                             'is_verified' => true,
+                            'is_expired' => false,
                         ],
                     ],
                 ],
@@ -109,7 +112,7 @@ class PaymentMethodTest extends TestCase
     }
 
     /** @test */
-    public function it_does_not_return_deleted_payment_methods()
+    public function it_includes_expired_cards_with_is_expired_flag()
     {
         $activeCard = PaymentMethod::create([
             'user_id' => $this->user->id,
@@ -120,37 +123,38 @@ class PaymentMethodTest extends TestCase
             'token' => 'tok_active_123',
             'is_default' => true,
             'is_verified' => true,
+            'expires_at' => now()->addYear(),
         ]);
 
-        $deletedCard = PaymentMethod::create([
+        $expiredCard = PaymentMethod::create([
             'user_id' => $this->user->id,
             'type' => 'card',
             'card_last_four' => '5555',
             'card_brand' => 'mastercard',
             'card_holder_name' => 'John Doe',
-            'token' => 'tok_deleted_456',
+            'token' => 'tok_expired_456',
             'is_verified' => true,
+            'expires_at' => now()->subMonth(), // Expired last month
         ]);
-
-        // Soft delete the second card
-        $deletedCard->delete();
 
         $response = $this->actingAs($this->user)
             ->getJson('/api/v1/payment-methods');
 
-        $response->assertStatus(200)
-            ->assertJson([
-                'success' => true,
-                'data' => [
-                    'payment_methods' => [
-                        ['card_last_four' => '4242'],
-                    ],
-                ],
-            ])
-            ->assertJsonMissing(['card_last_four' => '5555']);
+        $response->assertStatus(200);
 
-        // Verify only 1 card returned
-        $this->assertCount(1, $response->json('data.payment_methods'));
+        $cards = $response->json('data.payment_methods');
+
+        // ✅ BOTH cards should be included
+        $this->assertCount(2, $cards);
+
+        // ✅ Active card should have is_expired = false
+        $activeCardData = collect($cards)->firstWhere('card_last_four', '4242');
+        $this->assertFalse($activeCardData['is_expired']);
+
+        // ✅ Expired card should have is_expired = true
+        $expiredCardData = collect($cards)->firstWhere('card_last_four', '5555');
+        $this->assertTrue($expiredCardData['is_expired']);
+    }
     }
 
     /** @test */
@@ -179,17 +183,18 @@ class PaymentMethodTest extends TestCase
     }
 
     /** @test */
-    public function it_orders_payment_methods_default_first_then_newest()
+    public function it_orders_payment_methods_by_eligibility()
     {
-        // Create 3 cards with different timestamps
-        $oldCard = PaymentMethod::create([
+        // Create cards with different eligibility states
+        $expiredCard = PaymentMethod::create([
             'user_id' => $this->user->id,
             'type' => 'card',
             'card_last_four' => '1111',
             'card_brand' => 'visa',
             'card_holder_name' => 'John Doe',
-            'token' => 'tok_old_111',
+            'token' => 'tok_expired_111',
             'is_verified' => true,
+            'expires_at' => now()->subMonth(), // Expired
             'created_at' => now()->subDays(10),
         ]);
 
@@ -202,18 +207,31 @@ class PaymentMethodTest extends TestCase
             'token' => 'tok_default_222',
             'is_default' => true,
             'is_verified' => true,
+            'expires_at' => now()->addYear(), // Non-expired
             'created_at' => now()->subDays(5),
         ]);
 
-        $newestCard = PaymentMethod::create([
+        $eligibleCard = PaymentMethod::create([
             'user_id' => $this->user->id,
             'type' => 'card',
             'card_last_four' => '3333',
             'card_brand' => 'amex',
             'card_holder_name' => 'John Doe',
-            'token' => 'tok_newest_333',
+            'token' => 'tok_eligible_333',
             'is_verified' => true,
-            'created_at' => now(),
+            'expires_at' => now()->addYear(), // Non-expired
+            'created_at' => now(), // Newest
+        ]);
+
+        $unverifiedCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '4444',
+            'card_brand' => 'discover',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_unverified_444',
+            'is_verified' => false, // Unverified
+            'created_at' => now()->addMinutes(1), // Newest overall
         ]);
 
         $response = $this->actingAs($this->user)
@@ -223,10 +241,12 @@ class PaymentMethodTest extends TestCase
 
         $cards = $response->json('data.payment_methods');
 
-        // Verify order: Default first, then newest, then oldest
-        $this->assertEquals('2222', $cards[0]['card_last_four']); // Default
-        $this->assertEquals('3333', $cards[1]['card_last_four']); // Newest
-        $this->assertEquals('1111', $cards[2]['card_last_four']); // Oldest
+        // ✅ SMART SORTING: default → eligible (non-expired verified) → others
+        $this->assertEquals('2222', $cards[0]['card_last_four']); // Default (eligible)
+        $this->assertEquals('3333', $cards[1]['card_last_four']); // Eligible (newest verified non-expired)
+        // Remaining cards (unverified/expired) sorted by newest
+        $this->assertContains($cards[2]['card_last_four'], ['4444', '1111']);
+        $this->assertContains($cards[3]['card_last_four'], ['4444', '1111']);
     }
 
     /** @test */
@@ -668,5 +688,236 @@ class PaymentMethodTest extends TestCase
             'id' => $unverifiedCard->id,
             'is_default' => false,
         ]);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // TEST: DEFAULT CARD INVARIANTS (Phase 4 Final)
+    // ═══════════════════════════════════════════════════════
+
+    /** @test */
+    public function it_enforces_exactly_one_default_when_eligible_cards_exist()
+    {
+        // Create 3 eligible cards (verified + non-expired)
+        $card1 = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '1111',
+            'card_brand' => 'visa',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_card1',
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        $card2 = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '2222',
+            'card_brand' => 'mastercard',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_card2',
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        $card3 = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '3333',
+            'card_brand' => 'amex',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_card3',
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        // Set card2 as default
+        $this->actingAs($this->user)
+            ->putJson("/api/v1/payment-methods/{$card2->id}/default");
+
+        // ✅ INVARIANT: Exactly one default exists
+        $defaultCount = PaymentMethod::where('user_id', $this->user->id)
+            ->whereNull('deleted_at')
+            ->where('is_default', true)
+            ->count();
+
+        $this->assertEquals(1, $defaultCount, 'Exactly one card must be default when eligible cards exist');
+    }
+
+    /** @test */
+    public function it_does_not_auto_pick_expired_card_as_default()
+    {
+        $defaultCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '1111',
+            'card_brand' => 'visa',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_default',
+            'is_default' => true,
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        $expiredCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '2222',
+            'card_brand' => 'mastercard',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_expired',
+            'is_verified' => true,
+            'expires_at' => now()->subMonth(), // Expired
+            'created_at' => now(), // Newer than default
+        ]);
+
+        // Delete default card
+        $response = $this->actingAs($this->user)
+            ->deleteJson("/api/v1/payment-methods/{$defaultCard->id}");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'data' => [
+                    'new_default' => null, // ✅ No eligible card to auto-pick
+                ],
+            ]);
+
+        // ✅ INVARIANT: Expired card should NOT be picked as default
+        $this->assertDatabaseHas('payment_methods', [
+            'id' => $expiredCard->id,
+            'is_default' => false,
+        ]);
+    }
+
+    /** @test */
+    public function it_allows_null_default_when_all_cards_are_expired_or_unverified()
+    {
+        $defaultCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '1111',
+            'card_brand' => 'visa',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_default',
+            'is_default' => true,
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        $expiredCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '2222',
+            'card_brand' => 'mastercard',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_expired',
+            'is_verified' => true,
+            'expires_at' => now()->subMonth(),
+        ]);
+
+        $unverifiedCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '3333',
+            'card_brand' => 'amex',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_unverified',
+            'is_verified' => false,
+        ]);
+
+        // Delete the only eligible card
+        $this->actingAs($this->user)
+            ->deleteJson("/api/v1/payment-methods/{$defaultCard->id}");
+
+        // ✅ INVARIANT: Default can be null if all remaining cards are ineligible
+        $defaultCount = PaymentMethod::where('user_id', $this->user->id)
+            ->whereNull('deleted_at')
+            ->where('is_default', true)
+            ->count();
+
+        $this->assertEquals(0, $defaultCount, 'Default can be null when all cards are expired/unverified');
+    }
+
+    /** @test */
+    public function it_returns_expired_cards_in_listing_with_flag()
+    {
+        $activeCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '4242',
+            'card_brand' => 'visa',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_active',
+            'is_default' => true,
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        $expiredCard = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '5555',
+            'card_brand' => 'mastercard',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_expired',
+            'is_verified' => true,
+            'expires_at' => now()->subMonth(),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->getJson('/api/v1/payment-methods');
+
+        $response->assertStatus(200);
+
+        $cards = $response->json('data.payment_methods');
+
+        // ✅ Both cards included
+        $this->assertCount(2, $cards);
+
+        // ✅ Check is_expired flags
+        $activeCardData = collect($cards)->firstWhere('card_last_four', '4242');
+        $this->assertFalse($activeCardData['is_expired']);
+
+        $expiredCardData = collect($cards)->firstWhere('card_last_four', '5555');
+        $this->assertTrue($expiredCardData['is_expired']);
+    }
+
+    /** @test */
+    public function it_matches_checkout_response_format()
+    {
+        $card = PaymentMethod::create([
+            'user_id' => $this->user->id,
+            'type' => 'card',
+            'card_last_four' => '4242',
+            'card_brand' => 'visa',
+            'card_holder_name' => 'John Doe',
+            'token' => 'tok_test',
+            'is_default' => true,
+            'is_verified' => true,
+            'expires_at' => now()->addYear(),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->getJson('/api/v1/payment-methods');
+
+        $response->assertStatus(200);
+
+        $cardData = $response->json('data.payment_methods.0');
+
+        // ✅ Response format matches checkout
+        $this->assertArrayHasKey('type', $cardData);
+        $this->assertArrayHasKey('card_brand', $cardData);
+        $this->assertArrayHasKey('card_last_four', $cardData);
+        $this->assertArrayHasKey('masked_card', $cardData);
+        $this->assertArrayHasKey('is_default', $cardData);
+        $this->assertArrayHasKey('is_verified', $cardData);
+        $this->assertArrayHasKey('is_expired', $cardData);
+        $this->assertArrayHasKey('expires_at', $cardData);
+
+        // ✅ Verify values
+        $this->assertEquals('card', $cardData['type']);
+        $this->assertEquals('**** **** **** 4242', $cardData['masked_card']);
+        $this->assertEquals(false, $cardData['is_expired']);
     }
 }

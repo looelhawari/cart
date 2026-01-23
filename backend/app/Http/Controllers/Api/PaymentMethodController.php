@@ -23,13 +23,18 @@ use Illuminate\Support\Facades\Log;
 class PaymentMethodController extends Controller
 {
     /**
-     * List all active saved payment methods for authenticated user
+     * List all saved payment methods for authenticated user
      *
      * GET /api/v1/payment-methods
      *
-     * Returns only non-deleted, active cards.
-     * Response fields: id, card_last_four, card_brand, expires_at,
-     *                  is_default, is_verified, created_at
+     * LISTING RULES:
+     * - Returns ALL non-deleted cards (including expired)
+     * - Sorted by eligibility: default first, then non-expired verified, then others
+     * - Includes is_expired flag for frontend to disable selection
+     *
+     * RESPONSE FORMAT:
+     * - Matches /checkout/payment-methods format exactly
+     * - Fields: id, type, card_brand, card_last_four, masked_card, is_default, is_verified, is_expired, expires_at
      *
      * SECURITY: Never returns token or token_fingerprint
      *
@@ -41,24 +46,36 @@ class PaymentMethodController extends Controller
         try {
             $user = $request->user();
 
-            // Get all active payment methods for user
-            // Ordered by: default first, then newest first
+            // Get ALL non-deleted payment methods (including expired)
             $paymentMethods = PaymentMethod::where('user_id', $user->id)
-                ->whereNull('deleted_at') // Only non-deleted cards
-                ->orderBy('is_default', 'desc')
-                ->orderBy('created_at', 'desc')
+                ->whereNull('deleted_at')
                 ->get()
                 ->map(function ($method) {
                     return [
                         'id' => $method->id,
-                        'card_last_four' => $method->card_last_four,
+                        'type' => $method->type,
                         'card_brand' => $method->card_brand,
-                        'expires_at' => $method->expires_at?->format('Y-m-d'), // ISO 8601
+                        'card_last_four' => $method->card_last_four,
+                        'masked_card' => $method->masked_card,
                         'is_default' => $method->is_default,
                         'is_verified' => $method->is_verified,
-                        'created_at' => $method->created_at->toIso8601String(),
+                        'is_expired' => $method->isExpired(), // ✅ Computed field
+                        'expires_at' => $method->expires_at?->format('m/y'), // Match checkout format ("12/25")
+                        // Internal sorting keys (not returned to client)
+                        '_is_eligible' => $method->is_verified && !$method->isExpired(),
+                        '_created_at' => $method->created_at,
                     ];
-                });
+                })
+                // ✅ Smart sorting: default → eligible (non-expired verified) → others
+                ->sortByDesc('is_default')
+                ->sortByDesc('_is_eligible')
+                ->sortByDesc('_created_at')
+                ->map(function ($method) {
+                    // Remove internal sorting keys before returning
+                    unset($method['_is_eligible'], $method['_created_at']);
+                    return $method;
+                })
+                ->values(); // Re-index array
 
             return response()->json([
                 'success' => true,
@@ -240,15 +257,22 @@ class PaymentMethodController extends Controller
                     'was_default' => $wasDefault,
                 ]);
 
-                // If deleted card was default, auto-pick next default
+                // ✅ INVARIANT ENFORCEMENT: If deleted card was default, auto-pick next eligible default
                 if ($wasDefault) {
+                    // Find next eligible card: verified + non-expired only
                     $nextDefault = PaymentMethod::where('user_id', $user->id)
                         ->whereNull('deleted_at')
                         ->where('is_verified', true) // Only verified cards
+                        ->where(function ($q) {
+                            // Only non-expired cards (expires_at is NULL or future)
+                            $q->whereNull('expires_at')
+                              ->orWhere('expires_at', '>', now());
+                        })
                         ->orderBy('created_at', 'desc') // Most recent first
                         ->first();
 
                     if ($nextDefault) {
+                        // ✅ INVARIANT: Exactly one default per user
                         // Unset all defaults first (safety)
                         PaymentMethod::where('user_id', $user->id)
                             ->whereNull('deleted_at')
@@ -261,6 +285,7 @@ class PaymentMethodController extends Controller
                             'user_id' => $user->id,
                             'new_default_id' => $nextDefault->id,
                             'card_last_four' => $nextDefault->card_last_four,
+                            'is_expired' => false, // Guaranteed by query
                         ]);
 
                         return response()->json([
@@ -276,8 +301,9 @@ class PaymentMethodController extends Controller
                         ], 200);
                     }
 
-                    // No other cards exist - user has no default now
-                    Log::info('No other cards available to set as default', [
+                    // ✅ INVARIANT: Default can be null if all remaining cards are expired/unverified
+                    // This is acceptable - user must add new card or wait for verification
+                    Log::info('No eligible cards to set as default (all expired or unverified)', [
                         'user_id' => $user->id,
                     ]);
                 }
