@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -86,7 +87,12 @@ Route::prefix('v1')->group(function () {
         Route::put('addresses/{id}', [AddressController::class, 'update']);
         Route::delete('addresses/{id}', [AddressController::class, 'destroy']);
         Route::post('addresses/{id}/default', [AddressController::class, 'setDefault']);
-
+        // Payment Methods CRUD (Phase 4)
+        Route::prefix('payment-methods')->group(function () {
+            Route::get('/', [PaymentMethodController::class, 'index']);
+            Route::put('/{id}/default', [PaymentMethodController::class, 'setDefault']);
+            Route::delete('/{id}', [PaymentMethodController::class, 'destroy']);
+        });
         // Checkout endpoints
         Route::prefix('checkout')->group(function () {
             Route::get('/addresses', [CheckoutController::class, 'getAddresses']);

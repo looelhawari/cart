@@ -19,8 +19,7 @@ class PaymobPayment extends Model
         'transaction_id',  // FIXED: Match actual database column name
         'amount_cents',
         'currency',
-        'payment_method',
-        'integration_id',
+        'payment_method',        'save_card_requested', // User opted to save card        'integration_id',
         'status',
         'billing_data',
         'paymob_response',

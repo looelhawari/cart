@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\PaymentMethod;
 use App\Models\PaymobPayment;
 use App\Services\PaymobService;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
 use Exception;
 
 class PaymentController extends Controller
@@ -143,6 +145,7 @@ class PaymentController extends Controller
         $validator = Validator::make($request->all(), [
             'order_id' => 'required|exists:orders,id',
             'payment_method' => 'required|in:CARD,WALLET',
+            'save_card' => 'nullable|boolean', // ✅ Phase 3: Save card opt-in
             'billing_data' => 'required|array',
             'billing_data.first_name' => 'required|string|max:255',
             'billing_data.last_name' => 'required|string|max:255',
@@ -243,6 +246,7 @@ class PaymentController extends Controller
                 'amount_cents' => $amountCents,
                 'currency' => 'EGP',
                 'payment_method' => $request->payment_method,
+                'save_card_requested' => $request->boolean('save_card', false), // ✅ Phase 3
                 'integration_id' => $integrationId,
                 'status' => 'PENDING',
                 'billing_data' => $billingData,
@@ -452,6 +456,19 @@ class PaymentController extends Controller
                         ]);
                     }
 
+                    // ═══════════════════════════════════════════════════════
+                    // ✅ PHASE 3: SAVE CARD TOKEN (if user opted in)
+                    // MEDIUM 1 FIX: Only save after FULL validation
+                    // - Payment success confirmed ✅ (we're in success path)
+                    // - Payment is expected record ✅ (already verified above)
+                    // - Not already processed ✅ (idempotency check passed)
+                    // - Payment method is CARD ✅ (checked in shouldSaveCardToken)
+                    // - Never runs for WALLET ✅ (shouldSaveCardToken rejects non-CARD)
+                    // ═══════════════════════════════════════════════════════
+                    if ($this->shouldSaveCardToken($payment, $payload)) {
+                        $this->saveCardToken($order->user_id, $payload);
+                    }
+
                     Log::info('✅ Payment SUCCESS - All tables updated atomically', [
                         'payment_id' => $payment->id,
                         'order_id' => $order->id,
@@ -605,5 +622,336 @@ class PaymentController extends Controller
                 'message' => 'Failed to get payment status',
             ], 500);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ✅ PHASE 3: SAVED CARD TOKEN MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if we should save card token from webhook.
+     *
+     * Conditions:
+     * 1. Payment succeeded (already checked by caller)
+     * 2. Payment method is CARD (not wallet)
+     * 3. User opted in during payment initiation
+     * 4. Token exists in Paymob response
+     *
+     * @param PaymobPayment $payment
+     * @param array $payload Paymob webhook payload
+     * @return bool
+     */
+    private function shouldSaveCardToken(PaymobPayment $payment, array $payload): bool
+    {
+        // Only for card payments
+        if ($payment->payment_method !== 'CARD') {
+            return false;
+        }
+
+        // Check if user requested save (stored in paymob_payments.save_card_requested)
+        if (!$payment->save_card_requested) {
+            return false;
+        }
+
+        // Verify token exists in Paymob response
+        if (!isset($payload['source_data']['token'])) {
+            Log::warning('💳 Card save requested but no token in callback', [
+                'payment_id' => $payment->id,
+                'has_source_data' => isset($payload['source_data']),
+            ]);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Extract card token from callback and save to payment_methods table.
+     *
+     * CRITICAL: This method does NOT throw exceptions on failure.
+     * Card save failure MUST NOT break payment completion.
+     *
+     * @param int $userId
+     * @param array $payload Paymob webhook payload
+     * @return void
+     */
+    private function saveCardToken(int $userId, array $payload): void
+    {
+        try {
+            // Use PaymobService to extract structured data
+            $cardData = $this->paymobService->extractCardTokenFromCallback($payload);
+
+            if (!$cardData) {
+                Log::warning('💳 Failed to extract card data from callback', [
+                    'user_id' => $userId,
+                ]);
+                return; // Silent return - payment already succeeded
+            }
+
+            // Calculate token fingerprint for duplicate detection
+            $tokenFingerprint = hash('sha256', $cardData['token']);
+
+            // Check if this exact card was previously deleted (restore strategy)
+            $restored = PaymentMethod::findOrRestoreDeleted($userId, $tokenFingerprint);
+
+            if ($restored) {
+                Log::info('💳 Restored previously deleted payment method', [
+                    'payment_method_id' => $restored->id,
+                    'user_id' => $userId,
+                    'card_last_four' => $restored->card_last_four,
+                ]);
+                return; // Restored successfully
+            }
+
+            // Check if card already exists (active, non-deleted)
+            $exists = PaymentMethod::where('user_id', $userId)
+                ->where('token_fingerprint', $tokenFingerprint)
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($exists) {
+                Log::info('💳 Card already saved (duplicate)', [
+                    'user_id' => $userId,
+                    'last4' => $cardData['last4'],
+                ]);
+                return; // Already exists
+            }
+
+            // Determine if this is first card (auto-default)
+            $isFirstCard = PaymentMethod::where('user_id', $userId)
+                ->whereNull('deleted_at')
+                ->count() === 0;
+
+            // Build expiry date if provided
+            $expiresAt = null;
+            if (isset($cardData['expiry_month']) && isset($cardData['expiry_year'])) {
+                $expiresAt = Carbon::createFromFormat(
+                    'Y-m',
+                    $cardData['expiry_year'] . '-' . str_pad($cardData['expiry_month'], 2, '0', STR_PAD_LEFT)
+                )->endOfMonth();
+            }
+
+            // Extract card holder name from billing data (if available)
+            $cardHolderName = null;
+            if (isset($payload['billing_data'])) {
+                $billing = $payload['billing_data'];
+                $cardHolderName = trim(
+                    ($billing['first_name'] ?? '') . ' ' . ($billing['last_name'] ?? '')
+                );
+            }
+
+            // Save card (token auto-encrypted + fingerprint auto-generated by model)
+            $paymentMethod = PaymentMethod::create([
+                'user_id' => $userId,
+                'type' => 'card',
+                'card_last_four' => $cardData['last4'],
+                'card_brand' => $cardData['brand'],
+                'card_holder_name' => $cardHolderName,
+                'token' => $cardData['token'], // ← Auto-encrypted + fingerprinted via setTokenAttribute()
+                'is_default' => $isFirstCard,
+                'is_verified' => true, // Verified since payment succeeded
+                'expires_at' => $expiresAt,
+            ]);
+
+            Log::info('✅ Card saved successfully', [
+                'payment_method_id' => $paymentMethod->id,
+                'user_id' => $userId,
+                'card_last_four' => $paymentMethod->card_last_four,
+                'card_brand' => $paymentMethod->card_brand,
+                'is_default' => $paymentMethod->is_default,
+            ]);
+
+        } catch (\Exception $e) {
+            // CRITICAL: Log but DON'T throw - payment completion must not break
+            Log::error('💳 Failed to save card token - payment still succeeded', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Silent return - payment already succeeded, user just won't have saved card
+        }
+    }
+
+    /**
+     * Initiate payment with a saved card token (Phase 3).
+     *
+     * IMPORTANT: Saved card payments may still require 3DS challenge.
+     * Frontend must handle iframe_url to display Paymob's authentication UI.
+     *
+     * POST /api/v1/payments/paymob/initiate-with-saved-card
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function initiateSavedCardPayment(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'order_id' => 'required|exists:orders,id',
+            'payment_method_id' => 'required|exists:payment_methods,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // MEDIUM 2 FIX: Use DB::transaction closure for atomic operations
+        return DB::transaction(function () use ($request) {
+            // Get order
+            $order = Order::findOrFail($request->order_id);
+
+            // Verify order belongs to authenticated user
+            if ($order->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access to order',
+                ], 403);
+            }
+
+            // Check if order already has a successful payment
+            $existingPayment = PaymobPayment::where('order_id', $order->id)
+                ->where('status', 'PAID')
+                ->first();
+
+            if ($existingPayment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Order already paid',
+                ], 400);
+            }
+
+            // Get saved payment method
+            $paymentMethod = PaymentMethod::findOrFail($request->payment_method_id);
+
+            // Verify payment method belongs to authenticated user
+            if ($paymentMethod->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access to payment method',
+                ], 403);
+            }
+
+            // Validate payment method is active and has valid token
+            if ($paymentMethod->trashed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment method has been deleted',
+                ], 400);
+            }
+
+            if (!$paymentMethod->hasValidToken()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment method token is invalid',
+                ], 400);
+            }
+
+            if ($paymentMethod->isExpired()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Card has expired',
+                ], 400);
+            }
+
+            // Use order snapshot total
+            $amountCents = (int) ($order->total * 100);
+
+            Log::info('💳 SAVED CARD PAYMENT INITIATED', [
+                'order_id' => $order->id,
+                'payment_method_id' => $paymentMethod->id,
+                'card_last_four' => $paymentMethod->card_last_four,
+                'amount_cents' => $amountCents,
+            ]);
+
+            // Generate unique internal order ID
+            $internalOrderId = 'ORD-' . $order->id . '-' . time();
+
+            // Prepare minimal billing data (required by Paymob API)
+            $billingData = [
+                'first_name' => $paymentMethod->card_holder_name ?? $order->user->name ?? 'Customer',
+                'last_name' => ' ',
+                'email' => $order->user->email,
+                'phone_number' => $order->user->phone ?? 'NA',
+                'apartment' => 'NA',
+                'floor' => 'NA',
+                'building' => 'NA',
+                'street' => 'NA',
+                'city' => 'NA',
+                'state' => 'NA',
+                'country' => 'Egypt',
+                'postal_code' => 'NA',
+                'shipping_method' => 'NA',
+            ];
+
+            // Step 1: Authenticate with Paymob
+            $authToken = $this->paymobService->authenticate();
+
+            // Step 2: Register order with Paymob
+            $paymobOrderId = $this->paymobService->registerOrder(
+                $authToken,
+                $amountCents,
+                $internalOrderId
+            );
+
+            // Step 3: Generate payment token using saved card (MEDIUM 3: Use consistent naming)
+            // CRITICAL 1: This may still require 3DS - return iframe_url to frontend
+            $paymentToken = $this->paymobService->payWithSavedCard(
+                $authToken,
+                $amountCents,
+                $paymobOrderId,
+                $paymentMethod->token, // Decrypted token from model accessor
+                $billingData
+            );
+
+            // Get integration ID for cards
+            $integrationId = $this->paymobService->getIntegrationId('CARD');
+
+            // Get iframe URL (CRITICAL 1: May be needed for 3DS challenge)
+            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
+
+            // Store payment record
+            $payment = PaymobPayment::create([
+                'order_id' => $order->id,
+                'internal_order_id' => $internalOrderId,
+                'paymob_order_id' => $paymobOrderId,
+                'amount_cents' => $amountCents,
+                'currency' => 'EGP',
+                'payment_method' => 'CARD',
+                'save_card_requested' => false, // Already saved
+                'integration_id' => $integrationId,
+                'status' => 'PENDING',
+                'billing_data' => $billingData,
+                'payment_token' => $paymentToken,
+            ]);
+
+            // Update order payment status
+            $order->update([
+                'payment_status' => 'pending',
+            ]);
+
+            Log::info('✅ Saved card payment token generated', [
+                'payment_id' => $payment->id,
+                'order_id' => $order->id,
+                'payment_method_id' => $paymentMethod->id,
+            ]);
+
+            // CRITICAL 1 FIX: Return iframe_url for potential 3DS challenge
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment_id' => $payment->id,
+                    'payment_token' => $paymentToken,
+                    'iframe_url' => $iframeUrl, // ✅ Frontend must handle 3DS challenge
+                    'amount' => $order->total,
+                    'currency' => 'EGP',
+                    'card_last_four' => $paymentMethod->card_last_four,
+                    'card_brand' => $paymentMethod->card_brand,
+                ],
+                'message' => 'Payment initiated with saved card',
+            ]);
+        });
     }
 }
