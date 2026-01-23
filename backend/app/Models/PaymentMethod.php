@@ -283,7 +283,4 @@ class PaymentMethod extends Model
 
         return null;
     }
-    {
-        return !is_null($this->token);
-    }
 }

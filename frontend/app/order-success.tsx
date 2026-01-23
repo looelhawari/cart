@@ -34,6 +34,12 @@ export default function OrderSuccessScreen() {
           processed.
         </Text>
 
+        {/* Phase 5.5 Stage 1: Updated messaging for payment clarity */}
+        <Text style={styles.paymentNote}>
+          If you paid by card, your payment is being confirmed. You can check
+          your order status for updates.
+        </Text>
+
         <View style={styles.orderCard}>
           <Text style={styles.orderLabel}>Order Number</Text>
           <Text style={styles.orderNumber}>{orderNumber || "N/A"}</Text>
@@ -102,7 +108,15 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
     textAlign: "center",
     lineHeight: 22,
+    marginBottom: Spacing.sm,
+  },
+  paymentNote: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    fontStyle: "italic",
     marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
   },
   orderCard: {
     width: "100%",

@@ -47,16 +47,12 @@ export default function ProfileScreen() {
   useEffect(() => {
     // Check if user is authenticated before loading
     if (!isAuthenticated) {
-      Alert.alert(
-        "Not Logged In",
-        "Please login to view your profile.",
-        [
-          {
-            text: "Login",
-            onPress: () => router.replace("/login")
-          }
-        ]
-      );
+      Alert.alert("Not Logged In", "Please login to view your profile.", [
+        {
+          text: "Login",
+          onPress: () => router.replace("/login"),
+        },
+      ]);
       setLoading(false);
       return;
     }
@@ -72,7 +68,10 @@ export default function ProfileScreen() {
       console.error("Failed to load profile:", error);
 
       // Check if unauthenticated
-      if (error?.message === "Unauthenticated." || error?.message === "TOKEN_EXPIRED") {
+      if (
+        error?.message === "Unauthenticated." ||
+        error?.message === "TOKEN_EXPIRED"
+      ) {
         Alert.alert(
           "Session Expired",
           "Your session has expired. Please login again.",
@@ -82,9 +81,9 @@ export default function ProfileScreen() {
               onPress: () => {
                 logout();
                 router.replace("/login");
-              }
-            }
-          ]
+              },
+            },
+          ],
         );
       } else {
         Alert.alert("Error", "Failed to load profile. Please try again.");
@@ -135,41 +134,48 @@ export default function ProfileScreen() {
     },
     {
       id: "3",
+      title: "Payment Methods",
+      icon: <CreditCard size={24} color={Colors.primary700} />,
+      route: "/profile/payment-methods",
+      color: Colors.primary700,
+    },
+    {
+      id: "4",
       title: "Favorites",
       icon: <Heart size={24} color={Colors.accentRed} />,
       route: "/profile/favorites",
       color: Colors.accentRed,
     },
     {
-      id: "4",
+      id: "5",
       title: "My Wallet",
       icon: <Wallet size={24} color={Colors.primary700} />,
       route: "/profile/wallet",
       color: Colors.primary700,
     },
     {
-      id: "5",
+      id: "6",
       title: "My Complaints",
       icon: <MessageSquare size={24} color={Colors.accentOrange} />,
       route: "/complaints",
       color: Colors.accentOrange,
     },
     {
-      id: "6",
+      id: "7",
       title: "Notifications",
       icon: <Bell size={24} color={Colors.primary700} />,
       route: "/notifications",
       color: Colors.primary700,
     },
     {
-      id: "7",
+      id: "8",
       title: "Help & Support",
       icon: <HelpCircle size={24} color={Colors.neutralMedium} />,
       route: "/profile/help",
       color: Colors.neutralMedium,
     },
     {
-      id: "8",
+      id: "9",
       title: "Settings",
       icon: <Settings size={24} color={Colors.neutralMedium} />,
       route: "/profile/settings",

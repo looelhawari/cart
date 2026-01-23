@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -12,6 +14,13 @@ import { ArrowLeft, CreditCard, Banknote, Check } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
+import { PaymentMethod } from "@/types";
+import {
+  getPaymentMethods,
+  getEligiblePaymentMethods,
+} from "@/services/paymentMethodsApi";
+import SavedCardsList from "@/components/SavedCardsList";
+import { Toast } from "@/components/Toast";
 
 export default function CheckoutPaymentScreen() {
   const router = useRouter();
@@ -20,12 +29,82 @@ export default function CheckoutPaymentScreen() {
 
   const [paymentType, setPaymentType] = useState<"card" | "cod">("cod");
 
+  // Saved cards state
+  const [savedCards, setSavedCards] = useState<PaymentMethod[]>([]);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [useSavedCard, setUseSavedCard] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [saveNewCard, setSaveNewCard] = useState(false);
+
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info">(
+    "info",
+  );
+
+  /**
+   * Load saved cards on mount
+   */
+  useEffect(() => {
+    loadSavedCards();
+  }, []);
+
+  /**
+   * Fetch saved cards from API
+   */
+  const loadSavedCards = async () => {
+    try {
+      setLoadingCards(true);
+      const cards = await getPaymentMethods();
+      setSavedCards(cards);
+
+      // Auto-select default card if using saved cards
+      const defaultCard = cards.find((c) => c.is_default);
+      if (
+        defaultCard &&
+        getEligiblePaymentMethods(cards).includes(defaultCard)
+      ) {
+        setSelectedCardId(defaultCard.id);
+      }
+    } catch (error) {
+      console.error("Failed to load saved cards:", error);
+      setToastType("error");
+      setToastMessage("Failed to load saved cards. Please try again.");
+      setShowToast(true);
+    } finally {
+      setLoadingCards(false);
+    }
+  };
+
+  /**
+   * Handle card selection toggle
+   */
+  const handleCardModeToggle = (value: boolean) => {
+    setUseSavedCard(value);
+    if (!value) {
+      setSelectedCardId(null);
+    } else {
+      // Auto-select default card
+      const defaultCard = savedCards.find((c) => c.is_default);
+      if (
+        defaultCard &&
+        getEligiblePaymentMethods(savedCards).includes(defaultCard)
+      ) {
+        setSelectedCardId(defaultCard.id);
+      }
+    }
+  };
+
   const handleContinue = () => {
     router.push({
       pathname: "/checkout/confirmation",
       params: {
         addressId,
         paymentType,
+        useSavedCard: useSavedCard ? "true" : "false",
+        savedCardId: selectedCardId?.toString() || "",
+        saveNewCard: saveNewCard ? "true" : "false",
       },
     });
   };
@@ -84,13 +163,90 @@ export default function CheckoutPaymentScreen() {
 
         {/* Card Payment Description */}
         {paymentType === "card" && (
-          <View style={styles.paymentDescription}>
-            <CreditCard size={48} color={Colors.primary900} />
-            <Text style={styles.descriptionTitle}>Secure Card Payment</Text>
-            <Text style={styles.descriptionText}>
-              You will be redirected to our secure payment gateway to enter your
-              card details.
-            </Text>
+          <View style={styles.cardPaymentSection}>
+            {/* Saved Cards Toggle */}
+            {savedCards.length > 0 && (
+              <View style={styles.toggleContainer}>
+                <Text style={styles.toggleLabel}>Use saved card</Text>
+                <Switch
+                  value={useSavedCard}
+                  onValueChange={handleCardModeToggle}
+                  trackColor={{
+                    false: Colors.neutralGray,
+                    true: Colors.primary900,
+                  }}
+                  thumbColor={Colors.neutralWhite}
+                />
+              </View>
+            )}
+
+            {loadingCards ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary900} />
+                <Text style={styles.loadingText}>Loading saved cards...</Text>
+              </View>
+            ) : useSavedCard ? (
+              // Show saved cards list
+              <View style={styles.savedCardsContainer}>
+                <Text style={styles.sectionTitle}>Select a card</Text>
+                <SavedCardsList
+                  cards={getEligiblePaymentMethods(savedCards)}
+                  selectedCardId={selectedCardId}
+                  onSelectCard={(card) => setSelectedCardId(card.id)}
+                />
+                {getEligiblePaymentMethods(savedCards).length === 0 && (
+                  <View style={styles.noEligibleCards}>
+                    <Text style={styles.noEligibleText}>
+                      No eligible saved cards available
+                    </Text>
+                    <Text style={styles.noEligibleSubtext}>
+                      Please add a new card or use another payment method
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.addPaymentButton}
+                      onPress={() => router.push("/profile/payment")}
+                      activeOpacity={0.7}
+                    >
+                      <CreditCard size={20} color={Colors.neutralWhite} />
+                      <Text style={styles.addPaymentButtonText}>
+                        Add Payment Method
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ) : (
+              // Show new card description with save option
+              <View style={styles.paymentDescription}>
+                <CreditCard size={48} color={Colors.primary900} />
+                <Text style={styles.descriptionTitle}>Secure Card Payment</Text>
+                <Text style={styles.descriptionText}>
+                  You will be redirected to our secure payment gateway to enter
+                  your card details.
+                </Text>
+
+                {/* Save card checkbox */}
+                <TouchableOpacity
+                  style={styles.saveCardOption}
+                  onPress={() => setSaveNewCard(!saveNewCard)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      saveNewCard && styles.checkboxChecked,
+                    ]}
+                  >
+                    {saveNewCard && (
+                      <Check size={16} color={Colors.neutralWhite} />
+                    )}
+                  </View>
+                  <Text style={styles.saveCardText}>
+                    Save this card for future purchases
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -117,6 +273,14 @@ export default function CheckoutPaymentScreen() {
           <Text style={styles.continueText}>Continue</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Toast */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -233,6 +397,117 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
     textAlign: "center",
     lineHeight: 22,
+  },
+
+  cardPaymentSection: {
+    padding: Spacing.md,
+  },
+
+  toggleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: Colors.neutralWhite,
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.md,
+  },
+
+  toggleLabel: {
+    fontSize: Typography.bodyBase,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
+
+  loadingContainer: {
+    backgroundColor: Colors.neutralWhite,
+    padding: Spacing.xl,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+
+  loadingText: {
+    marginTop: Spacing.sm,
+    color: Colors.neutralMedium,
+  },
+
+  savedCardsContainer: {
+    backgroundColor: Colors.neutralWhite,
+    padding: Spacing.md,
+    borderRadius: 16,
+  },
+
+  sectionTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.sm,
+  },
+
+  noEligibleCards: {
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+
+  noEligibleText: {
+    fontSize: Typography.bodyBase,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+    textAlign: "center",
+  },
+
+  noEligibleSubtext: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+  },
+
+  addPaymentButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary900,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+
+  addPaymentButtonText: {
+    fontSize: Typography.bodyBase,
+    fontWeight: "600",
+    color: Colors.neutralWhite,
+  },
+
+  saveCardOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+  },
+
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.neutralGray,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+
+  checkboxChecked: {
+    backgroundColor: Colors.primary900,
+    borderColor: Colors.primary900,
+  },
+
+  saveCardText: {
+    flex: 1,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
   },
 
   codInfo: {

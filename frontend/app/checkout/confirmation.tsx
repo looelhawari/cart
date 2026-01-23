@@ -25,7 +25,11 @@ import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { getDeliverySlots, DeliverySlot } from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
-import { initiatePayment } from "@/services/api/paymentsApi";
+import { initiatePayment as initiatePaymentOld } from "@/services/api/paymentsApi";
+import {
+  initiatePayment,
+  initiatePaymentWithSavedCard,
+} from "@/services/paymentMethodsApi";
 import { savePendingPayment } from "@/services/payment/paymentRecovery";
 
 export default function CheckoutConfirmationScreen() {
@@ -35,6 +39,13 @@ export default function CheckoutConfirmationScreen() {
     ? parseInt(params.addressId as string)
     : null;
   const paymentType = (params.paymentType as string) || "cod";
+
+  // Phase 5: Saved card params
+  const useSavedCard = params.useSavedCard === "true";
+  const savedCardId = params.savedCardId
+    ? parseInt(params.savedCardId as string)
+    : null;
+  const saveNewCard = params.saveNewCard === "true";
 
   // Check if this is a retry attempt
   const isRetry = params.retry === "true";
@@ -157,35 +168,52 @@ export default function CheckoutConfirmationScreen() {
       if (paymentType === "card") {
         // Initiate Paymob payment AFTER order created
         try {
-          const paymentResponse = await initiatePayment({
-            order_id: orderId,
-            payment_method: "CARD",
-            billing_data: {
-              first_name: user?.first_name || "Customer",
-              last_name: user?.last_name || "",
-              email: user?.email || "customer@example.com",
-              phone_number: user?.phone || "+201234567890",
-              city: "Cairo",
-              street: "Unknown",
-            },
-          });
+          let paymentData: any;
 
-          if (paymentResponse.success && paymentResponse.data) {
+          if (useSavedCard && savedCardId) {
+            // Phase 5: Payment with saved card
+            const response = await initiatePaymentWithSavedCard({
+              order_id: orderId,
+              payment_method_id: savedCardId,
+            });
+
+            paymentData = response.data;
+          } else {
+            // New card payment (with optional save_card flag)
+            const response = await initiatePayment({
+              order_id: orderId,
+              payment_method: "CARD",
+              save_card: saveNewCard, // Phase 5: Save card option
+              billing_data: {
+                first_name: user?.first_name || "Customer",
+                last_name: user?.last_name || "",
+                email: user?.email || "customer@example.com",
+                phone_number: user?.phone || "+201234567890",
+                city: "Cairo",
+                street: "Unknown",
+              },
+            });
+
+            paymentData = response.data;
+          }
+
+          if (paymentData && paymentData.iframe_url) {
             // CRITICAL: Save to AsyncStorage BEFORE redirect (for app kill recovery)
             await savePendingPayment({
               orderId,
               orderNumber: orderNumber,
               total: cart?.total || 0,
-              paymentAttemptId: paymentResponse.data.payment_id,
+              paymentAttemptId:
+                paymentData.payment_id || paymentData.transaction_id,
               timestamp: Date.now(),
-              iframeUrl: paymentResponse.data.iframe_url,
+              iframeUrl: paymentData.iframe_url,
             });
 
-            // Navigate to Paymob payment gateway
+            // Navigate to PaymentWebView (Phase 5: Universal 3DS handler)
             router.replace({
-              pathname: "/payment" as any,
+              pathname: "/payment-webview" as any,
               params: {
-                iframeUrl: paymentResponse.data.iframe_url,
+                iframeUrl: paymentData.iframe_url,
                 orderId: orderId.toString(),
               },
             });

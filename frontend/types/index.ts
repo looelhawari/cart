@@ -61,12 +61,12 @@ export interface Order {
   orderNumber: string;
   date: string;
   status:
-  | "processing"
-  | "confirmed"
-  | "preparing"
-  | "out_for_delivery"
-  | "delivered"
-  | "cancelled";
+    | "processing"
+    | "confirmed"
+    | "preparing"
+    | "out_for_delivery"
+    | "delivered"
+    | "cancelled";
   subtotal: number;
   deliveryFee: number;
   discount: number;
@@ -137,7 +137,7 @@ export interface Cart {
 export interface Address {
   id: number;
   user_id: number;
-  label: 'Home' | 'Work' | 'Other';
+  label: "Home" | "Work" | "Other";
   recipient_name: string;
   phone: string;
   street: string;
@@ -220,4 +220,93 @@ export interface FilterOptions {
   subcategoryId?: number;
   sortBy?: SortOption;
   sortOrder?: SortOrder;
+}
+
+// ═══════════════════════════════════════════════════════
+// PAYMENT METHODS (Phase 5 - Frontend Integration)
+// ═══════════════════════════════════════════════════════
+
+export type CardBrand = "visa" | "mastercard" | "amex" | "discover" | "card";
+
+export interface PaymentMethod {
+  id: number;
+  type: "card";
+  card_brand: CardBrand;
+  card_last_four: string;
+  masked_card: string;
+  is_default: boolean;
+  is_verified: boolean;
+  is_expired: boolean;
+  expires_at: string | null; // Format: "12/27" (m/y)
+}
+
+export interface PaymentMethodsResponse {
+  success: boolean;
+  data: {
+    payment_methods: PaymentMethod[];
+  };
+}
+
+export interface SetDefaultResponse {
+  success: boolean;
+  message: string;
+  data: {
+    payment_method: {
+      id: number;
+      card_last_four: string;
+      card_brand: CardBrand;
+      is_default: boolean;
+    };
+  };
+}
+
+export interface DeletePaymentMethodResponse {
+  success: boolean;
+  message: string;
+  data: {
+    new_default: {
+      id: number;
+      card_last_four: string;
+      card_brand: CardBrand;
+    } | null;
+  };
+}
+
+export interface InitiatePaymentRequest {
+  order_id: number;
+  payment_method: "card" | "wallet";
+  save_card?: boolean; // ✅ New flag for saving card
+}
+
+export interface InitiatePaymentResponse {
+  success: boolean;
+  message: string;
+  data: {
+    payment_token: string;
+    iframe_url: string;
+    order_id: number;
+    amount_cents: number;
+  };
+}
+
+export interface InitiateSavedCardPaymentRequest {
+  order_id: number;
+  payment_method_id: number;
+}
+
+export interface InitiateSavedCardPaymentResponse {
+  success: boolean;
+  message: string;
+  data: {
+    payment_token: string;
+    iframe_url: string; // ✅ May require 3DS challenge
+    card_last_four: string;
+    card_brand: CardBrand;
+  };
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  message: string;
+  error?: string;
 }
