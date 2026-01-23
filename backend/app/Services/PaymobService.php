@@ -173,28 +173,32 @@ class PaymobService
                 return false;
             }
 
+            // Extract obj if nested (Paymob sends 'obj' wrapper sometimes)
+            $payload = $data['obj'] ?? $data;
+
             // Build the HMAC string according to Paymob specs
+            // Use null coalescing to handle missing fields
             $concatenatedString =
-                $data['amount_cents'] .
-                $data['created_at'] .
-                $data['currency'] .
-                $data['error_occured'] .
-                $data['has_parent_transaction'] .
-                $data['id'] .
-                $data['integration_id'] .
-                $data['is_3d_secure'] .
-                $data['is_auth'] .
-                $data['is_capture'] .
-                $data['is_refunded'] .
-                $data['is_standalone_payment'] .
-                $data['is_voided'] .
-                $data['order']['id'] .
-                $data['owner'] .
-                $data['pending'] .
-                $data['source_data']['pan'] .
-                $data['source_data']['sub_type'] .
-                $data['source_data']['type'] .
-                $data['success'];
+                ($payload['amount_cents'] ?? '') .
+                ($payload['created_at'] ?? '') .
+                ($payload['currency'] ?? '') .
+                (isset($payload['error_occured']) ? ($payload['error_occured'] ? 'true' : 'false') : '') .
+                (isset($payload['has_parent_transaction']) ? ($payload['has_parent_transaction'] ? 'true' : 'false') : '') .
+                ($payload['id'] ?? '') .
+                ($payload['integration_id'] ?? '') .
+                (isset($payload['is_3d_secure']) ? ($payload['is_3d_secure'] ? 'true' : 'false') : '') .
+                (isset($payload['is_auth']) ? ($payload['is_auth'] ? 'true' : 'false') : '') .
+                (isset($payload['is_capture']) ? ($payload['is_capture'] ? 'true' : 'false') : '') .
+                (isset($payload['is_refunded']) ? ($payload['is_refunded'] ? 'true' : 'false') : '') .
+                (isset($payload['is_standalone_payment']) ? ($payload['is_standalone_payment'] ? 'true' : 'false') : '') .
+                (isset($payload['is_voided']) ? ($payload['is_voided'] ? 'true' : 'false') : '') .
+                ($payload['order']['id'] ?? '') .
+                ($payload['owner'] ?? '') .
+                (isset($payload['pending']) ? ($payload['pending'] ? 'true' : 'false') : '') .
+                ($payload['source_data']['pan'] ?? '') .
+                ($payload['source_data']['sub_type'] ?? '') .
+                ($payload['source_data']['type'] ?? '') .
+                (isset($payload['success']) ? ($payload['success'] ? 'true' : 'false') : '');
 
             // Calculate HMAC
             $calculatedHmac = hash_hmac('sha512', $concatenatedString, $this->hmacSecret);
@@ -204,8 +208,9 @@ class PaymobService
 
             if (!$isValid) {
                 Log::warning('HMAC verification failed', [
-                    'received' => $receivedHmac,
-                    'calculated' => $calculatedHmac,
+                    'received_hmac' => substr($receivedHmac, 0, 20) . '...',
+                    'calculated_hmac' => substr($calculatedHmac, 0, 20) . '...',
+                    'concatenated_length' => strlen($concatenatedString),
                 ]);
             }
 
@@ -213,6 +218,7 @@ class PaymobService
         } catch (Exception $e) {
             Log::error('HMAC verification error', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return false;
         }

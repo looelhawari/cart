@@ -3,7 +3,12 @@ import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { AppState, AppStateStatus } from "react-native";
 import { useStore } from "@/store";
+import {
+  hasPendingPayment,
+  isActivePaymentFlow,
+} from "@/services/payment/paymentRecovery";
 import {
   useFonts,
   Poppins_400Regular,
@@ -21,7 +26,7 @@ function RootLayoutNav() {
   const pathname = usePathname();
   const isAuthenticated = useStore((state) => state.isAuthenticated);
   const hasCompletedOnboarding = useStore(
-    (state) => state.hasCompletedOnboarding
+    (state) => state.hasCompletedOnboarding,
   );
   const fetchCart = useStore((state) => state.fetchCart);
 
@@ -31,6 +36,46 @@ function RootLayoutNav() {
       console.log("Failed to fetch cart on startup:", error);
     });
   }, []);
+
+  // Payment recovery on app resume
+  useEffect(() => {
+    const checkPendingPaymentOnResume = async () => {
+      // Skip if we're in the middle of payment flow
+      if (
+        pathname === "/payment" ||
+        pathname === "/payment-recovery" ||
+        pathname?.startsWith("/checkout")
+      ) {
+        return;
+      }
+
+      // Skip if active payment flow is in progress (user just clicked Place Order)
+      const isActive = await isActivePaymentFlow();
+      if (isActive) {
+        return;
+      }
+
+      const isPending = await hasPendingPayment();
+      if (isPending) {
+        router.replace("/payment-recovery");
+      }
+    };
+
+    // DON'T check on mount - only on app resume
+    // This prevents interference with normal payment flow
+
+    // Check when app comes to foreground (app was backgrounded/killed)
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (nextAppState === "active") {
+          checkPendingPaymentOnResume();
+        }
+      },
+    );
+
+    return () => subscription.remove();
+  }, [pathname]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -75,6 +120,18 @@ function RootLayoutNav() {
       <Stack.Screen name="complaints" options={{ headerShown: false }} />
       <Stack.Screen name="categories" options={{ headerShown: false }} />
       <Stack.Screen name="about" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="payment"
+        options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="payment-recovery"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="order-success"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

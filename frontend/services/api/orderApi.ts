@@ -47,7 +47,7 @@ export interface Order {
   total: number;
   payment_method: "cod" | "card";
   payment_method_id: number | null;
-  payment_status: "pending" | "paid" | "failed" | "refunded";
+  payment_status: "pending" | "completed" | "failed" | "refunded"; // STEP 4: Use 'completed' not 'paid'
   delivery_address_id: number;
   delivery_date: string;
   delivery_time_slot: string;

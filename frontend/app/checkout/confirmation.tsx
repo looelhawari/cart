@@ -26,6 +26,7 @@ import { Spacing } from "@/constants/Spacing";
 import { getDeliverySlots, DeliverySlot } from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
 import { initiatePayment } from "@/services/api/paymentsApi";
+import { savePendingPayment } from "@/services/payment/paymentRecovery";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
@@ -34,6 +35,12 @@ export default function CheckoutConfirmationScreen() {
     ? parseInt(params.addressId as string)
     : null;
   const paymentType = (params.paymentType as string) || "cod";
+
+  // Check if this is a retry attempt
+  const isRetry = params.retry === "true";
+  const retryOrderId = params.orderId
+    ? parseInt(params.orderId as string)
+    : null;
 
   const { cart, fetchCart, user } = useStore();
 
@@ -125,16 +132,27 @@ export default function CheckoutConfirmationScreen() {
     setIsPlacingOrder(true);
 
     try {
-      // Create order first (with pending payment status)
-      const response = await createOrder({
-        delivery_address_id: addressId,
-        delivery_date: selectedDate,
-        delivery_time_slot: selectedSlot,
-        payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
-        promo_code: cart?.promo_code || undefined,
-      });
+      // Determine order ID - reuse existing on retry
+      let orderId: number;
+      let orderNumber: string;
 
-      const orderId = response.data.order.id;
+      if (isRetry && retryOrderId) {
+        // Retry existing order - don't create new one
+        orderId = retryOrderId;
+        orderNumber = `ORD-${retryOrderId}`; // Will be updated from payment response
+      } else {
+        // Create new order (with pending payment status)
+        const response = await createOrder({
+          delivery_address_id: addressId,
+          delivery_date: selectedDate,
+          delivery_time_slot: selectedSlot,
+          payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
+          promo_code: cart?.promo_code || undefined,
+        });
+
+        orderId = response.data.order.id;
+        orderNumber = response.data.order.order_number;
+      }
 
       if (paymentType === "card") {
         // Initiate Paymob payment AFTER order created
@@ -153,6 +171,16 @@ export default function CheckoutConfirmationScreen() {
           });
 
           if (paymentResponse.success && paymentResponse.data) {
+            // CRITICAL: Save to AsyncStorage BEFORE redirect (for app kill recovery)
+            await savePendingPayment({
+              orderId,
+              orderNumber: orderNumber,
+              total: cart?.total || 0,
+              paymentAttemptId: paymentResponse.data.payment_id,
+              timestamp: Date.now(),
+              iframeUrl: paymentResponse.data.iframe_url,
+            });
+
             // Navigate to Paymob payment gateway
             router.replace({
               pathname: "/payment" as any,
@@ -174,13 +202,12 @@ export default function CheckoutConfirmationScreen() {
           return;
         }
       } else {
-        // COD - refresh cart and navigate to success
-        await fetchCart();
+        // COD - navigate to success (cart already cleared by backend)
         router.replace({
           pathname: "/order-success" as any,
           params: {
             orderId: orderId.toString(),
-            orderNumber: response.data.order.order_number,
+            orderNumber: orderNumber,
             deliveryDate: selectedDate,
             deliveryTime: selectedSlot,
           },

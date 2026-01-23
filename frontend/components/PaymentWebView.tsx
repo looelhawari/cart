@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -16,6 +16,18 @@ import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
 import { getPaymentStatus } from "@/services/api/paymentsApi";
 import { useStore } from "@/store";
+import {
+  clearPendingPayment,
+  setActivePaymentFlow,
+} from "@/services/payment/paymentRecovery";
+import { mapPaymentError } from "@/services/payment/paymentMessages";
+
+// STEP 3: Payment polling configuration
+const POLLING_CONFIG = {
+  MAX_POLLING_DURATION_MS: 30000, // 30 seconds max total polling time
+  POLL_INTERVAL_MS: 3000, // 3 seconds between polls
+  INITIAL_WAIT_MS: 3000, // Wait 3s for backend webhook before first poll
+} as const;
 
 interface PaymentWebViewProps {
   iframeUrl: string;
@@ -37,87 +49,279 @@ export default function PaymentWebView({
   const webViewRef = useRef<WebView>(null);
   const { fetchCart } = useStore();
 
+  // STEP 3: Polling state management
+  const pollingStartTimeRef = useRef<number | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingActiveRef = useRef(false);
+
+  // STEP 3: Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
+
+  // STEP 3: Stop all polling activity
+  const stopPolling = () => {
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    isPollingActiveRef.current = false;
+    pollingStartTimeRef.current = null;
+  };
+
+  // STEP 3: Check if polling should continue
+  const shouldContinuePolling = (): boolean => {
+    if (!isPollingActiveRef.current) return false;
+    if (!pollingStartTimeRef.current) return false;
+
+    const elapsedTime = Date.now() - pollingStartTimeRef.current;
+    return elapsedTime < POLLING_CONFIG.MAX_POLLING_DURATION_MS;
+  };
+
+  // STEP 3: Poll payment status with timeout protection
+  const pollPaymentStatus = async () => {
+    // Stop if polling was cancelled or timed out
+    if (!shouldContinuePolling()) {
+      console.log("[STEP 3] Polling stopped - timeout or cancelled");
+      handlePollingTimeout();
+      return;
+    }
+
+    try {
+      console.log("[STEP 3] Polling payment status...", {
+        orderId,
+        elapsed: pollingStartTimeRef.current
+          ? Date.now() - pollingStartTimeRef.current
+          : 0,
+      });
+
+      const statusResponse = await getPaymentStatus(orderId);
+
+      if (!statusResponse.success) {
+        throw new Error("Failed to get payment status");
+      }
+
+      const status = statusResponse.data?.status;
+      const orderStatus = statusResponse.data?.order_status;
+      const paymentStatus = statusResponse.data?.payment_status;
+
+      console.log("[STEP 3] Payment status:", {
+        paymob_status: status,
+        order_status: orderStatus,
+        payment_status: paymentStatus,
+      });
+
+      // STEP 3: Handle terminal states - STOP POLLING IMMEDIATELY
+      // Check both Paymob status AND order payment_status for completed payments
+      if (status === "PAID" || paymentStatus === "completed") {
+        console.log("[STEP 3] Payment confirmed - stopping polling");
+        stopPolling();
+        await handlePaymentSuccess();
+        return;
+      }
+
+      if (status === "FAILED" || paymentStatus === "failed") {
+        console.log("[STEP 3] Payment failed - stopping polling");
+        stopPolling();
+        await handlePaymentFailure(
+          statusResponse.data?.error_message || "Payment failed",
+        );
+        return;
+      }
+
+      if (status === "CANCELLED") {
+        console.log("[STEP 3] Payment cancelled - stopping polling");
+        stopPolling();
+        await handlePaymentCancelled();
+        return;
+      }
+
+      // STEP 3: UNKNOWN/PENDING - continue polling ONLY if within timeout
+      if (status === "PENDING" || status === "UNKNOWN" || !status) {
+        if (shouldContinuePolling()) {
+          console.log("[STEP 3] Still pending, scheduling next poll...");
+          pollingTimeoutRef.current = setTimeout(
+            pollPaymentStatus,
+            POLLING_CONFIG.POLL_INTERVAL_MS,
+          );
+        } else {
+          console.log("[STEP 3] Polling timeout reached");
+          stopPolling();
+          handlePollingTimeout();
+        }
+        return;
+      }
+
+      // Unknown status - stop polling
+      console.warn("[STEP 3] Unknown payment status, stopping:", status);
+      stopPolling();
+      handlePollingTimeout();
+    } catch (error) {
+      console.error("[STEP 3] Payment status check failed:", error);
+      stopPolling();
+      handleStatusCheckError();
+    }
+  };
+
+  // STEP 3: Handle successful payment
+  const handlePaymentSuccess = async () => {
+    try {
+      await clearPendingPayment();
+      await fetchCart(); // Refresh cart (should be empty now)
+
+      setProcessing(false);
+      onSuccess?.();
+
+      router.replace({
+        pathname: "/order-success",
+        params: { orderId: orderId.toString() },
+      });
+    } catch (error) {
+      console.error("[STEP 3] Error handling payment success:", error);
+      setProcessing(false);
+    }
+  };
+
+  // STEP 3: Handle failed payment
+  const handlePaymentFailure = async (errorMessage: string) => {
+    try {
+      await clearPendingPayment();
+      const errorInfo = mapPaymentError(errorMessage);
+
+      setProcessing(false);
+
+      Alert.alert(errorInfo.title, errorInfo.message, [
+        {
+          text: "Try Again",
+          onPress: () => {
+            onFailure?.(errorInfo.message);
+            router.replace({
+              pathname: "/checkout/confirmation",
+              params: {
+                orderId: orderId.toString(),
+                retry: "true",
+              },
+            });
+          },
+        },
+        {
+          text: "View Order",
+          style: "cancel",
+          onPress: () => router.replace(`/orders/${orderId}`),
+        },
+      ]);
+    } catch (error) {
+      console.error("[STEP 3] Error handling payment failure:", error);
+      setProcessing(false);
+    }
+  };
+
+  // STEP 3: Handle cancelled payment
+  const handlePaymentCancelled = async () => {
+    try {
+      await clearPendingPayment();
+      setProcessing(false);
+
+      Alert.alert(
+        "Payment Cancelled",
+        "Your payment was cancelled. Would you like to try again?",
+        [
+          {
+            text: "Try Again",
+            onPress: () => {
+              router.replace({
+                pathname: "/checkout/confirmation",
+                params: {
+                  orderId: orderId.toString(),
+                  retry: "true",
+                },
+              });
+            },
+          },
+          {
+            text: "Back to Cart",
+            style: "cancel",
+            onPress: () => router.replace("/(tabs)/cart"),
+          },
+        ],
+      );
+    } catch (error) {
+      console.error("[STEP 3] Error handling payment cancellation:", error);
+      setProcessing(false);
+    }
+  };
+
+  // STEP 3: Handle polling timeout (30 seconds elapsed)
+  const handlePollingTimeout = () => {
+    setProcessing(false);
+
+    Alert.alert(
+      "Verifying Payment",
+      "We're still verifying your payment. This may take a few moments. You can check your order status in the Orders section.",
+      [
+        {
+          text: "View Order",
+          onPress: () => router.replace(`/orders/${orderId}`),
+        },
+        {
+          text: "Back to Checkout",
+          style: "cancel",
+          onPress: () => router.replace("/checkout/confirmation"),
+        },
+      ],
+    );
+  };
+
+  // STEP 3: Handle status check API error
+  const handleStatusCheckError = () => {
+    setProcessing(false);
+
+    Alert.alert(
+      "Connection Issue",
+      "We couldn't verify your payment status. Please check your internet connection and view your order details.",
+      [
+        {
+          text: "View Orders",
+          onPress: () => router.replace("/(tabs)/orders"),
+        },
+        {
+          text: "Go Home",
+          onPress: () => router.replace("/(tabs)"),
+        },
+      ],
+    );
+  };
+
   const handleNavigationStateChange = async (navState: any) => {
     const { url } = navState;
 
-    // Check if we hit the response callback URL
-    if (url.includes("/payment/response")) {
+    // STEP 3: Detect Paymob success/response page
+    const isPaymobSuccess =
+      url.includes("acceptance/post_pay") ||
+      url.includes("/payment/response") ||
+      url.includes("txn_response_code=APPROVED");
+
+    if (isPaymobSuccess && !isPollingActiveRef.current) {
+      console.log("[STEP 3] Payment completed, starting status polling...");
       setProcessing(true);
 
-      // Extract success parameter
-      const urlParams = new URL(url);
-      const success = urlParams.searchParams.get("success") === "true";
+      // STEP 3: Start polling timer
+      pollingStartTimeRef.current = Date.now();
+      isPollingActiveRef.current = true;
 
-      // Wait a bit for the processed callback to complete
-      setTimeout(async () => {
-        try {
-          // Poll payment status
-          const statusResponse = await getPaymentStatus(orderId);
-
-          if (statusResponse.success) {
-            const status = statusResponse.data?.status;
-
-            if (status === "PAID") {
-              // Clear cart after successful payment
-              await fetchCart();
-
-              Alert.alert(
-                "Payment Successful",
-                "Your payment has been processed successfully!",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => {
-                      onSuccess?.();
-                      router.replace({
-                        pathname: "/order-success",
-                        params: { orderId: orderId.toString() },
-                      });
-                    },
-                  },
-                ],
-              );
-            } else if (status === "FAILED") {
-              const errorMsg = "Payment failed. Please try again.";
-              Alert.alert("Payment Failed", errorMsg, [
-                {
-                  text: "OK",
-                  onPress: () => {
-                    onFailure?.(errorMsg);
-                    router.back();
-                  },
-                },
-              ]);
-            } else {
-              // Still pending - try again
-              setTimeout(() => handleNavigationStateChange(navState), 2000);
-            }
-          } else {
-            throw new Error("Failed to get payment status");
-          }
-        } catch (error) {
-          console.error("Payment status check failed:", error);
-          Alert.alert(
-            "Payment Error",
-            "Unable to verify payment status. Please contact support.",
-            [
-              {
-                text: "OK",
-                onPress: () => {
-                  onFailure?.("Payment verification failed");
-                  router.back();
-                },
-              },
-            ],
-          );
-        } finally {
-          setProcessing(false);
-        }
-      }, 3000); // Wait 3 seconds for backend callback to process
+      // Wait for backend webhook to process, then start polling
+      pollingTimeoutRef.current = setTimeout(
+        pollPaymentStatus,
+        POLLING_CONFIG.INITIAL_WAIT_MS,
+      );
     }
   };
 
   const handleClose = () => {
+    // STEP 3: Stop polling if user closes WebView
+    stopPolling();
     Alert.alert(
       "Cancel Payment",
       "Are you sure you want to cancel this payment?",
@@ -129,7 +333,9 @@ export default function PaymentWebView({
         {
           text: "Yes",
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
+            // Clear active flow flag so recovery can work if user returns later
+            await setActivePaymentFlow(false);
             onClose?.();
             router.back();
           },

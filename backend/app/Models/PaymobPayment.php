@@ -16,7 +16,7 @@ class PaymobPayment extends Model
         'order_id',
         'internal_order_id',
         'paymob_order_id',
-        'paymob_transaction_id',
+        'transaction_id',  // FIXED: Match actual database column name
         'amount_cents',
         'currency',
         'payment_method',
@@ -25,7 +25,6 @@ class PaymobPayment extends Model
         'billing_data',
         'paymob_response',
         'payment_token',
-        'error_message',
         'paid_at',
     ];
 
@@ -53,7 +52,7 @@ class PaymobPayment extends Model
     {
         $this->update([
             'status' => 'PAID',
-            'paymob_transaction_id' => $transactionId,
+            'transaction_id' => $transactionId,  // FIXED: Match actual database column name
             'paymob_response' => $response,
             'paid_at' => now(),
         ]);
@@ -66,8 +65,7 @@ class PaymobPayment extends Model
     {
         $this->update([
             'status' => 'FAILED',
-            'error_message' => $errorMessage,
-            'paymob_response' => $response,
+            'paymob_response' => array_merge($response ?? [], ['error' => $errorMessage]),
         ]);
     }
 

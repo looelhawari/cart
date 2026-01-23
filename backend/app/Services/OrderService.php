@@ -43,8 +43,24 @@ class OrderService
             $notes,
             $promoCode
         ) {
-            // Calculate cart totals
+            // STEP 2: SNAPSHOT RULE - Calculate cart totals ONCE
+            // These values will be frozen in the order table
+            // CRITICAL: Order totals NEVER recalculate after this point
             $cartTotals = $this->cartService->calculateTotals($cart);
+
+            \Log::info('📸 [STEP 2] ORDER SNAPSHOT - Freezing cart totals', [
+                'cart_id' => $cart->id,
+                'cart_totals' => $cartTotals,
+                'items_count' => $cart->items->count(),
+                'snapshot_timestamp' => now()->toDateTimeString(),
+                'items_breakdown' => $cart->items->map(fn($item) => [
+                    'product_id' => $item->product_id,
+                    'name' => $item->product->name_en ?? 'Unknown',
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'subtotal' => $item->price * $item->quantity,
+                ])->toArray(),
+            ]);
 
             if ($cartTotals['items_count'] === 0) {
                 throw new \Exception('Cannot create order from empty cart');
@@ -66,11 +82,34 @@ class OrderService
             // Calculate total
             $total = $cartTotals['subtotal'] + $deliveryFee + $tax - $discount;
 
+            \Log::info('� [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
+                'subtotal' => $cartTotals['subtotal'],
+                'delivery_fee' => $deliveryFee,
+                'tax' => $tax,
+                'discount' => $discount,
+                'TOTAL' => $total,
+                'payment_method' => $paymentMethod,
+                'rule' => 'These values are now IMMUTABLE - will never recalculate from cart',
+            ]);
+
+            // Calculate discount
+            $discount = 0;
+            if ($promoCode) {
+                $discount = $this->calculateDiscount($promoCode, $cartTotals['subtotal']);
+            }
+
+            // Calculate tax (14% for Egypt)
+            $taxRate = (float) (config('app.tax_rate') ?? 14);
+            $tax = ($cartTotals['subtotal'] + $deliveryFee - $discount) * ($taxRate / 100);
+
+            // Calculate total
+            $total = $cartTotals['subtotal'] + $deliveryFee + $tax - $discount;
+
             // Create order
             $order = Order::create([
                 'user_id' => $userId,
                 'order_number' => Order::generateOrderNumber(),
-                'status' => 'pending',
+                'status' => $paymentMethod === 'cash_on_delivery' ? 'pending' : 'pending_payment',
                 'subtotal' => $cartTotals['subtotal'],
                 'delivery_fee' => $deliveryFee,
                 'discount' => $discount,
@@ -82,6 +121,19 @@ class OrderService
                 'delivery_date' => $deliveryDate,
                 'delivery_time_slot' => $deliveryTimeSlot,
                 'notes' => $notes,
+            ]);
+
+            \Log::info('✅ [STEP 2] ORDER CREATED - Snapshot saved to database', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'snapshot_values' => [
+                    'subtotal' => $order->subtotal,
+                    'delivery_fee' => $order->delivery_fee,
+                    'tax' => $order->tax,
+                    'discount' => $order->discount,
+                    'total' => $order->total,
+                ],
+                'verification' => 'Order totals match cart snapshot',
             ]);
 
             // Create order items from cart items

@@ -178,8 +178,26 @@ class PaymentController extends Controller
                 ], 400);
             }
 
-            // Convert amount to cents
+            // STEP 2: Use order snapshot total - NEVER recalculate from cart
             $amountCents = (int) ($order->total * 100);
+
+            \Log::info('💳 [STEP 2] PAYMENT FROM ORDER SNAPSHOT', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'source' => 'orders.total column (NOT recalculated from cart)',
+                'order_total_EGP' => $order->total,
+                'amount_cents' => $amountCents,
+                'PAYMOB_WILL_CHARGE' => $amountCents / 100 . ' EGP',
+                'order_snapshot' => [
+                    'subtotal' => $order->subtotal,
+                    'delivery' => $order->delivery_fee,
+                    'tax' => $order->tax,
+                    'discount' => $order->discount,
+                    'total' => $order->total,
+                ],
+                'created_at' => $order->created_at->toDateTimeString(),
+                'rule' => 'Using frozen order totals - cart changes ignored',
+            ]);
 
             // Generate unique internal order ID
             $internalOrderId = 'ORD-' . $order->id . '-' . time();
@@ -269,7 +287,20 @@ class PaymentController extends Controller
     }
 
     /**
-     * Processed callback from Paymob (SOURCE OF TRUTH).
+     * Handle Paymob's server-to-server processed callback (webhook).
+     *
+     * 🔒 STEP 5: WEBHOOK HARDENING - ENTERPRISE GRADE
+     *
+     * This is the ONLY payment authority - frontend/WebView redirects are NOT trusted.
+     * Only this server-to-server webhook can finalize payment status.
+     *
+     * Requirements:
+     * 1. HMAC verification FIRST (reject invalid signatures)
+     * 2. Idempotency (safe for duplicate calls from Paymob)
+     * 3. Atomic DB transaction (all-or-nothing updates)
+     * 4. Cart clearing ONLY on success (preserve cart on failure for retry)
+     * 5. Consistent failure mapping across all tables
+     * 6. NEVER recalculate totals (use order snapshot)
      *
      * POST /api/v1/paymob/processed
      */
@@ -278,101 +309,221 @@ class PaymentController extends Controller
         try {
             $data = $request->all();
 
-            Log::info('Paymob processed callback received', ['data' => $data]);
+            // Paymob can send data wrapped in 'obj' key or directly
+            $payload = $data['obj'] ?? $data;
 
-            // Step 1: Verify HMAC
+            Log::info('🔔 Paymob webhook received', [
+                'order_id' => $payload['order']['id'] ?? null,
+                'success' => $payload['success'] ?? false,
+                'transaction_id' => $payload['id'] ?? null,
+                'has_obj_wrapper' => isset($data['obj']),
+            ]);
+
+            // ═══════════════════════════════════════════════════════════════
+            // REQUIREMENT 1: HMAC VERIFICATION FIRST (Security Gate)
+            // ═══════════════════════════════════════════════════════════════
             if (!$this->paymobService->verifyHmac($data)) {
-                Log::error('Invalid HMAC signature in callback');
+                Log::error('🚫 SECURITY: Invalid HMAC signature', [
+                    'order_id' => $payload['order']['id'] ?? null,
+                    'ip' => $request->ip(),
+                    // NO sensitive data logged
+                ]);
                 return response()->json(['message' => 'Invalid signature'], 403);
             }
 
-            // Step 2: Find payment by Paymob order ID
-            $paymobOrderId = $data['order']['id'] ?? null;
+            // ═══════════════════════════════════════════════════════════════
+            // REQUIREMENT 2: FIND PAYMENT & IDEMPOTENCY CHECK
+            // ═══════════════════════════════════════════════════════════════
+            $paymobOrderId = $payload['order']['id'] ?? null;
+            $transactionId = $payload['id'] ?? null;
 
-            if (!$paymobOrderId) {
-                Log::error('No order ID in callback');
+            if (!$paymobOrderId || !$transactionId) {
+                Log::error('❌ Missing required webhook data', [
+                    'paymob_order_id' => $paymobOrderId,
+                    'transaction_id' => $transactionId,
+                    'payload_keys' => array_keys($payload),
+                ]);
                 return response()->json(['message' => 'Invalid data'], 400);
             }
 
             $payment = PaymobPayment::where('paymob_order_id', $paymobOrderId)->first();
 
             if (!$payment) {
-                Log::error('Payment not found', ['paymob_order_id' => $paymobOrderId]);
+                Log::error('❌ Payment not found', ['paymob_order_id' => $paymobOrderId]);
                 return response()->json(['message' => 'Payment not found'], 404);
             }
 
-            // Prevent duplicate processing (idempotency)
-            if ($payment->status !== 'PENDING') {
-                Log::info('Payment already processed', [
+            // IDEMPOTENCY: Check if already processed (by status OR transaction_id)
+            if ($payment->status !== 'PENDING' || $payment->transaction_id === $transactionId) {
+                Log::info('✅ IDEMPOTENCY: Webhook already processed (no-op)', [
                     'payment_id' => $payment->id,
-                    'status' => $payment->status,
+                    'current_status' => $payment->status,
+                    'transaction_id' => $payment->transaction_id,
+                    'duplicate_transaction_id' => $transactionId,
                 ]);
+                // Return 200 OK but do NOTHING (safe idempotent behavior)
                 return response()->json(['message' => 'Already processed'], 200);
             }
 
-            // Step 3: Validate transaction data
-            $success = $data['success'] ?? false;
-            $transactionId = $data['id'] ?? null;
-            $amountCents = $data['amount_cents'] ?? 0;
+            // ═══════════════════════════════════════════════════════════════
+            // REQUIREMENT 3: VALIDATE WEBHOOK DATA (Amount Match)
+            // ═══════════════════════════════════════════════════════════════
+            $success = $payload['success'] ?? false;
+            $amountCents = $payload['amount_cents'] ?? 0;
 
-            // Verify amount matches
+            // Verify amount matches (prevent payment manipulation)
             if ($amountCents != $payment->amount_cents) {
-                Log::error('Amount mismatch', [
+                Log::error('❌ SECURITY: Amount mismatch detected', [
                     'expected' => $payment->amount_cents,
                     'received' => $amountCents,
+                    'order_id' => $payment->order_id,
                 ]);
-                $payment->markAsFailed('Amount mismatch', $data);
+
+                // Mark as failed in atomic transaction
+                DB::transaction(function () use ($payment, $payload) {
+                    $payment->markAsFailed('Amount mismatch - security violation', $payload);
+                    $payment->order->update([
+                        'status' => 'failed',
+                        'payment_status' => 'failed',
+                    ]);
+                });
+
                 return response()->json(['message' => 'Amount mismatch'], 400);
             }
 
+            // ═══════════════════════════════════════════════════════════════
+            // REQUIREMENT 4: ATOMIC TRANSACTION (All-or-Nothing)
+            // ═══════════════════════════════════════════════════════════════
             DB::beginTransaction();
 
-            // Step 4: Update payment status
-            if ($success && $transactionId) {
-                $payment->markAsPaid($transactionId, $data);
-
-                // Handle order payment
+            try {
                 $order = $payment->order;
-                $order->update([
-                    'payment_status' => 'completed',
-                    'status' => 'confirmed',
-                ]);
 
-                // NOW clear the cart - payment is confirmed
-                $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
-                if ($cart) {
-                    app(\App\Services\CartService::class)->clearCart($cart);
+                if ($success) {
+                    // ═══════════════════════════════════════════════════════
+                    // SUCCESS PATH: Payment Confirmed
+                    // ═══════════════════════════════════════════════════════
+
+                    // 1. Update paymob_payments table
+                    $payment->markAsPaid($transactionId, $payload);
+
+                    // 2. Update/Create payment_transactions table
+                    \App\Models\PaymentTransaction::updateOrCreate(
+                        [
+                            'order_id' => $order->id,
+                            'transaction_id' => $transactionId,
+                        ],
+                        [
+                            'payment_method' => 'card',
+                            'amount' => $order->total,  // Use order snapshot, NOT cart
+                            'status' => 'completed',
+                            'gateway_response' => $payload,
+                            'processed_at' => now(),
+                        ]
+                    );
+
+                    // 3. Update orders table (STEP 4: Use 'completed' as single source of truth)
+                    $order->update([
+                        'payment_status' => 'completed',
+                        'status' => 'confirmed',
+                        // REQUIREMENT 6: NEVER touch orders.total or recalculate anything
+                    ]);
+
+                    // 4. REQUIREMENT 5: Clear cart ONLY when success confirmed (inside transaction)
+                    $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
+                    if ($cart) {
+                        Log::info('🗑️ ATOMIC: Clearing cart after payment confirmation', [
+                            'cart_id' => $cart->id,
+                            'user_id' => $order->user_id,
+                            'items_count_before' => $cart->items->count(),
+                        ]);
+
+                        app(\App\Services\CartService::class)->clearCart($cart);
+
+                        // Verify cart is cleared
+                        $cart->refresh();
+                        Log::info('✅ Cart cleared successfully', [
+                            'cart_id' => $cart->id,
+                            'items_count_after' => $cart->items->count(),
+                        ]);
+                    } else {
+                        Log::warning('⚠️ No cart found to clear', [
+                            'user_id' => $order->user_id,
+                        ]);
+                    }
+
+                    Log::info('✅ Payment SUCCESS - All tables updated atomically', [
+                        'payment_id' => $payment->id,
+                        'order_id' => $order->id,
+                        'transaction_id' => $transactionId,
+                        'paymob_payments.status' => 'PAID',
+                        'payment_transactions.status' => 'completed',
+                        'orders.payment_status' => 'completed',
+                        'orders.status' => 'confirmed',
+                        'cart_cleared' => true,
+                    ]);
+                } else {
+                    // ═══════════════════════════════════════════════════════
+                    // FAILURE PATH: Payment Failed/Cancelled
+                    // ═══════════════════════════════════════════════════════
+
+                    $errorMessage = $payload['data']['message'] ?? 'Payment failed';
+                    $isCancelled = isset($payload['is_cancelled']) && $payload['is_cancelled'];
+
+                    // 1. Update paymob_payments table
+                    // NOTE: Database only has PENDING/PAID/FAILED, so treat CANCELLED as FAILED
+                    $payment->markAsFailed(
+                        $isCancelled ? 'Payment cancelled by user' : $errorMessage,
+                        $payload
+                    );
+
+                    // 2. Update/Create payment_transactions table
+                    \App\Models\PaymentTransaction::updateOrCreate(
+                        [
+                            'order_id' => $order->id,
+                            'transaction_id' => $transactionId,
+                        ],
+                        [
+                            'payment_method' => 'card',
+                            'amount' => $order->total,  // Use order snapshot
+                            'status' => 'failed',  // REQUIREMENT 6: Consistent failure mapping
+                            'gateway_response' => $payload,
+                            'processed_at' => now(),
+                        ]
+                    );
+
+                    // 3. Update orders table (REQUIREMENT 6: Consistent failure mapping)
+                    $order->update([
+                        'payment_status' => 'failed',
+                        'status' => 'failed',
+                    ]);
+
+                    // 4. REQUIREMENT 5: DO NOT clear cart on failure (preserve for retry)
+                    Log::info('❌ Payment FAILED - Cart preserved for retry', [
+                        'payment_id' => $payment->id,
+                        'order_id' => $order->id,
+                        'error' => $errorMessage,
+                        'paymob_payments.status' => $payment->status,
+                        'payment_transactions.status' => 'failed',
+                        'orders.payment_status' => 'failed',
+                        'orders.status' => 'failed',
+                        'cart_cleared' => false,
+                    ]);
                 }
 
-                Log::info('Payment marked as paid', [
-                    'payment_id' => $payment->id,
-                    'order_id' => $order->id,
-                    'transaction_id' => $transactionId,
-                ]);
-            } else {
-                $errorMessage = $data['data']['message'] ?? 'Payment failed';
-                $payment->markAsFailed($errorMessage, $data);
+                DB::commit();
 
-                // Update order
-                $order = $payment->order;
-                $order->update([
-                    'payment_status' => 'failed',
-                ]);
+                return response()->json(['message' => 'Callback processed'], 200);
 
-                Log::warning('Payment marked as failed', [
-                    'payment_id' => $payment->id,
-                    'error' => $errorMessage,
-                ]);
+            } catch (Exception $e) {
+                DB::rollBack();
+                throw $e;  // Re-throw to outer catch block
             }
-
-            DB::commit();
-
-            return response()->json(['message' => 'Callback processed'], 200);
 
         } catch (Exception $e) {
             DB::rollBack();
 
-            Log::error('Processed callback error', [
+            Log::error('🔥 Webhook processing error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -426,10 +577,15 @@ class PaymentController extends Controller
                 ], 404);
             }
 
+            // Also get order payment status for frontend terminal state detection
+            $order = \App\Models\Order::find($orderId);
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'status' => $payment->status,
+                    'status' => $payment->status, // PENDING, PAID, FAILED
+                    'payment_status' => $order ? $order->payment_status : null, // pending, completed, failed
+                    'order_status' => $order ? $order->status : null, // confirmed, failed, etc
                     'amount' => $payment->amount_in_egp,
                     'currency' => $payment->currency,
                     'payment_method' => $payment->payment_method,

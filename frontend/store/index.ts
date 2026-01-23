@@ -21,7 +21,7 @@ interface User {
   email: string;
   phone: string;
   date_of_birth: string | null;
-  gender: 'male' | 'female' | 'other' | null;
+  gender: "male" | "female" | "other" | null;
   avatar: string | null;
   language: "en" | "ar";
   role: "customer" | "admin";
@@ -41,7 +41,7 @@ interface StoreState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (
-    data: RegisterData
+    data: RegisterData,
   ) => Promise<{ requiresVerification: boolean; email: string }>;
   verifyEmail: (data: VerifyEmailData) => Promise<void>;
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;
@@ -53,7 +53,7 @@ interface StoreState {
   socialLogin: (
     provider: "google" | "apple",
     token: string,
-    userData?: any
+    userData?: any,
   ) => Promise<{ requiresPhoneVerification: boolean }>;
   sendPhoneOtp: (phone: string) => Promise<void>;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<void>;
@@ -223,7 +223,7 @@ export const useStore = create<StoreState>()(
       socialLogin: async (
         provider: "google" | "apple",
         token: string,
-        userData?: any
+        userData?: any,
       ) => {
         const apiCall =
           provider === "google"
@@ -269,6 +269,10 @@ export const useStore = create<StoreState>()(
         try {
           const { getCart } = await import("@/services/api/cartApi");
           const response = await getCart();
+          console.log(
+            "Cart fetched:",
+            JSON.stringify(response.data.cart, null, 2),
+          );
           set({ cart: response.data.cart, cartLoading: false });
         } catch (error: any) {
           set({
@@ -282,9 +286,8 @@ export const useStore = create<StoreState>()(
       addToCart: async (productId: number, quantity: number = 1) => {
         set({ cartLoading: true, cartError: null });
         try {
-          const { addToCart: addToCartApi } = await import(
-            "@/services/api/cartApi"
-          );
+          const { addToCart: addToCartApi } =
+            await import("@/services/api/cartApi");
           const response = await addToCartApi(productId, quantity);
           set({ cart: response.data.cart, cartLoading: false });
         } catch (error: any) {
@@ -330,9 +333,8 @@ export const useStore = create<StoreState>()(
       clearCart: async () => {
         set({ cartLoading: true, cartError: null });
         try {
-          const { clearCart: clearCartApi } = await import(
-            "@/services/api/cartApi"
-          );
+          const { clearCart: clearCartApi } =
+            await import("@/services/api/cartApi");
           await clearCartApi();
           set({ cart: null, cartLoading: false });
         } catch (error: any) {
@@ -428,7 +430,7 @@ export const useStore = create<StoreState>()(
       updateAddress: (addressId, updates) =>
         set((state) => ({
           addresses: state.addresses.map((addr) =>
-            addr.id === addressId ? { ...addr, ...updates } : addr
+            addr.id === addressId ? { ...addr, ...updates } : addr,
           ),
         })),
 
@@ -474,7 +476,7 @@ export const useStore = create<StoreState>()(
           orders: state.orders.map((order) =>
             order.id === orderId
               ? { ...order, status: "cancelled" as const }
-              : order
+              : order,
           ),
         })),
 
@@ -517,6 +519,6 @@ export const useStore = create<StoreState>()(
         }
         return persistedState;
       },
-    }
-  )
+    },
+  ),
 );

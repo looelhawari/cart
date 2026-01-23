@@ -115,6 +115,7 @@ class Order extends Model
     {
         return match($this->status) {
             'pending' => 'Pending',
+            'pending_payment' => 'Pending Payment',
             'confirmed' => 'Confirmed',
             'preparing' => 'Preparing',
             'out_for_delivery' => 'Out for Delivery',

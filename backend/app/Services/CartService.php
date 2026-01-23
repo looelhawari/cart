@@ -13,26 +13,89 @@ class CartService
 {
     /**
      * Get or create cart for guest or authenticated user
+     * STEP 1: Newest Cart Wins - NO MERGING
      */
     public function getCart(?int $userId = null, ?string $sessionId = null): Cart
     {
+        \Log::info('🛒 [STEP 1] CartService::getCart()', [
+            'user_id' => $userId,
+            'session_id' => $sessionId,
+        ]);
+
         if ($userId) {
             // Try to get user's cart
             $cart = Cart::where('user_id', $userId)->first();
 
-            // If user has a session ID, check for guest cart and merge
+            if ($cart) {
+                \Log::info('📦 [STEP 1] Found USER cart', [
+                    'cart_id' => $cart->id,
+                    'items' => $cart->items->count(),
+                    'updated' => $cart->updated_at->toDateTimeString(),
+                ]);
+            }
+
+            // If user has a session ID, check for guest cart
             if ($sessionId) {
                 $guestCart = Cart::where('session_id', $sessionId)
                     ->whereNull('user_id')
                     ->first();
 
                 if ($guestCart) {
+                    \Log::info('🔍 [STEP 1] Found GUEST cart', [
+                        'cart_id' => $guestCart->id,
+                        'items' => $guestCart->items->count(),
+                        'updated' => $guestCart->updated_at->toDateTimeString(),
+                    ]);
+
                     if ($cart) {
-                        // Merge guest cart into user cart
-                        $this->mergeCarts($guestCart, $cart);
-                        $guestCart->delete();
+                        // BOTH CARTS EXIST - NEWEST WINS!
+                        \Log::warning('🏆 [STEP 1] BOTH CARTS - APPLYING NEWEST WINS STRATEGY', [
+                            'user_cart' => [
+                                'id' => $cart->id,
+                                'items' => $cart->items->count(),
+                                'updated' => $cart->updated_at->toDateTimeString(),
+                            ],
+                            'guest_cart' => [
+                                'id' => $guestCart->id,
+                                'items' => $guestCart->items->count(),
+                                'updated' => $guestCart->updated_at->toDateTimeString(),
+                            ],
+                        ]);
+
+                        // Compare timestamps - keep the newest cart
+                        if ($guestCart->updated_at->gt($cart->updated_at)) {
+                            // Guest cart is newer - delete old user cart and convert guest to user cart
+                            \Log::info('✅ [STEP 1] GUEST CART WINS (newer)', [
+                                'deleting_cart_id' => $cart->id,
+                                'keeping_cart_id' => $guestCart->id,
+                                'guest_is_newer_by' => $guestCart->updated_at->diffForHumans($cart->updated_at),
+                            ]);
+
+                            $cart->items()->delete();
+                            $cart->delete();
+
+                            $guestCart->update([
+                                'user_id' => $userId,
+                                'session_id' => null,
+                            ]);
+                            $cart = $guestCart;
+                        } else {
+                            // User cart is newer or same age - delete guest cart
+                            \Log::info('✅ [STEP 1] USER CART WINS (newer or same age)', [
+                                'keeping_cart_id' => $cart->id,
+                                'deleting_cart_id' => $guestCart->id,
+                                'user_is_newer_by' => $cart->updated_at->diffForHumans($guestCart->updated_at),
+                            ]);
+
+                            $guestCart->items()->delete();
+                            $guestCart->delete();
+                        }
                     } else {
-                        // Convert guest cart to user cart
+                        // No user cart - convert guest cart to user cart
+                        \Log::info('🔄 [STEP 1] Converting GUEST cart to USER cart', [
+                            'cart_id' => $guestCart->id,
+                        ]);
+
                         $guestCart->update([
                             'user_id' => $userId,
                             'session_id' => null,
@@ -44,6 +107,9 @@ class CartService
 
             // Create new user cart if none exists
             if (!$cart) {
+                \Log::info('🆕 [STEP 1] Creating NEW user cart', [
+                    'user_id' => $userId,
+                ]);
                 $cart = Cart::create(['user_id' => $userId]);
             }
         } else {
@@ -55,6 +121,9 @@ class CartService
             $cart = Cart::where('session_id', $sessionId)->first();
 
             if (!$cart) {
+                \Log::info('🆕 [STEP 1] Creating NEW guest cart', [
+                    'session_id' => $sessionId,
+                ]);
                 $cart = Cart::create(['session_id' => $sessionId]);
             }
         }
@@ -179,9 +248,27 @@ class CartService
         $cart->load('items.product');
 
         $subtotal = 0;
+        $itemDetails = [];
+
         foreach ($cart->items as $item) {
-            $subtotal += $item->price * $item->quantity;
+            $itemSubtotal = $item->price * $item->quantity;
+            $subtotal += $itemSubtotal;
+
+            $itemDetails[] = [
+                'product_id' => $item->product_id,
+                'product_name' => $item->product->name_en ?? 'Unknown',
+                'quantity' => $item->quantity,
+                'price' => $item->price,
+                'subtotal' => $itemSubtotal,
+            ];
         }
+
+        // 🔍 DEBUG: Log cart calculation
+        \Log::info('🛒 CART TOTALS CALCULATION', [
+            'cart_id' => $cart->id,
+            'items' => $itemDetails,
+            'calculated_subtotal' => $subtotal,
+        ]);
 
         // Get tax rate from settings (14% for Egypt)
         $taxRate = 0.14;
