@@ -226,13 +226,14 @@ class PaymentController extends Controller
                 'state' => $request->billing_data['city'] ?? 'Cairo',
             ]);
 
-            // Step 3: Generate payment key
-            $paymentToken = $this->paymobService->generatePaymentKey(
+            // Step 3: Generate payment key (with card save option if requested)
+            $paymentToken = $this->paymobService->generatePaymentKeyWithCardSave(
                 $authToken,
                 $amountCents,
                 $paymobOrderId,
                 $billingData,
-                $request->payment_method
+                $request->payment_method,
+                $request->boolean('save_card', false)
             );
 
             // Get integration ID
@@ -246,11 +247,11 @@ class PaymentController extends Controller
                 'amount_cents' => $amountCents,
                 'currency' => 'EGP',
                 'payment_method' => $request->payment_method,
-                'save_card_requested' => $request->boolean('save_card', false), // ✅ Phase 3
+                'save_card_requested' => is_array($paymentToken) ? $paymentToken['save_card_requested'] : $request->boolean('save_card', false),
                 'integration_id' => $integrationId,
                 'status' => 'PENDING',
                 'billing_data' => $billingData,
-                'payment_token' => $paymentToken,
+                'payment_token' => is_array($paymentToken) ? $paymentToken['payment_token'] : $paymentToken,
             ]);
 
             // Update order payment status
@@ -260,8 +261,9 @@ class PaymentController extends Controller
 
             DB::commit();
 
-            // Get iframe URL
-            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
+            // Get iframe URL (extract token if array)
+            $token = is_array($paymentToken) ? $paymentToken['payment_token'] : $paymentToken;
+            $iframeUrl = $this->paymobService->getIframeUrl($token);
 
             return response()->json([
                 'success' => true,

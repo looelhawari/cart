@@ -171,7 +171,7 @@ class OrderController extends Controller
     public function cancel(Request $request, int $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'reason' => 'required|string|max:500',
+            'reason' => 'nullable|string|max:500',
         ]);
 
         if ($validator->fails()) {
@@ -192,7 +192,7 @@ class OrderController extends Controller
                 ], 401);
             }
 
-            $order = $this->orderService->cancelOrder($id, $user->id, $request->reason);
+            $order = $this->orderService->cancelOrder($id, $user->id, $request->input('reason', 'Cancelled by user'));
 
             return response()->json([
                 'success' => true,

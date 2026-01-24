@@ -177,12 +177,15 @@ export const orderApi = {
    */
   reorder: async (orderId: number) => {
     const token = await getAuthToken();
+    const { getSessionId } = await import("./cartApi");
+    const sessionId = await getSessionId();
 
     const response = await fetch(`${API_BASE_URL}/orders/${orderId}/reorder`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json; charset=utf-8",
+        "X-Session-ID": sessionId,
         ...(token && { Authorization: `Bearer ${token}` }),
       },
     });

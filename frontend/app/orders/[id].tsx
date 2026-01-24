@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
   MapPin,
@@ -23,23 +23,28 @@ import {
   RotateCcw,
   CreditCard,
   Wallet,
-} from 'lucide-react-native';
+} from "lucide-react-native";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { getOrder, cancelOrder as cancelOrderApi, reorder, Order } from '@/services/api/orderApi';
-import { useStore } from '@/store';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import {
+  getOrder,
+  cancelOrder as cancelOrderApi,
+  reorder,
+  Order,
+} from "@/services/api/orderApi";
+import { useStore } from "@/store";
 
 export default function OrderDetailsScreen() {
   const { id } = useLocalSearchParams();
   const { fetchCart } = useStore();
-  
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [reordering, setReordering] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
+  const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   useEffect(() => {
@@ -54,7 +59,7 @@ export default function OrderDetailsScreen() {
       const response = await getOrder(Number(id));
       setOrder(response.data.order);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to load order details');
+      Alert.alert("Error", error.message || "Failed to load order details");
       router.back();
     } finally {
       setLoading(false);
@@ -62,19 +67,17 @@ export default function OrderDetailsScreen() {
   };
 
   const handleCancelOrder = async () => {
-    if (!cancelReason.trim()) {
-      Alert.alert('Reason Required', 'Please provide a reason for cancellation');
-      return;
-    }
-
     setCancelling(true);
     try {
-      await cancelOrderApi(Number(id), cancelReason);
-      Alert.alert('Success', 'Order cancelled successfully');
+      await cancelOrderApi(
+        Number(id),
+        cancelReason.trim() || "Cancelled by user",
+      );
+      Alert.alert("Success", "Order cancelled successfully");
       setShowCancelDialog(false);
       fetchOrderDetails(); // Refresh order
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to cancel order');
+      Alert.alert("Error", error.message || "Failed to cancel order");
     } finally {
       setCancelling(false);
     }
@@ -85,12 +88,12 @@ export default function OrderDetailsScreen() {
     try {
       await reorder(Number(id));
       await fetchCart();
-      Alert.alert('Success', 'Items added to cart!', [
-        { text: 'View Cart', onPress: () => router.push('/(tabs)/cart') },
-        { text: 'OK' },
+      Alert.alert("Success", "Items added to cart!", [
+        { text: "View Cart", onPress: () => router.push("/(tabs)/cart") },
+        { text: "OK" },
       ]);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to reorder');
+      Alert.alert("Error", error.message || "Failed to reorder");
     } finally {
       setReordering(false);
     }
@@ -98,19 +101,19 @@ export default function OrderDetailsScreen() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
-      case 'processing':
+      case "pending":
+      case "processing":
         return Clock;
-      case 'confirmed':
-      case 'preparing':
+      case "confirmed":
+      case "preparing":
         return Package;
-      case 'out_for_delivery':
-      case 'shipped':
+      case "out_for_delivery":
+      case "shipped":
         return Truck;
-      case 'delivered':
+      case "delivered":
         return CheckCircle;
-      case 'cancelled':
-      case 'failed':
+      case "cancelled":
+      case "failed":
         return XCircle;
       default:
         return Package;
@@ -119,19 +122,19 @@ export default function OrderDetailsScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-      case 'processing':
+      case "pending":
+      case "processing":
         return Colors.accentOrange;
-      case 'confirmed':
-      case 'preparing':
+      case "confirmed":
+      case "preparing":
         return Colors.primary700;
-      case 'out_for_delivery':
-      case 'shipped':
+      case "out_for_delivery":
+      case "shipped":
         return Colors.primary900;
-      case 'delivered':
+      case "delivered":
         return Colors.primary700;
-      case 'cancelled':
-      case 'failed':
+      case "cancelled":
+      case "failed":
         return Colors.accentRed;
       default:
         return Colors.neutralMedium;
@@ -139,12 +142,12 @@ export default function OrderDetailsScreen() {
   };
 
   const canCancelOrder = (status: string) => {
-    return ['pending', 'processing', 'confirmed'].includes(status);
+    return ["pending", "processing", "confirmed"].includes(status);
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
           <Text style={styles.loadingText}>Loading order details...</Text>
@@ -155,11 +158,14 @@ export default function OrderDetailsScreen() {
 
   if (!order) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyContainer}>
           <Package size={80} color={Colors.neutralGray} />
           <Text style={styles.emptyTitle}>Order Not Found</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -170,9 +176,12 @@ export default function OrderDetailsScreen() {
   const StatusIcon = getStatusIcon(order.status);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerButton}
+        >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order Details</Text>
@@ -184,20 +193,31 @@ export default function OrderDetailsScreen() {
         <View style={styles.orderHeader}>
           <View style={styles.orderNumberRow}>
             <Text style={styles.orderNumber}>{order.order_number}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: getStatusColor(order.status) + "20" },
+              ]}
+            >
               <StatusIcon size={16} color={getStatusColor(order.status)} />
-              <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: getStatusColor(order.status) },
+                ]}
+              >
                 {order.status_label}
               </Text>
             </View>
           </View>
           <Text style={styles.orderDate}>
-            Placed on {new Date(order.created_at).toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
+            Placed on{" "}
+            {new Date(order.created_at).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
             })}
           </Text>
         </View>
@@ -210,20 +230,32 @@ export default function OrderDetailsScreen() {
               {order.status_history.map((history, index) => (
                 <View key={history.id} style={styles.timelineItem}>
                   <View style={styles.timelineIconContainer}>
-                    <View style={[styles.timelineDot, { backgroundColor: getStatusColor(history.status) }]} />
-                    {index < order.status_history!.length - 1 && <View style={styles.timelineLine} />}
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        { backgroundColor: getStatusColor(history.status) },
+                      ]}
+                    />
+                    {index < order.status_history!.length - 1 && (
+                      <View style={styles.timelineLine} />
+                    )}
                   </View>
                   <View style={styles.timelineContent}>
                     <Text style={styles.timelineStatus}>{history.status}</Text>
                     <Text style={styles.timelineDate}>
-                      {new Date(history.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {new Date(history.created_at).toLocaleDateString(
+                        "en-US",
+                        {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}
                     </Text>
-                    {history.notes && <Text style={styles.timelineNotes}>{history.notes}</Text>}
+                    {history.notes && (
+                      <Text style={styles.timelineNotes}>{history.notes}</Text>
+                    )}
                   </View>
                 </View>
               ))}
@@ -241,11 +273,18 @@ export default function OrderDetailsScreen() {
                 <Text style={styles.infoLabel}>Delivery Address</Text>
                 {order.delivery_address && (
                   <View>
-                    <Text style={styles.infoValue}>{order.delivery_address.recipient_name}</Text>
-                    <Text style={styles.infoValue}>{order.delivery_address.phone_number}</Text>
-                    <Text style={styles.infoValue}>{order.delivery_address.street_address}</Text>
                     <Text style={styles.infoValue}>
-                      {order.delivery_address.city}, {order.delivery_address.governorate}
+                      {order.delivery_address.recipient_name}
+                    </Text>
+                    <Text style={styles.infoValue}>
+                      {order.delivery_address.phone_number}
+                    </Text>
+                    <Text style={styles.infoValue}>
+                      {order.delivery_address.street_address}
+                    </Text>
+                    <Text style={styles.infoValue}>
+                      {order.delivery_address.city},{" "}
+                      {order.delivery_address.governorate}
                     </Text>
                   </View>
                 )}
@@ -257,10 +296,10 @@ export default function OrderDetailsScreen() {
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoLabel}>Delivery Schedule</Text>
                 <Text style={styles.infoValue}>
-                  {new Date(order.delivery_date).toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric',
+                  {new Date(order.delivery_date).toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
                   })}
                 </Text>
                 <Text style={styles.infoValue}>{order.delivery_time_slot}</Text>
@@ -286,17 +325,21 @@ export default function OrderDetailsScreen() {
           <Text style={styles.sectionTitle}>Payment Method</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              {order.payment_method === 'cod' ? (
+              {order.payment_method === "cod" ? (
                 <Wallet size={20} color={Colors.primary900} />
               ) : (
                 <CreditCard size={20} color={Colors.primary900} />
               )}
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoValue}>
-                  {order.payment_method === 'cod' ? 'Cash on Delivery' : 'Card Payment'}
+                  {order.payment_method === "cod"
+                    ? "Cash on Delivery"
+                    : "Card Payment"}
                 </Text>
                 <Text style={styles.paymentStatus}>
-                  Status: {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
+                  Status:{" "}
+                  {order.payment_status.charAt(0).toUpperCase() +
+                    order.payment_status.slice(1)}
                 </Text>
               </View>
             </View>
@@ -310,7 +353,10 @@ export default function OrderDetailsScreen() {
             {order.items?.map((item) => (
               <View key={item.id} style={styles.orderItem}>
                 {item.product?.image && (
-                  <Image source={{ uri: item.product.image }} style={styles.itemImage} />
+                  <Image
+                    source={{ uri: item.product.image }}
+                    style={styles.itemImage}
+                  />
                 )}
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.product_name}</Text>
@@ -331,21 +377,29 @@ export default function OrderDetailsScreen() {
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>{parseFloat(order.subtotal.toString()).toFixed(2)} EGP</Text>
+              <Text style={styles.summaryValue}>
+                {parseFloat(order.subtotal.toString()).toFixed(2)} EGP
+              </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Delivery Fee</Text>
               <Text style={styles.summaryValue}>
-                {order.delivery_fee === 0 ? 'FREE' : `${parseFloat(order.delivery_fee.toString()).toFixed(2)} EGP`}
+                {order.delivery_fee === 0
+                  ? "FREE"
+                  : `${parseFloat(order.delivery_fee.toString()).toFixed(2)} EGP`}
               </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tax (14%)</Text>
-              <Text style={styles.summaryValue}>{parseFloat(order.tax.toString()).toFixed(2)} EGP</Text>
+              <Text style={styles.summaryValue}>
+                {parseFloat(order.tax.toString()).toFixed(2)} EGP
+              </Text>
             </View>
             {order.discount > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, styles.discountLabel]}>Discount</Text>
+                <Text style={[styles.summaryLabel, styles.discountLabel]}>
+                  Discount
+                </Text>
                 <Text style={[styles.summaryValue, styles.discountValue]}>
                   -{parseFloat(order.discount.toString()).toFixed(2)} EGP
                 </Text>
@@ -353,13 +407,17 @@ export default function OrderDetailsScreen() {
             )}
             {order.promo_code && (
               <View style={styles.promoRow}>
-                <Text style={styles.promoLabel}>Promo Code: {order.promo_code}</Text>
+                <Text style={styles.promoLabel}>
+                  Promo Code: {order.promo_code}
+                </Text>
               </View>
             )}
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{parseFloat(order.total.toString()).toFixed(2)} EGP</Text>
+              <Text style={styles.totalValue}>
+                {parseFloat(order.total.toString()).toFixed(2)} EGP
+              </Text>
             </View>
           </View>
         </View>
@@ -383,7 +441,7 @@ export default function OrderDetailsScreen() {
             </>
           )}
         </TouchableOpacity>
-        
+
         {canCancelOrder(order.status) && (
           <TouchableOpacity
             style={styles.cancelButton}
@@ -417,7 +475,7 @@ export default function OrderDetailsScreen() {
                 style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => {
                   setShowCancelDialog(false);
-                  setCancelReason('');
+                  setCancelReason("");
                 }}
               >
                 <Text style={styles.modalButtonTextSecondary}>Keep Order</Text>
@@ -430,7 +488,9 @@ export default function OrderDetailsScreen() {
                 {cancelling ? (
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.modalButtonTextPrimary}>Cancel Order</Text>
+                  <Text style={styles.modalButtonTextPrimary}>
+                    Cancel Order
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -448,8 +508,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.md,
   },
   loadingText: {
@@ -458,8 +518,8 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.md,
   },
   emptyTitle: {
@@ -480,9 +540,9 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -492,8 +552,8 @@ const styles = StyleSheet.create({
   headerButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h3,
@@ -510,9 +570,9 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.neutralGray,
   },
   orderNumberRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.xs,
   },
   orderNumber: {
@@ -521,8 +581,8 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -552,10 +612,10 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   timelineItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   timelineIconContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginRight: Spacing.md,
   },
   timelineDot: {
@@ -577,7 +637,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     fontWeight: Typography.semibold,
     color: Colors.neutralCharcoal,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   timelineDate: {
     fontSize: Typography.bodySmall,
@@ -588,7 +648,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySmall,
     color: Colors.neutralMedium,
     marginTop: Spacing.xs,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   infoCard: {
     backgroundColor: Colors.neutralWhite,
@@ -596,7 +656,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   infoRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.md,
   },
   infoTextContainer: {
@@ -629,7 +689,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   orderItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.md,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
@@ -643,7 +703,7 @@ const styles = StyleSheet.create({
   },
   itemInfo: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   itemName: {
     fontSize: Typography.bodyBase,
@@ -664,7 +724,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.primary900,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   summaryCard: {
     backgroundColor: Colors.neutralWhite,
@@ -672,9 +732,9 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.sm,
   },
   summaryLabel: {
@@ -710,7 +770,7 @@ const styles = StyleSheet.create({
     color: Colors.primary900,
   },
   footer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.md,
     padding: Spacing.lg,
     backgroundColor: Colors.neutralWhite,
@@ -719,9 +779,9 @@ const styles = StyleSheet.create({
   },
   reorderButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.sm,
     backgroundColor: Colors.neutralWhite,
     paddingVertical: Spacing.md,
@@ -736,9 +796,9 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.sm,
     backgroundColor: Colors.neutralWhite,
     paddingVertical: Spacing.md,
@@ -752,21 +812,21 @@ const styles = StyleSheet.create({
     color: Colors.accentRed,
   },
   modalOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.lg,
   },
   modalContent: {
     backgroundColor: Colors.neutralWhite,
     borderRadius: 24,
     padding: Spacing.xl,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
   },
   modalTitle: {
@@ -787,19 +847,19 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     color: Colors.neutralCharcoal,
     minHeight: 80,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     marginBottom: Spacing.lg,
   },
   modalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.md,
   },
   modalButton: {
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalButtonSecondary: {
     backgroundColor: Colors.neutralCloud,
