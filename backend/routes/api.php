@@ -124,7 +124,10 @@ Route::prefix('v1')->group(function () {
             // Initiate payment with saved card (Phase 5)
             Route::post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
 
-            // Get payment status
+            // Check payment status for polling (per-payment query)
+            Route::get('/status/{paymentId}', [PaymentController::class, 'checkStatus']);
+
+            // Get payment status by order ID (LEGACY: per-order query)
             Route::get('/order/{orderId}/status', [PaymentController::class, 'getPaymentStatus']);
         });
 

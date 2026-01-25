@@ -1,106 +1,147 @@
 /**
- * PaymentWebView Screen (Phase 5)
- * Updated: Phase 5.5 Stage 1 - Success definition clarified
+ * PaymentWebView Screen (Tokenization Phase 3)
+ * Updated: Dual-flow support with polling
  *
- * Handles 3DS authentication for both new and saved card payments.
+ * Handles 3DS authentication for Unified Checkout and Classic flows.
+ * Uses polling instead of redirect detection for payment confirmation.
  *
- * CRITICAL SUCCESS DEFINITION (Phase 5.5):
- * - URL redirect to /payment/callback does NOT guarantee payment success
- * - Backend webhook is the ONLY source of truth for payment confirmation
- * - Frontend must NEVER show "success" based on WebView redirect alone
- * - TODO (Stage 2): Implement order status polling after redirect
+ * CRITICAL: Polling is the ONLY reliable way to detect payment success.
+ * - WebView redirects are unreliable (ngrok issues, timing problems)
+ * - Backend webhook updates payment status in database
+ * - Frontend polls GET /api/v1/payments/status/{paymentId} every 2 seconds
  *
- * Current behavior (Stage 1):
- * - Detects redirect → routes to order-success
- * - Order-success screen should show "processing" state, not final success
- * - User should check order status for final confirmation
+ * Flows handled:
+ * 1. Unified Checkout (3DS + Tokenization)
+ * 2. Classic Iframe (Legacy)
+ * 3. MOTO fallback to 3DS (when bank requires 3DS)
  */
 
-import React, { useState } from "react";
-import { View, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
+import { pollPaymentStatus } from "@/services/paymentMethodsApi";
+import PaymentResultModal from "@/components/PaymentResultModal";
 
 export default function PaymentWebViewScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     iframeUrl: string;
     orderId: string;
+    paymentId: string;
   }>();
 
   const [loading, setLoading] = useState(true);
+  const [pollingStatus, setPollingStatus] = useState<string>("Starting...");
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const pollingActive = useRef(false);
 
   /**
-   * Intercept navigation BEFORE it loads to prevent ngrok warning page
-   * This fires before onNavigationStateChange and can prevent navigation
+   * Start polling for payment status
+   */
+  useEffect(() => {
+    if (params.paymentId && !pollingActive.current) {
+      pollingActive.current = true;
+
+      const startPollingAsync = async () => {
+        const paymentId = parseInt(params.paymentId);
+
+        console.log("[PaymentWebView] Starting payment status polling...");
+        setPollingStatus("Checking payment status...");
+
+        try {
+          const result = await pollPaymentStatus(
+            paymentId,
+            (status) => {
+              console.log(`[PaymentWebView] Payment status: ${status}`);
+              setPollingStatus(`Status: ${status}`);
+            },
+            {
+              intervalMs: 2000, // Poll every 2 seconds
+              maxAttempts: 30, // 60 seconds total
+            },
+          );
+
+          // Payment completed
+          if (result.status === "PAID") {
+            console.log("[PaymentWebView] ✅ Payment successful!");
+            // Show success modal for 2 seconds
+            setPaymentSuccess(true);
+            setShowResultModal(true);
+          } else if (result.status === "FAILED") {
+            console.log("[PaymentWebView] ❌ Payment failed");
+            // Show failure modal for 2 seconds
+            setPaymentSuccess(false);
+            setShowResultModal(true);
+          } else {
+            // Timeout or still pending
+            console.warn("[PaymentWebView] ⏱️ Payment verification timeout");
+            Alert.alert(
+              "Payment Verification",
+              "We are still processing your payment. Please check your orders.",
+              [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
+            );
+          }
+        } catch (error) {
+          console.error("[PaymentWebView] Polling error:", error);
+          Alert.alert(
+            "Error",
+            "Failed to verify payment status. Please check your orders.",
+            [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
+          );
+        }
+      };
+
+      startPollingAsync();
+    }
+  }, [params.paymentId, params.orderId, router]);
+
+  /**
+   * Intercept navigation - detect deep link redirects from Paymob
    */
   const handleShouldStartLoadWithRequest = (request: any) => {
     const { url } = request;
 
     console.log("[PaymentWebView] Should start load:", url);
 
-    // Intercept ngrok success/callback URLs
-    if (url.includes("/payment/callback") || url.includes("/payment/success")) {
+    // Detect deep link redirect from Paymob (elbaraka://payment-return)
+    if (url.startsWith("elbaraka://payment-return")) {
       console.log(
-        "[PaymentWebView] Intercepted success redirect - navigating to order confirmation",
+        "[PaymentWebView] Deep link redirect detected - polling will verify status",
       );
-      console.log(
-        "[PaymentWebView] WARNING: Payment may still be processing on backend",
-      );
-
-      // Prevent WebView from loading the ngrok URL
-      // Instead, navigate to order success screen
-      router.replace({
-        pathname: "/order-success",
-        params: { orderId: params.orderId },
-      });
-
-      // Return false to prevent navigation
-      return false;
+      setPollingStatus("Payment submitted - verifying...");
+      return false; // Don't try to load the deep link
     }
 
-    // Intercept failure URLs
+    // Detect localhost redirect (fallback for development)
+    if (
+      url.includes("localhost:8000/payment-return") ||
+      url.includes("127.0.0.1:8000/payment-return")
+    ) {
+      console.log(
+        "[PaymentWebView] Localhost redirect detected - polling will verify status",
+      );
+      setPollingStatus("Payment submitted - verifying...");
+      return false; // Don't try to load localhost
+    }
+
+    // Detect payment completion URL but rely on polling for final confirmation
+    if (url.includes("/payment/callback") || url.includes("/payment/success")) {
+      console.log(
+        "[PaymentWebView] Payment completion detected - polling will confirm",
+      );
+      setPollingStatus("Verifying payment...");
+      return false; // Don't load the callback URL
+    }
+
     if (url.includes("/payment/failed") || url.includes("/payment/error")) {
-      console.log("[PaymentWebView] Intercepted failure redirect");
-
-      Alert.alert(
-        "Payment Incomplete",
-        "The payment process was not completed. Please try again or use a different payment method.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
-      );
-
-      // Return false to prevent navigation
+      console.log("[PaymentWebView] Payment failure detected");
       return false;
     }
 
-    // Allow all other navigations (Paymob, Mastercard, etc.)
     return true;
-  };
-
-  /**
-   * Handle navigation state change in WebView (backup detection)
-   * This is a fallback in case onShouldStartLoadWithRequest doesn't fire
-   */
-  const handleNavigationStateChange = (navState: any) => {
-    const { url } = navState;
-
-    console.log("[PaymentWebView] Navigation state changed:", url);
-
-    // This should rarely trigger now since we intercept in onShouldStartLoadWithRequest
-    if (url.includes("/payment/callback") || url.includes("/payment/success")) {
-      console.log("[PaymentWebView] (Fallback) Success redirect detected");
-
-      router.replace({
-        pathname: "/order-success",
-        params: { orderId: params.orderId },
-      });
-    }
   };
 
   /**
@@ -134,11 +175,45 @@ export default function PaymentWebViewScreen() {
     return null;
   }
 
+  const handleModalComplete = () => {
+    setShowResultModal(false);
+
+    if (paymentSuccess) {
+      // Navigate to order success
+      router.replace({
+        pathname: "/order-success",
+        params: {
+          orderId: params.orderId,
+          paymentId: params.paymentId,
+        },
+      });
+    } else {
+      // Navigate back to checkout or cart
+      router.back();
+    }
+  };
+
   return (
     <View style={styles.container}>
+      <PaymentResultModal
+        visible={showResultModal}
+        success={paymentSuccess}
+        onComplete={handleModalComplete}
+        duration={2000}
+      />
+
       {loading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={Colors.primary900} />
+          <Text style={styles.loadingText}>Loading payment...</Text>
+        </View>
+      )}
+
+      {/* Polling status indicator */}
+      {params.paymentId && (
+        <View style={styles.pollingIndicator}>
+          <ActivityIndicator size="small" color={Colors.primary900} />
+          <Text style={styles.pollingText}>{pollingStatus}</Text>
         </View>
       )}
 
@@ -149,15 +224,15 @@ export default function PaymentWebViewScreen() {
             "ngrok-skip-browser-warning": "true",
           },
         }}
-        onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-        onNavigationStateChange={handleNavigationStateChange}
         onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
+        onLoad={() => setLoading(false)}
         onError={handleError}
+        onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+        style={styles.webview}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
-        style={styles.webview}
+        scalesPageToFit={true}
       />
     </View>
   );
@@ -166,16 +241,48 @@ export default function PaymentWebViewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: Colors.neutralWhite,
+  },
+  loadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.neutralWhite,
+    zIndex: 999,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.neutralCharcoal,
+  },
+  pollingIndicator: {
+    position: "absolute",
+    top: 50,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    zIndex: 100,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  pollingText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: Colors.neutralCharcoal,
+    fontWeight: "500",
   },
   webview: {
     flex: 1,
-  },
-  loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    zIndex: 999,
   },
 });

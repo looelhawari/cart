@@ -274,8 +274,17 @@ export interface DeletePaymentMethodResponse {
 
 export interface InitiatePaymentRequest {
   order_id: number;
-  payment_method: "card" | "wallet";
+  payment_method: "CARD" | "WALLET";
+  payment_method_id?: number; // ✅ Saved card ID for dual-flow
   save_card?: boolean; // ✅ New flag for saving card
+  billing_data: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone_number: string;
+    city: string;
+    street: string;
+  };
 }
 
 export interface InitiatePaymentResponse {

@@ -9,19 +9,29 @@ use Exception;
 class PaymobService
 {
     private string $apiKey;
+    private string $secretKey;
     private string $hmacSecret;
+    private string $publicKey;
     private string $iframeId;
     private string $cardIntegrationId;
+    private string $integrationId3DS;
     private string $walletIntegrationId;
+    private string $callbackUrl;
+    private string $currency;
     private string $baseUrl = 'https://accept.paymob.com/api';
 
     public function __construct()
     {
         $this->apiKey = config('services.paymob.api_key');
+        $this->secretKey = config('services.paymob.secret_key');
         $this->hmacSecret = config('services.paymob.hmac_secret');
+        $this->publicKey = config('services.paymob.public_key');
         $this->iframeId = config('services.paymob.iframe_id');
         $this->cardIntegrationId = config('services.paymob.card_integration_id');
+        $this->integrationId3DS = config('services.paymob.integration_id_3ds');
         $this->walletIntegrationId = config('services.paymob.wallet_integration_id');
+        $this->callbackUrl = config('services.paymob.callback_url');
+        $this->currency = config('services.paymob.currency', 'EGP');
     }
 
     /**
@@ -492,4 +502,422 @@ class PaymobService
         // Ensure it's exactly 4 digits
         return str_pad($last4, 4, '0', STR_PAD_LEFT);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NEW: INTENTION API + UNIFIED CHECKOUT (3DS with Tokenization)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Create Paymob Intention for Unified Checkout (3DS flow with tokenization).
+     *
+     * Used for:
+     * - First-time card save (token generation)
+     * - Fallback when MOTO fails or requires 3DS
+     * - High-value orders that mandate 3DS
+     *
+     * Based on Paymob documentation sample:
+     * POST https://accept.paymob.com/v1/intention
+     *
+     * @param array $intentionData Must contain:
+     *   - amount_cents (int)
+     *   - billing (array): first_name, last_name, email, phone, etc.
+     *   - items (array): order items
+     *   - internal_reference (string): our payment attempt ID or order ID
+     *   - redirection_url (string): where to redirect after payment
+     *   - saved_card_token (string, optional): pre-fill saved card
+     *
+     * @return array ['intention_id', 'client_secret', 'unified_checkout_url']
+     * @throws Exception
+     */
+    public function createIntention(array $intentionData): array
+    {
+        try {
+            $endpoint = 'https://accept.paymob.com/v1/intention/';
+
+            // Build request payload matching Paymob docs
+            $payload = [
+                'amount' => $intentionData['amount_cents'], // Integer in cents
+                'currency' => $this->currency,
+
+                // Specify which payment methods to show in Unified Checkout
+                'payment_methods' => [
+                    (int) $this->integrationId3DS, // Your 3DS integration ID
+                ],
+
+                // Billing data (required by Paymob)
+                'billing_data' => [
+                    'first_name' => $intentionData['billing']['first_name'] ?? 'Guest',
+                    'last_name' => $intentionData['billing']['last_name'] ?? 'User',
+                    'email' => $intentionData['billing']['email'] ?? 'guest@example.com',
+                    'phone_number' => $intentionData['billing']['phone'] ?? '+201000000000',
+                    'country' => $intentionData['billing']['country'] ?? 'EG',
+                    'city' => $intentionData['billing']['city'] ?? 'Cairo',
+                    'street' => $intentionData['billing']['street'] ?? 'N/A',
+                    'building' => $intentionData['billing']['building'] ?? 'N/A',
+                    'floor' => $intentionData['billing']['floor'] ?? 'N/A',
+                    'apartment' => $intentionData['billing']['apartment'] ?? 'N/A',
+                    'state' => $intentionData['billing']['state'] ?? '',
+                    'postal_code' => $intentionData['billing']['postal_code'] ?? '',
+                ],
+
+                // Items (for fraud detection + reporting)
+                'items' => $intentionData['items'] ?? [],
+
+                // Webhook + Redirect URLs
+                'notification_url' => $this->callbackUrl,
+                'redirection_url' => $intentionData['redirection_url'],
+
+                // Special reference for mapping webhook to our payment attempt
+                'special_reference' => $intentionData['internal_reference'],
+            ];
+
+            // OPTIONAL: If paying with already saved card (pre-fill card in UI)
+            if (!empty($intentionData['saved_card_token'])) {
+                $payload['card_tokens'] = [$intentionData['saved_card_token']];
+            }
+
+            // Add extras if provided
+            if (!empty($intentionData['extras'])) {
+                $payload['extras'] = $intentionData['extras'];
+            }
+
+            Log::info('🔐 Creating Paymob Intention (Unified Checkout)', [
+                'amount_cents' => $payload['amount'],
+                'currency' => $payload['currency'],
+                'has_saved_card' => !empty($intentionData['saved_card_token']),
+                'special_reference' => $payload['special_reference'],
+            ]);
+
+            $response = Http::timeout(30)
+                ->retry(2, 1000)
+                ->withHeaders([
+                    'Authorization' => 'Token ' . $this->secretKey,
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($endpoint, $payload);
+
+            if (!$response->successful()) {
+                Log::error('❌ Paymob Intention API failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                throw new Exception('Failed to create Paymob intention: ' . $response->body());
+            }
+
+            $data = $response->json();
+
+            // Extract client_secret for Unified Checkout URL
+            $clientSecret = $data['client_secret'] ?? null;
+            $intentionId = $data['id'] ?? null;
+
+            if (!$clientSecret || !$intentionId) {
+                throw new Exception('Invalid Paymob intention response: missing client_secret or id');
+            }
+
+            // Build Unified Checkout URL
+            $unifiedCheckoutUrl = "https://accept.paymob.com/unifiedcheckout/"
+                . "?publicKey={$this->publicKey}"
+                . "&clientSecret={$clientSecret}";
+
+            Log::info('✅ Paymob Intention created successfully', [
+                'intention_id' => $intentionId,
+                'client_secret_preview' => substr($clientSecret, 0, 20) . '...',
+            ]);
+
+            return [
+                'intention_id' => $intentionId,
+                'client_secret' => $clientSecret,
+                'unified_checkout_url' => $unifiedCheckoutUrl,
+                'payment_keys' => $data['payment_keys'] ?? [],
+                'card_tokens' => $data['card_tokens'] ?? [],
+            ];
+
+        } catch (Exception $e) {
+            Log::error('❌ Paymob Intention creation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NEW: MOTO PAYMENT (One-Click Server-to-Server)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Pay with saved card using MOTO (Mail Order / Telephone Order).
+     * Server-to-server payment, NO user interaction by default, NO 3DS.
+     *
+     * REQUIREMENTS:
+     * - Must have saved card token from previous successful payment
+     * - Payment key (JWT) must be generated fresh per attempt
+     * - Only for low/medium risk orders (per business rules)
+     *
+     * Based on Paymob documentation sample:
+     * POST https://accept.paymob.com/api/acceptance/payments/pay
+     *
+     * @param string $savedCardToken Paymob saved card token (from payment_methods.paymob_card_token)
+     * @param string $paymentKeyJWT Fresh JWT payment key from generatePaymentKey()
+     * @return array MOTO payment result with 'success', 'transaction_id', 'requires_3ds', 'redirect_url'
+     * @throws Exception
+     */
+    public function payWithSavedCardMoto(string $savedCardToken, string $paymentKeyJWT): array
+    {
+        try {
+            $endpoint = 'https://accept.paymob.com/api/acceptance/payments/pay';
+
+            $payload = [
+                'source' => [
+                    'identifier' => $savedCardToken,  // ⭐ Paymob saved card token
+                    'subtype' => 'TOKEN',
+                ],
+                'payment_token' => $paymentKeyJWT,    // ⭐ Fresh JWT payment key
+            ];
+
+            Log::info('💳 MOTO payment attempt', [
+                'token_preview' => substr($savedCardToken, 0, 10) . '...',
+                'payment_key_preview' => substr($paymentKeyJWT, 0, 20) . '...',
+            ]);
+
+            $response = Http::timeout(30)
+                ->retry(1, 500) // MOTO should be fast, only 1 retry
+                ->post($endpoint, $payload);
+
+            if (!$response->successful()) {
+                Log::warning('⚠️ MOTO payment failed or requires action', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                $errorData = $response->json();
+
+                // Check if 3DS required (common fallback scenario)
+                if ($this->requiresRedirection($errorData)) {
+                    return [
+                        'success' => false,
+                        'requires_3ds' => true,
+                        'redirect_url' => $errorData['redirect_url'] ?? $errorData['redirection_url'] ?? null,
+                        'message' => 'MOTO declined, 3DS authentication required',
+                        'data' => $errorData,
+                    ];
+                }
+
+                return [
+                    'success' => false,
+                    'requires_3ds' => false,
+                    'error' => $errorData['message'] ?? $errorData['data.message'] ?? 'MOTO payment failed',
+                    'data' => $errorData,
+                ];
+            }
+
+            $data = $response->json();
+            $success = ($data['success'] ?? 'false') === 'true' || ($data['success'] ?? false) === true;
+            $pending = ($data['pending'] ?? 'false') === 'true' || ($data['pending'] ?? false) === true;
+
+            // Check if redirection required even on "success"
+            $requiresRedirect = $this->requiresRedirection($data);
+
+            if ($requiresRedirect) {
+                Log::info('⚠️ MOTO requires redirection (3DS challenge)', [
+                    'transaction_id' => $data['id'] ?? null,
+                    'pending' => $pending,
+                ]);
+
+                return [
+                    'success' => false,
+                    'requires_3ds' => true,
+                    'redirect_url' => $data['redirect_url'] ?? $data['redirection_url'] ?? null,
+                    'transaction_id' => $data['id'] ?? null,
+                    'message' => 'MOTO requires 3DS authentication',
+                    'data' => $data,
+                ];
+            }
+
+            Log::info('✅ MOTO payment successful', [
+                'transaction_id' => $data['id'] ?? null,
+                'success' => $success,
+                'pending' => $pending,
+            ]);
+
+            return [
+                'success' => $success,
+                'pending' => $pending,
+                'transaction_id' => $data['id'] ?? null,
+                'requires_3ds' => false,
+                'data' => $data,
+            ];
+
+        } catch (Exception $e) {
+            Log::error('❌ MOTO payment exception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Check if MOTO response requires redirection (3DS challenge).
+     *
+     * Per Paymob docs, even MOTO can return use_redirection: true
+     * when 3DS authentication is required by the issuing bank.
+     */
+    private function requiresRedirection(array $response): bool
+    {
+        // Check explicit redirection flag
+        if (!empty($response['use_redirection'])) {
+            return true;
+        }
+
+        // Check if redirection URL provided
+        if (!empty($response['redirect_url']) || !empty($response['redirection_url'])) {
+            return true;
+        }
+
+        // Check for 3DS URL
+        if (!empty($response['3ds_url'])) {
+            return true;
+        }
+
+        // Check pending status (might need user action)
+        $pending = ($response['pending'] ?? 'false') === 'true' || ($response['pending'] ?? false) === true;
+        $is3DS = ($response['is_3d_secure'] ?? 'false') === 'true' || ($response['is_3d_secure'] ?? false) === true;
+
+        return $pending && $is3DS;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NEW: TOKEN EXTRACTION FROM INTENTION WEBHOOK
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Extract card token from Intention API webhook.
+     * Handles new token object structure from Unified Checkout.
+     *
+     * Expected webhook structure per Paymob docs:
+     * {
+     *   "obj": {
+     *     "token": {
+     *       "token": "3860b033229de1ae77...",
+     *       "masked_pan": "xxxx-xxxx-xxxx-2346",
+     *       "card_subtype": "MasterCard",
+     *       "card_expired": false
+     *     },
+     *     "source_data": {
+     *       "type": "card",
+     *       "pan": "2346",
+     *       "sub_type": "MasterCard"
+     *     }
+     *   }
+     * }
+     *
+     * @param array $callbackData Webhook payload
+     * @return array|null ['token', 'last4', 'brand', 'card_subtype'] or null
+     */
+    public function extractCardTokenFromIntention(array $callbackData): ?array
+    {
+        // NEW: Check for token object (Intention API)
+        if (isset($callbackData['token']['token'])) {
+            $tokenObj = $callbackData['token'];
+            $sourceData = $callbackData['source_data'] ?? [];
+
+            // Extract last 4 from masked_pan (e.g., "xxxx-xxxx-xxxx-2346")
+            $maskedPan = $tokenObj['masked_pan'] ?? null;
+            $last4 = $this->extractLast4Digits($maskedPan ?? $sourceData['pan'] ?? null);
+
+            $cardData = [
+                'token' => $tokenObj['token'],  // ⭐ Stable Paymob saved card token
+                'last4' => $last4,
+                'brand' => $this->normalizeCardBrand($sourceData['sub_type'] ?? $tokenObj['card_subtype'] ?? 'other'),
+                'card_subtype' => $tokenObj['card_subtype'] ?? null, // MasterCard/Visa/etc
+                'card_expired' => $tokenObj['card_expired'] ?? false,
+            ];
+
+            Log::info('✅ Card token extracted from Intention webhook', [
+                'token_preview' => substr($cardData['token'], 0, 10) . '...',
+                'last4' => $cardData['last4'],
+                'brand' => $cardData['brand'],
+            ]);
+
+            return $cardData;
+        }
+
+        // NEW: Check for direct token (from our custom token webhook handler)
+        if (isset($callbackData['token']) && is_string($callbackData['token'])) {
+            $sourceData = $callbackData['source_data'] ?? [];
+            $maskedPan = $callbackData['masked_pan'] ?? null;
+            $last4 = $this->extractLast4Digits($maskedPan ?? $sourceData['pan'] ?? null);
+
+            $cardData = [
+                'token' => $callbackData['token'],
+                'last4' => $last4,
+                'brand' => $this->normalizeCardBrand($sourceData['sub_type'] ?? 'other'),
+            ];
+
+            Log::info('✅ Card token extracted from direct structure', [
+                'token_preview' => substr($cardData['token'], 0, 10) . '...',
+                'last4' => $cardData['last4'],
+                'brand' => $cardData['brand'],
+            ]);
+
+            return $cardData;
+        }
+
+        // LEGACY: Fallback to old extractCardTokenFromCallback() for classic flow
+        // This will return null for classic iframe flow (no tokenization)
+        return $this->extractCardTokenFromCallback($callbackData);
+    }
+
+    /**
+     * Fetch transaction details from Paymob API
+     * Used for manual status verification when webhooks don't arrive
+     *
+     * @param string $intentionId Paymob intention ID (pi_test_xxx)
+     * @return array|null Transaction data or null if not found
+     */
+    public function getTransactionByIntention(string $intentionId): ?array
+    {
+        try {
+            // Paymob uses Transaction API to retrieve payment details
+            // We need to get the transactions list and filter by intention ID
+            // Alternative: Use the intention details endpoint
+            $endpoint = "https://accept.paymob.com/v1/intentions/{$intentionId}";
+
+            $response = Http::timeout(30)
+                ->retry(2, 1000)
+                ->withHeaders([
+                    'Authorization' => 'Token ' . $this->secretKey,
+                    'Content-Type' => 'application/json',
+                ])
+                ->get($endpoint);
+
+            if (!$response->successful()) {
+                Log::error('❌ Failed to fetch transaction from Paymob', [
+                    'intention_id' => $intentionId,
+                    'status' => $response->status(),
+                    'error' => $response->body(),
+                ]);
+                return null;
+            }
+
+            $data = $response->json();
+
+            Log::info('✅ Transaction retrieved from Paymob', [
+                'intention_id' => $intentionId,
+                'status' => $data['status'] ?? 'unknown',
+                'transaction_id' => $data['latest_transaction']['id'] ?? null,
+            ]);
+
+            return $data;
+
+        } catch (Exception $e) {
+            Log::error('❌ Exception fetching transaction', [
+                'intention_id' => $intentionId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
 }
+

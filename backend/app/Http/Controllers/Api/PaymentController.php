@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\PaymobPayment;
 use App\Services\PaymobService;
+use App\Services\PaymentDecisionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,10 +19,14 @@ use Exception;
 class PaymentController extends Controller
 {
     private PaymobService $paymobService;
+    private PaymentDecisionService $decisionService;
 
-    public function __construct(PaymobService $paymobService)
-    {
+    public function __construct(
+        PaymobService $paymobService,
+        PaymentDecisionService $decisionService
+    ) {
         $this->paymobService = $paymobService;
+        $this->decisionService = $decisionService;
     }
 
     /**
@@ -136,16 +141,24 @@ class PaymentController extends Controller
     }
 
     /**
-     * Initiate payment with Paymob.
+     * Initiate payment with Paymob (Dual-Flow: MOTO or Unified Checkout).
      *
      * POST /api/v1/payments/paymob/initiate
+     *
+     * Decision tree:
+     * 1. If wallet payment → classic iframe flow
+     * 2. If card payment with saved card → check business rules:
+     *    - Low/medium value + good history → MOTO (one-click)
+     *    - High value or risk factors → Unified Checkout (3DS)
+     * 3. If card payment without saved card → Unified Checkout (with tokenization)
      */
     public function initiatePayment(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'order_id' => 'required|exists:orders,id',
             'payment_method' => 'required|in:CARD,WALLET',
-            'save_card' => 'nullable|boolean', // ✅ Phase 3: Save card opt-in
+            'payment_method_id' => 'nullable|exists:payment_methods,id', // ✅ Saved card ID
+            'save_card' => 'nullable|boolean', // ✅ Save card opt-in
             'billing_data' => 'required|array',
             'billing_data.first_name' => 'required|string|max:255',
             'billing_data.last_name' => 'required|string|max:255',
@@ -203,7 +216,7 @@ class PaymentController extends Controller
             ]);
 
             // Generate unique internal order ID
-            $internalOrderId = 'ORD-' . $order->id . '-' . time();
+            $internalOrderId = 'ORD-' . $order->id . '-' . (int)(microtime(true) * 1000);
 
             // Step 1: Authenticate with Paymob
             $authToken = $this->paymobService->authenticate();
@@ -226,33 +239,85 @@ class PaymentController extends Controller
                 'state' => $request->billing_data['city'] ?? 'Cairo',
             ]);
 
-            // Step 3: Generate payment key (with card save option if requested)
-            $paymentToken = $this->paymobService->generatePaymentKeyWithCardSave(
-                $authToken,
-                $amountCents,
-                $paymobOrderId,
-                $billingData,
-                $request->payment_method,
+            // ═══════════════════════════════════════════════════════════════
+            // DUAL-FLOW ROUTING: MOTO vs Unified Checkout vs Classic
+            // ═══════════════════════════════════════════════════════════════
+
+            // Wallet payments: Use classic iframe flow (no tokenization)
+            if ($request->payment_method === 'WALLET') {
+                return $this->initiateClassicFlow(
+                    $order,
+                    $request->payment_method,
+                    $billingData,
+                    $internalOrderId,
+                    false // No card save for wallet
+                );
+            }
+
+            // Check if dual-flow features enabled
+            if (!config('payments.enable_moto') && !config('payments.enable_unified_checkout')) {
+                // Feature flags disabled, fallback to classic flow
+                return $this->initiateClassicFlow(
+                    $order,
+                    $request->payment_method,
+                    $billingData,
+                    $internalOrderId,
+                    $request->boolean('save_card', false)
+                );
+            }
+
+            // Get saved card if payment_method_id provided
+            $savedCard = null;
+            if ($request->filled('payment_method_id')) {
+                $savedCard = PaymentMethod::where('id', $request->payment_method_id)
+                    ->where('user_id', auth()->id())
+                    ->first();
+
+                // Validate saved card is active
+                if ($savedCard && !$savedCard->isActive()) {
+                    Log::warning('Inactive saved card attempted', [
+                        'payment_method_id' => $request->payment_method_id,
+                        'user_id' => auth()->id(),
+                        'status' => $savedCard->status,
+                    ]);
+                    $savedCard = null; // Treat as new payment
+                }
+            }
+
+            // Use decision service to determine flow
+            $flowDecision = $this->decisionService->decidePaymentFlow(
+                $order,
+                $savedCard,
                 $request->boolean('save_card', false)
             );
 
-            // Get integration ID
-            $integrationId = $this->paymobService->getIntegrationId($request->payment_method);
-
-            // Store payment record
-            $payment = PaymobPayment::create([
+            Log::info('💡 Payment flow decision made', [
                 'order_id' => $order->id,
-                'internal_order_id' => $internalOrderId,
-                'paymob_order_id' => $paymobOrderId,
-                'amount_cents' => $amountCents,
-                'currency' => 'EGP',
-                'payment_method' => $request->payment_method,
-                'save_card_requested' => is_array($paymentToken) ? $paymentToken['save_card_requested'] : $request->boolean('save_card', false),
-                'integration_id' => $integrationId,
-                'status' => 'PENDING',
-                'billing_data' => $billingData,
-                'payment_token' => is_array($paymentToken) ? $paymentToken['payment_token'] : $paymentToken,
+                'flow' => $flowDecision['flow'],
+                'reason' => $flowDecision['reason'],
+                'has_saved_card' => $savedCard !== null,
+                'save_card_requested' => $request->boolean('save_card', false),
             ]);
+
+            // Route to appropriate flow handler
+            if ($flowDecision['flow'] === 'moto' && $savedCard) {
+                // MOTO: One-click payment with saved card
+                $result = $this->initiateMotoPayment(
+                    $order,
+                    $savedCard,
+                    $billingData,
+                    $internalOrderId
+                );
+            } else {
+                // Unified Checkout: 3DS with optional tokenization
+                $result = $this->initiateUnifiedCheckout(
+                    $order,
+                    $savedCard?->paymob_card_token,
+                    $request->boolean('save_card', false),
+                    $billingData,
+                    $internalOrderId
+                );
+            }
 
             // Update order payment status
             $order->update([
@@ -261,20 +326,32 @@ class PaymentController extends Controller
 
             DB::commit();
 
-            // Get iframe URL (extract token if array)
-            $token = is_array($paymentToken) ? $paymentToken['payment_token'] : $paymentToken;
-            $iframeUrl = $this->paymobService->getIframeUrl($token);
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'payment_id' => $payment->id,
-                    'payment_token' => $paymentToken,
-                    'iframe_url' => $iframeUrl,
-                    'amount' => $order->total,
-                    'currency' => 'EGP',
-                ],
-            ]);
+            // Return response based on flow
+            if ($result['requires_redirect']) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'payment_id' => $result['payment_id'],
+                        'flow' => $result['flow'],
+                        'redirect_url' => $result['redirect_url'],
+                        'amount' => $order->total,
+                        'currency' => 'EGP',
+                    ],
+                ]);
+            } else {
+                // MOTO success - no redirect needed
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'payment_id' => $result['payment_id'],
+                        'flow' => 'moto',
+                        'status' => 'processing',
+                        'message' => 'Payment processing with saved card',
+                        'amount' => $order->total,
+                        'currency' => 'EGP',
+                    ],
+                ]);
+            }
 
         } catch (Exception $e) {
             DB::rollBack();
@@ -323,10 +400,22 @@ class PaymentController extends Controller
                 'success' => $payload['success'] ?? false,
                 'transaction_id' => $payload['id'] ?? null,
                 'has_obj_wrapper' => isset($data['obj']),
+                'payload_keys' => array_keys($payload),
+                'order_keys' => isset($payload['order']) ? array_keys($payload['order']) : [],
+                'has_token' => isset($payload['token']),
+                'has_masked_pan' => isset($payload['masked_pan']),
             ]);
 
             // ═══════════════════════════════════════════════════════════════
-            // REQUIREMENT 1: HMAC VERIFICATION FIRST (Security Gate)
+            // CRITICAL: Handle TOKEN WEBHOOK BEFORE HMAC (different structure)
+            // Token webhooks have different HMAC calculation, so check first
+            // ═══════════════════════════════════════════════════════════════
+            if (isset($payload['token']) && isset($payload['masked_pan']) && !isset($payload['order'])) {
+                return $this->handleTokenWebhook($payload);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // REQUIREMENT 1: HMAC VERIFICATION (Security Gate for transaction webhooks)
             // ═══════════════════════════════════════════════════════════════
             if (!$this->paymobService->verifyHmac($data)) {
                 Log::error('🚫 SECURITY: Invalid HMAC signature', [
@@ -352,11 +441,56 @@ class PaymentController extends Controller
                 return response()->json(['message' => 'Invalid data'], 400);
             }
 
+            // Try finding payment by paymob_order_id first (legacy/old flow)
             $payment = PaymobPayment::where('paymob_order_id', $paymobOrderId)->first();
 
+            // If not found, try by special_reference (Unified Checkout Intention flow)
             if (!$payment) {
-                Log::error('❌ Payment not found', ['paymob_order_id' => $paymobOrderId]);
+                // In Unified Checkout, the special_reference we sent is in merchant_order_id
+                // Check both top level and inside order object
+                $specialReference = null;
+                
+                if (isset($payload['merchant_order_id'])) {
+                    $specialReference = $payload['merchant_order_id'];
+                } elseif (isset($payload['order']['merchant_order_id'])) {
+                    $specialReference = $payload['order']['merchant_order_id'];
+                }
+                
+                if ($specialReference) {
+                    Log::info('🔍 Searching payment by special_reference', [
+                        'special_reference' => $specialReference,
+                    ]);
+                    
+                    // Extract ORD-XXX part from the special reference
+                    // Format: ORD-138-1769285913241-6975291b51d97
+                    if (preg_match('/^(ORD-\d+)/', $specialReference, $matches)) {
+                        $orderPrefix = $matches[1];
+                        Log::info('🔍 Extracted order prefix', ['prefix' => $orderPrefix]);
+                        $payment = PaymobPayment::where('internal_order_id', 'LIKE', $orderPrefix . '%')->first();
+                    } else {
+                        // Fallback: try exact match
+                        $payment = PaymobPayment::where('internal_order_id', $specialReference)->first();
+                    }
+                }
+            }
+
+            if (!$payment) {
+                Log::error('❌ Payment not found', [
+                    'paymob_order_id' => $paymobOrderId,
+                    'special_reference' => $payload['merchant_order_id'] ?? null,
+                    'payload_dump' => json_encode($payload, JSON_PRETTY_PRINT),
+                ]);
                 return response()->json(['message' => 'Payment not found'], 404);
+            }
+
+            // Update paymob_order_id if it was NULL (Unified Checkout flow)
+            if (!$payment->paymob_order_id) {
+                $payment->paymob_order_id = $paymobOrderId;
+                $payment->save();
+                Log::info('📝 Updated paymob_order_id from webhook', [
+                    'payment_id' => $payment->id,
+                    'paymob_order_id' => $paymobOrderId,
+                ]);
             }
 
             // IDEMPOTENCY: Check if already processed (by status OR transaction_id)
@@ -467,6 +601,15 @@ class PaymentController extends Controller
                     // - Payment method is CARD ✅ (checked in shouldSaveCardToken)
                     // - Never runs for WALLET ✅ (shouldSaveCardToken rejects non-CARD)
                     // ═══════════════════════════════════════════════════════
+                    
+                    Log::info('🔍 Checking if should save card', [
+                        'payment_method' => $payment->payment_method,
+                        'save_card_requested' => $payment->save_card_requested,
+                        'has_source_data_token' => isset($payload['source_data']['token']),
+                        'has_token_object' => isset($payload['token']),
+                        'source_data_keys' => isset($payload['source_data']) ? array_keys($payload['source_data']) : [],
+                    ]);
+                    
                     if ($this->shouldSaveCardToken($payment, $payload)) {
                         $this->saveCardToken($order->user_id, $payload);
                     }
@@ -517,7 +660,20 @@ class PaymentController extends Controller
                         'status' => 'failed',
                     ]);
 
-                    // 4. REQUIREMENT 5: DO NOT clear cart on failure (preserve for retry)
+                    // 4. Restore product stock (return items to inventory)
+                    foreach ($order->items as $orderItem) {
+                        $product = $orderItem->product;
+                        if ($product) {
+                            $product->increment('stock_quantity', $orderItem->quantity);
+                            Log::info('📦 Stock restored', [
+                                'product_id' => $product->id,
+                                'quantity' => $orderItem->quantity,
+                                'new_stock' => $product->stock_quantity,
+                            ]);
+                        }
+                    }
+
+                    // 5. REQUIREMENT 5: DO NOT clear cart on failure (preserve for retry)
                     Log::info('❌ Payment FAILED - Cart preserved for retry', [
                         'payment_id' => $payment->id,
                         'order_id' => $order->id,
@@ -581,6 +737,130 @@ class PaymentController extends Controller
      * Get payment status for an order.
      *
      * GET /api/v1/payments/order/{orderId}/status
+     */
+    /**
+     * Get payment status by payment ID (for frontend polling)
+     * Route: GET /api/v1/payments/status/{paymentId}
+     *
+     * IMPORTANT: If payment is PENDING and has intention_id, fetch from Paymob
+     * This handles cases where webhook wasn't received (localhost development)
+     */
+    public function getPaymentStatusById($paymentId): JsonResponse
+    {
+        try {
+            $payment = PaymobPayment::find($paymentId);
+
+            if (!$payment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment not found',
+                ], 404);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // WEBHOOK FALLBACK: If payment is PENDING, check Paymob directly
+            // This handles localhost development where webhook can't reach us
+            // ═══════════════════════════════════════════════════════════════
+            if ($payment->status === 'PENDING' && $payment->paymob_intention_id) {
+                Log::info('🔄 Payment still PENDING - fetching from Paymob', [
+                    'payment_id' => $payment->id,
+                    'intention_id' => $payment->paymob_intention_id,
+                ]);
+
+                $transactionData = $this->paymobService->getTransactionByIntention(
+                    $payment->paymob_intention_id
+                );
+
+                if ($transactionData && isset($transactionData['status'])) {
+                    $paymobStatus = $transactionData['status'];
+                    $latestTxn = $transactionData['latest_transaction'] ?? null;
+
+                    Log::info('📊 Paymob transaction status', [
+                        'intention_id' => $payment->paymob_intention_id,
+                        'status' => $paymobStatus,
+                        'transaction_id' => $latestTxn['id'] ?? null,
+                        'success' => $latestTxn['success'] ?? null,
+                    ]);
+
+                    // If Paymob shows PROCESSED and transaction successful, update locally
+                    if ($paymobStatus === 'PROCESSED' && $latestTxn && ($latestTxn['success'] ?? false)) {
+                        DB::beginTransaction();
+                        try {
+                            $order = $payment->order;
+
+                            // Update payment status
+                            $payment->markAsPaid($latestTxn['id'], $latestTxn);
+
+                            // Update order
+                            $order->update([
+                                'payment_status' => 'completed',
+                                'status' => 'confirmed',
+                            ]);
+
+                            // Save card token if applicable
+                            if ($this->shouldSaveCardToken($payment, $latestTxn)) {
+                                $this->saveCardToken($order->user_id, $latestTxn);
+                            }
+
+                            // Clear cart
+                            $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
+                            if ($cart) {
+                                app(\App\Services\CartService::class)->clearCart($cart);
+                            }
+
+                            DB::commit();
+
+                            Log::info('✅ Payment auto-updated from Paymob fetch', [
+                                'payment_id' => $payment->id,
+                                'transaction_id' => $latestTxn['id'],
+                            ]);
+
+                            // Refresh payment to get updated status
+                            $payment->refresh();
+
+                        } catch (Exception $e) {
+                            DB::rollBack();
+                            Log::error('❌ Failed to auto-update payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            $order = $payment->order;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'status' => $payment->status, // PENDING, PAID, FAILED
+                    'payment_status' => $order->payment_status ?? null, // pending, completed, failed
+                    'order_status' => $order->status ?? null, // confirmed, failed, etc
+                    'amount' => $payment->amount_in_egp,
+                    'currency' => $payment->currency,
+                    'payment_method' => $payment->payment_method,
+                    'paid_at' => $payment->paid_at,
+                    'transaction_id' => $payment->paymob_transaction_id,
+                ],
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Get payment status error', [
+                'payment_id' => $paymentId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get payment status',
+            ], 500);
+        }
+    }
+
+    /**
+     * Get payment status by order ID (legacy compatibility)
+     * Route: GET /api/v1/order/{orderId}/status
      */
     public function getPaymentStatus($orderId): JsonResponse
     {
@@ -668,6 +948,107 @@ class PaymentController extends Controller
     }
 
     /**
+     * Handle Paymob token webhook (separate from transaction webhook)
+     * 
+     * Paymob Unified Checkout sends TWO webhooks:
+     * 1. Token webhook (arrives first, ~30s before transaction)
+     * 2. Transaction webhook (arrives second, confirms payment)
+     * 
+     * Token webhooks have DIFFERENT HMAC calculation, so we skip HMAC for them.
+     */
+    private function handleTokenWebhook(array $payload): JsonResponse
+    {
+        Log::info('💳 Token webhook received', [
+            'token_preview' => substr($payload['token'], 0, 10) . '...',
+            'masked_pan' => $payload['masked_pan'],
+            'card_subtype' => $payload['card_subtype'] ?? null,
+            'merchant_id' => $payload['merchant_id'] ?? null,
+            'order_id' => $payload['order_id'] ?? null,
+            'email' => $payload['email'] ?? null,
+        ]);
+
+        // Find payment - try multiple strategies
+        $payment = null;
+        
+        // STRATEGY 1: Search by paymob_order_id (most reliable for Unified Checkout)
+        if (isset($payload['order_id'])) {
+            $payment = PaymobPayment::where('paymob_order_id', $payload['order_id'])->first();
+            
+            Log::info('🔍 Searching by paymob_order_id', [
+                'order_id' => $payload['order_id'],
+                'found' => $payment ? true : false,
+            ]);
+        }
+        
+        // STRATEGY 2: If merchant_id matches internal_order_id pattern
+        if (!$payment && isset($payload['merchant_id'])) {
+            $merchantId = (string) $payload['merchant_id'];
+            
+            // Try exact match
+            $payment = PaymobPayment::where('internal_order_id', $merchantId)->first();
+            
+            // Fallback: partial match (in case of truncation)
+            if (!$payment) {
+                $payment = PaymobPayment::where('internal_order_id', 'LIKE', $merchantId . '%')->first();
+            }
+            
+            Log::info('🔍 Searching by merchant_id', [
+                'merchant_id' => $merchantId,
+                'found' => $payment ? true : false,
+            ]);
+        }
+
+        if (!$payment) {
+            Log::warning('⚠️ Token webhook: Payment not found', [
+                'merchant_id' => $payload['merchant_id'] ?? null,
+                'order_id' => $payload['order_id'] ?? null,
+                'strategies_tried' => ['paymob_order_id', 'merchant_id'],
+            ]);
+            
+            // Return 200 (not 404) to prevent Paymob retries
+            return response()->json(['message' => 'Payment not found, will retry on transaction webhook'], 200);
+        }
+
+        if (!$payment->save_card_requested) {
+            Log::info('ℹ️ Token webhook: Card save not requested', [
+                'payment_id' => $payment->id,
+            ]);
+            return response()->json(['message' => 'Card save not requested'], 200);
+        }
+
+        $order = $payment->order;
+        
+        if (!$order) {
+            Log::error('❌ Token webhook: Order not found for payment', [
+                'payment_id' => $payment->id,
+            ]);
+            return response()->json(['message' => 'Order not found'], 404);
+        }
+        
+        // Create card data structure from token webhook
+        $cardData = [
+            'token' => $payload['token'],
+            'source_data' => [
+                'pan' => substr($payload['masked_pan'], -4),
+                'sub_type' => $payload['card_subtype'] ?? 'other',
+            ],
+            'masked_pan' => $payload['masked_pan'],
+        ];
+        
+        // Save card token
+        $this->saveCardToken($order->user_id, $cardData);
+        
+        Log::info('✅ Card token saved from token webhook', [
+            'payment_id' => $payment->id,
+            'user_id' => $order->user_id,
+            'card_last4' => substr($payload['masked_pan'], -4),
+            'card_brand' => $payload['card_subtype'] ?? 'other',
+        ]);
+
+        return response()->json(['message' => 'Token webhook processed successfully'], 200);
+    }
+
+    /**
      * Extract card token from callback and save to payment_methods table.
      *
      * CRITICAL: This method does NOT throw exceptions on failure.
@@ -680,12 +1061,14 @@ class PaymentController extends Controller
     private function saveCardToken(int $userId, array $payload): void
     {
         try {
-            // Use PaymobService to extract structured data
-            $cardData = $this->paymobService->extractCardTokenFromCallback($payload);
+            // ✅ NEW: Use extractCardTokenFromIntention() which handles both Intention and Classic flows
+            $cardData = $this->paymobService->extractCardTokenFromIntention($payload);
 
             if (!$cardData) {
                 Log::warning('💳 Failed to extract card data from callback', [
                     'user_id' => $userId,
+                    'has_token_object' => isset($payload['token']),
+                    'has_source_data_token' => isset($payload['source_data']['token']),
                 ]);
                 return; // Silent return - payment already succeeded
             }
@@ -742,14 +1125,16 @@ class PaymentController extends Controller
                 );
             }
 
-            // Save card (token auto-encrypted + fingerprint auto-generated by model)
+            // ✅ NEW: Save to paymob_card_token column (proper Paymob token)
             $paymentMethod = PaymentMethod::create([
                 'user_id' => $userId,
                 'type' => 'card',
                 'card_last_four' => $cardData['last4'],
                 'card_brand' => $cardData['brand'],
                 'card_holder_name' => $cardHolderName,
-                'token' => $cardData['token'], // ← Auto-encrypted + fingerprinted via setTokenAttribute()
+                'paymob_card_token' => $cardData['token'], // ← NEW: Proper Paymob token
+                'token_type' => 'paymob_saved_card',
+                'status' => 'active',
                 'is_default' => $isFirstCard,
                 'is_verified' => true, // Verified since payment succeeded
                 'expires_at' => $expiresAt,
@@ -761,6 +1146,7 @@ class PaymentController extends Controller
                 'card_last_four' => $paymentMethod->card_last_four,
                 'card_brand' => $paymentMethod->card_brand,
                 'is_default' => $paymentMethod->is_default,
+                'token_type' => 'paymob_saved_card',
             ]);
 
         } catch (\Exception $e) {
@@ -955,5 +1341,513 @@ class PaymentController extends Controller
                 'message' => 'Payment initiated with saved card',
             ]);
         });
+    }
+
+    /**
+     * ✅ NEW: Check payment status (for frontend polling).
+     *
+     * Frontend should poll this endpoint every 2 seconds after opening WebView
+     * to detect when webhook has confirmed payment success.
+     *
+     * This replaces redirect-based success detection (more reliable).
+     *
+     * GET /api/v1/payments/status/{paymentId}
+     */
+    public function checkStatus(int $paymentId): JsonResponse
+    {
+        try {
+            $payment = PaymobPayment::findOrFail($paymentId);
+
+            // Security: Only return status to payment owner or admin
+            if ($payment->user_id && $payment->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access to payment status',
+                ], 403);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // WEBHOOK FALLBACK: If payment is PENDING, check Paymob directly
+            // This handles localhost development where webhook can't reach us
+            // ═══════════════════════════════════════════════════════════════
+            if ($payment->status === 'PENDING' && $payment->paymob_intention_id) {
+                Log::info('🔄 Payment still PENDING - fetching from Paymob', [
+                    'payment_id' => $payment->id,
+                    'intention_id' => $payment->paymob_intention_id,
+                ]);
+
+                $transactionData = $this->paymobService->getTransactionByIntention(
+                    $payment->paymob_intention_id
+                );
+
+                if ($transactionData && isset($transactionData['status'])) {
+                    $paymobStatus = $transactionData['status'];
+                    $latestTxn = $transactionData['latest_transaction'] ?? null;
+
+                    Log::info('📊 Paymob transaction status', [
+                        'intention_id' => $payment->paymob_intention_id,
+                        'status' => $paymobStatus,
+                        'transaction_id' => $latestTxn['id'] ?? null,
+                        'success' => $latestTxn['success'] ?? null,
+                    ]);
+
+                    // If Paymob shows PROCESSED and transaction successful, update locally
+                    if ($paymobStatus === 'PROCESSED' && $latestTxn && ($latestTxn['success'] ?? false)) {
+                        DB::beginTransaction();
+                        try {
+                            $order = $payment->order;
+
+                            // Update payment status
+                            $payment->markAsPaid($latestTxn['id'], $latestTxn);
+
+                            // Update order
+                            $order->update([
+                                'payment_status' => 'completed',
+                                'status' => 'confirmed',
+                            ]);
+
+                            // Save card token if applicable
+                            if ($this->shouldSaveCardToken($payment, $latestTxn)) {
+                                $this->saveCardToken($order->user_id, $latestTxn);
+                            }
+
+                            // Clear cart
+                            $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
+                            if ($cart) {
+                                app(\App\Services\CartService::class)->clearCart($cart);
+                            }
+
+                            DB::commit();
+
+                            Log::info('✅ Payment auto-updated from Paymob fetch', [
+                                'payment_id' => $payment->id,
+                                'transaction_id' => $latestTxn['id'],
+                            ]);
+
+                            // Refresh payment to get updated status
+                            $payment->refresh();
+
+                        } catch (Exception $e) {
+                            DB::rollBack();
+                            Log::error('❌ Failed to auto-update payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment_id' => $payment->id,
+                    'order_id' => $payment->order_id,
+                    'status' => $payment->status, // PENDING, PAID, FAILED
+                    'transaction_id' => $payment->transaction_id,
+                    'amount' => $payment->amount_cents / 100,
+                    'currency' => $payment->currency,
+                    'flow' => $payment->flow ?? 'classic_iframe',
+                    'updated_at' => $payment->updated_at->toISOString(),
+                ],
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not found',
+            ], 404);
+        } catch (Exception $e) {
+            Log::error('Payment status check failed', [
+                'payment_id' => $paymentId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve payment status',
+            ], 500);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DUAL-FLOW PAYMENT HANDLERS (MOTO + Unified Checkout)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Initiate MOTO (Mail Order / Telephone Order) payment.
+     * Server-to-server one-click payment with saved card token.
+     *
+     * @param Order $order
+     * @param PaymentMethod $savedCard
+     * @param array $billingData
+     * @param string $internalOrderId
+     * @return array ['success' => bool, 'payment_id' => int, 'redirect_url' => ?string]
+     */
+    private function initiateMotoPayment(
+        Order $order,
+        PaymentMethod $savedCard,
+        array $billingData,
+        string $internalOrderId
+    ): array {
+        try {
+            $amountCents = (int) ($order->total * 100);
+
+            Log::info('💳 MOTO: Attempting one-click payment', [
+                'order_id' => $order->id,
+                'amount_cents' => $amountCents,
+                'saved_card_id' => $savedCard->id,
+                'card_last4' => $savedCard->last4,
+                'card_brand' => $savedCard->card_brand,
+            ]);
+
+            // Step 1: Authenticate and register order
+            $authToken = $this->paymobService->authenticate();
+            $paymobOrderId = $this->paymobService->registerOrder(
+                $authToken,
+                $amountCents,
+                $internalOrderId
+            );
+
+            // Step 2: Generate fresh payment key (JWT)
+            $paymentKeyJWT = $this->paymobService->generatePaymentKey(
+                $authToken,
+                $amountCents,
+                $paymobOrderId,
+                $billingData,
+                'CARD'
+            );
+
+            // Step 3: Attempt MOTO payment with saved card token
+            $motoResult = $this->paymobService->payWithSavedCardMoto(
+                $savedCard->paymob_card_token, // Decrypted automatically by accessor
+                $paymentKeyJWT
+            );
+
+            // Create payment record
+            $payment = PaymobPayment::create([
+                'order_id' => $order->id,
+                'internal_order_id' => $internalOrderId,
+                'paymob_order_id' => $paymobOrderId,
+                'amount_cents' => $amountCents,
+                'currency' => 'EGP',
+                'payment_method' => 'CARD',
+                'integration_id' => $this->paymobService->getIntegrationId('CARD'),
+                'status' => 'PENDING',
+                'billing_data' => $billingData,
+                'flow' => 'moto',
+                'moto_attempts' => 1,
+                'moto_attempted_at' => now(),
+            ]);
+
+            // Check MOTO result
+            if ($motoResult['requires_3ds']) {
+                // MOTO declined, bank requires 3DS authentication
+                Log::warning('⚠️ MOTO: 3DS required, falling back to Unified Checkout', [
+                    'payment_id' => $payment->id,
+                    'order_id' => $order->id,
+                ]);
+
+                $payment->markAsFallbackTo3DS();
+
+                // Fallback to Unified Checkout with saved card pre-filled
+                return $this->initiateUnifiedCheckout(
+                    $order,
+                    $savedCard->paymob_card_token,
+                    false, // Card already saved
+                    $billingData,
+                    $internalOrderId,
+                    $payment->id // Reuse payment record
+                );
+            }
+
+            if (!$motoResult['success']) {
+                // MOTO failed (declined by bank, insufficient funds, etc.)
+                $payment->markAsFailed(
+                    $motoResult['error'] ?? 'MOTO payment declined',
+                    $motoResult['data'] ?? []
+                );
+
+                Log::error('❌ MOTO: Payment failed', [
+                    'payment_id' => $payment->id,
+                    'error' => $motoResult['error'] ?? 'Unknown',
+                ]);
+
+                throw new Exception($motoResult['error'] ?? 'MOTO payment declined');
+            }
+
+            // MOTO SUCCESS!
+            Log::info('✅ MOTO: Payment successful', [
+                'payment_id' => $payment->id,
+                'transaction_id' => $motoResult['transaction_id'],
+            ]);
+
+            return [
+                'success' => true,
+                'payment_id' => $payment->id,
+                'flow' => 'moto',
+                'requires_redirect' => false,
+                'transaction_id' => $motoResult['transaction_id'],
+            ];
+
+        } catch (Exception $e) {
+            Log::error('MOTO payment exception', [
+                'error' => $e->getMessage(),
+                'order_id' => $order->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Initiate Unified Checkout payment (Intention API with 3DS + Tokenization).
+     *
+     * @param Order $order
+     * @param string|null $savedCardToken Optional saved card token to pre-fill
+     * @param bool $saveCard Whether to request card tokenization
+     * @param array $billingData
+     * @param string $internalOrderId
+     * @param int|null $existingPaymentId Reuse existing payment record (for MOTO fallback)
+     * @return array ['success' => bool, 'payment_id' => int, 'redirect_url' => string]
+     */
+    private function initiateUnifiedCheckout(
+        Order $order,
+        ?string $savedCardToken,
+        bool $saveCard,
+        array $billingData,
+        string $internalOrderId,
+        ?int $existingPaymentId = null
+    ): array {
+        try {
+            $amountCents = (int) ($order->total * 100);
+
+            Log::info('🔐 Unified Checkout: Creating Intention', [
+                'order_id' => $order->id,
+                'amount_cents' => $amountCents,
+                'save_card' => $saveCard,
+                'has_saved_card_token' => !empty($savedCardToken),
+                'is_moto_fallback' => $existingPaymentId !== null,
+            ]);
+
+            // Build order items for fraud detection
+            $items = $order->items->map(function ($item) {
+                return [
+                    'name' => $item->product->name ?? 'Product',
+                    'amount' => (int) ($item->price * 100), // Paymob expects 'amount' not 'amount_cents'
+                    'quantity' => $item->quantity,
+                ];
+            })->toArray();
+
+            // Add delivery fee as a line item if present
+            if ($order->delivery_fee > 0) {
+                $items[] = [
+                    'name' => 'Delivery Fee',
+                    'amount' => (int) ($order->delivery_fee * 100),
+                    'quantity' => 1,
+                ];
+            }
+
+            // Add tax as a line item if present
+            if ($order->tax > 0) {
+                $items[] = [
+                    'name' => 'Tax',
+                    'amount' => (int) ($order->tax * 100),
+                    'quantity' => 1,
+                ];
+            }
+
+            // Calculate and verify items total
+            $itemsTotal = array_reduce($items, function ($carry, $item) {
+                return $carry + ($item['amount'] * $item['quantity']);
+            }, 0);
+
+            // CRITICAL FIX: If items don't match total (rounding errors), add adjustment
+            if ($itemsTotal !== $amountCents) {
+                $difference = $amountCents - $itemsTotal;
+                Log::warning('⚠️ Items total mismatch - adding adjustment', [
+                    'items_total' => $itemsTotal,
+                    'order_total' => $amountCents,
+                    'difference' => $difference,
+                ]);
+                
+                $items[] = [
+                    'name' => 'Adjustment',
+                    'amount' => $difference,
+                    'quantity' => 1,
+                ];
+                
+                $itemsTotal = $amountCents; // Force match
+            }
+
+            Log::info('💰 Items calculation', [
+                'items_count' => count($items),
+                'items_total_cents' => $itemsTotal,
+                'order_total_cents' => $amountCents,
+                'match' => $itemsTotal === $amountCents,
+                'items' => $items,
+            ]);
+
+            // Build intention data
+            $intentionData = [
+                'amount_cents' => $amountCents,
+                'billing' => [
+                    'first_name' => $billingData['first_name'] ?? 'Guest',
+                    'last_name' => $billingData['last_name'] ?? 'User',
+                    'email' => $billingData['email'] ?? 'guest@example.com',
+                    'phone' => $billingData['phone_number'] ?? '+201000000000',
+                    'country' => 'EG',
+                    'city' => $billingData['city'] ?? 'Cairo',
+                    'street' => $billingData['street'] ?? 'N/A',
+                    'building' => $billingData['building'] ?? 'NA',
+                    'floor' => $billingData['floor'] ?? 'NA',
+                    'apartment' => $billingData['apartment'] ?? 'NA',
+                ],
+                'items' => $items,
+                'internal_reference' => $internalOrderId . '-' . uniqid(), // Add unique suffix to prevent duplicates
+                'redirection_url' => config('app.paymob_redirect_url', config('app.url') . '/payment-return'),
+            ];
+
+            // Pre-fill saved card if provided
+            if ($savedCardToken) {
+                $intentionData['saved_card_token'] = $savedCardToken;
+            }
+
+            // Create Paymob Intention
+            $intention = $this->paymobService->createIntention($intentionData);
+
+            // Create or update payment record
+            if ($existingPaymentId) {
+                // MOTO fallback scenario - update existing payment
+                $payment = PaymobPayment::find($existingPaymentId);
+                $payment->update([
+                    'flow' => 'unified_3ds',
+                    'paymob_intention_id' => $intention['intention_id'],
+                ]);
+            } else {
+                // New Unified Checkout payment
+                $payment = PaymobPayment::create([
+                    'order_id' => $order->id,
+                    'internal_order_id' => $internalOrderId,
+                    'paymob_order_id' => null, // Intention API doesn't return order_id upfront
+                    'amount_cents' => $amountCents,
+                    'currency' => 'EGP',
+                    'payment_method' => 'CARD',
+                    'save_card_requested' => $saveCard,
+                    'integration_id' => config('services.paymob.integration_id_3ds'),
+                    'status' => 'PENDING',
+                    'billing_data' => $billingData,
+                    'flow' => 'unified_3ds',
+                    'paymob_intention_id' => $intention['intention_id'],
+                ]);
+            }
+
+            Log::info('✅ Unified Checkout: Intention created', [
+                'payment_id' => $payment->id,
+                'intention_id' => $intention['intention_id'],
+                'checkout_url' => substr($intention['unified_checkout_url'], 0, 50) . '...',
+            ]);
+
+            return [
+                'success' => true,
+                'payment_id' => $payment->id,
+                'flow' => 'unified_3ds',
+                'requires_redirect' => true,
+                'redirect_url' => $intention['unified_checkout_url'],
+                'intention_id' => $intention['intention_id'],
+            ];
+
+        } catch (Exception $e) {
+            Log::error('Unified Checkout creation failed', [
+                'error' => $e->getMessage(),
+                'order_id' => $order->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Initiate classic iframe flow (backward compatibility).
+     * Used when dual-flow features are disabled or for wallet payments.
+     *
+     * @param Order $order
+     * @param string $paymentMethod
+     * @param array $billingData
+     * @param string $internalOrderId
+     * @param bool $saveCard
+     * @return JsonResponse
+     */
+    private function initiateClassicFlow(
+        Order $order,
+        string $paymentMethod,
+        array $billingData,
+        string $internalOrderId,
+        bool $saveCard
+    ): JsonResponse {
+        try {
+            $amountCents = (int) ($order->total * 100);
+
+            Log::info('🔄 Classic Flow: Using legacy iframe', [
+                'order_id' => $order->id,
+                'payment_method' => $paymentMethod,
+                'save_card' => $saveCard,
+            ]);
+
+            // Step 1: Authenticate with Paymob
+            $authToken = $this->paymobService->authenticate();
+
+            // Step 2: Register order
+            $paymobOrderId = $this->paymobService->registerOrder(
+                $authToken,
+                $amountCents,
+                $internalOrderId
+            );
+
+            // Step 3: Generate payment key
+            $paymentToken = $this->paymobService->generatePaymentKeyWithCardSave(
+                $authToken,
+                $amountCents,
+                $paymobOrderId,
+                $billingData,
+                $paymentMethod,
+                $saveCard
+            );
+
+            // Store payment record
+            $payment = PaymobPayment::create([
+                'order_id' => $order->id,
+                'internal_order_id' => $internalOrderId,
+                'paymob_order_id' => $paymobOrderId,
+                'amount_cents' => $amountCents,
+                'currency' => 'EGP',
+                'payment_method' => $paymentMethod,
+                'save_card_requested' => is_array($paymentToken) ? $paymentToken['save_card_requested'] : $saveCard,
+                'integration_id' => $this->paymobService->getIntegrationId($paymentMethod),
+                'status' => 'PENDING',
+                'billing_data' => $billingData,
+                'flow' => 'classic_iframe',
+            ]);
+
+            // Get iframe URL
+            $token = is_array($paymentToken) ? $paymentToken['payment_token'] : $paymentToken;
+            $iframeUrl = $this->paymobService->getIframeUrl($token);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment_id' => $payment->id,
+                    'flow' => 'classic_iframe',
+                    'iframe_url' => $iframeUrl,
+                    'amount' => $order->total,
+                    'currency' => 'EGP',
+                ],
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Classic flow initiation failed', [
+                'error' => $e->getMessage(),
+                'order_id' => $order->id,
+            ]);
+            throw $e;
+        }
     }
 }

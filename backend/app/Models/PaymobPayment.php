@@ -14,16 +14,24 @@ class PaymobPayment extends Model
 
     protected $fillable = [
         'order_id',
+        'user_id',
         'internal_order_id',
         'paymob_order_id',
-        'transaction_id',  // FIXED: Match actual database column name
+        'paymob_intention_id',   // NEW: For Unified Checkout
+        'transaction_id',
         'amount_cents',
         'currency',
-        'payment_method',        'save_card_requested', // User opted to save card        'integration_id',
+        'payment_method',
+        'flow',                  // NEW: classic_iframe, unified_3ds, moto
+        'save_card_requested',
+        'moto_attempts',         // NEW: Track MOTO retry attempts
+        'moto_attempted_at',     // NEW: When MOTO was last attempted
+        'is_fallback_from_moto', // NEW: Track if fell back from MOTO to 3DS
+        'integration_id',
         'status',
         'billing_data',
         'paymob_response',
-        'payment_token',
+        'failure_reason',
         'paid_at',
     ];
 
@@ -31,6 +39,10 @@ class PaymobPayment extends Model
         'amount_cents' => 'integer',
         'billing_data' => 'array',
         'paymob_response' => 'array',
+        'save_card_requested' => 'boolean',
+        'is_fallback_from_moto' => 'boolean',
+        'moto_attempts' => 'integer',
+        'moto_attempted_at' => 'datetime',
         'paid_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -90,6 +102,38 @@ class PaymobPayment extends Model
     public function isFailed(): bool
     {
         return $this->status === 'FAILED';
+    }
+
+    /**
+     * NEW: Mark payment as MOTO attempted.
+     */
+    public function markMotoAttempted(): void
+    {
+        $this->increment('moto_attempts');
+        $this->moto_attempted_at = now();
+        $this->save();
+    }
+
+    /**
+     * NEW: Mark as fallback to 3DS after MOTO failure.
+     */
+    public function markAsFallbackTo3DS(string $reason): void
+    {
+        $this->update([
+            'is_fallback_from_moto' => true,
+            'flow' => 'unified_3ds',
+            'failure_reason' => $reason,
+        ]);
+    }
+
+    /**
+     * Scope: Get recent failed payments for a user.
+     */
+    public function scopeRecentFailures($query, int $userId, int $days = 30)
+    {
+        return $query->where('user_id', $userId)
+                     ->where('status', 'FAILED')
+                     ->where('created_at', '>=', now()->subDays($days));
     }
 
     /**

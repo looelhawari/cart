@@ -18,8 +18,13 @@ class PaymentMethod extends Model
         'card_last_four',
         'card_brand',
         'card_holder_name',
-        'token', // Auto-encrypted via accessor
+        'token', // LEGACY: JWT payment keys (deprecated)
+        'paymob_card_token', // NEW: Proper Paymob saved card token
         'token_fingerprint', // SHA-256 hash for duplicate detection
+        'token_type',
+        'status',
+        'invalidated_reason',
+        'invalidated_at',
         'is_default',
         'is_verified',
         'expires_at',
@@ -29,9 +34,11 @@ class PaymentMethod extends Model
         'is_default' => 'boolean',
         'is_verified' => 'boolean',
         'expires_at' => 'date',
+        'invalidated_at' => 'datetime',
     ];
 
     protected $hidden = [
+        'paymob_card_token', // NEVER expose - contains actual Paymob token
         'token', // NEVER expose in JSON - PCI-DSS compliance
     ];
 
@@ -39,52 +46,50 @@ class PaymentMethod extends Model
     // ENCRYPTION (PCI-DSS Compliance - Phase 1)
     // ═══════════════════════════════════════════════════════
 
-    /**
-     * Encrypt token before saving to database.
+    /**NEW: Encrypt Paymob saved card token before saving to database.
+     * This is the CORRECT token from Paymob Intention API webhook.
+     *
      * Uses Laravel's encryption (AES-256-CBC with APP_KEY).
      * Also auto-generates token_fingerprint for duplicate detection.
      *
-     * CRITICAL: Does NOT throw on encryption failure (payment flows must not break).
-     * If encryption fails, sets both token and fingerprint to null and logs error.
-     *
      * @param string|null $value
      */
-    public function setTokenAttribute($value): void
+    public function setPaymobCardTokenAttribute($value): void
     {
         if (!$value) {
-            $this->attributes['token'] = null;
+            $this->attributes['paymob_card_token'] = null;
             $this->attributes['token_fingerprint'] = null;
             return;
         }
 
         try {
             // Encrypt token for storage
-            $this->attributes['token'] = Crypt::encryptString($value);
+            $this->attributes['paymob_card_token'] = Crypt::encryptString($value);
 
             // Generate SHA-256 fingerprint for duplicate detection
             $this->attributes['token_fingerprint'] = hash('sha256', $value);
         } catch (\Exception $e) {
             // CRITICAL: Log but DON'T throw - payment completion must not break
-            Log::error('Failed to encrypt payment token - card save skipped', [
+            Log::error('Failed to encrypt Paymob card token - card save skipped', [
                 'user_id' => $this->user_id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
             // Set to null - card won't be saved, but payment completes
-            $this->attributes['token'] = null;
+            $this->attributes['paymob_card_token'] = null;
             $this->attributes['token_fingerprint'] = null;
         }
     }
 
     /**
-     * Decrypt token when reading from database.
+     * NEW: Decrypt Paymob saved card token when reading from database.
      * Returns null on decryption failure (e.g., APP_KEY changed).
      *
      * @param string|null $value
      * @return string|null
      */
-    public function getTokenAttribute($value): ?string
+    public function getPaymobCardTokenAttribute($value): ?string
     {
         if (!$value) {
             return null;
@@ -93,7 +98,7 @@ class PaymentMethod extends Model
         try {
             return Crypt::decryptString($value);
         } catch (\Exception $e) {
-            Log::error('Failed to decrypt payment token', [
+            Log::error('Failed to decrypt Paymob card token', [
                 'payment_method_id' => $this->id,
                 'user_id' => $this->user_id,
                 'error' => $e->getMessage(),
@@ -101,6 +106,88 @@ class PaymentMethod extends Model
             // Return null instead of throwing - allows graceful degradation
             return null;
         }
+    }
+
+    /**
+     * LEGACY: Encrypt token before saving to database (deprecated).
+     * This accessor is for backward compatibility during migration.
+     * New code should use paymob_card_token instead.
+     *
+     * @param string|null $value
+     */
+    public function setTokenAttribute($value): void
+    {
+        // Redirect to new column for new saves
+        if ($value && $this->token_type === 'paymob_saved_card') {
+            $this->setPaymobCardTokenAttribute($value);
+            return;
+        }
+
+        // Legacy path (for old JWT-based records)
+        if (!$value) {
+            $this->attributes['token'] = null;
+            return;
+        }
+
+        try {
+            $this->attributes['token'] = Crypt::encryptString($value);
+        } catch (\Exception $e) {
+            Log::error('Failed to encrypt legacy payment token', [
+                'user_id' => $this->user_id,
+                'error' => $e->getMessage(),
+            ]);
+            $this->attributes['token'] = null;
+        }
+    }
+
+    /**
+     * LEGACY: Decrypt token when reading from database (deprecated).
+     * Redirects to new paymob_card_token for active cards.
+     *
+     * @param string|null $value
+     * @return string|null
+     */
+    public function getTokenAttribute($value): ?string
+    {
+        // Use new column if available
+        if ($this->attributes['paymob_card_token'] ?? null) {
+            return $this->paymob_card_token;
+        }
+
+        // Legacy path
+        if (!$value) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Exception $e) {
+            Log::error('Failed to decrypt legacy payment token', [
+                'payment_method_id' => $this->id,
+                'user_id' => $this->user_id,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // VALIDATION & STATUS CHECKS
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Check if payment method is active and usable.
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active'
+            && !$this->isExpired()
+            && $this->paymob_card_token !== null;
+    }
+
+    /**
+     * LEGACY: Encrypt token before saving to database.
+     * Kept for backward compatibility.   }
     }
 
     // ═══════════════════════════════════════════════════════

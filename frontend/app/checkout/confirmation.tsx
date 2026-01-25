@@ -25,11 +25,7 @@ import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { getDeliverySlots, DeliverySlot } from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
-import { initiatePayment as initiatePaymentOld } from "@/services/api/paymentsApi";
-import {
-  initiatePayment,
-  initiatePaymentWithSavedCard,
-} from "@/services/paymentMethodsApi";
+import { initiatePayment } from "@/services/paymentMethodsApi";
 import { savePendingPayment } from "@/services/payment/paymentRecovery";
 
 export default function CheckoutConfirmationScreen() {
@@ -171,10 +167,19 @@ export default function CheckoutConfirmationScreen() {
           let paymentData: any;
 
           if (useSavedCard && savedCardId) {
-            // Phase 5: Payment with saved card
-            const response = await initiatePaymentWithSavedCard({
+            // Tokenization: Payment with saved card (may be MOTO or 3DS)
+            const response = await initiatePayment({
               order_id: orderId,
-              payment_method_id: savedCardId,
+              payment_method: "CARD",
+              payment_method_id: savedCardId, // Dual-flow: Decision tree routing
+              billing_data: {
+                first_name: user?.first_name || "Customer",
+                last_name: user?.last_name || "",
+                email: user?.email || "customer@example.com",
+                phone_number: user?.phone || "+201234567890",
+                city: "Cairo",
+                street: "Unknown",
+              },
             });
 
             paymentData = response.data;
@@ -183,7 +188,7 @@ export default function CheckoutConfirmationScreen() {
             const response = await initiatePayment({
               order_id: orderId,
               payment_method: "CARD",
-              save_card: saveNewCard, // Phase 5: Save card option
+              save_card: saveNewCard,
               billing_data: {
                 first_name: user?.first_name || "Customer",
                 last_name: user?.last_name || "",
@@ -197,24 +202,63 @@ export default function CheckoutConfirmationScreen() {
             paymentData = response.data;
           }
 
-          if (paymentData && paymentData.iframe_url) {
-            // CRITICAL: Save to AsyncStorage BEFORE redirect (for app kill recovery)
+          // Check payment flow type
+          const flow = paymentData.flow || "classic_iframe";
+          const paymentId = paymentData.payment_id;
+
+          if (flow === "moto") {
+            // MOTO: Instant payment, no redirect - start polling
+            console.log(
+              "[Checkout] MOTO payment initiated, polling for result...",
+            );
+
+            // Save pending payment for recovery
             await savePendingPayment({
               orderId,
               orderNumber: orderNumber,
               total: cart?.total || 0,
-              paymentAttemptId:
-                paymentData.payment_id || paymentData.transaction_id,
+              paymentAttemptId: paymentId,
               timestamp: Date.now(),
-              iframeUrl: paymentData.iframe_url,
+              iframeUrl: "", // No iframe for MOTO
             });
 
-            // Navigate to PaymentWebView (Phase 5: Universal 3DS handler)
+            // Navigate to success screen with polling
+            router.replace({
+              pathname: "/order-success" as any,
+              params: {
+                orderId: orderId.toString(),
+                paymentId: paymentId.toString(),
+                polling: "true", // Trigger polling in success screen
+              },
+            });
+          } else if (
+            paymentData &&
+            (paymentData.iframe_url || paymentData.redirect_url)
+          ) {
+            // Unified Checkout or Classic: Redirect to WebView
+            const redirectUrl =
+              paymentData.redirect_url || paymentData.iframe_url;
+            console.log(
+              `[Checkout] ${flow} flow initiated, redirecting to WebView...`,
+            );
+
+            // Save to AsyncStorage BEFORE redirect (for app kill recovery)
+            await savePendingPayment({
+              orderId,
+              orderNumber: orderNumber,
+              total: cart?.total || 0,
+              paymentAttemptId: paymentId,
+              timestamp: Date.now(),
+              iframeUrl: redirectUrl,
+            });
+
+            // Navigate to PaymentWebView
             router.replace({
               pathname: "/payment-webview" as any,
               params: {
-                iframeUrl: paymentData.iframe_url,
+                iframeUrl: redirectUrl,
                 orderId: orderId.toString(),
+                paymentId: paymentId.toString(), // For polling
               },
             });
           } else {

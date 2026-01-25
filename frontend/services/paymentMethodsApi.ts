@@ -137,6 +137,109 @@ export function getDefaultPaymentMethod(
   return methods.find((m) => m.is_default);
 }
 
+// ═══════════════════════════════════════════════════════
+// PAYMENT STATUS POLLING (Tokenization Phase 3)
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Payment Status Response
+ */
+export interface PaymentStatusResponse {
+  success: boolean;
+  data: {
+    payment_id: number;
+    order_id: number;
+    status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+    transaction_id: string | null;
+    amount: number;
+    currency: string;
+    flow: "classic_iframe" | "unified_3ds" | "moto";
+    updated_at: string;
+  };
+}
+
+/**
+ * GET /api/v1/payments/status/{paymentId}
+ *
+ * Poll payment status for real-time updates.
+ * Use this instead of relying on redirect URLs.
+ *
+ * Recommended: Poll every 2 seconds for up to 60 seconds.
+ *
+ * @param paymentId - Payment attempt ID from initiate response
+ * @returns Current payment status
+ */
+export async function getPaymentStatus(
+  paymentId: number,
+): Promise<PaymentStatusResponse> {
+  return await httpClient.get<PaymentStatusResponse>(
+    `/payments/status/${paymentId}`,
+  );
+}
+
+/**
+ * Poll payment status until completion or timeout.
+ *
+ * @param paymentId - Payment ID to poll
+ * @param onStatusChange - Callback for status updates
+ * @param options - Polling configuration
+ * @returns Final payment status
+ */
+export async function pollPaymentStatus(
+  paymentId: number,
+  onStatusChange?: (status: string) => void,
+  options: {
+    intervalMs?: number;
+    maxAttempts?: number;
+  } = {},
+): Promise<PaymentStatusResponse["data"]> {
+  const intervalMs = options.intervalMs || 2000; // 2 seconds
+  const maxAttempts = options.maxAttempts || 30; // 60 seconds total
+
+  let attempts = 0;
+
+  return new Promise((resolve, reject) => {
+    const poll = async () => {
+      try {
+        attempts++;
+
+        const response = await getPaymentStatus(paymentId);
+        const { status } = response.data;
+
+        onStatusChange?.(status);
+
+        if (status === "PAID" || status === "FAILED" || status === "REFUNDED") {
+          // Terminal state reached
+          resolve(response.data);
+        } else if (attempts >= maxAttempts) {
+          // Timeout - return current state
+          console.warn(
+            `[PaymentPolling] Timeout after ${maxAttempts} attempts`,
+          );
+          resolve(response.data);
+        } else {
+          // Continue polling
+          setTimeout(poll, intervalMs);
+        }
+      } catch (error) {
+        console.error("[PaymentPolling] Error:", error);
+        if (attempts >= maxAttempts) {
+          reject(error);
+        } else {
+          // Retry on error
+          setTimeout(poll, intervalMs);
+        }
+      }
+    };
+
+    poll();
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
 /**
  * Get card brand icon name for UI
  * Map backend card_brand to icon names

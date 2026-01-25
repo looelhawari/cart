@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'paymob_redirect_url' => env('PAYMOB_REDIRECT_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
