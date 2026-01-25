@@ -10,9 +10,9 @@
 // Backend API Configuration
 export const API_CONFIG = {
   // Development URLs
-  // TESTING: Using ngrok for webhook testing (change back to 10.0.2.2:8000 after testing)
+  // For physical device testing on same WiFi, use local IP
   BASE_URL: __DEV__
-    ? "https://83760325c47b.ngrok-free.app/api/v1" // ngrok tunnel for webhook testing
+    ? "http://192.168.1.10:8000/api/v1" // Local network IP for physical device
     : "https://api.elbaraka.com/api/v1", // Production URL
 
   TIMEOUT: 30000, // 30 seconds

@@ -48,6 +48,7 @@ interface StoreState {
   resetPassword: (data: ResetPasswordData) => Promise<void>;
   updateProfile: (data: Partial<User>) => void;
   fetchProfile: () => Promise<void>;
+  checkAuthStatus: () => Promise<void>; // Check if user has valid token
 
   // Social Login
   socialLogin: (
@@ -217,6 +218,23 @@ export const useStore = create<StoreState>()(
         set({
           user: response.data,
         });
+      },
+
+      // Check authentication status on app startup
+      checkAuthStatus: async () => {
+        try {
+          const response = await authApi.getProfile();
+          set({
+            isAuthenticated: true,
+            user: response.data,
+          });
+        } catch (error) {
+          // Token is invalid or expired
+          set({
+            isAuthenticated: false,
+            user: null,
+          });
+        }
       },
 
       // Social Login

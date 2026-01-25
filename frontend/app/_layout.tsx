@@ -28,14 +28,24 @@ function RootLayoutNav() {
   const hasCompletedOnboarding = useStore(
     (state) => state.hasCompletedOnboarding,
   );
+  const checkAuthStatus = useStore((state) => state.checkAuthStatus);
   const fetchCart = useStore((state) => state.fetchCart);
 
-  // Fetch cart on app start
+  // Check authentication status on app startup
   useEffect(() => {
-    fetchCart().catch((error) => {
-      console.log("Failed to fetch cart on startup:", error);
+    checkAuthStatus().catch((error) => {
+      console.log("Auth check failed on startup:", error);
     });
   }, []);
+
+  // Fetch cart on app start (if authenticated)
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchCart().catch((error) => {
+        console.log("Failed to fetch cart on startup:", error);
+      });
+    }
+  }, [isAuthenticated]);
 
   // Payment recovery on app resume
   useEffect(() => {

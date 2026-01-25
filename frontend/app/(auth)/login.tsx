@@ -19,7 +19,7 @@ import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { StatusBar } from "expo-status-bar";
-import { Eye, EyeOff, Mail, Lock as LockIcon } from "lucide-react-native";
+import { Eye, EyeOff, Mail, Lock as LockIcon, Fingerprint } from "lucide-react-native";
 import {
   useGoogleAuth,
   handleGoogleResponse,
@@ -27,6 +27,14 @@ import {
   isAppleAuthAvailable,
 } from "@/services/socialAuth";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
+import {
+  checkBiometricSupport,
+  getSavedCredentials,
+  enableBiometricLogin,
+  isBiometricLoginEnabled,
+  getBiometricTypeName,
+  BiometricType,
+} from "@/services/biometricAuth";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -38,15 +46,30 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [biometricSupport, setBiometricSupport] = useState<BiometricType>({
+    available: false,
+    type: 'none',
+    enrolled: false,
+  });
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   // Google Auth
   const { promptAsync: promptGoogleAsync, response: googleResponse } =
     useGoogleAuth();
 
-  // Check Apple availability
+  // Check Apple availability and biometric support
   useEffect(() => {
     isAppleAuthAvailable().then(setAppleAvailable);
+    checkBiometricSupport().then(setBiometricSupport);
+    isBiometricLoginEnabled().then(setBiometricEnabled);
   }, []);
+
+  // Try biometric login on mount if enabled
+  useEffect(() => {
+    if (biometricEnabled && biometricSupport.available) {
+      handleBiometricLogin();
+    }
+  }, [biometricEnabled, biometricSupport.available]);
 
   // Handle Google response
   useEffect(() => {
@@ -100,6 +123,30 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await login(email, password);
+
+      // Offer to enable biometric login after successful login
+      if (rememberMe && biometricSupport.available && !biometricEnabled) {
+        Alert.alert(
+          `Enable ${getBiometricTypeName(biometricSupport.type)}?`,
+          `Would you like to use ${getBiometricTypeName(biometricSupport.type)} to login next time?`,
+          [
+            {
+              text: "Enable",
+              onPress: async () => {
+                try {
+                  await enableBiometricLogin(email, password);
+                  setBiometricEnabled(true);
+                  Alert.alert("Success", `${getBiometricTypeName(biometricSupport.type)} login enabled`);
+                } catch (error: any) {
+                  console.log("Failed to enable biometric:", error);
+                }
+              },
+            },
+            { text: "Not Now", style: "cancel" },
+          ]
+        );
+      }
+
       router.replace("/(tabs)");
     } catch (error: any) {
       // Check if user needs email verification
@@ -124,6 +171,22 @@ export default function LoginScreen() {
       } else {
         Alert.alert("Error", error.message || "Invalid credentials");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      setLoading(true);
+      const credentials = await getSavedCredentials();
+
+      if (credentials) {
+        await login(credentials.email, credentials.password);
+        router.replace("/(tabs)");
+      }
+    } catch (error: any) {
+      Alert.alert("Login Failed", error.message || "Biometric authentication failed");
     } finally {
       setLoading(false);
     }
@@ -233,6 +296,20 @@ export default function LoginScreen() {
                 <Text style={styles.loginButtonText}>Login</Text>
               )}
             </TouchableOpacity>
+
+            {biometricSupport.available && (
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                <Fingerprint size={24} color={Colors.primary} />
+                <Text style={styles.biometricButtonText}>
+                  Login with {getBiometricTypeName(biometricSupport.type)}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
@@ -406,6 +483,24 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  biometricButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.primary900,
+    backgroundColor: Colors.neutralWhite,
+    marginTop: Spacing.md,
+    minHeight: 56,
+  },
+  biometricButtonText: {
+    color: Colors.primary900,
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_600SemiBold",
   },
   divider: {
     flexDirection: "row",
