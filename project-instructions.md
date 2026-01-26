@@ -2223,7 +2223,7 @@ Documentation:
   - Tax settings
 - Delivery Settings
   - Delivery zones and fees
-  - Free delivery threshold
+  - Free delivery thresholdser
   - Delivery time slots
   - Express delivery settings
   - Minimum order amount
@@ -2818,3 +2818,17 @@ Documentation:
 **Document Version**: 1.0
 **Last Updated**: November 18, 2025
 **Maintained By**: ElBaraka Development Team
+
+---
+
+## Agent Update Log
+
+- 2026-01-25: Implemented complaints + favorites backend APIs with attachments, wired frontend screens/store to APIs, aligned schema/docs. Pending user testing/verification.
+- 2026-01-25: Added complaint/favorite seed data for user_id=2 and full feature documentation (FEATURES_COMPLAINTS_FAVORITES.md).
+- 2026-01-25: Improved complaint order selector UI (bottom sheet list) and ensured complaint list refetch behavior.
+- 2026-01-26: Upgraded promo code engine backend (CartService/OrderService/CheckoutService/CheckoutController) to support applies_to and BOGO logic, consistent cart-based totals, first-order eligibility, and cart-based promo validation totals.
+- 2026-01-26: Frontend cart flow now persists applied promo code in state for checkout, updates types for BOGO/applies_to, and clears promo state on cart mutations.
+- 2026-01-26: Ran promo upgrade migrations (promo_codes alter + promo_code_categories/products + promo_code_bogo_rules).
+- 2026-01-26: Seeded promo_codes for all test cases (order/category/product/free_delivery/first_order/bogo) and linked target tables.
+- 2026-01-26: Updated promo seeder to use deterministic targets (lowest category IDs + product barcodes) and re-seeded.
+- 2026-01-26: Completed promo-code audit across backend + frontend (no code changes); documented gaps vs hypermarket requirements.

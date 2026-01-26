@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -27,17 +28,39 @@ import { useStore } from "@/store";
 import { products } from "@/data/products";
 
 export default function FavoritesScreen() {
-  const { favorites, toggleFavorite, addToCart } = useStore();
+  const {
+    favorites,
+    favoritesItems,
+    favoritesLoading,
+    favoritesError,
+    fetchFavorites,
+    removeFavorite,
+    addToCart,
+    isAuthenticated,
+  } = useStore();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const favoriteProducts = products.filter((p) => favorites.includes(p.id));
+  const favoriteProducts = isAuthenticated
+    ? favoritesItems.map((item) => item.product)
+    : products.filter((p) => favorites.includes(p.id?.toString()));
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchFavorites();
+    }
+  }, [isAuthenticated, fetchFavorites]);
 
   const handleAddAllToCart = async () => {
     if (favoriteProducts.length === 0) return;
 
     try {
       for (const product of favoriteProducts) {
-        await addToCart(Number(product.id), 1);
+        const productId = product.barcode || product.id;
+        if (!productId) {
+          console.warn("Skipping favorite without product id/barcode");
+          continue;
+        }
+        await addToCart(Number(productId), 1);
       }
 
       Alert.alert(
@@ -63,8 +86,10 @@ export default function FavoritesScreen() {
         {
           text: "Clear All",
           style: "destructive",
-          onPress: () => {
-            favoriteProducts.forEach((product) => toggleFavorite(product.id));
+          onPress: async () => {
+            for (const product of favoriteProducts) {
+              await removeFavorite(product.barcode || product.id || 0);
+            }
           },
         },
       ]
@@ -146,6 +171,15 @@ export default function FavoritesScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
+            {favoritesLoading && (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={Colors.primary900} />
+                <Text style={styles.loadingText}>Loading favorites...</Text>
+              </View>
+            )}
+            {favoritesError && (
+              <Text style={styles.errorText}>{favoritesError}</Text>
+            )}
             {/* Products Count */}
             <Text style={styles.countText}>
               {favoriteProducts.length}{" "}
@@ -160,14 +194,16 @@ export default function FavoritesScreen() {
             >
               {favoriteProducts.map((product) => (
                 <View
-                  key={product.id}
+                  key={product.barcode || product.id}
                   style={
                     viewMode === "grid" ? styles.gridItem : styles.listItem
                   }
                 >
                   <ProductCard
                     product={product}
-                    onPress={() => router.push(`/product/${product.id}`)}
+                    onPress={() =>
+                      router.push(`/product/${product.barcode || product.id}`)
+                    }
                   />
                 </View>
               ))}
@@ -257,6 +293,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xxl,
   },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  loadingText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+  },
+  errorText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.accentRed,
+    marginBottom: Spacing.sm,
+  },
   countText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
@@ -265,10 +316,12 @@ const styles = StyleSheet.create({
   productsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.md,
+    rowGap: Spacing.md,
+    columnGap: Spacing.md,
   },
   gridItem: {
-    width: (Dimensions.get("window").width - Spacing.lg * 2 - Spacing.md) / 2,
+    width:
+      (Dimensions.get("window").width - Spacing.lg * 2 - Spacing.md) / 2,
   },
   productsList: {
     gap: Spacing.md,

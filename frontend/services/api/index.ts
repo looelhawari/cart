@@ -5,6 +5,8 @@ export { authApi } from "./authApi";
 export { profileApi } from "./profileApi";
 export { addressApi } from "./addressApi";
 export { cartApi } from "./cartApi";
+export * as favoritesApi from "./favoritesApi";
+export * as complaintsApi from "./complaintsApi";
 
 // Default export for backward compatibility
 import { authApi } from "./authApi";

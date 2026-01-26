@@ -12,7 +12,7 @@ export const API_CONFIG = {
   // Development URLs
   // TESTING: Using ngrok for webhook testing (change back to 10.0.2.2:8000 after testing)
   BASE_URL: __DEV__
-    ? "https://83760325c47b.ngrok-free.app/api/v1" // ngrok tunnel for webhook testing
+    ? "https://19e013f4a159.ngrok-free.app/api/v1" // ngrok tunnel for webhook testing
     : "https://api.elbaraka.com/api/v1", // Production URL
 
   TIMEOUT: 30000, // 30 seconds

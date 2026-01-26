@@ -1727,7 +1727,7 @@ if (!hash_equals($calculatedHmac, $request->header('HMAC'))) {
 
 #### 46. List Tickets
 
-**Endpoint:** `GET /api/v1/tickets`  
+**Endpoint:** `GET /api/v1/complaints`  
 **Middleware:** `auth:sanctum`
 
 **Query Parameters:**
@@ -1761,7 +1761,7 @@ if (!hash_equals($calculatedHmac, $request->header('HMAC'))) {
 
 #### 47. Create Ticket
 
-**Endpoint:** `POST /api/v1/tickets`  
+**Endpoint:** `POST /api/v1/complaints`  
 **Middleware:** `auth:sanctum`  
 **Content-Type:** `multipart/form-data`
 
@@ -1806,7 +1806,7 @@ attachments[]: [file1, file2] (optional)
 
 #### 48. Get Ticket Details
 
-**Endpoint:** `GET /api/v1/tickets/{id}`  
+**Endpoint:** `GET /api/v1/complaints/{id}`  
 **Middleware:** `auth:sanctum`
 
 **Response (200):**
@@ -1862,7 +1862,7 @@ attachments[]: [file1, file2] (optional)
 
 #### 49. Reply to Ticket
 
-**Endpoint:** `POST /api/v1/tickets/{id}/reply`  
+**Endpoint:** `POST /api/v1/complaints/{id}/reply`  
 **Middleware:** `auth:sanctum`
 
 **Request Body:**
@@ -1886,7 +1886,7 @@ attachments[]: [file1, file2] (optional)
 
 #### 50. Close Ticket
 
-**Endpoint:** `POST /api/v1/tickets/{id}/close`  
+**Endpoint:** `POST /api/v1/complaints/{id}/close`  
 **Middleware:** `auth:sanctum`
 
 **Response (200):**

@@ -6,6 +6,9 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
 use App\Models\PromoCode;
+use App\Models\PromoCodeBogoRule;
+use App\Models\PromoCodeCategory;
+use App\Models\PromoCodeProduct;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -256,7 +259,7 @@ class CartService
 
             $itemDetails[] = [
                 'product_id' => $item->product_id,
-                'product_name' => $item->product->name_en ?? 'Unknown',
+                'product_name' => $item->product->name_en,
                 'quantity' => $item->quantity,
                 'price' => $item->price,
                 'subtotal' => $itemSubtotal,
@@ -271,19 +274,25 @@ class CartService
         ]);
 
         // Get tax rate from settings (14% for Egypt)
-        $taxRate = 0.14;
+        $taxRate = (float) (config('app.tax_rate') ?? 14);
 
         // Get delivery fee from settings
-        $deliveryFee = 20.00;
+        $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
+        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 20);
+        $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0.00 : $defaultDeliveryFee;
 
         // Apply promo code discount
         $discount = 0;
         if ($promoCode) {
-            $discount = $this->calculateDiscount($promoCode, $subtotal);
+            $discount = $this->calculateDiscount($promoCode, $cart, $subtotal);
+            if ($promoCode->type === 'free_delivery') {
+                $deliveryFee = 0.00;
+            }
         }
 
         // Calculate tax on subtotal after discount
-        $tax = ($subtotal - $discount) * $taxRate;
+        $taxableAmount = $subtotal + $deliveryFee - $discount;
+        $tax = $taxableAmount * ($taxRate / 100);
 
         // Calculate total
         $total = $subtotal - $discount + $tax + $deliveryFee;
@@ -301,24 +310,302 @@ class CartService
     /**
      * Calculate promo code discount
      */
-    private function calculateDiscount(PromoCode $promoCode, float $subtotal): float
+    private function calculateDiscount(PromoCode $promoCode, Cart $cart, float $subtotal): float
     {
+        if ($promoCode->type === 'free_delivery') {
+            return 0.00;
+        }
+
+        if ($promoCode->type === 'bogo') {
+            $discount = $this->calculateBogoDiscount($promoCode, $cart);
+            return round(min($discount, $subtotal), 2);
+        }
+
+        $eligibleSubtotal = $subtotal;
+
+        if ($promoCode->applies_to === 'product') {
+            $eligibleProductIds = $this->getPromoProductIds($promoCode);
+            $eligibleSubtotal = $this->calculateEligibleSubtotalByProducts($cart, $eligibleProductIds);
+        } elseif ($promoCode->applies_to === 'category') {
+            $eligibleProductIds = $this->getPromoCategoryProductIds($promoCode);
+            $eligibleSubtotal = $this->calculateEligibleSubtotalByProducts($cart, $eligibleProductIds);
+        }
+
+        if ($eligibleSubtotal <= 0) {
+            return 0.00;
+        }
+
         if ($promoCode->type === 'percentage') {
-            $discount = ($subtotal * $promoCode->value) / 100;
+            $discount = ($eligibleSubtotal * $promoCode->value) / 100;
 
             // Apply maximum discount if set
             if ($promoCode->maximum_discount && $discount > $promoCode->maximum_discount) {
                 $discount = $promoCode->maximum_discount;
             }
 
-            return $discount;
-        } elseif ($promoCode->type === 'fixed_amount') {
-            return min($promoCode->value, $subtotal);
-        } elseif ($promoCode->type === 'free_delivery') {
-            return 0; // Handled separately in delivery fee
+            return round(min($discount, $eligibleSubtotal), 2);
         }
 
-        return 0;
+        if ($promoCode->type === 'fixed_amount') {
+            $discount = min($promoCode->value, $eligibleSubtotal);
+            if ($promoCode->maximum_discount && $discount > $promoCode->maximum_discount) {
+                $discount = $promoCode->maximum_discount;
+            }
+            return round(min($discount, $eligibleSubtotal), 2);
+        }
+
+        return 0.00;
+    }
+
+    private function calculateEligibleSubtotalByProducts(Cart $cart, array $productIds): float
+    {
+        if (empty($productIds)) {
+            return 0.00;
+        }
+
+        return (float) $cart->items
+            ->whereIn('product_id', $productIds)
+            ->sum(fn($item) => $item->price * $item->quantity);
+    }
+
+    private function getPromoProductIds(PromoCode $promoCode): array
+    {
+        return PromoCodeProduct::where('promo_code_id', $promoCode->id)
+            ->pluck('product_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function getPromoCategoryProductIds(PromoCode $promoCode): array
+    {
+        $targets = PromoCodeCategory::where('promo_code_id', $promoCode->id)->get();
+
+        if ($targets->isEmpty()) {
+            return [];
+        }
+
+        $categoryIds = [];
+        foreach ($targets as $target) {
+            $categoryIds[] = (int) $target->category_id;
+            if ($target->include_subcategories) {
+                $categoryIds = array_merge(
+                    $categoryIds,
+                    $this->getCategoryDescendantIds((int) $target->category_id)
+                );
+            }
+        }
+
+        $categoryIds = array_values(array_unique($categoryIds));
+
+        if (empty($categoryIds)) {
+            return [];
+        }
+
+        return DB::table('product_categories')
+            ->whereIn('category_id', $categoryIds)
+            ->pluck('product_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function getCategoryDescendantIds(int $categoryId): array
+    {
+        $rows = DB::select(
+            'WITH RECURSIVE category_tree AS (
+                SELECT id FROM categories WHERE id = ?
+                UNION ALL
+                SELECT c.id FROM categories c INNER JOIN category_tree ct ON c.parent_id = ct.id
+            )
+            SELECT id FROM category_tree',
+            [$categoryId]
+        );
+
+        return array_values(array_unique(array_map(fn($row) => (int) $row->id, $rows)));
+    }
+
+    private function calculateBogoDiscount(PromoCode $promoCode, Cart $cart): float
+    {
+        $rules = PromoCodeBogoRule::where('promo_code_id', $promoCode->id)
+            ->where('is_active', true)
+            ->get();
+
+        if ($rules->isEmpty()) {
+            return 0.00;
+        }
+
+        $discount = 0.00;
+        foreach ($rules as $rule) {
+            $discount += $this->calculateBogoRuleDiscount($rule, $cart);
+        }
+
+        return $discount;
+    }
+
+    private function calculateBogoRuleDiscount(PromoCodeBogoRule $rule, Cart $cart): float
+    {
+        $buyQty = $this->getScopeQuantity(
+            $cart,
+            $rule->buy_scope,
+            $rule->buy_product_id,
+            $rule->buy_category_id,
+            $rule->buy_include_subcategories
+        );
+
+        if ($buyQty < $rule->buy_qty) {
+            return 0.00;
+        }
+
+        $applications = intdiv($buyQty, (int) $rule->buy_qty);
+        if ($rule->max_applications_per_order) {
+            $applications = min($applications, (int) $rule->max_applications_per_order);
+        }
+
+        if ($applications <= 0) {
+            return 0.00;
+        }
+
+        $getQty = $applications * (int) $rule->get_qty;
+
+        $eligibleItems = $this->getScopeItems(
+            $cart,
+            $rule->get_scope,
+            $rule->get_product_id,
+            $rule->get_category_id,
+            $rule->get_include_subcategories
+        );
+
+        if (empty($eligibleItems)) {
+            return 0.00;
+        }
+
+        return $this->calculateBogoLineDiscount(
+            $eligibleItems,
+            $getQty,
+            $rule->get_discount_type,
+            (float) $rule->get_discount_value
+        );
+    }
+
+    private function getScopeQuantity(
+        Cart $cart,
+        string $scope,
+        ?int $productId,
+        ?int $categoryId,
+        bool $includeSubcategories
+    ): int {
+        $items = $this->getScopeItems($cart, $scope, $productId, $categoryId, $includeSubcategories);
+
+        return (int) array_sum(array_map(fn($item) => (int) $item['quantity'], $items));
+    }
+
+    private function getScopeItems(
+        Cart $cart,
+        string $scope,
+        ?int $productId,
+        ?int $categoryId,
+        bool $includeSubcategories
+    ): array {
+        if ($scope === 'product') {
+            if (!$productId) {
+                return [];
+            }
+
+            $item = $cart->items->firstWhere('product_id', (int) $productId);
+
+            if (!$item) {
+                return [];
+            }
+
+            return [[
+                'product_id' => (int) $item->product_id,
+                'unit_price' => (float) $item->price,
+                'quantity' => (int) $item->quantity,
+            ]];
+        }
+
+        if ($scope === 'category') {
+            if (!$categoryId) {
+                return [];
+            }
+
+            $productIds = $this->getProductIdsForCategory((int) $categoryId, $includeSubcategories);
+
+            if (empty($productIds)) {
+                return [];
+            }
+
+            return $cart->items
+                ->whereIn('product_id', $productIds)
+                ->map(fn($item) => [
+                    'product_id' => (int) $item->product_id,
+                    'unit_price' => (float) $item->price,
+                    'quantity' => (int) $item->quantity,
+                ])
+                ->values()
+                ->all();
+        }
+
+        return [];
+    }
+
+    private function getProductIdsForCategory(int $categoryId, bool $includeSubcategories): array
+    {
+        $categoryIds = [$categoryId];
+        if ($includeSubcategories) {
+            $categoryIds = array_merge($categoryIds, $this->getCategoryDescendantIds($categoryId));
+        }
+
+        $categoryIds = array_values(array_unique($categoryIds));
+
+        return DB::table('product_categories')
+            ->whereIn('category_id', $categoryIds)
+            ->pluck('product_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function calculateBogoLineDiscount(
+        array $eligibleItems,
+        int $getQty,
+        string $discountType,
+        float $discountValue
+    ): float {
+        if ($getQty <= 0) {
+            return 0.00;
+        }
+
+        usort($eligibleItems, fn($a, $b) => $a['unit_price'] <=> $b['unit_price']);
+
+        $remaining = $getQty;
+        $discount = 0.00;
+
+        foreach ($eligibleItems as $item) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $unitsToApply = min($remaining, (int) $item['quantity']);
+            $unitPrice = (float) $item['unit_price'];
+
+            if ($discountType === 'free') {
+                $discountPerUnit = $unitPrice;
+            } elseif ($discountType === 'percentage') {
+                $discountPerUnit = $unitPrice * ($discountValue / 100);
+            } else {
+                $discountPerUnit = min($discountValue, $unitPrice);
+            }
+
+            $discount += $unitsToApply * $discountPerUnit;
+            $remaining -= $unitsToApply;
+        }
+
+        return round($discount, 2);
     }
 
     /**
@@ -349,6 +636,45 @@ class CartService
         // Check minimum order requirement
         if ($cartSubtotal < $promoCode->minimum_order) {
             throw new \Exception('Minimum order amount of ' . $promoCode->minimum_order . ' required');
+        }
+
+        if ($promoCode->first_order_only) {
+            if (!$userId) {
+                throw new \Exception('Login required to use this promo code');
+            }
+
+            $previousOrders = DB::table('orders')
+                ->where('user_id', $userId)
+                ->whereNotIn('status', ['cancelled', 'failed'])
+                ->count();
+
+            if ($previousOrders > 0) {
+                throw new \Exception('Promo code is only valid for your first order');
+            }
+        }
+
+        if ($promoCode->applies_to === 'product') {
+            $hasTargets = PromoCodeProduct::where('promo_code_id', $promoCode->id)->exists();
+            if (!$hasTargets) {
+                throw new \Exception('Promo code is not configured for products');
+            }
+        }
+
+        if ($promoCode->applies_to === 'category') {
+            $hasTargets = PromoCodeCategory::where('promo_code_id', $promoCode->id)->exists();
+            if (!$hasTargets) {
+                throw new \Exception('Promo code is not configured for categories');
+            }
+        }
+
+        if ($promoCode->type === 'bogo') {
+            $hasRules = PromoCodeBogoRule::where('promo_code_id', $promoCode->id)
+                ->where('is_active', true)
+                ->exists();
+
+            if (!$hasRules) {
+                throw new \Exception('Promo code is not configured for BOGO rules');
+            }
         }
 
         // Check total usage limit

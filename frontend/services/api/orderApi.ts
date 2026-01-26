@@ -74,11 +74,12 @@ export const orderApi = {
   /**
    * Get user's orders with optional status filter
    */
-  getOrders: async (status?: string, page: number = 1) => {
+  getOrders: async (status?: string, page: number = 1, perPage: number = 10) => {
     const token = await getAuthToken();
     const queryParams = new URLSearchParams();
     if (status) queryParams.append("status", status);
     queryParams.append("page", page.toString());
+    queryParams.append("per_page", perPage.toString());
 
     const response = await fetch(`${API_BASE_URL}/orders?${queryParams}`, {
       method: "GET",

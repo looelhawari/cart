@@ -38,7 +38,7 @@ export default function CartScreen() {
   const discount = cart?.discount || 0;
   const tax = cart?.tax || 0;
   const total = cart?.total || 0;
-  const promoCode = cart?.promo_code || null;
+  const promoCode = cart?.promo_code ?? null;
 
   const suggestedProducts = products
     .filter((p) => !cartItems.find((c) => c.product.id === Number(p.id)))
@@ -226,7 +226,7 @@ export default function CartScreen() {
         {promoCode && (
           <View style={styles.appliedPromo}>
             <Text style={styles.appliedPromoText}>
-              Promo &ldquo;{promoCode}&rdquo; applied!
+              Promo &ldquo;{promoCode.code}&rdquo; applied!
             </Text>
             <TouchableOpacity
               onPress={async () => {

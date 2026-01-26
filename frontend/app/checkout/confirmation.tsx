@@ -154,7 +154,7 @@ export default function CheckoutConfirmationScreen() {
           delivery_date: selectedDate,
           delivery_time_slot: selectedSlot,
           payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
-          promo_code: cart?.promo_code || undefined,
+          promo_code: cart?.promo_code?.code || undefined,
         });
 
         orderId = response.data.order.id;

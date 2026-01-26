@@ -91,8 +91,8 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const productId = product.barcode?.toString() || product.id?.toString() || "";
-  const isFavorite = favorites.includes(productId);
+  const productId = product.barcode || product.id || 0;
+  const isFavorite = favorites.includes(productId.toString());
   const images = [product.image];
   const price = parseFloat(product.price?.toString() || "0");
   const salePrice = parseFloat(
@@ -146,7 +146,7 @@ export default function ProductDetailScreen() {
       </TouchableOpacity>
       <View style={styles.headerActions}>
         <TouchableOpacity
-          onPress={() => toggleFavorite(product.id)}
+          onPress={() => toggleFavorite(productId)}
           style={styles.headerButton}
         >
           <Heart

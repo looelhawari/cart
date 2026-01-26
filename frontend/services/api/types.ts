@@ -118,7 +118,8 @@ export interface CartItem {
 
 export interface PromoCode {
   code: string;
-  type: "percentage" | "fixed_amount" | "free_delivery";
+  type: "percentage" | "fixed_amount" | "free_delivery" | "bogo";
+  applies_to?: "order" | "category" | "product";
   value: number;
   discount_amount: number;
 }
@@ -132,4 +133,5 @@ export interface Cart {
   tax: number;
   total: number;
   items_count: number;
+  promo_code?: PromoCode | null;
 }

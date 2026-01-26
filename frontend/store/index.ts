@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CartItem, Product, Address, Order, Review } from "@/types";
 import { paymentMethods, PaymentMethod } from "@/data/user";
+import type { FavoriteItem } from "@/services/api/favoritesApi";
 import {
   authApi,
   RegisterData,
@@ -72,7 +73,13 @@ interface StoreState {
 
   // Favorites
   favorites: string[];
-  toggleFavorite: (productId: string) => void;
+  favoritesItems: FavoriteItem[];
+  favoritesLoading: boolean;
+  favoritesError: string | null;
+  fetchFavorites: () => Promise<void>;
+  addFavorite: (productId: string | number) => Promise<void>;
+  removeFavorite: (productId: string | number) => Promise<void>;
+  toggleFavorite: (productId: string | number) => Promise<void>;
 
   // Addresses
   addresses: Address[];
@@ -121,6 +128,9 @@ export const useStore = create<StoreState>()(
           cartLoading: false,
           cartError: null,
           favorites: [],
+          favoritesItems: [],
+          favoritesLoading: false,
+          favoritesError: null,
           selectedAddress: null,
           selectedPaymentMethod: null,
           promoCode: null,
@@ -141,6 +151,7 @@ export const useStore = create<StoreState>()(
             user: response.data.user,
             pendingUser: null,
           });
+          await get().fetchFavorites();
         } catch (error: any) {
           // If user needs verification, store pending user data
           if (error.requires_verification) {
@@ -163,6 +174,10 @@ export const useStore = create<StoreState>()(
             user: null,
             pendingUser: null,
             cart: [],
+            favorites: [],
+            favoritesItems: [],
+            favoritesLoading: false,
+            favoritesError: null,
             selectedAddress: null,
             selectedPaymentMethod: null,
             promoCode: null,
@@ -195,6 +210,7 @@ export const useStore = create<StoreState>()(
           user: response.data.user,
           pendingUser: null,
         });
+        await get().fetchFavorites();
       },
 
       forgotPassword: async (data: ForgotPasswordData) => {
@@ -237,6 +253,7 @@ export const useStore = create<StoreState>()(
           user: response.data.user,
           pendingUser: null,
         });
+        await get().fetchFavorites();
 
         return {
           requiresPhoneVerification:
@@ -273,7 +290,10 @@ export const useStore = create<StoreState>()(
             "Cart fetched:",
             JSON.stringify(response.data.cart, null, 2),
           );
-          set({ cart: response.data.cart, cartLoading: false });
+          set({
+            cart: { ...response.data.cart, promo_code: null },
+            cartLoading: false,
+          });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to load cart",
@@ -289,7 +309,10 @@ export const useStore = create<StoreState>()(
           const { addToCart: addToCartApi } =
             await import("@/services/api/cartApi");
           const response = await addToCartApi(productId, quantity);
-          set({ cart: response.data.cart, cartLoading: false });
+          set({
+            cart: { ...response.data.cart, promo_code: null },
+            cartLoading: false,
+          });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to add item to cart",
@@ -320,7 +343,10 @@ export const useStore = create<StoreState>()(
         try {
           const { updateCartItem } = await import("@/services/api/cartApi");
           const response = await updateCartItem(itemId, quantity);
-          set({ cart: response.data.cart, cartLoading: false });
+          set({
+            cart: { ...response.data.cart, promo_code: null },
+            cartLoading: false,
+          });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to update quantity",
@@ -351,7 +377,13 @@ export const useStore = create<StoreState>()(
         try {
           const { applyPromoCode } = await import("@/services/api/cartApi");
           const response = await applyPromoCode(code);
-          set({ cart: response.data.cart, cartLoading: false });
+          set({
+            cart: {
+              ...response.data.cart,
+              promo_code: response.data.promo_code ?? null,
+            },
+            cartLoading: false,
+          });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to apply promo code",
@@ -366,7 +398,10 @@ export const useStore = create<StoreState>()(
         try {
           const { removePromoCode } = await import("@/services/api/cartApi");
           const response = await removePromoCode();
-          set({ cart: response.data.cart, cartLoading: false });
+          set({
+            cart: { ...response.data.cart, promo_code: null },
+            cartLoading: false,
+          });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to remove promo code",
@@ -378,18 +413,106 @@ export const useStore = create<StoreState>()(
 
       // Favorites
       favorites: [],
+      favoritesItems: [],
+      favoritesLoading: false,
+      favoritesError: null,
 
-      toggleFavorite: (productId) =>
-        set((state) => {
-          if (state.favorites.includes(productId)) {
-            return {
-              favorites: state.favorites.filter((id) => id !== productId),
-            };
+      fetchFavorites: async () => {
+        if (!get().isAuthenticated) return;
+        set({ favoritesLoading: true, favoritesError: null });
+        try {
+          const { listFavorites } = await import("@/services/api/favoritesApi");
+          const response = await listFavorites(200);
+          if (!response.success) {
+            throw new Error("Failed to fetch favorites");
           }
-          return {
-            favorites: [...state.favorites, productId],
-          };
-        }),
+          const items = response.data.favorites || [];
+          set({
+            favorites: items
+              .map((item) => item.product?.barcode?.toString())
+              .filter(Boolean) as string[],
+            favoritesItems: items,
+            favoritesLoading: false,
+          });
+        } catch (error: any) {
+          set({
+            favoritesError: error.message || "Failed to load favorites",
+            favoritesLoading: false,
+          });
+        }
+      },
+
+      addFavorite: async (productId) => {
+        const id = productId.toString();
+        if (!get().isAuthenticated) {
+          set((state) => ({
+            favorites: state.favorites.includes(id)
+              ? state.favorites
+              : [...state.favorites, id],
+          }));
+          return;
+        }
+
+        set({ favoritesLoading: true, favoritesError: null });
+        try {
+          const { addFavorite } = await import("@/services/api/favoritesApi");
+          const response = await addFavorite(Number(productId));
+          const favorite = response.data?.favorite;
+
+          set((state) => ({
+            favorites: state.favorites.includes(id)
+              ? state.favorites
+              : [...state.favorites, id],
+            favoritesItems: favorite
+              ? [favorite, ...state.favoritesItems.filter((item) => item.id !== favorite.id)]
+              : state.favoritesItems,
+            favoritesLoading: false,
+          }));
+        } catch (error: any) {
+          set({
+            favoritesError: error.message || "Failed to add favorite",
+            favoritesLoading: false,
+          });
+        }
+      },
+
+      removeFavorite: async (productId) => {
+        const id = productId.toString();
+        if (!get().isAuthenticated) {
+          set((state) => ({
+            favorites: state.favorites.filter((itemId) => itemId !== id),
+          }));
+          return;
+        }
+
+        set({ favoritesLoading: true, favoritesError: null });
+        try {
+          const { removeFavorite } = await import("@/services/api/favoritesApi");
+          await removeFavorite(Number(productId));
+
+          set((state) => ({
+            favorites: state.favorites.filter((itemId) => itemId !== id),
+            favoritesItems: state.favoritesItems.filter(
+              (item) => item.product?.barcode?.toString() !== id,
+            ),
+            favoritesLoading: false,
+          }));
+        } catch (error: any) {
+          set({
+            favoritesError: error.message || "Failed to remove favorite",
+            favoritesLoading: false,
+          });
+        }
+      },
+
+      toggleFavorite: async (productId) => {
+        const id = productId.toString();
+        if (get().favorites.includes(id)) {
+          await get().removeFavorite(productId);
+        } else {
+          await get().addFavorite(productId);
+        }
+      },
 
       // Addresses
       addresses: [
@@ -502,6 +625,7 @@ export const useStore = create<StoreState>()(
         // DO NOT persist cart - always fetch from server
         // cart: state.cart,  // REMOVED - cart should be fetched from API
         favorites: state.favorites,
+        favoritesItems: state.isAuthenticated ? [] : state.favoritesItems,
         addresses: state.addresses,
         paymentMethods: state.paymentMethods,
         orders: state.orders,

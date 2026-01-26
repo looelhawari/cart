@@ -4,16 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\CheckoutService;
+use App\Services\CartService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CheckoutController extends Controller
 {
     protected CheckoutService $checkoutService;
+    protected CartService $cartService;
 
-    public function __construct(CheckoutService $checkoutService)
+    public function __construct(CheckoutService $checkoutService, CartService $cartService)
     {
         $this->checkoutService = $checkoutService;
+        $this->cartService = $cartService;
     }
 
     /**
@@ -305,22 +308,26 @@ class CheckoutController extends Controller
         }
 
         try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
+            $cart = $this->cartService->getCart($user->id, $sessionId);
+            $baseTotals = $this->cartService->calculateTotals($cart);
+
             $promo = $this->checkoutService->validatePromoCode(
                 $request->promo_code,
-                $request->order_total,
-                $request->user()->id
+                $baseTotals['subtotal'],
+                $user->id
             );
 
-            // Calculate discount amount
-            $discount = 0;
-            if ($promo->type === 'percentage') {
-                $discount = $request->order_total * ($promo->value / 100);
-                if ($promo->maximum_discount && $discount > $promo->maximum_discount) {
-                    $discount = $promo->maximum_discount;
-                }
-            } elseif ($promo->type === 'fixed_amount') {
-                $discount = min($promo->value, $request->order_total);
-            }
+            $totals = $this->cartService->calculateTotals($cart, $promo);
+            $discount = $totals['discount'];
 
             return response()->json([
                 'success' => true,
@@ -330,8 +337,9 @@ class CheckoutController extends Controller
                         'type' => $promo->type,
                         'value' => $promo->value,
                         'discount_amount' => round($discount, 2),
-                        'description' => $promo->description,
+                        'applies_to' => $promo->applies_to,
                     ],
+                    'cart_totals' => $totals,
                 ],
                 'message' => 'Promo code applied successfully',
             ]);

@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CheckoutController;
+use App\Http\Controllers\Api\ComplaintController;
+use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -111,6 +113,22 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}', [OrderController::class, 'show']);
             Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
+        });
+
+        // Favorites endpoints
+        Route::middleware('throttle:60,1')->prefix('favorites')->group(function () {
+            Route::get('/', [FavoriteController::class, 'index']);
+            Route::post('/', [FavoriteController::class, 'store']);
+            Route::delete('/{productId}', [FavoriteController::class, 'destroy']);
+        });
+
+        // Complaints endpoints
+        Route::middleware('throttle:60,1')->prefix('complaints')->group(function () {
+            Route::get('/', [ComplaintController::class, 'index']);
+            Route::post('/', [ComplaintController::class, 'store']);
+            Route::get('/{id}', [ComplaintController::class, 'show']);
+            Route::post('/{id}/reply', [ComplaintController::class, 'reply']);
+            Route::post('/{id}/close', [ComplaintController::class, 'close']);
         });
 
         // Payment endpoints (protected)

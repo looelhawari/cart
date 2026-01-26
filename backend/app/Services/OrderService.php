@@ -46,7 +46,7 @@ class OrderService
             // STEP 2: SNAPSHOT RULE - Calculate cart totals ONCE
             // These values will be frozen in the order table
             // CRITICAL: Order totals NEVER recalculate after this point
-            $cartTotals = $this->cartService->calculateTotals($cart);
+            $cartTotals = $this->cartService->calculateTotals($cart, $promoCode);
 
             \Log::info('📸 [STEP 2] ORDER SNAPSHOT - Freezing cart totals', [
                 'cart_id' => $cart->id,
@@ -66,21 +66,10 @@ class OrderService
                 throw new \Exception('Cannot create order from empty cart');
             }
 
-            // Calculate delivery fee (you can customize this logic)
-            $deliveryFee = $this->calculateDeliveryFee($cartTotals['subtotal']);
-
-            // Calculate discount
-            $discount = 0;
-            if ($promoCode) {
-                $discount = $this->calculateDiscount($promoCode, $cartTotals['subtotal']);
-            }
-
-            // Calculate tax (14% for Egypt)
-            $taxRate = (float) (config('app.tax_rate') ?? 14);
-            $tax = ($cartTotals['subtotal'] + $deliveryFee - $discount) * ($taxRate / 100);
-
-            // Calculate total
-            $total = $cartTotals['subtotal'] + $deliveryFee + $tax - $discount;
+            $deliveryFee = $cartTotals['delivery_fee'];
+            $discount = $cartTotals['discount'];
+            $tax = $cartTotals['tax'];
+            $total = $cartTotals['total'];
 
             \Log::info('� [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
                 'subtotal' => $cartTotals['subtotal'],
@@ -91,19 +80,6 @@ class OrderService
                 'payment_method' => $paymentMethod,
                 'rule' => 'These values are now IMMUTABLE - will never recalculate from cart',
             ]);
-
-            // Calculate discount
-            $discount = 0;
-            if ($promoCode) {
-                $discount = $this->calculateDiscount($promoCode, $cartTotals['subtotal']);
-            }
-
-            // Calculate tax (14% for Egypt)
-            $taxRate = (float) (config('app.tax_rate') ?? 14);
-            $tax = ($cartTotals['subtotal'] + $deliveryFee - $discount) * ($taxRate / 100);
-
-            // Calculate total
-            $total = $cartTotals['subtotal'] + $deliveryFee + $tax - $discount;
 
             // Create order
             $order = Order::create([
@@ -186,44 +162,6 @@ class OrderService
 
             return $order->load(['items.product', 'deliveryAddress', 'user']);
         });
-    }
-
-    /**
-     * Calculate delivery fee based on subtotal
-     */
-    protected function calculateDeliveryFee(float $subtotal): float
-    {
-        $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
-        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 20);
-
-        if ($subtotal >= $freeDeliveryThreshold) {
-            return 0.00;
-        }
-
-        return $defaultDeliveryFee;
-    }
-
-    /**
-     * Calculate discount from promo code
-     */
-    protected function calculateDiscount(PromoCode $promoCode, float $subtotal): float
-    {
-        if ($promoCode->type === 'percentage') {
-            $discount = $subtotal * ($promoCode->value / 100);
-
-            // Apply maximum discount if set
-            if ($promoCode->maximum_discount && $discount > $promoCode->maximum_discount) {
-                $discount = $promoCode->maximum_discount;
-            }
-
-            return round($discount, 2);
-        }
-
-        if ($promoCode->type === 'fixed_amount') {
-            return min($promoCode->value, $subtotal);
-        }
-
-        return 0.00;
     }
 
     /**

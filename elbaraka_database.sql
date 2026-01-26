@@ -107,6 +107,7 @@ CREATE TABLE products (
     image VARCHAR(255) NULL,
     description_en TEXT NULL,
     description_ar TEXT NULL,
+    packaging varchar(200) NULL COMMENT 'e.g., 1 kg bag, 500 ml bottle',
     price DECIMAL(10, 2) NOT NULL,
     sale_price DECIMAL(10, 2) NULL,
     cost_price DECIMAL(10, 2) NULL,
@@ -331,6 +332,98 @@ CREATE TABLE promo_code_usage (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
+-- PROMO CODES UPGRADE (NO REDUNDANCY - PRODUCTION READY)
+-- =====================================================
+
+/* =====================================================
+   1) Extend existing promo_codes (NO redundancy)
+   ===================================================== */
+
+ALTER TABLE promo_codes
+  MODIFY type ENUM('percentage', 'fixed_amount', 'free_delivery', 'bogo') NOT NULL;
+
+ALTER TABLE promo_codes
+  ADD COLUMN applies_to ENUM('order', 'category', 'product') NOT NULL DEFAULT 'order' AFTER type,
+  ADD COLUMN first_order_only BOOLEAN NOT NULL DEFAULT FALSE AFTER applies_to;
+
+CREATE INDEX idx_type ON promo_codes (type);
+CREATE INDEX idx_is_active ON promo_codes (is_active);
+CREATE INDEX idx_first_order_only ON promo_codes (first_order_only);
+CREATE INDEX idx_valid_from ON promo_codes (valid_from);
+CREATE INDEX idx_valid_until ON promo_codes (valid_until);
+CREATE INDEX idx_applies_to ON promo_codes (applies_to);
+
+/* =====================================================
+   2) Category targets (category-specific discounts)
+   ===================================================== */
+
+CREATE TABLE IF NOT EXISTS promo_code_categories (
+  promo_code_id BIGINT UNSIGNED NOT NULL,
+  category_id BIGINT UNSIGNED NOT NULL,
+  include_subcategories BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (promo_code_id, category_id),
+  FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE CASCADE,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+  INDEX idx_promo_code_id (promo_code_id),
+  INDEX idx_category_id (category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* =====================================================
+   3) Product targets (product-specific discounts)
+   ===================================================== */
+
+CREATE TABLE IF NOT EXISTS promo_code_products (
+  promo_code_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (promo_code_id, product_id),
+  FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(barcode) ON DELETE CASCADE,
+  INDEX idx_promo_code_id (promo_code_id),
+  INDEX idx_product_id (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* =====================================================
+   4) BOGO rules (Buy X Get Y)
+   ===================================================== */
+
+CREATE TABLE IF NOT EXISTS promo_code_bogo_rules (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  promo_code_id BIGINT UNSIGNED NOT NULL,
+
+  buy_scope ENUM('product', 'category') NOT NULL,
+  buy_product_id BIGINT UNSIGNED NULL,
+  buy_category_id BIGINT UNSIGNED NULL,
+  buy_include_subcategories BOOLEAN NOT NULL DEFAULT TRUE,
+  buy_qty INT NOT NULL,
+
+  get_scope ENUM('product', 'category') NOT NULL,
+  get_product_id BIGINT UNSIGNED NULL,
+  get_category_id BIGINT UNSIGNED NULL,
+  get_include_subcategories BOOLEAN NOT NULL DEFAULT TRUE,
+  get_qty INT NOT NULL,
+
+  get_discount_type ENUM('free', 'percentage', 'fixed_amount') NOT NULL DEFAULT 'free',
+  get_discount_value DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+
+  max_applications_per_order INT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE CASCADE,
+  FOREIGN KEY (buy_product_id) REFERENCES products(barcode) ON DELETE SET NULL,
+  FOREIGN KEY (get_product_id) REFERENCES products(barcode) ON DELETE SET NULL,
+  FOREIGN KEY (buy_category_id) REFERENCES categories(id) ON DELETE SET NULL,
+  FOREIGN KEY (get_category_id) REFERENCES categories(id) ON DELETE SET NULL,
+
+  INDEX idx_promo_code_id (promo_code_id),
+  INDEX idx_is_active (is_active),
+  INDEX idx_buy_scope (buy_scope),
+  INDEX idx_get_scope (get_scope)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
 -- FAVORITES & REVIEWS TABLES
 -- =====================================================
 
@@ -435,6 +528,7 @@ CREATE TABLE complaint_messages (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_complaint_id (complaint_id),
     INDEX idx_user_id (user_id),
+    INDEX idx_is_admin_reply (is_admin_reply),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -442,13 +536,21 @@ CREATE TABLE complaint_messages (
 CREATE TABLE complaint_attachments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     complaint_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
     file_name VARCHAR(255) NOT NULL,
-    file_path VARCHAR(255) NOT NULL,
-    file_type VARCHAR(50) NOT NULL COMMENT 'image, pdf, etc',
-    file_size INT NOT NULL COMMENT 'Size in bytes',
+    file_path VARCHAR(2048) NOT NULL,
+    file_type VARCHAR(50) NOT NULL COMMENT 'image, pdf',
+    mime_type VARCHAR(100) NOT NULL,
+    size_bytes BIGINT UNSIGNED NOT NULL COMMENT 'Size in bytes',
+    storage_provider VARCHAR(50) NOT NULL DEFAULT 'cloudinary',
+    public_id VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (complaint_id) REFERENCES complaints(id) ON DELETE CASCADE,
-    INDEX idx_complaint_id (complaint_id)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_complaint_id (complaint_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_file_type (file_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -1037,6 +1139,5 @@ INSERT INTO reviews (order_id, user_id, product_id, rating, comment, is_approved
 -- END OF DATABASE SCHEMA
 -- =====================================================
 
--- Display summary information
-SELECT 'Database schema created successfully!' as Status;
-SELECT COUNT(*) as TableCount FROM information_schema.tables WHERE table_schema = 'elbaraka_db';
+
+

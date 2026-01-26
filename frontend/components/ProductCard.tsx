@@ -50,7 +50,14 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
         />
         <TouchableOpacity
           style={styles.favoriteButton}
-          onPress={() => toggleFavorite(productId.toString())}
+          onPress={async (event) => {
+            event.stopPropagation();
+            try {
+              await toggleFavorite(productId);
+            } catch (error) {
+              console.error("Failed to toggle favorite:", error);
+            }
+          }}
         >
           <Heart
             size={20}
@@ -134,8 +141,8 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: `${Colors.neutralGray}50`,
-    width: 180,
-    height: 320,  
+    width: "100%",
+    minHeight: 300,
   },
   imageContainer: {
     position: "relative",

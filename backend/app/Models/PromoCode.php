@@ -9,6 +9,8 @@ class PromoCode extends Model
     protected $fillable = [
         'code',
         'type',
+        'applies_to',
+        'first_order_only',
         'value',
         'minimum_order',
         'maximum_discount',
@@ -22,6 +24,8 @@ class PromoCode extends Model
 
     protected $casts = [
         'value' => 'decimal:2',
+        'applies_to' => 'string',
+        'first_order_only' => 'boolean',
         'minimum_order' => 'decimal:2',
         'maximum_discount' => 'decimal:2',
         'usage_limit' => 'integer',

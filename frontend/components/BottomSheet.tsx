@@ -92,7 +92,7 @@ export function BottomSheet({
             <Animated.View
               style={[
                 styles.bottomSheet,
-                { transform: [{ translateY }], maxHeight },
+                { transform: [{ translateY }], maxHeight, height: maxHeight },
               ]}
               {...(showHandle ? panResponder.panHandlers : {})}
             >

@@ -41,7 +41,7 @@ export default function CartScreen() {
   const deliveryFee = cart?.delivery_fee || 0;
   const tax = cart?.tax || 0;
   const total = cart?.total || 0;
-  const appliedPromo = cart?.promo_code || null;
+  const appliedPromo = cart?.promo_code ?? null;
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
@@ -193,7 +193,9 @@ export default function CartScreen() {
               <View style={styles.appliedPromoLeft}>
                 <Tag size={20} color={Colors.primary900} />
                 <View style={styles.appliedPromoText}>
-                  <Text style={styles.appliedPromoCode}>{appliedPromo}</Text>
+                  <Text style={styles.appliedPromoCode}>
+                    {appliedPromo.code}
+                  </Text>
                   <Text style={styles.appliedPromoSaved}>
                     You saved{" "}
                     {parseFloat(discount?.toString() || "0").toFixed(2)} EGP!
