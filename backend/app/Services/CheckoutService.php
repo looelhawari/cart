@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\Address;
+use App\Models\Cart;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\PromoCode;
 use App\Models\UserWallet;
 use App\Models\PaymobPayment;
+use App\Services\OrderService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -86,6 +88,8 @@ class CheckoutService
                 'payment_status' => 'completed',
                 'status' => 'confirmed',
             ]);
+
+            app(OrderService::class)->finalizePromoUsage($order);
 
             Log::info('Order paid with wallet', [
                 'order_id' => $order->id,
@@ -288,9 +292,9 @@ class CheckoutService
      * @return PromoCode
      * @throws Exception
      */
-    public function validatePromoCode(string $code, float $orderTotal, int $userId): PromoCode
+    public function validatePromoCode(string $code, Cart $cart, int $userId): PromoCode
     {
-        return $this->cartService->validatePromoCode($code, $orderTotal, $userId);
+        return $this->cartService->validatePromoCode($code, $cart, $userId);
     }
     /**
      * Get available delivery slots
@@ -415,18 +419,21 @@ class CheckoutService
 
         if ($promoCode && $userId) {
             try {
-                $validatedPromo = $this->cartService->validatePromoCode($promoCode, $subtotal, $userId);
                 $cart = $this->cartService->getCart($userId);
+                $validatedPromo = $this->cartService->validatePromoCode($promoCode, $cart, $userId);
                 $totals = $this->cartService->calculateTotals($cart, $validatedPromo);
 
                 $discount = $totals['discount'];
                 $deliveryFee = $totals['delivery_fee'];
 
-                $promoCodeData = [
-                    'code' => $validatedPromo->code,
-                    'type' => $validatedPromo->type,
-                    'value' => $validatedPromo->value,
+                $promoCodeData = $totals['promo_summary'] ?? [
+                    'applied_code' => $validatedPromo->code,
+                    'promo_id' => $validatedPromo->id,
                     'discount_amount' => round($discount, 2),
+                    'discount_type' => $validatedPromo->type === 'bogo' ? 'bogo' : $validatedPromo->applies_to,
+                    'breakdown' => [],
+                    'validation_state' => 'valid',
+                    'invalid_reason' => null,
                 ];
             } catch (\Exception $e) {
                 // Promo code validation failed, continue without it

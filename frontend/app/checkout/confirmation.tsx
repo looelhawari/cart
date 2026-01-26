@@ -49,7 +49,7 @@ export default function CheckoutConfirmationScreen() {
     ? parseInt(params.orderId as string)
     : null;
 
-  const { cart, fetchCart, user } = useStore();
+  const { cart, fetchCart, user, promoState } = useStore();
 
   const [loading, setLoading] = useState(true);
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
@@ -63,6 +63,7 @@ export default function CheckoutConfirmationScreen() {
   const discount = cart?.discount || 0;
   const tax = cart?.tax || 0;
   const total = cart?.total || 0;
+  const appliedPromo = promoState;
 
   useEffect(() => {
     loadData();
@@ -154,7 +155,7 @@ export default function CheckoutConfirmationScreen() {
           delivery_date: selectedDate,
           delivery_time_slot: selectedSlot,
           payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
-          promo_code: cart?.promo_code?.code || undefined,
+          promo_code: appliedPromo?.applied_code || undefined,
         });
 
         orderId = response.data.order.id;
@@ -229,6 +230,8 @@ export default function CheckoutConfirmationScreen() {
                 orderId: orderId.toString(),
                 paymentId: paymentId.toString(),
                 polling: "true", // Trigger polling in success screen
+                promoCode: appliedPromo?.applied_code,
+                promoDiscount: discount.toFixed(2),
               },
             });
           } else if (
@@ -259,6 +262,8 @@ export default function CheckoutConfirmationScreen() {
                 iframeUrl: redirectUrl,
                 orderId: orderId.toString(),
                 paymentId: paymentId.toString(), // For polling
+                promoCode: appliedPromo?.applied_code,
+                promoDiscount: discount.toFixed(2),
               },
             });
           } else {
@@ -282,6 +287,8 @@ export default function CheckoutConfirmationScreen() {
             orderNumber: orderNumber,
             deliveryDate: selectedDate,
             deliveryTime: selectedSlot,
+            promoCode: appliedPromo?.applied_code,
+            promoDiscount: discount.toFixed(2),
           },
         });
       }
@@ -470,6 +477,14 @@ export default function CheckoutConfirmationScreen() {
                 <Text style={styles.priceLabel}>Discount</Text>
                 <Text style={[styles.priceValue, styles.discountText]}>
                   -{discount.toFixed(2)} EGP
+                </Text>
+              </View>
+            )}
+            {appliedPromo?.applied_code && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Promo Code</Text>
+                <Text style={styles.promoValue}>
+                  {appliedPromo.promo_code || appliedPromo.applied_code}
                 </Text>
               </View>
             )}
@@ -753,6 +768,11 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralCharcoal,
+    fontWeight: Typography.semibold,
+  },
+  promoValue: {
+    fontSize: Typography.bodyBase,
+    color: Colors.primary900,
     fontWeight: Typography.semibold,
   },
   freeText: {

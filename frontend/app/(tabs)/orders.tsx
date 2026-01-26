@@ -182,69 +182,78 @@ export default function OrdersScreen() {
             />
           }
         >
-          {orders.map((order) => (
-            <TouchableOpacity
-              key={order.id}
-              style={styles.orderCard}
-              onPress={() => router.push(`/orders/${order.id}` as any)}
-            >
-              <View style={styles.orderHeader}>
-                <View style={styles.orderHeaderLeft}>
-                  <Text style={styles.orderNumber}>{order.order_number}</Text>
-                  <Text style={styles.orderDate}>
-                    {new Date(order.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(order.status) + "20" },
-                  ]}
-                >
-                  {getStatusIcon(order.status)}
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
-                    ]}
-                  >
-                    {order.status_label}
-                  </Text>
-                </View>
-              </View>
+          {orders.map((order) => {
+            const promoCode = order.promo_code_snapshot?.promo_code;
 
-              <View style={styles.orderItems}>
-                {order.items?.slice(0, 2).map((item) => (
-                  <View key={item.id} style={styles.miniItem}>
-                    {item.product?.image && (
-                      <Image
-                        source={{ uri: item.product.image }}
-                        style={styles.miniImage}
-                      />
-                    )}
-                  </View>
-                ))}
-                {(order.items?.length || 0) > 2 && (
-                  <View style={styles.moreItems}>
-                    <Text style={styles.moreItemsText}>
-                      +{(order.items?.length || 0) - 2}
+            return (
+              <TouchableOpacity
+                key={order.id}
+                style={styles.orderCard}
+                onPress={() => router.push(`/orders/${order.id}` as any)}
+              >
+                <View style={styles.orderHeader}>
+                  <View style={styles.orderHeaderLeft}>
+                    <Text style={styles.orderNumber}>{order.order_number}</Text>
+                    <Text style={styles.orderDate}>
+                      {new Date(order.created_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </Text>
                   </View>
-                )}
-              </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(order.status) + "20" },
+                    ]}
+                  >
+                    {getStatusIcon(order.status)}
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(order.status) },
+                      ]}
+                    >
+                      {order.status_label}
+                    </Text>
+                  </View>
+                </View>
 
-              <View style={styles.orderFooter}>
-                <Text style={styles.orderTotal}>
-                  Total: {parseFloat(order.total.toString()).toFixed(2)} EGP
-                </Text>
-                <Text style={styles.viewDetails}>View Details →</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.orderItems}>
+                  {order.items?.slice(0, 2).map((item) => (
+                    <View key={item.id} style={styles.miniItem}>
+                      {item.product?.image && (
+                        <Image
+                          source={{ uri: item.product.image }}
+                          style={styles.miniImage}
+                        />
+                      )}
+                    </View>
+                  ))}
+                  {(order.items?.length || 0) > 2 && (
+                    <View style={styles.moreItems}>
+                      <Text style={styles.moreItemsText}>
+                        +{(order.items?.length || 0) - 2}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.orderFooter}>
+                  <View>
+                    <Text style={styles.orderTotal}>
+                      Total: {parseFloat(order.total.toString()).toFixed(2)} EGP
+                    </Text>
+                    {promoCode && (
+                      <Text style={styles.promoBadge}>Promo: {promoCode}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.viewDetails}>View Details -></Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
           <View style={{ height: 20 }} />
         </ScrollView>
       )}
@@ -423,6 +432,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.primary900,
+  },
+  promoBadge: {
+    marginTop: 4,
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
+    fontWeight: Typography.semibold,
   },
   viewDetails: {
     fontSize: Typography.bodyBase,

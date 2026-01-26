@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CartItem, Product, Address, Order, Review } from "@/types";
+import type { PromoSummary } from "@/services/api/types";
 import { paymentMethods, PaymentMethod } from "@/data/user";
 import type { FavoriteItem } from "@/services/api/favoritesApi";
 import {
@@ -63,6 +64,8 @@ interface StoreState {
   cart: any | null;
   cartLoading: boolean;
   cartError: string | null;
+  promoState: PromoSummary | null;
+  promoMessage: string | null;
   fetchCart: () => Promise<void>;
   addToCart: (productId: number, quantity?: number) => Promise<void>;
   removeFromCart: (itemId: number) => Promise<void>;
@@ -70,6 +73,7 @@ interface StoreState {
   clearCart: () => Promise<void>;
   applyPromoCodeToCart: (code: string) => Promise<void>;
   removePromoCodeFromCart: () => Promise<void>;
+  revalidatePromoCode: () => Promise<void>;
 
   // Favorites
   favorites: string[];
@@ -127,6 +131,8 @@ export const useStore = create<StoreState>()(
           cart: null,
           cartLoading: false,
           cartError: null,
+          promoState: null,
+          promoMessage: null,
           favorites: [],
           favoritesItems: [],
           favoritesLoading: false,
@@ -280,20 +286,23 @@ export const useStore = create<StoreState>()(
       cart: null,
       cartLoading: false,
       cartError: null,
+      promoState: null,
+      promoMessage: null,
 
       fetchCart: async () => {
         set({ cartLoading: true, cartError: null });
         try {
           const { getCart } = await import("@/services/api/cartApi");
+          const existingPromo = get().promoState;
           const response = await getCart();
           console.log(
             "Cart fetched:",
             JSON.stringify(response.data.cart, null, 2),
           );
-          set({
-            cart: { ...response.data.cart, promo_code: null },
-            cartLoading: false,
-          });
+          set({ cart: response.data.cart, cartLoading: false });
+          if (existingPromo?.applied_code) {
+            await get().revalidatePromoCode();
+          }
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to load cart",
@@ -309,10 +318,10 @@ export const useStore = create<StoreState>()(
           const { addToCart: addToCartApi } =
             await import("@/services/api/cartApi");
           const response = await addToCartApi(productId, quantity);
-          set({
-            cart: { ...response.data.cart, promo_code: null },
-            cartLoading: false,
-          });
+          set({ cart: response.data.cart, cartLoading: false });
+          if (get().promoState?.applied_code) {
+            await get().revalidatePromoCode();
+          }
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to add item to cart",
@@ -343,10 +352,10 @@ export const useStore = create<StoreState>()(
         try {
           const { updateCartItem } = await import("@/services/api/cartApi");
           const response = await updateCartItem(itemId, quantity);
-          set({
-            cart: { ...response.data.cart, promo_code: null },
-            cartLoading: false,
-          });
+          set({ cart: response.data.cart, cartLoading: false });
+          if (get().promoState?.applied_code) {
+            await get().revalidatePromoCode();
+          }
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to update quantity",
@@ -362,7 +371,7 @@ export const useStore = create<StoreState>()(
           const { clearCart: clearCartApi } =
             await import("@/services/api/cartApi");
           await clearCartApi();
-          set({ cart: null, cartLoading: false });
+          set({ cart: null, cartLoading: false, promoState: null });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to clear cart",
@@ -378,15 +387,15 @@ export const useStore = create<StoreState>()(
           const { applyPromoCode } = await import("@/services/api/cartApi");
           const response = await applyPromoCode(code);
           set({
-            cart: {
-              ...response.data.cart,
-              promo_code: response.data.promo_code ?? null,
-            },
+            cart: response.data.cart,
+            promoState: response.data.promo ?? null,
+            promoMessage: response.message ?? null,
             cartLoading: false,
           });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to apply promo code",
+            promoMessage: error.message || "Promo code is not valid",
             cartLoading: false,
           });
           throw error;
@@ -399,7 +408,9 @@ export const useStore = create<StoreState>()(
           const { removePromoCode } = await import("@/services/api/cartApi");
           const response = await removePromoCode();
           set({
-            cart: { ...response.data.cart, promo_code: null },
+            cart: response.data.cart,
+            promoState: null,
+            promoMessage: null,
             cartLoading: false,
           });
         } catch (error: any) {
@@ -408,6 +419,31 @@ export const useStore = create<StoreState>()(
             cartLoading: false,
           });
           throw error;
+        }
+      },
+
+      revalidatePromoCode: async () => {
+        const promo = get().promoState;
+        if (!promo?.applied_code) return;
+
+        try {
+          const { applyPromoCode } = await import("@/services/api/cartApi");
+          const response = await applyPromoCode(promo.applied_code);
+          set({
+            cart: response.data.cart,
+            promoState: response.data.promo ?? null,
+            promoMessage: response.message ?? null,
+          });
+        } catch (error: any) {
+          try {
+            const { getCart } = await import("@/services/api/cartApi");
+            const response = await getCart();
+            set({ cart: response.data.cart });
+          } catch {}
+          set({
+            promoState: null,
+            promoMessage: error.message || "Promo code is no longer valid",
+          });
         }
       },
 

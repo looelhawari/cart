@@ -405,11 +405,16 @@ export default function OrderDetailsScreen() {
                 </Text>
               </View>
             )}
-            {order.promo_code && (
+            {order.promo_code_snapshot?.promo_code && (
               <View style={styles.promoRow}>
                 <Text style={styles.promoLabel}>
-                  Promo Code: {order.promo_code}
+                  Promo Code: {order.promo_code_snapshot.promo_code}
                 </Text>
+                {order.promo_code_snapshot.discount_amount > 0 && (
+                  <Text style={styles.promoValue}>
+                    -{order.promo_code_snapshot.discount_amount.toFixed(2)} EGP
+                  </Text>
+                )}
               </View>
             )}
             <View style={styles.divider} />
@@ -758,6 +763,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySmall,
     color: Colors.primary700,
     fontWeight: Typography.semibold,
+  },
+  promoValue: {
+    fontSize: Typography.bodySmall,
+    color: Colors.primary900,
+    fontWeight: Typography.bold,
   },
   totalLabel: {
     fontSize: Typography.h4,

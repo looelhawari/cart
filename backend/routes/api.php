@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AddressController;
 use App\Http\Controllers\Api\Admin\RefundController as AdminRefundController;
+use App\Http\Controllers\Api\Admin\OrderStatusController as AdminOrderStatusController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
@@ -167,6 +168,8 @@ Route::prefix('v1')->group(function () {
                 Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
             });
+
+            Route::post('/orders/{orderId}/deliver', [AdminOrderStatusController::class, 'markDelivered']);
         });
     });
 
@@ -217,6 +220,8 @@ Route::prefix('v1')->group(function () {
                 'status' => 'confirmed',
                 'payment_status' => 'completed',
             ]);
+
+            app(\App\Services\OrderService::class)->finalizePromoUsage($order);
 
             $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
             if ($cart) {

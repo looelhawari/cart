@@ -283,10 +283,21 @@ class CartService
 
         // Apply promo code discount
         $discount = 0;
+        $promoSummary = null;
         if ($promoCode) {
-            $discount = $this->calculateDiscount($promoCode, $cart, $subtotal);
-            if ($promoCode->type === 'free_delivery') {
-                $deliveryFee = 0.00;
+            $promoSummary = $this->evaluatePromoForCart(
+                $promoCode,
+                $cart,
+                $cart->user_id,
+                $subtotal,
+                $deliveryFee
+            );
+
+            if (in_array($promoSummary['validation_state'], ['valid', 'pending'], true)) {
+                $discount = (float) ($promoSummary['discount_amount'] ?? 0);
+                if ($promoCode->type === 'free_delivery') {
+                    $deliveryFee = 0.00;
+                }
             }
         }
 
@@ -304,46 +315,130 @@ class CartService
             'tax' => round($tax, 2),
             'total' => round($total, 2),
             'items_count' => $cart->items->sum('quantity'),
+            'promo_summary' => $promoSummary,
         ];
     }
 
-    /**
-     * Calculate promo code discount
-     */
-    private function calculateDiscount(PromoCode $promoCode, Cart $cart, float $subtotal): float
-    {
-        if ($promoCode->type === 'free_delivery') {
-            return 0.00;
+    public function evaluatePromoForCart(
+        PromoCode $promoCode,
+        Cart $cart,
+        ?int $userId,
+        float $subtotal,
+        float $deliveryFee
+    ): array {
+        $payload = [
+            'applied_code' => $promoCode->code,
+            'promo_id' => $promoCode->id,
+            'promo_code' => $promoCode->code,
+            'type' => $promoCode->type,
+            'applies_to' => $promoCode->applies_to,
+            'discount_amount' => 0.00,
+            'discount_type' => $promoCode->type === 'bogo' ? 'bogo' : $promoCode->applies_to,
+            'breakdown' => [],
+            'validation_state' => 'valid',
+            'invalid_reason' => null,
+        ];
+
+        if (!$promoCode->is_active) {
+            return $this->invalidatePromo($payload, 'PROMO_INACTIVE');
+        }
+
+        $now = now();
+        if ($promoCode->valid_from && $promoCode->valid_from > $now) {
+            return $this->invalidatePromo($payload, 'NOT_STARTED');
+        }
+
+        if ($promoCode->valid_until && $promoCode->valid_until < $now) {
+            return $this->invalidatePromo($payload, 'EXPIRED');
+        }
+
+        if ($promoCode->usage_limit && $promoCode->used_count >= $promoCode->usage_limit) {
+            return $this->invalidatePromo($payload, 'USAGE_LIMIT_REACHED');
+        }
+
+        if ($userId && $promoCode->usage_per_user) {
+            $userUsageCount = DB::table('promo_code_usage')
+                ->where('promo_code_id', $promoCode->id)
+                ->where('user_id', $userId)
+                ->count();
+
+            if ($userUsageCount >= $promoCode->usage_per_user) {
+                return $this->invalidatePromo($payload, 'USER_LIMIT_REACHED');
+            }
+        }
+
+        if ($promoCode->first_order_only) {
+            if (!$userId) {
+                return $this->invalidatePromo($payload, 'FIRST_ORDER_ONLY');
+            }
+
+            $paidOrders = DB::table('orders')
+                ->where('user_id', $userId)
+                ->where('payment_status', 'completed')
+                ->count();
+
+            if ($paidOrders > 0) {
+                return $this->invalidatePromo($payload, 'FIRST_ORDER_ONLY');
+            }
+        }
+
+        if ($promoCode->type === 'percentage' && ($promoCode->value <= 0 || $promoCode->value > 100)) {
+            return $this->invalidatePromo($payload, 'PROMO_MISCONFIGURED');
+        }
+
+        if ($promoCode->type === 'fixed_amount' && $promoCode->value <= 0) {
+            return $this->invalidatePromo($payload, 'PROMO_MISCONFIGURED');
         }
 
         if ($promoCode->type === 'bogo') {
-            $discount = $this->calculateBogoDiscount($promoCode, $cart);
-            return round(min($discount, $subtotal), 2);
+            $bogoResult = $this->evaluateBogoRules($promoCode, $cart);
+            if ($bogoResult['validation_state'] === 'invalid') {
+                return $this->invalidatePromo($payload, $bogoResult['invalid_reason'] ?? 'PROMO_MISCONFIGURED');
+            }
+
+            $payload['discount_amount'] = round(min($bogoResult['discount_amount'], $subtotal), 2);
+            $payload['breakdown'] = $bogoResult['breakdown'] ?? [];
+            $payload['validation_state'] = $bogoResult['validation_state'];
+            $payload['invalid_reason'] = $bogoResult['invalid_reason'];
+
+            return $payload;
+        }
+
+        if ($promoCode->type === 'free_delivery' && $promoCode->applies_to !== 'order') {
+            return $this->invalidatePromo($payload, 'PROMO_MISCONFIGURED');
         }
 
         $eligibleSubtotal = $subtotal;
 
         if ($promoCode->applies_to === 'product') {
             $eligibleProductIds = $this->getPromoProductIds($promoCode);
+            if (empty($eligibleProductIds)) {
+                return $this->invalidatePromo($payload, 'PROMO_MISCONFIGURED');
+            }
             $eligibleSubtotal = $this->calculateEligibleSubtotalByProducts($cart, $eligibleProductIds);
         } elseif ($promoCode->applies_to === 'category') {
             $eligibleProductIds = $this->getPromoCategoryProductIds($promoCode);
+            if (empty($eligibleProductIds)) {
+                return $this->invalidatePromo($payload, 'PROMO_MISCONFIGURED');
+            }
             $eligibleSubtotal = $this->calculateEligibleSubtotalByProducts($cart, $eligibleProductIds);
         }
 
         if ($eligibleSubtotal <= 0) {
-            return 0.00;
+            return $this->invalidatePromo($payload, 'NOT_APPLICABLE_TO_CART');
+        }
+
+        if ($promoCode->minimum_order && $eligibleSubtotal < $promoCode->minimum_order) {
+            return $this->invalidatePromo($payload, 'MINIMUM_NOT_MET');
         }
 
         if ($promoCode->type === 'percentage') {
             $discount = ($eligibleSubtotal * $promoCode->value) / 100;
-
-            // Apply maximum discount if set
             if ($promoCode->maximum_discount && $discount > $promoCode->maximum_discount) {
                 $discount = $promoCode->maximum_discount;
             }
-
-            return round(min($discount, $eligibleSubtotal), 2);
+            $payload['discount_amount'] = round(min($discount, $eligibleSubtotal), 2);
+            return $payload;
         }
 
         if ($promoCode->type === 'fixed_amount') {
@@ -351,10 +446,25 @@ class CartService
             if ($promoCode->maximum_discount && $discount > $promoCode->maximum_discount) {
                 $discount = $promoCode->maximum_discount;
             }
-            return round(min($discount, $eligibleSubtotal), 2);
+            $payload['discount_amount'] = round(min($discount, $eligibleSubtotal), 2);
+            return $payload;
         }
 
-        return 0.00;
+        if ($promoCode->type === 'free_delivery') {
+            $payload['discount_amount'] = round($deliveryFee, 2);
+        }
+
+        return $payload;
+    }
+
+    private function invalidatePromo(array $payload, string $reason): array
+    {
+        $payload['validation_state'] = 'invalid';
+        $payload['invalid_reason'] = $reason;
+        $payload['discount_amount'] = 0.00;
+        $payload['breakdown'] = [];
+
+        return $payload;
     }
 
     private function calculateEligibleSubtotalByProducts(Cart $cart, array $productIds): float
@@ -427,25 +537,112 @@ class CartService
         return array_values(array_unique(array_map(fn($row) => (int) $row->id, $rows)));
     }
 
-    private function calculateBogoDiscount(PromoCode $promoCode, Cart $cart): float
+    private function evaluateBogoRules(PromoCode $promoCode, Cart $cart): array
     {
         $rules = PromoCodeBogoRule::where('promo_code_id', $promoCode->id)
             ->where('is_active', true)
             ->get();
 
         if ($rules->isEmpty()) {
-            return 0.00;
+            return [
+                'validation_state' => 'invalid',
+                'invalid_reason' => 'PROMO_MISCONFIGURED',
+                'discount_amount' => 0.00,
+                'breakdown' => [],
+            ];
         }
 
         $discount = 0.00;
+        $breakdown = [];
+        $hasApplicable = false;
+        $pendingReason = null;
+
         foreach ($rules as $rule) {
-            $discount += $this->calculateBogoRuleDiscount($rule, $cart);
+            $ruleValidation = $this->validateBogoRuleIntegrity($rule);
+            if ($ruleValidation !== null) {
+                return [
+                    'validation_state' => 'invalid',
+                    'invalid_reason' => 'PROMO_MISCONFIGURED',
+                    'discount_amount' => 0.00,
+                    'breakdown' => [],
+                ];
+            }
+
+            $ruleResult = $this->evaluateBogoRule($rule, $cart);
+            if ($ruleResult['applicable']) {
+                $hasApplicable = true;
+            }
+
+            $discount += $ruleResult['discount'];
+            if (!empty($ruleResult['breakdown'])) {
+                $breakdown = array_merge($breakdown, $ruleResult['breakdown']);
+            }
+
+            if ($ruleResult['pending'] && !$pendingReason) {
+                $pendingReason = $ruleResult['pending_reason'];
+            }
         }
 
-        return $discount;
+        if (!$hasApplicable) {
+            return [
+                'validation_state' => 'invalid',
+                'invalid_reason' => 'NOT_APPLICABLE_TO_CART',
+                'discount_amount' => 0.00,
+                'breakdown' => [],
+            ];
+        }
+
+        if ($pendingReason) {
+            return [
+                'validation_state' => 'pending',
+                'invalid_reason' => $pendingReason,
+                'discount_amount' => round($discount, 2),
+                'breakdown' => $breakdown,
+            ];
+        }
+
+        return [
+            'validation_state' => 'valid',
+            'invalid_reason' => null,
+            'discount_amount' => round($discount, 2),
+            'breakdown' => $breakdown,
+        ];
     }
 
-    private function calculateBogoRuleDiscount(PromoCodeBogoRule $rule, Cart $cart): float
+    private function validateBogoRuleIntegrity(PromoCodeBogoRule $rule): ?string
+    {
+        if ($rule->buy_qty <= 0 || $rule->get_qty <= 0) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        if ($rule->buy_scope === 'product' && !$rule->buy_product_id) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        if ($rule->buy_scope === 'category' && !$rule->buy_category_id) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        if ($rule->get_scope === 'product' && !$rule->get_product_id) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        if ($rule->get_scope === 'category' && !$rule->get_category_id) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        if ($rule->get_discount_type === 'percentage' && ($rule->get_discount_value <= 0 || $rule->get_discount_value > 100)) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        if ($rule->get_discount_type === 'fixed_amount' && $rule->get_discount_value <= 0) {
+            return 'PROMO_MISCONFIGURED';
+        }
+
+        return null;
+    }
+
+    private function evaluateBogoRule(PromoCodeBogoRule $rule, Cart $cart): array
     {
         $buyQty = $this->getScopeQuantity(
             $cart,
@@ -456,7 +653,13 @@ class CartService
         );
 
         if ($buyQty < $rule->buy_qty) {
-            return 0.00;
+            return [
+                'applicable' => false,
+                'discount' => 0.00,
+                'breakdown' => [],
+                'pending' => false,
+                'pending_reason' => null,
+            ];
         }
 
         $applications = intdiv($buyQty, (int) $rule->buy_qty);
@@ -465,7 +668,13 @@ class CartService
         }
 
         if ($applications <= 0) {
-            return 0.00;
+            return [
+                'applicable' => false,
+                'discount' => 0.00,
+                'breakdown' => [],
+                'pending' => false,
+                'pending_reason' => null,
+            ];
         }
 
         $getQty = $applications * (int) $rule->get_qty;
@@ -479,15 +688,36 @@ class CartService
         );
 
         if (empty($eligibleItems)) {
-            return 0.00;
+            return [
+                'applicable' => true,
+                'discount' => 0.00,
+                'breakdown' => [],
+                'pending' => true,
+                'pending_reason' => 'BOGO_ADD_ELIGIBLE_ITEM',
+            ];
         }
 
-        return $this->calculateBogoLineDiscount(
+        $totalGetUnits = array_sum(array_map(fn($item) => (int) $item['quantity'], $eligibleItems));
+        $discountableUnits = min($totalGetUnits, $getQty);
+        $pendingReason = null;
+        if ($totalGetUnits < $getQty) {
+            $pendingReason = 'BOGO_ADD_MORE_GET_ITEMS';
+        }
+
+        $discountResult = $this->calculateBogoLineDiscount(
             $eligibleItems,
-            $getQty,
+            $discountableUnits,
             $rule->get_discount_type,
             (float) $rule->get_discount_value
         );
+
+        return [
+            'applicable' => true,
+            'discount' => $discountResult['discount'],
+            'breakdown' => $discountResult['breakdown'],
+            'pending' => $pendingReason !== null,
+            'pending_reason' => $pendingReason,
+        ];
     }
 
     private function getScopeQuantity(
@@ -575,15 +805,16 @@ class CartService
         int $getQty,
         string $discountType,
         float $discountValue
-    ): float {
+    ): array {
         if ($getQty <= 0) {
-            return 0.00;
+            return ['discount' => 0.00, 'breakdown' => []];
         }
 
         usort($eligibleItems, fn($a, $b) => $a['unit_price'] <=> $b['unit_price']);
 
         $remaining = $getQty;
         $discount = 0.00;
+        $breakdown = [];
 
         foreach ($eligibleItems as $item) {
             if ($remaining <= 0) {
@@ -601,17 +832,29 @@ class CartService
                 $discountPerUnit = min($discountValue, $unitPrice);
             }
 
-            $discount += $unitsToApply * $discountPerUnit;
+            $lineDiscount = $unitsToApply * $discountPerUnit;
+            $discount += $lineDiscount;
             $remaining -= $unitsToApply;
+
+            $breakdown[] = [
+                'product_id' => (int) $item['product_id'],
+                'quantity' => (int) $unitsToApply,
+                'unit_price' => round($unitPrice, 2),
+                'discount_per_unit' => round($discountPerUnit, 2),
+                'discount_total' => round($lineDiscount, 2),
+            ];
         }
 
-        return round($discount, 2);
+        return [
+            'discount' => round($discount, 2),
+            'breakdown' => $breakdown,
+        ];
     }
 
     /**
      * Validate promo code
      */
-    public function validatePromoCode(string $code, float $cartSubtotal, ?int $userId = null): PromoCode
+    public function validatePromoCode(string $code, Cart $cart, ?int $userId = null): PromoCode
     {
         $promoCode = PromoCode::where('code', $code)->first();
 
@@ -619,82 +862,69 @@ class CartService
             throw new \Exception('Invalid promo code');
         }
 
-        if (!$promoCode->is_active) {
-            throw new \Exception('Promo code is inactive');
-        }
+        $cartTotals = $this->calculateTotals($cart);
+        $evaluation = $this->evaluatePromoForCart(
+            $promoCode,
+            $cart,
+            $userId,
+            $cartTotals['subtotal'],
+            $cartTotals['delivery_fee']
+        );
 
-        // Check if code has expired
-        $now = now();
-        if ($promoCode->valid_from && $promoCode->valid_from > $now) {
-            throw new \Exception('Promo code is not yet valid');
-        }
-
-        if ($promoCode->valid_until && $promoCode->valid_until < $now) {
-            throw new \Exception('Promo code has expired');
-        }
-
-        // Check minimum order requirement
-        if ($cartSubtotal < $promoCode->minimum_order) {
-            throw new \Exception('Minimum order amount of ' . $promoCode->minimum_order . ' required');
-        }
-
-        if ($promoCode->first_order_only) {
-            if (!$userId) {
-                throw new \Exception('Login required to use this promo code');
-            }
-
-            $previousOrders = DB::table('orders')
-                ->where('user_id', $userId)
-                ->whereNotIn('status', ['cancelled', 'failed'])
-                ->count();
-
-            if ($previousOrders > 0) {
-                throw new \Exception('Promo code is only valid for your first order');
-            }
-        }
-
-        if ($promoCode->applies_to === 'product') {
-            $hasTargets = PromoCodeProduct::where('promo_code_id', $promoCode->id)->exists();
-            if (!$hasTargets) {
-                throw new \Exception('Promo code is not configured for products');
-            }
-        }
-
-        if ($promoCode->applies_to === 'category') {
-            $hasTargets = PromoCodeCategory::where('promo_code_id', $promoCode->id)->exists();
-            if (!$hasTargets) {
-                throw new \Exception('Promo code is not configured for categories');
-            }
-        }
-
-        if ($promoCode->type === 'bogo') {
-            $hasRules = PromoCodeBogoRule::where('promo_code_id', $promoCode->id)
-                ->where('is_active', true)
-                ->exists();
-
-            if (!$hasRules) {
-                throw new \Exception('Promo code is not configured for BOGO rules');
-            }
-        }
-
-        // Check total usage limit
-        if ($promoCode->usage_limit && $promoCode->used_count >= $promoCode->usage_limit) {
-            throw new \Exception('Promo code usage limit reached');
-        }
-
-        // Check per-user usage limit
-        if ($userId && $promoCode->usage_per_user) {
-            $userUsageCount = DB::table('promo_code_usage')
-                ->where('promo_code_id', $promoCode->id)
-                ->where('user_id', $userId)
-                ->count();
-
-            if ($userUsageCount >= $promoCode->usage_per_user) {
-                throw new \Exception('You have already used this promo code the maximum number of times');
-            }
+        if ($evaluation['validation_state'] === 'invalid') {
+            throw new \Exception($this->promoReasonMessage($evaluation['invalid_reason']));
         }
 
         return $promoCode;
+    }
+
+    public function evaluatePromoCodeForCart(string $code, Cart $cart, ?int $userId = null): array
+    {
+        $promoCode = PromoCode::where('code', $code)->first();
+
+        if (!$promoCode) {
+            return [
+                'applied_code' => $code,
+                'promo_id' => null,
+                'promo_code' => $code,
+                'type' => null,
+                'applies_to' => null,
+                'discount_amount' => 0.00,
+                'discount_type' => null,
+                'breakdown' => [],
+                'validation_state' => 'invalid',
+                'invalid_reason' => 'INVALID_CODE',
+            ];
+        }
+
+        $cartTotals = $this->calculateTotals($cart);
+
+        return $this->evaluatePromoForCart(
+            $promoCode,
+            $cart,
+            $userId,
+            $cartTotals['subtotal'],
+            $cartTotals['delivery_fee']
+        );
+    }
+
+    public function promoReasonMessage(?string $reason): string
+    {
+        return match ($reason) {
+            'INVALID_CODE' => 'Invalid promo code',
+            'PROMO_INACTIVE' => 'Promo code is inactive',
+            'NOT_STARTED' => 'Promo code is not yet valid',
+            'EXPIRED' => 'Promo code has expired',
+            'USAGE_LIMIT_REACHED' => 'Promo code usage limit reached',
+            'USER_LIMIT_REACHED' => 'You have already used this promo code the maximum number of times',
+            'FIRST_ORDER_ONLY' => 'Promo code is only valid for your first paid order',
+            'MINIMUM_NOT_MET' => 'Minimum order amount not met',
+            'NOT_APPLICABLE_TO_CART' => 'Promo code does not apply to items in your cart',
+            'PROMO_MISCONFIGURED' => 'Promo code is not configured correctly',
+            'BOGO_ADD_ELIGIBLE_ITEM' => 'Promo eligible — add your free item to cart to claim',
+            'BOGO_ADD_MORE_GET_ITEMS' => 'Promo eligible — add more eligible items to claim full discount',
+            default => 'Promo code is not valid',
+        };
     }
 
     /**

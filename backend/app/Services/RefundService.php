@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\User;
 use App\Models\UserWallet;
+use App\Services\OrderService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -64,6 +65,8 @@ class RefundService
                 'refund_reason' => $reason,
                 'refunded_by' => $admin?->id,
             ]);
+
+            app(OrderService::class)->rollbackPromoUsage($order);
 
             // Log
             Log::info('Order refunded to wallet', [

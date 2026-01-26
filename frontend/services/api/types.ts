@@ -116,12 +116,23 @@ export interface CartItem {
   subtotal: number;
 }
 
-export interface PromoCode {
-  code: string;
-  type: "percentage" | "fixed_amount" | "free_delivery" | "bogo";
-  applies_to?: "order" | "category" | "product";
-  value: number;
+export interface PromoSummary {
+  applied_code: string;
+  promo_id: number | null;
+  promo_code: string;
+  type: "percentage" | "fixed_amount" | "free_delivery" | "bogo" | null;
+  applies_to: "order" | "category" | "product" | null;
   discount_amount: number;
+  discount_type: "order" | "category" | "product" | "bogo" | null;
+  breakdown: Array<{
+    product_id: number;
+    quantity: number;
+    unit_price: number;
+    discount_per_unit: number;
+    discount_total: number;
+  }>;
+  validation_state: "valid" | "pending" | "invalid";
+  invalid_reason: string | null;
 }
 
 export interface Cart {
@@ -133,5 +144,5 @@ export interface Cart {
   tax: number;
   total: number;
   items_count: number;
-  promo_code?: PromoCode | null;
+  promo_summary?: PromoSummary | null;
 }

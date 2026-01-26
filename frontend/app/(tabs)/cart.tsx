@@ -29,6 +29,8 @@ export default function CartScreen() {
     clearCart,
     applyPromoCodeToCart,
     removePromoCodeFromCart,
+    promoState,
+    promoMessage,
     user,
   } = useStore();
   const [promoCode, setPromoCode] = useState("");
@@ -41,7 +43,28 @@ export default function CartScreen() {
   const deliveryFee = cart?.delivery_fee || 0;
   const tax = cart?.tax || 0;
   const total = cart?.total || 0;
-  const appliedPromo = cart?.promo_code ?? null;
+  const appliedPromo = promoState ?? null;
+
+  const promoReasonText = (() => {
+    if (promoMessage) return promoMessage;
+    if (!appliedPromo?.invalid_reason) return null;
+    const reasonMap: Record<string, string> = {
+      INVALID_CODE: "Invalid promo code",
+      PROMO_INACTIVE: "This promo code is inactive",
+      NOT_STARTED: "This promo code is not yet valid",
+      EXPIRED: "This promo code has expired",
+      USAGE_LIMIT_REACHED: "Promo code usage limit reached",
+      USER_LIMIT_REACHED: "You have already used this promo code",
+      FIRST_ORDER_ONLY: "Promo code is only valid for your first paid order",
+      MINIMUM_NOT_MET: "Minimum order amount not met",
+      NOT_APPLICABLE_TO_CART: "Promo does not apply to items in your cart",
+      PROMO_MISCONFIGURED: "Promo code is not configured correctly",
+      BOGO_ADD_ELIGIBLE_ITEM: "Promo eligible — add your free item to cart",
+      BOGO_ADD_MORE_GET_ITEMS:
+        "Promo eligible — add more eligible items to claim full discount",
+    };
+    return reasonMap[appliedPromo.invalid_reason] || null;
+  })();
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
@@ -194,12 +217,28 @@ export default function CartScreen() {
                 <Tag size={20} color={Colors.primary900} />
                 <View style={styles.appliedPromoText}>
                   <Text style={styles.appliedPromoCode}>
-                    {appliedPromo.code}
+                    {appliedPromo.promo_code || appliedPromo.applied_code}
                   </Text>
                   <Text style={styles.appliedPromoSaved}>
                     You saved{" "}
                     {parseFloat(discount?.toString() || "0").toFixed(2)} EGP!
                   </Text>
+                  {appliedPromo.validation_state === "pending" &&
+                    promoReasonText && (
+                      <Text style={styles.promoPendingText}>
+                        {promoReasonText}
+                      </Text>
+                    )}
+                  {appliedPromo.validation_state === "pending" && (
+                    <TouchableOpacity
+                      style={styles.promoActionButton}
+                      onPress={() => router.push("/(tabs)/categories")}
+                    >
+                      <Text style={styles.promoActionText}>
+                        Add eligible gift item
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
               <TouchableOpacity
@@ -235,6 +274,12 @@ export default function CartScreen() {
                   <Text style={styles.applyButtonText}>Apply</Text>
                 )}
               </TouchableOpacity>
+            </View>
+          )}
+
+          {!appliedPromo && promoReasonText && (
+            <View style={styles.promoMessageCard}>
+              <Text style={styles.promoMessageText}>{promoReasonText}</Text>
             </View>
           )}
         </View>
@@ -539,6 +584,36 @@ const styles = StyleSheet.create({
   appliedPromoSaved: {
     fontSize: Typography.bodySmall,
     color: Colors.primary700,
+  },
+  promoPendingText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
+    marginTop: 4,
+  },
+  promoActionButton: {
+    alignSelf: "flex-start",
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.accentOrange,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: 12,
+  },
+  promoActionText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralWhite,
+    fontWeight: Typography.semibold,
+  },
+  promoMessageCard: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.neutralLight,
+    borderRadius: 12,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
+  },
+  promoMessageText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
   },
   removePromoButton: {
     padding: Spacing.xs,

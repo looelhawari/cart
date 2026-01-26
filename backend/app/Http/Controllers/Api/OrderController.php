@@ -131,10 +131,9 @@ class OrderController extends Controller
             // Validate promo code if provided
             $promoCode = null;
             if ($request->promo_code) {
-                $cartTotals = $this->cartService->calculateTotals($cart);
                 $promoCode = $this->cartService->validatePromoCode(
                     $request->promo_code,
-                    $cartTotals['subtotal'],
+                    $cart,
                     $user->id
                 );
             }

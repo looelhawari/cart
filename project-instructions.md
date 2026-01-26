@@ -2832,3 +2832,10 @@ Documentation:
 - 2026-01-26: Seeded promo_codes for all test cases (order/category/product/free_delivery/first_order/bogo) and linked target tables.
 - 2026-01-26: Updated promo seeder to use deterministic targets (lowest category IDs + product barcodes) and re-seeded.
 - 2026-01-26: Completed promo-code audit across backend + frontend (no code changes); documented gaps vs hypermarket requirements.
+- 2026-01-26: Implemented promo finalization (card success, wallet success, COD delivery endpoint), promo snapshot on orders, reworked promo validation payloads, and added promo visibility + revalidation UI across cart/checkout/orders/success screens.
+- 2026-01-26: Fixed order-success promo rendering conditional syntax error.
+- 2026-01-26: Added safe migration `2026_01_26_211532_add_promo_code_snapshot_to_orders_table.php` and ran it to ensure `orders.promo_code_snapshot` exists; verified `frontend/app/(tabs)/orders.tsx` syntax.
+- 2026-01-26: Investigated FIRSTORDER promo rejection for user_id 7; DB shows 0 paid/completed orders and promo config valid, but carts are guest-only (no user_id), indicating auth/user not attached during cart/apply promo.
+- 2026-01-26: Investigated remove promo failure; CartController::removePromo uses `$request->session()->forget()` on API routes (no session middleware), likely throwing "Session store not set on request" and returning 500.
+- 2026-01-26: Fixed remove promo failure by removing session access from `CartController::removePromo` (stateless API); now returns cart details without 500.
+- 2026-01-26: Investigated SUPER30 per-user limit; promo_code_usage has a row for user_id 7, but latest cart is guest-only (user_id NULL), meaning apply-promo is likely unauthenticated and bypasses per-user limit.

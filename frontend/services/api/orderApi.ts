@@ -5,6 +5,7 @@ import {
   getAuthToken,
 } from "./base";
 import { getSessionId } from "./cartApi";
+import type { PromoSummary } from "./types";
 
 export interface OrderItem {
   id: number;
@@ -52,7 +53,8 @@ export interface Order {
   delivery_date: string;
   delivery_time_slot: string;
   delivery_notes: string | null;
-  promo_code: string | null;
+  promo_code?: string | null;
+  promo_code_snapshot?: PromoSummary | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];
