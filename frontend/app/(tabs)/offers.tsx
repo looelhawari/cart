@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -14,14 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import {
-  Tag,
-  Clock,
-  Filter,
-  Search,
-  Copy,
-  LogIn,
-} from "lucide-react-native";
+import { Tag, Clock, Filter, Search, Copy, LogIn } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 
 import Colors from "@/constants/Colors";
@@ -52,7 +51,7 @@ const typeFilters: Array<{
   { key: "all", label: "All" },
   { key: "free_delivery", label: "Free delivery" },
   { key: "bogo", label: "Buy X Get Y" },
-  { key: "cart", label: "Whole cart" },
+  { key: "cart", label: "All items" },
   { key: "category", label: "Category deals" },
   { key: "product", label: "Product deals" },
 ];
@@ -280,11 +279,14 @@ export default function OffersScreen() {
       return `${valueText} ${offer.targets.products[0].name_en}`;
     }
 
-    if (offer.applies_to === "category" && offer.targets.categories.length > 0) {
+    if (
+      offer.applies_to === "category" &&
+      offer.targets.categories.length > 0
+    ) {
       return `${valueText} ${offer.targets.categories[0].name_en}`;
     }
 
-    return `${valueText} your whole cart`;
+    return `${valueText} on your order`;
   };
 
   const buildAppliesTo = (offer: Offer) => {
@@ -304,7 +306,9 @@ export default function OffersScreen() {
     }
 
     if (offer.applies_to === "category") {
-      const categories = offer.targets.categories.map((c) => c.name_en).filter(Boolean);
+      const categories = offer.targets.categories
+        .map((c) => c.name_en)
+        .filter(Boolean);
       if (categories.length === 0) return "Applies to selected categories";
       const preview = categories.slice(0, 2);
       const remaining = categories.length - preview.length;
@@ -312,7 +316,9 @@ export default function OffersScreen() {
     }
 
     if (offer.applies_to === "product") {
-      const products = offer.targets.products.map((p) => p.name_en).filter(Boolean);
+      const products = offer.targets.products
+        .map((p) => p.name_en)
+        .filter(Boolean);
       if (products.length === 0) return "Applies to selected products";
       const preview = products.slice(0, 2);
       const remaining = products.length - preview.length;
@@ -324,7 +330,9 @@ export default function OffersScreen() {
 
   const buildValidity = (offer: Offer) => {
     if (offer.status === "upcoming") {
-      return offer.valid_from ? `Starts ${formatDate(offer.valid_from)}` : "Upcoming";
+      return offer.valid_from
+        ? `Starts ${formatDate(offer.valid_from)}`
+        : "Upcoming";
     }
 
     if (offer.valid_until) {
@@ -519,7 +527,9 @@ export default function OffersScreen() {
 
         <View style={styles.activeFiltersRow}>
           <View style={styles.activeChip}>
-            <Text style={styles.activeChipText}>{statusLabels[status || "all"]}</Text>
+            <Text style={styles.activeChipText}>
+              {statusLabels[status || "all"]}
+            </Text>
           </View>
           {typeFilter === "free_delivery" && (
             <View style={styles.activeChip}>
@@ -543,7 +553,7 @@ export default function OffersScreen() {
           )}
           {appliesTo === "order" && (
             <View style={styles.activeChip}>
-              <Text style={styles.activeChipText}>Whole cart</Text>
+              <Text style={styles.activeChipText}>Order</Text>
             </View>
           )}
           {endingSoon && (
@@ -611,16 +621,19 @@ export default function OffersScreen() {
                               ? "Category deal"
                               : offer.applies_to === "product"
                                 ? "Product deal"
-                                : "Whole cart"}
+                                : "ALL ORDER ITEMS"}
                       </Text>
                     </View>
                     {timingBadge && (
                       <View
                         style={[
                           styles.timeBadge,
-                          timingBadge.tone === "urgent" && styles.timeBadgeUrgent,
-                          timingBadge.tone === "limited" && styles.timeBadgeLimited,
-                          timingBadge.tone === "upcoming" && styles.timeBadgeUpcoming,
+                          timingBadge.tone === "urgent" &&
+                            styles.timeBadgeUrgent,
+                          timingBadge.tone === "limited" &&
+                            styles.timeBadgeLimited,
+                          timingBadge.tone === "upcoming" &&
+                            styles.timeBadgeUpcoming,
                         ]}
                       >
                         <Clock
@@ -636,8 +649,10 @@ export default function OffersScreen() {
                         <Text
                           style={[
                             styles.timeBadgeText,
-                            timingBadge.tone === "urgent" && styles.timeBadgeTextUrgent,
-                            timingBadge.tone === "limited" && styles.timeBadgeTextLimited,
+                            timingBadge.tone === "urgent" &&
+                              styles.timeBadgeTextUrgent,
+                            timingBadge.tone === "limited" &&
+                              styles.timeBadgeTextLimited,
                           ]}
                         >
                           {timingBadge.label}
@@ -706,7 +721,9 @@ export default function OffersScreen() {
                       }}
                       disabled={!primaryCta.enabled}
                     >
-                      <Text style={styles.applyButtonText}>{primaryCta.label}</Text>
+                      <Text style={styles.applyButtonText}>
+                        {primaryCta.label}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -723,7 +740,10 @@ export default function OffersScreen() {
         )}
 
         <Modal transparent visible={filterOpen} animationType="slide">
-          <Pressable style={styles.sheetBackdrop} onPress={() => setFilterOpen(false)}>
+          <Pressable
+            style={styles.sheetBackdrop}
+            onPress={() => setFilterOpen(false)}
+          >
             <Pressable style={styles.sheetCard}>
               <Text style={styles.sheetTitle}>Filter offers</Text>
 
@@ -741,7 +761,8 @@ export default function OffersScreen() {
                     <Text
                       style={[
                         styles.sheetOptionText,
-                        draftType === option.key && styles.sheetOptionTextActive,
+                        draftType === option.key &&
+                          styles.sheetOptionTextActive,
                       ]}
                     >
                       {option.label}
@@ -782,7 +803,9 @@ export default function OffersScreen() {
               >
                 <View>
                   <Text style={styles.toggleTitle}>Ending soon</Text>
-                  <Text style={styles.toggleSubtitle}>Offers ending within 48 hours</Text>
+                  <Text style={styles.toggleSubtitle}>
+                    Offers ending within 48 hours
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -793,10 +816,16 @@ export default function OffersScreen() {
               </TouchableOpacity>
 
               <View style={styles.sheetActions}>
-                <TouchableOpacity style={styles.sheetReset} onPress={resetFilters}>
+                <TouchableOpacity
+                  style={styles.sheetReset}
+                  onPress={resetFilters}
+                >
                   <Text style={styles.sheetResetText}>Reset</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.sheetApply} onPress={applyFilters}>
+                <TouchableOpacity
+                  style={styles.sheetApply}
+                  onPress={applyFilters}
+                >
                   <Text style={styles.sheetApplyText}>Apply filters</Text>
                 </TouchableOpacity>
               </View>

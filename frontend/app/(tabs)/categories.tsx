@@ -28,6 +28,8 @@ import {
   initImageCache,
 } from "@/services/cache/imageCache";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import { fetchActiveOffersCached } from "@/utils/offerPricing";
+import type { Offer } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - Spacing.lg * 3) / 2;
@@ -39,6 +41,7 @@ export default function CategoriesScreen() {
   const [cachedImages, setCachedImages] = useState<Map<number, string>>(
     new Map(),
   );
+  const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
   const { cart } = useStore();
   const cartItemsCount =
     cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
@@ -46,6 +49,15 @@ export default function CategoriesScreen() {
   useEffect(() => {
     initImageCache();
     loadCategories();
+  }, []);
+
+  useEffect(() => {
+    fetchActiveOffersCached()
+      .then(setActiveOffers)
+      .catch((error) => {
+        console.error("Failed to load active offers:", error);
+        setActiveOffers([]);
+      });
   }, []);
 
   const loadCategories = async () => {
@@ -123,10 +135,31 @@ export default function CategoriesScreen() {
     setRefreshing(false);
   };
 
+  const getCategoryOfferLabel = (categoryId: number) => {
+    const matches = activeOffers.filter(
+      (offer) =>
+        offer.applies_to === "category" &&
+        (offer.type === "percentage" || offer.type === "fixed_amount") &&
+        offer.targets.categories.some((target) => target.id === categoryId),
+    );
+
+    if (matches.length === 0) return null;
+
+    const best = matches.reduce((current, offer) => {
+      if (!current) return offer;
+      return offer.value > current.value ? offer : current;
+    }, matches[0]);
+
+    return best.type === "percentage"
+      ? `${Math.round(best.value)}% OFF`
+      : `EGP ${Math.round(best.value)} OFF`;
+  };
+
   const renderCategoryCard = ({ item }: { item: Category }) => {
     const defaultImage =
       "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800";
     const imageUri = cachedImages.get(item.id) || item.image || defaultImage;
+    const offerLabel = getCategoryOfferLabel(item.id);
 
     return (
       <TouchableOpacity
@@ -151,6 +184,11 @@ export default function CategoriesScreen() {
             {item.products_count !== undefined && item.products_count > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{item.products_count}</Text>
+              </View>
+            )}
+            {offerLabel && (
+              <View style={styles.offerBadge}>
+                <Text style={styles.offerBadgeText}>{offerLabel}</Text>
               </View>
             )}
           </LinearGradient>
@@ -363,6 +401,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   badgeText: {
+    color: Colors.neutralWhite,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  offerBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: Colors.accentOrange,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  offerBadgeText: {
     color: Colors.neutralWhite,
     fontSize: 11,
     fontWeight: "700",

@@ -8,13 +8,15 @@ import { Product } from "@/types";
 import { useStore } from "@/store";
 import RatingStars from "./RatingStars";
 import { getCachedImage } from "@/services/cache/imageCache";
+import type { ProductOfferPricing } from "@/utils/offerPricing";
 
 interface ProductCardProps {
   product: Product;
   onPress: () => void;
+  offerPricing?: ProductOfferPricing | null;
 }
 
-export function ProductCard({ product, onPress }: ProductCardProps) {
+export function ProductCard({ product, onPress, offerPricing }: ProductCardProps) {
   const { favorites, toggleFavorite, addToCart } = useStore();
   const [cachedImageUri, setCachedImageUri] = useState<string | undefined>();
   const productId = product.barcode || Number(product.id) || 0;
@@ -26,6 +28,15 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
     (product.sale_price || product.salePrice)?.toString() || "0"
   );
   const hasDiscount = displaySalePrice > 0 && displaySalePrice < displayPrice;
+  const basePrice = hasDiscount ? displaySalePrice : displayPrice;
+  const promoPrice =
+    offerPricing && offerPricing.discountedPrice < basePrice
+      ? offerPricing.discountedPrice
+      : null;
+  const promoPercent =
+    promoPrice !== null && basePrice > 0
+      ? Math.round(((basePrice - promoPrice) / basePrice) * 100)
+      : 0;
 
   const displayName = product.name_en || product.name || "Product";
   const displayImage = product.image || "https://via.placeholder.com/160";
@@ -65,15 +76,23 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
             fill={isFavorite ? Colors.accentRed : "transparent"}
           />
         </TouchableOpacity>
-        {hasDiscount && (
-          <View style={styles.discountBadge}>
+        {promoPrice !== null ? (
+          <View style={[styles.discountBadge, styles.offerBadge]}>
             <Text style={styles.discountText}>
-              {Math.round(
-                ((displayPrice - displaySalePrice) / displayPrice) * 100
-              )}
-              % OFF
+              Offer -{promoPercent}%
             </Text>
           </View>
+        ) : (
+          hasDiscount && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>
+                {Math.round(
+                  ((displayPrice - displaySalePrice) / displayPrice) * 100
+                )}
+                % OFF
+              </Text>
+            </View>
+          )
         )}
       </View>
 
@@ -95,7 +114,16 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
         )}
 
         <View style={styles.priceRow}>
-          {hasDiscount ? (
+          {promoPrice !== null ? (
+            <>
+              <Text style={styles.salePrice}>
+                {parseFloat(promoPrice.toString()).toFixed(2)} EGP
+              </Text>
+              <Text style={styles.originalPrice}>
+                {parseFloat(basePrice.toString()).toFixed(2)} EGP
+              </Text>
+            </>
+          ) : hasDiscount ? (
             <>
               <Text style={styles.salePrice}>
                 {parseFloat(displaySalePrice.toString()).toFixed(2)} EGP
@@ -110,6 +138,9 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
             </Text>
           )}
         </View>
+        {promoPrice !== null && offerPricing?.code && (
+          <Text style={styles.offerNote}>Offer price with code {offerPricing.code}</Text>
+        )}
 
         <TouchableOpacity
           style={styles.addButton}
@@ -180,6 +211,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
+  offerBadge: {
+    backgroundColor: Colors.accentOrange,
+  },
   discountText: {
     color: Colors.neutralWhite,
     fontSize: Typography.bodySmall,
@@ -224,6 +258,11 @@ const styles = StyleSheet.create({
     fontWeight: Typography.medium,
     color: Colors.neutralMedium,
     textDecorationLine: "line-through",
+  },
+  offerNote: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
+    marginBottom: Spacing.xs,
   },
 
   addButton: {

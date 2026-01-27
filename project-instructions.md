@@ -2847,3 +2847,9 @@ Documentation:
 - 2026-01-26: Updated Offers cards (copy button feedback, clearer product deals, simplified CTAs, timing badge logic) and added Offer Items screen for full product lists with discounted prices.
 - 2026-01-26: Refined Offers UX per feedback (copy button inline, removed eligibility badges/messages, timing badge logic, clearer product deals) and added /offers/items screen to list all offer products with discounted prices.
 - 2026-01-27: Fixed offer items price formatting guards, prevented BOGO items screen from showing whole-cart state, made offer items cards link to product detail, and improved offer validity/badge visuals with distinct timing colors.
+- 2026-01-27: Switched category offer items to category cards with image grid and click-through to category products, and added offer-aware pricing on home/category/product screens via active offer lookup.
+- 2026-01-27: Added offer-aware pricing on favorites, surfaced category deal badges on Categories tab, standardized currency labels to EGP, and updated splash image to assets/images/splash.webp.
+- 2026-01-27: Updated app name to CART in app.json/app config and aligned sample env APP_NAME for splash/app label consistency.
+- 2026-01-27: Converted splash.webp to splash.png for Expo prebuild compatibility and updated app.json splash image path.
+- 2026-01-27: Added Gradle TLS protocol flags and plugin repositories to address Android build TLS handshake failures.
+- 2026-01-27: Added android/local.properties with sdk.dir pointing to the default Android SDK path to fix missing ANDROID_HOME during Expo Android build.

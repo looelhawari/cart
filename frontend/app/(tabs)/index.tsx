@@ -27,6 +27,8 @@ import { useStore } from "@/store";
 import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
 import { getOffersSummary } from "@/services/api/offersApi";
 import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
+import { fetchActiveOffersCached, getProductOfferPricing } from "@/utils/offerPricing";
+import type { Offer } from "@/services/api/types";
 import type { Product } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { banners } from "@/data/banners";
@@ -48,6 +50,7 @@ export default function HomeScreen() {
   >([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
+  const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
   const [offersSummary, setOffersSummary] = useState<{
     active_count: number;
     ending_soon_count: number;
@@ -92,6 +95,14 @@ export default function HomeScreen() {
 
       if (offersSummaryRes.success) {
         setOffersSummary(offersSummaryRes.data);
+      }
+
+      try {
+        const offers = await fetchActiveOffersCached();
+        setActiveOffers(offers);
+      } catch (error) {
+        console.error("Failed to load active offers:", error);
+        setActiveOffers([]);
       }
     } catch (error) {
       console.error("Failed to load home data:", error);
@@ -250,6 +261,7 @@ export default function HomeScreen() {
                 <View key={product.barcode} style={styles.horizontalItem}>
                   <ProductCard
                     product={product}
+                    offerPricing={getProductOfferPricing(product, activeOffers)}
                     onPress={() => router.push(`/product/${product.barcode}`)}
                   />
                 </View>
@@ -282,6 +294,7 @@ export default function HomeScreen() {
                   <View key={product.barcode} style={styles.horizontalItem}>
                     <ProductCard
                       product={product}
+                      offerPricing={getProductOfferPricing(product, activeOffers)}
                       onPress={() => router.push(`/product/${product.barcode}`)}
                     />
                   </View>
@@ -306,6 +319,7 @@ export default function HomeScreen() {
                 <View key={product.barcode} style={styles.productItem}>
                   <ProductCard
                     product={product}
+                    offerPricing={getProductOfferPricing(product, activeOffers)}
                     onPress={() => router.push(`/product/${product.barcode}`)}
                   />
                 </View>

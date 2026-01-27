@@ -29,6 +29,8 @@ import { Spacing } from "@/constants/Spacing";
 import { Toast } from "@/components/Toast";
 import { getProduct } from "@/services/api/productsApi";
 import type { Product } from "@/types";
+import { fetchActiveOffersCached, getProductOfferPricing } from "@/utils/offerPricing";
+import type { Offer } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
 
@@ -37,6 +39,7 @@ export default function ProductDetailScreen() {
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
 
   const { cart, addToCart, updateQuantity, favorites, toggleFavorite } =
     useStore();
@@ -67,6 +70,13 @@ export default function ProductDetailScreen() {
       const response = await getProduct(id);
       if (response.success) {
         setProduct(response.data.product);
+      }
+      try {
+        const offers = await fetchActiveOffersCached();
+        setActiveOffers(offers);
+      } catch (error) {
+        console.error("Failed to load active offers:", error);
+        setActiveOffers([]);
       }
     } catch (error) {
       console.error("Failed to load product:", error);
@@ -102,6 +112,12 @@ export default function ProductDetailScreen() {
     salePrice > 0 && salePrice < price
       ? Math.round(((price - salePrice) / price) * 100)
       : 0;
+  const basePrice = salePrice > 0 && salePrice < price ? salePrice : price;
+  const offerPricing = getProductOfferPricing(product, activeOffers);
+  const promoPrice =
+    offerPricing && offerPricing.discountedPrice < basePrice
+      ? offerPricing.discountedPrice
+      : null;
 
   // Related products would need a separate API call - skipping for now
   const relatedProducts: Product[] = [];
@@ -239,19 +255,36 @@ export default function ProductDetailScreen() {
 
       <View style={styles.priceRow}>
         <Text style={styles.currentPrice}>
-          SAR{" "}
-          {salePrice > 0 && salePrice < price
-            ? salePrice.toFixed(2)
-            : price.toFixed(2)}
+          EGP{" "}
+          {promoPrice !== null
+            ? promoPrice.toFixed(2)
+            : salePrice > 0 && salePrice < price
+              ? salePrice.toFixed(2)
+              : price.toFixed(2)}
           <Text style={styles.unit}>/{product.unit || "piece"}</Text>
         </Text>
-        {salePrice > 0 && salePrice < price && (
-          <Text style={styles.oldPrice}>SAR {price.toFixed(2)}</Text>
-        )}
-        {salePrice > 0 && salePrice < price && (
-          <Text style={styles.saveText}>
-            Save SAR {(price - salePrice).toFixed(2)}
-          </Text>
+        {promoPrice !== null ? (
+          <>
+            <Text style={styles.oldPrice}>EGP {basePrice.toFixed(2)}</Text>
+            <Text style={styles.saveText}>
+              Save EGP {(basePrice - promoPrice).toFixed(2)}
+            </Text>
+            {offerPricing?.code && (
+              <Text style={styles.offerNote}>
+                Offer price with code {offerPricing.code}
+              </Text>
+            )}
+          </>
+        ) : (
+          salePrice > 0 &&
+          salePrice < price && (
+            <>
+              <Text style={styles.oldPrice}>EGP {price.toFixed(2)}</Text>
+              <Text style={styles.saveText}>
+                Save EGP {(price - salePrice).toFixed(2)}
+              </Text>
+            </>
+          )
         )}
       </View>
 
@@ -441,7 +474,7 @@ export default function ProductDetailScreen() {
                 {item.name}
               </Text>
               <Text style={styles.relatedPrice}>
-                ${item.salePrice || item.price}
+                EGP {item.salePrice || item.price}
               </Text>
             </TouchableOpacity>
           ))}
@@ -455,7 +488,7 @@ export default function ProductDetailScreen() {
       <View style={styles.bottomPriceSection}>
         <Text style={styles.bottomLabel}>Total Price</Text>
         <Text style={styles.bottomPrice}>
-          ${((product.salePrice || product.price) * quantity).toFixed(2)}
+          EGP {((product.salePrice || product.price) * quantity).toFixed(2)}
         </Text>
       </View>
       <View style={styles.bottomActions}>
@@ -643,6 +676,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
+    flexWrap: "wrap",
   },
   currentPrice: {
     fontSize: Typography.h2,
@@ -662,6 +696,10 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyMedium,
     color: Colors.accentLime,
     fontWeight: "600",
+  },
+  offerNote: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
   },
   stockRow: {
     flexDirection: "row",

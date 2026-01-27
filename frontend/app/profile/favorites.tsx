@@ -26,6 +26,8 @@ import Spacing from "@/constants/Spacing";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/store";
 import { products } from "@/data/products";
+import { fetchActiveOffersCached, getProductOfferPricing } from "@/utils/offerPricing";
+import type { Offer } from "@/services/api/types";
 
 export default function FavoritesScreen() {
   const {
@@ -39,6 +41,7 @@ export default function FavoritesScreen() {
     isAuthenticated,
   } = useStore();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
 
   const favoriteProducts = isAuthenticated
     ? favoritesItems.map((item) => item.product)
@@ -49,6 +52,15 @@ export default function FavoritesScreen() {
       fetchFavorites();
     }
   }, [isAuthenticated, fetchFavorites]);
+
+  useEffect(() => {
+    fetchActiveOffersCached()
+      .then(setActiveOffers)
+      .catch((error) => {
+        console.error("Failed to load active offers:", error);
+        setActiveOffers([]);
+      });
+  }, []);
 
   const handleAddAllToCart = async () => {
     if (favoriteProducts.length === 0) return;
@@ -201,6 +213,7 @@ export default function FavoritesScreen() {
                 >
                   <ProductCard
                     product={product}
+                    offerPricing={getProductOfferPricing(product, activeOffers)}
                     onPress={() =>
                       router.push(`/product/${product.barcode || product.id}`)
                     }

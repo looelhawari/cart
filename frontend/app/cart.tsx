@@ -287,31 +287,31 @@ export default function CartScreen() {
         <View style={styles.priceBreakdown}>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Subtotal</Text>
-            <Text style={styles.priceValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.priceValue}>EGP {subtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Delivery Fee</Text>
             <Text
               style={[styles.priceValue, deliveryFee === 0 && styles.freeText]}
             >
-              {deliveryFee === 0 ? "FREE" : `$${deliveryFee.toFixed(2)}`}
+              {deliveryFee === 0 ? "FREE" : `EGP ${deliveryFee.toFixed(2)}`}
             </Text>
           </View>
           {discount > 0 && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Discount</Text>
               <Text style={[styles.priceValue, styles.discountText]}>
-                -${discount.toFixed(2)}
+                -EGP {discount.toFixed(2)}
               </Text>
             </View>
           )}
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Tax</Text>
-            <Text style={styles.priceValue}>${tax.toFixed(2)}</Text>
+            <Text style={styles.priceValue}>EGP {tax.toFixed(2)}</Text>
           </View>
           <View style={[styles.priceRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>EGP {total.toFixed(2)}</Text>
           </View>
         </View>
 

@@ -6,7 +6,9 @@
     "start": "bunx rork start -p wldt7he567d7gvhd521jn --tunnel",
     "start-web": "bunx rork start -p wldt7he567d7gvhd521jn --web --tunnel",
     "start-web-dev": "DEBUG=expo* bunx rork start -p wldt7he567d7gvhd521jn --web --tunnel",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
