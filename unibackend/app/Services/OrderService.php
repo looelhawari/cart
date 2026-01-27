@@ -325,7 +325,11 @@ class OrderService
                 'user_id' => $order->user_id,
                 'order_id' => $order->id,
                 'discount_amount' => $discountAmount,
+                'order_total' => $order->total,
+                'order_number' => $order->order_number,
+                'used_at' => now(),
                 'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
             PromoCode::where('id', $promoSnapshot['promo_id'])->lockForUpdate()->increment('used_count');
