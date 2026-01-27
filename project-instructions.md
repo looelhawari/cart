@@ -2839,3 +2839,8 @@ Documentation:
 - 2026-01-26: Investigated remove promo failure; CartController::removePromo uses `$request->session()->forget()` on API routes (no session middleware), likely throwing "Session store not set on request" and returning 500.
 - 2026-01-26: Fixed remove promo failure by removing session access from `CartController::removePromo` (stateless API); now returns cart details without 500.
 - 2026-01-26: Investigated SUPER30 per-user limit; promo_code_usage has a row for user_id 7, but latest cart is guest-only (user_id NULL), meaning apply-promo is likely unauthenticated and bypasses per-user limit.
+- 2026-01-26: Added public Offers APIs (`GET /offers`, `GET /offers/summary`) with OfferService to build promo-based offers, eligibility states, targets, filters, and sorting (backend only).
+- 2026-01-26: Replaced Offers tab UI with API-driven promo offers (search, filters, eligibility pills, CTAs) and added home offers banner using `/offers/summary`.
+- 2026-01-26: Enhanced Offers tab with Hot/Ending Soon sections and skeleton loading cards aligned to layout.md.
+- 2026-01-26: Added shimmer animation to offers skeletons and converted Hot/Ending Soon sections to horizontal carousels with compact cards.
+- 2026-01-26: Redesigned Offers tab UX with guest note, bottom-sheet filters, user-friendly card hierarchy, copy code, and updated home banner with active offer count + max savings.

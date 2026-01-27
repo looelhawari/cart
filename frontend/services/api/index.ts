@@ -5,6 +5,7 @@ export { authApi } from "./authApi";
 export { profileApi } from "./profileApi";
 export { addressApi } from "./addressApi";
 export { cartApi } from "./cartApi";
+export * as offersApi from "./offersApi";
 export * as favoritesApi from "./favoritesApi";
 export * as complaintsApi from "./complaintsApi";
 

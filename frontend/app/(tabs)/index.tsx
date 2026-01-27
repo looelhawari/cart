@@ -25,6 +25,7 @@ import { FloatingOrbs } from "@/components/FloatingOrbs";
 import { ProductCard } from "@/components/ProductCard";
 import { useStore } from "@/store";
 import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
+import { getOffersSummary } from "@/services/api/offersApi";
 import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
 import type { Product } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
@@ -47,6 +48,14 @@ export default function HomeScreen() {
   >([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
+  const [offersSummary, setOffersSummary] = useState<{
+    active_count: number;
+    ending_soon_count: number;
+    eligible_count: number;
+    has_offers: boolean;
+    max_percentage?: number | null;
+    max_value?: number | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,10 +70,12 @@ export default function HomeScreen() {
       console.log("🔍 Testing API connectivity...");
       console.log("🔍 API Base URL:", API_CONFIG.BASE_URL);
 
-      const [categoriesRes, featuredRes, flashDealsRes] = await Promise.all([
+      const [categoriesRes, featuredRes, flashDealsRes, offersSummaryRes] =
+        await Promise.all([
         getFeaturedCategoriesWithProducts(),
         getFeaturedProducts(),
         getFlashDeals(),
+        getOffersSummary(),
       ]);
 
       if (categoriesRes.success && categoriesRes.data.categories.length > 0) {
@@ -77,6 +88,10 @@ export default function HomeScreen() {
 
       if (flashDealsRes.success && flashDealsRes.data.products.length > 0) {
         setFlashDeals(flashDealsRes.data.products);
+      }
+
+      if (offersSummaryRes.success) {
+        setOffersSummary(offersSummaryRes.data);
       }
     } catch (error) {
       console.error("Failed to load home data:", error);
@@ -170,6 +185,29 @@ export default function HomeScreen() {
             <Search size={20} color={Colors.neutralMedium} />
             <Text style={styles.searchPlaceholder}>Search for products...</Text>
           </TouchableOpacity>
+
+          {offersSummary?.has_offers && (
+            <TouchableOpacity
+              style={styles.offersBanner}
+              onPress={() =>
+                router.push({ pathname: "/(tabs)/offers", params: { status: "active" } })
+              }
+            >
+              <View style={styles.offersBannerText}>
+                <Text style={styles.offersBannerTitle}>
+                  {`Offers available today (${offersSummary.active_count})`}
+                </Text>
+                <Text style={styles.offersBannerSubtitle}>
+                  {offersSummary.max_percentage
+                    ? `Save up to ${offersSummary.max_percentage}%`
+                    : offersSummary.max_value
+                      ? `Save up to EGP ${offersSummary.max_value}`
+                      : "Tap to view all offers"}
+                </Text>
+              </View>
+              <Text style={styles.offersBannerCta}>View offers</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.bannersSection}>
             <ScrollView
@@ -404,6 +442,40 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
     flex: 1,
+  },
+  offersBanner: {
+    marginBottom: Spacing.lg,
+    backgroundColor: Colors.accentOrange,
+    borderRadius: 24,
+    padding: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  offersBannerText: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  offersBannerTitle: {
+    fontSize: Typography.bodyLarge,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
+  },
+  offersBannerSubtitle: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralWhite,
+    opacity: 0.9,
+    marginTop: 2,
+  },
+  offersBannerCta: {
+    fontSize: Typography.bodySmall,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
   },
   section: {
     marginTop: Spacing.lg,

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\ComplaintController;
 use App\Http\Controllers\Api\FavoriteController;
+use App\Http\Controllers\Api\OffersController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -58,6 +59,8 @@ Route::prefix('v1')->group(function () {
 
     // Product routes (public) - throttled to 60 requests per minute
     Route::middleware('throttle:60,1')->group(function () {
+        Route::get('offers', [OffersController::class, 'index']);
+        Route::get('offers/summary', [OffersController::class, 'summary']);
         Route::get('products', [ProductController::class, 'index']);
         Route::get('products/featured', [ProductController::class, 'featured']);
         Route::get('products/flash-deals', [ProductController::class, 'flashDeals']);
