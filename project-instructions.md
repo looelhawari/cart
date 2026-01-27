@@ -2844,3 +2844,6 @@ Documentation:
 - 2026-01-26: Enhanced Offers tab with Hot/Ending Soon sections and skeleton loading cards aligned to layout.md.
 - 2026-01-26: Added shimmer animation to offers skeletons and converted Hot/Ending Soon sections to horizontal carousels with compact cards.
 - 2026-01-26: Redesigned Offers tab UX with guest note, bottom-sheet filters, user-friendly card hierarchy, copy code, and updated home banner with active offer count + max savings.
+- 2026-01-26: Updated Offers cards (copy button feedback, clearer product deals, simplified CTAs, timing badge logic) and added Offer Items screen for full product lists with discounted prices.
+- 2026-01-26: Refined Offers UX per feedback (copy button inline, removed eligibility badges/messages, timing badge logic, clearer product deals) and added /offers/items screen to list all offer products with discounted prices.
+- 2026-01-27: Fixed offer items price formatting guards, prevented BOGO items screen from showing whole-cart state, made offer items cards link to product detail, and improved offer validity/badge visuals with distinct timing colors.

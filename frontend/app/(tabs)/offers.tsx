@@ -70,6 +70,8 @@ export default function OffersScreen() {
   const [typeFilter, setTypeFilter] = useState<OffersQueryParams["type"]>();
   const [appliesTo, setAppliesTo] = useState<OffersQueryParams["applies_to"]>();
   const [endingSoon, setEndingSoon] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftStatus, setDraftStatus] = useState(status);
@@ -146,6 +148,14 @@ export default function OffersScreen() {
     };
   }, [loading, shimmerAnim]);
 
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchOffers();
@@ -215,36 +225,23 @@ export default function OffersScreen() {
   const handleCopy = async (code: string) => {
     try {
       await Clipboard.setStringAsync(code);
-      Alert.alert("Copied", "Promo code copied");
+      setCopiedCode(code);
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = setTimeout(() => {
+        setCopiedCode(null);
+      }, 1500);
     } catch (error: any) {
       Alert.alert("Copy", "Failed to copy promo code");
     }
   };
 
   const handleViewEligibleItems = (offer: Offer) => {
-    if (offer.applies_to === "product" && offer.targets.products.length > 0) {
-      router.push(`/product/${offer.targets.products[0].id}` as any);
-      return;
-    }
-
-    if (offer.applies_to === "category" && offer.targets.categories.length > 0) {
-      router.push(`/categories/${offer.targets.categories[0].id}` as any);
-      return;
-    }
-
-    if (offer.type === "bogo" && offer.targets.bogo_rules.length > 0) {
-      const rule = offer.targets.bogo_rules[0];
-      if (rule.buy_scope === "product" && rule.buy_product_id) {
-        router.push(`/product/${rule.buy_product_id}` as any);
-        return;
-      }
-      if (rule.buy_scope === "category" && rule.buy_category_id) {
-        router.push(`/categories/${rule.buy_category_id}` as any);
-        return;
-      }
-    }
-
-    router.push("/(tabs)/categories" as any);
+    router.push({
+      pathname: "/offers/items",
+      params: { offerId: offer.id },
+    });
   };
 
   const formatDate = (value?: string | null) => {
@@ -279,7 +276,15 @@ export default function OffersScreen() {
         ? `${Math.round(offer.value)}% OFF`
         : `EGP ${Math.round(offer.value)} OFF`;
 
-    return valueText;
+    if (offer.applies_to === "product" && offer.targets.products.length > 0) {
+      return `${valueText} ${offer.targets.products[0].name_en}`;
+    }
+
+    if (offer.applies_to === "category" && offer.targets.categories.length > 0) {
+      return `${valueText} ${offer.targets.categories[0].name_en}`;
+    }
+
+    return `${valueText} your whole cart`;
   };
 
   const buildAppliesTo = (offer: Offer) => {
@@ -307,7 +312,11 @@ export default function OffersScreen() {
     }
 
     if (offer.applies_to === "product") {
-      return "Applies to selected products";
+      const products = offer.targets.products.map((p) => p.name_en).filter(Boolean);
+      if (products.length === 0) return "Applies to selected products";
+      const preview = products.slice(0, 2);
+      const remaining = products.length - preview.length;
+      return `Includes: ${preview.join(", ")}${remaining > 0 ? ` +${remaining} more` : ""}`;
     }
 
     return "Applies to your cart";
@@ -342,116 +351,111 @@ export default function OffersScreen() {
     return chips;
   };
 
-  const stateBadge = (offer: Offer) => {
+  const getPrimaryCta = (offer: Offer) => {
     const reason = offer.eligibility.reason;
 
     if (!isAuthenticated) {
       return {
-        label: "Login to apply",
-        color: Colors.neutralMedium,
-        message: "Log in to apply this offer at checkout",
-        cta: "Log in to use",
-        ctaEnabled: true,
+        label: "Log in to use",
+        enabled: true,
+        action: "login" as const,
       };
     }
 
     if (offer.status === "expired") {
       return {
         label: "Expired",
-        color: Colors.neutralMedium,
-        message: "This offer has expired",
-        cta: "Expired",
-        ctaEnabled: false,
+        enabled: false,
+        action: "none" as const,
       };
     }
 
     if (offer.status === "ended") {
       return {
         label: "Ended",
-        color: Colors.neutralMedium,
-        message: "This offer reached its limit",
-        cta: "Ended",
-        ctaEnabled: false,
+        enabled: false,
+        action: "none" as const,
       };
     }
 
     if (offer.status === "upcoming") {
       return {
         label: "Starts soon",
-        color: Colors.accentOrange,
-        message: buildValidity(offer),
-        cta: "Starts soon",
-        ctaEnabled: false,
+        enabled: false,
+        action: "none" as const,
       };
     }
 
     if (offer.eligibility.state === "pending") {
       return {
-        label: "Almost there",
-        color: Colors.accentOrange,
-        message: offer.eligibility.message,
-        cta: "View items",
-        ctaEnabled: true,
+        label: "View items",
+        enabled: true,
+        action: "items" as const,
       };
     }
 
     if (reason === "MINIMUM_NOT_MET") {
       return {
-        label: "Almost there",
-        color: Colors.accentOrange,
-        message: "Add more to reach the minimum",
-        cta: "Continue shopping",
-        ctaEnabled: true,
+        label: "Continue shopping",
+        enabled: true,
+        action: "browse" as const,
       };
     }
 
     if (reason === "USER_LIMIT_REACHED") {
       return {
         label: "Used",
-        color: Colors.neutralMedium,
-        message: "You already used this offer",
-        cta: "Used",
-        ctaEnabled: false,
+        enabled: false,
+        action: "none" as const,
       };
     }
 
     if (reason === "USAGE_LIMIT_REACHED") {
       return {
         label: "Ended",
-        color: Colors.neutralMedium,
-        message: "This offer reached its limit",
-        cta: "Ended",
-        ctaEnabled: false,
+        enabled: false,
+        action: "none" as const,
       };
     }
 
     if (reason === "EXPIRED") {
       return {
         label: "Expired",
-        color: Colors.neutralMedium,
-        message: "This offer has expired",
-        cta: "Expired",
-        ctaEnabled: false,
+        enabled: false,
+        action: "none" as const,
       };
     }
 
     if (offer.eligibility.state === "valid") {
       return {
-        label: "Ready to use",
-        color: Colors.primary700,
-        message: "Apply at checkout to save now",
-        cta: "Apply",
-        ctaEnabled: true,
+        label: "Apply",
+        enabled: true,
+        action: "apply" as const,
       };
     }
 
     return {
-      label: "Not eligible",
-      color: Colors.accentRed,
-      message: offer.eligibility.message || "Not eligible",
-      cta: "Not eligible",
-      ctaEnabled: false,
+      label: "Unavailable",
+      enabled: false,
+      action: "none" as const,
     };
+  };
+
+  const getTimingBadge = (offer: Offer) => {
+    if (offer.status === "upcoming") {
+      return { label: buildValidity(offer), tone: "upcoming" as const };
+    }
+
+    if (offer.valid_until) {
+      const diffMs = new Date(offer.valid_until).getTime() - Date.now();
+      const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      if (daysLeft <= 3 && daysLeft >= 0) {
+        return { label: `Ends in ${daysLeft}d`, tone: "urgent" as const };
+      }
+      return { label: "Limited time", tone: "limited" as const };
+    }
+
+    return { label: "Limited time", tone: "limited" as const };
   };
 
   const skeletonOpacity = shimmerAnim.interpolate({
@@ -591,7 +595,8 @@ export default function OffersScreen() {
               const validity = buildValidity(offer);
               const benefit = buildPrimaryBenefit(offer);
               const appliesLine = buildAppliesTo(offer);
-              const state = stateBadge(offer);
+              const timingBadge = getTimingBadge(offer);
+              const primaryCta = getPrimaryCta(offer);
 
               return (
                 <View key={offer.id} style={styles.offerCard}>
@@ -609,10 +614,34 @@ export default function OffersScreen() {
                                 : "Whole cart"}
                       </Text>
                     </View>
-                    {offer.ending_soon && (
-                      <View style={styles.endsSoonBadge}>
-                        <Clock size={12} color={Colors.neutralWhite} />
-                        <Text style={styles.endsSoonText}>Ends soon</Text>
+                    {timingBadge && (
+                      <View
+                        style={[
+                          styles.timeBadge,
+                          timingBadge.tone === "urgent" && styles.timeBadgeUrgent,
+                          timingBadge.tone === "limited" && styles.timeBadgeLimited,
+                          timingBadge.tone === "upcoming" && styles.timeBadgeUpcoming,
+                        ]}
+                      >
+                        <Clock
+                          size={12}
+                          color={
+                            timingBadge.tone === "urgent"
+                              ? Colors.neutralWhite
+                              : timingBadge.tone === "limited"
+                                ? Colors.accentOrange
+                                : Colors.neutralMedium
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.timeBadgeText,
+                            timingBadge.tone === "urgent" && styles.timeBadgeTextUrgent,
+                            timingBadge.tone === "limited" && styles.timeBadgeTextLimited,
+                          ]}
+                        >
+                          {timingBadge.label}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -621,7 +650,10 @@ export default function OffersScreen() {
                   <Text style={styles.appliesTo}>{appliesLine}</Text>
 
                   <View style={styles.validityRow}>
-                    <Text style={styles.validityText}>{validity}</Text>
+                    <View style={styles.validityBadge}>
+                      <Clock size={12} color={Colors.neutralMedium} />
+                      <Text style={styles.validityText}>{validity}</Text>
+                    </View>
                   </View>
 
                   {requirements.length > 0 && (
@@ -643,32 +675,38 @@ export default function OffersScreen() {
                         onPress={() => handleCopy(offer.code)}
                       >
                         <Copy size={14} color={Colors.primary900} />
-                        <Text style={styles.copyText}>Copy</Text>
+                        <Text style={styles.copyText}>
+                          {copiedCode === offer.code ? "Copied" : "Copy"}
+                        </Text>
                       </TouchableOpacity>
                     </View>
-                  </View>
-
-                  <View style={styles.stateRow}>
-                    <View style={[styles.statePill, { borderColor: state.color }]}>
-                      <Text style={[styles.stateText, { color: state.color }]}>
-                        {state.label}
-                      </Text>
-                    </View>
-                    <Text style={styles.stateMessage}>{state.message}</Text>
                   </View>
 
                   <View style={styles.ctaRow}>
                     <TouchableOpacity
                       style={[
                         styles.applyButton,
-                        !state.ctaEnabled && styles.applyButtonDisabled,
+                        !primaryCta.enabled && styles.applyButtonDisabled,
                       ]}
-                      onPress={() =>
-                        state.ctaEnabled ? handleApply(offer) : undefined
-                      }
-                      disabled={!state.ctaEnabled}
+                      onPress={() => {
+                        if (!primaryCta.enabled) return;
+                        if (primaryCta.action === "login") {
+                          router.push("/(auth)/login");
+                          return;
+                        }
+                        if (primaryCta.action === "items") {
+                          handleViewEligibleItems(offer);
+                          return;
+                        }
+                        if (primaryCta.action === "browse") {
+                          router.push("/(tabs)/categories" as any);
+                          return;
+                        }
+                        handleApply(offer);
+                      }}
+                      disabled={!primaryCta.enabled}
                     >
-                      <Text style={styles.applyButtonText}>{state.cta}</Text>
+                      <Text style={styles.applyButtonText}>{primaryCta.label}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -922,19 +960,34 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold as "700",
     color: Colors.accentOrange,
   },
-  endsSoonBadge: {
+  timeBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: 12,
+    backgroundColor: Colors.neutralLight,
+  },
+  timeBadgeUrgent: {
     backgroundColor: Colors.accentOrange,
   },
-  endsSoonText: {
+  timeBadgeLimited: {
+    backgroundColor: `${Colors.accentYellow}33`,
+  },
+  timeBadgeUpcoming: {
+    backgroundColor: Colors.neutralLight,
+  },
+  timeBadgeText: {
     fontSize: Typography.bodySmall,
-    color: Colors.neutralWhite,
+    color: Colors.neutralMedium,
     fontWeight: Typography.semibold,
+  },
+  timeBadgeTextUrgent: {
+    color: Colors.neutralWhite,
+  },
+  timeBadgeTextLimited: {
+    color: Colors.accentOrange,
   },
   primaryBenefit: {
     fontSize: Typography.h3,
@@ -948,6 +1001,16 @@ const styles = StyleSheet.create({
   },
   validityRow: {
     marginTop: Spacing.xs,
+  },
+  validityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.neutralLight,
+    alignSelf: "flex-start",
   },
   validityText: {
     fontSize: Typography.bodySmall,
@@ -1004,25 +1067,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySmall,
     color: Colors.primary900,
     fontWeight: Typography.semibold,
-  },
-  stateRow: {
-    marginTop: Spacing.sm,
-    gap: Spacing.xs,
-  },
-  statePill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  stateText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.semibold,
-  },
-  stateMessage: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
   },
   ctaRow: {
     flexDirection: "row",
