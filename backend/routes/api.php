@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CheckoutController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -72,13 +73,16 @@ Route::prefix('v1')->group(function () {
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::post('auth/confirm-password', [AuthController::class, 'confirmPassword']);
 
-        // User profile endpoints
+        // User profile endpoints - password required for sensitive changes
         Route::get('profile', [AuthController::class, 'getProfile']);
-        Route::put('profile', [AuthController::class, 'updateProfile']);
+        Route::middleware('password.confirm')->group(function () {
+            Route::put('profile', [AuthController::class, 'updateProfile']);
+            Route::delete('profile/avatar', [AuthController::class, 'deleteAvatar']);
+            Route::put('profile/change-password', [AuthController::class, 'changePassword']);
+        });
         Route::post('profile/avatar', [AuthController::class, 'uploadAvatar']);
-        Route::delete('profile/avatar', [AuthController::class, 'deleteAvatar']);
-        Route::put('profile/change-password', [AuthController::class, 'changePassword']);
 
         // Address management endpoints
         Route::get('addresses', [AddressController::class, 'index']);
@@ -87,19 +91,19 @@ Route::prefix('v1')->group(function () {
         Route::put('addresses/{id}', [AddressController::class, 'update']);
         Route::delete('addresses/{id}', [AddressController::class, 'destroy']);
         Route::post('addresses/{id}/default', [AddressController::class, 'setDefault']);
-        // Payment Methods CRUD (Phase 4)
+        // Payment Methods CRUD (Phase 4) - password required for deletion
         Route::prefix('payment-methods')->group(function () {
             Route::get('/', [PaymentMethodController::class, 'index']);
             Route::put('/{id}/default', [PaymentMethodController::class, 'setDefault']);
-            Route::delete('/{id}', [PaymentMethodController::class, 'destroy']);
+            Route::middleware('password.confirm')->delete('/{id}', [PaymentMethodController::class, 'destroy']);
         });
-        // Checkout endpoints
+        // Checkout endpoints - password required for payment processing
         Route::prefix('checkout')->group(function () {
             Route::get('/addresses', [CheckoutController::class, 'getAddresses']);
             Route::get('/delivery-slots', [CheckoutController::class, 'getDeliverySlots']);
             Route::get('/payment-methods', [CheckoutController::class, 'getPaymentMethods']);
             Route::post('/calculate', [CheckoutController::class, 'calculateSummary']);
-            Route::post('/process-payment', [CheckoutController::class, 'processPayment']);
+            Route::middleware('password.confirm')->post('/process-payment', [CheckoutController::class, 'processPayment']);
             Route::get('/payment-options/{orderId}', [CheckoutController::class, 'getPaymentOptions']);
             Route::post('/validate-promo', [CheckoutController::class, 'validatePromoCode']);
         });
@@ -113,16 +117,22 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
         });
 
-        // Payment endpoints (protected)
+        // Notification endpoints
+        Route::prefix('notifications')->group(function () {
+            Route::post('/token', [NotificationController::class, 'saveToken']);
+            Route::delete('/token', [NotificationController::class, 'removeToken']);
+        });
+
+        // Payment endpoints (protected) - password required for payment initiation
         Route::prefix('payments')->group(function () {
             // Pre-check payment (NEW - validates Paymob BEFORE order creation)
-            Route::post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
+            Route::middleware('password.confirm')->post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
 
             // Initiate payment (creates payment record)
-            Route::post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
+            Route::middleware('password.confirm')->post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
 
             // Initiate payment with saved card (Phase 5)
-            Route::post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
+            Route::middleware('password.confirm')->post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
 
             // Check payment status for polling (per-payment query)
             Route::get('/status/{paymentId}', [PaymentController::class, 'checkStatus']);

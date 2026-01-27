@@ -48,10 +48,10 @@ export default function CategoriesScreen() {
     loadCategories();
   }, []);
 
-  const loadCategories = async () => {
+  const loadCategories = async (forceRefresh = false) => {
     try {
       setLoading(true);
-      const response = await getCategories();
+      const response = await getCategories(!forceRefresh); // useCache = !forceRefresh
       console.log(
         "✅ Categories response:",
         JSON.stringify(response).substring(0, 200),
@@ -119,7 +119,7 @@ export default function CategoriesScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadCategories();
+    await loadCategories(true); // Force refresh from server, bypass cache
     setRefreshing(false);
   };
 

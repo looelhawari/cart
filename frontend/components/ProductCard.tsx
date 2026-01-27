@@ -8,6 +8,7 @@ import { Product } from "@/types";
 import { useStore } from "@/store";
 import RatingStars from "./RatingStars";
 import { getCachedImage } from "@/services/cache/imageCache";
+import { SaleBadge } from "./SaleBadge";
 
 interface ProductCardProps {
   product: Product;
@@ -59,14 +60,13 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
           />
         </TouchableOpacity>
         {hasDiscount && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>
-              {Math.round(
-                ((displayPrice - displaySalePrice) / displayPrice) * 100
-              )}
-              % OFF
-            </Text>
-          </View>
+          <SaleBadge
+            discountPercentage={Math.round(
+              ((displayPrice - displaySalePrice) / displayPrice) * 100
+            )}
+            small
+            position="top-left"
+          />
         )}
       </View>
 
@@ -125,22 +125,21 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.neutralWhite,
-    borderRadius: 24,
+    borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: `${Colors.neutralGray}50`,
-    width: 180,
-    height: 320,  
+    borderColor: Colors.neutralGray,
+    flex: 1,
   },
   imageContainer: {
     position: "relative",
     width: "100%",
-    height: 140,
+    aspectRatio: 1,
     backgroundColor: Colors.neutralCloud,
   },
   image: {
@@ -180,26 +179,22 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.sm,
-    flex: 1,
-    justifyContent: "space-between",
   },
   name: {
     fontSize: Typography.bodyMedium,
     fontWeight: Typography.semibold,
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.xs,
-    height: 36,
+    minHeight: 34,
   },
   ratingContainer: {
     marginBottom: Spacing.xs,
-    height: 20,
   },
   priceRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: Spacing.sm,
-    flexWrap: "wrap", 
-    minHeight: 28,
+    flexWrap: "wrap",
   },
   price: {
     fontSize: Typography.bodyLarge,

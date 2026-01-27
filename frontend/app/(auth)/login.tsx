@@ -18,6 +18,7 @@ import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
+import { useResponsive } from "@/hooks/useResponsive";
 import { StatusBar } from "expo-status-bar";
 import { Eye, EyeOff, Mail, Lock as LockIcon, Fingerprint } from "lucide-react-native";
 import {
@@ -39,6 +40,7 @@ import {
 export default function LoginScreen() {
   const router = useRouter();
   const { login, socialLogin } = useStore();
+  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -191,6 +193,228 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors.neutralWhite,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      paddingTop: isSmallDevice ? Spacing.xxl : Spacing.xxxl,
+      paddingBottom: Spacing.xl,
+    },
+    header: {
+      marginBottom: isSmallDevice ? Spacing.lg : Spacing.xxl,
+    },
+    title: {
+      fontSize: isSmallDevice ? Typography.h2 : Typography.h1,
+      fontFamily: "Poppins_700Bold",
+      color: Colors.neutralCharcoal,
+      marginBottom: Spacing.xs,
+    },
+    subtitle: {
+      fontSize: isSmallDevice ? Typography.bodyBase : Typography.bodyLarge,
+      fontFamily: "Poppins_400Regular",
+      color: Colors.neutralMedium,
+    },
+    form: {
+      gap: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    inputContainer: {
+      gap: Spacing.xs,
+    },
+    label: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_600SemiBold",
+      color: Colors.neutralCharcoal,
+    },
+    inputWrapper: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: Colors.neutralCloud,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: Colors.neutralGray,
+      minHeight: isSmallDevice ? 50 : 56,
+      paddingHorizontal: Spacing.md,
+    },
+    inputIcon: {
+      marginRight: Spacing.sm,
+    },
+    input: {
+      flex: 1,
+      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
+      fontFamily: "Poppins_400Regular",
+      color: Colors.neutralCharcoal,
+    },
+    passwordInput: {
+      paddingRight: Spacing.xxl,
+    },
+    eyeIcon: {
+      padding: Spacing.xs,
+      position: "absolute",
+      right: Spacing.sm,
+    },
+    optionsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    rememberRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.xs,
+    },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: Colors.neutralGray,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    checkboxChecked: {
+      backgroundColor: Colors.primary900,
+      borderColor: Colors.primary900,
+    },
+    checkmark: {
+      color: Colors.neutralWhite,
+      fontSize: 16,
+      fontFamily: "Poppins_700Bold",
+    },
+    rememberText: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_400Regular",
+      color: Colors.neutralCharcoal,
+    },
+    forgotText: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_600SemiBold",
+      color: Colors.primary900,
+    },
+    loginButton: {
+      backgroundColor: Colors.primary900,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: 16,
+      alignItems: "center",
+      minHeight: isSmallDevice ? 50 : 56,
+      justifyContent: "center",
+      shadowColor: Colors.primary900,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+      marginTop: Spacing.md,
+    },
+    loginButtonText: {
+      color: Colors.neutralWhite,
+      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
+      fontFamily: "Poppins_700Bold",
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    biometricButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.sm,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: Colors.primary900,
+      backgroundColor: Colors.neutralWhite,
+      marginTop: Spacing.md,
+      minHeight: isSmallDevice ? 50 : 56,
+    },
+    biometricButtonText: {
+      color: Colors.primary900,
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_600SemiBold",
+    },
+    divider: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginVertical: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: Colors.neutralGray,
+    },
+    dividerText: {
+      marginHorizontal: Spacing.md,
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_400Regular",
+      color: Colors.neutralMedium,
+    },
+    socialButtons: {
+      gap: Spacing.md,
+    },
+    socialButton: {
+      flexDirection: "row",
+      backgroundColor: Colors.neutralWhite,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      paddingHorizontal: Spacing.lg,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: Colors.neutralGray,
+      minHeight: isSmallDevice ? 50 : 56,
+      gap: Spacing.sm,
+    },
+    googleButton: {
+      borderColor: "#E8E8E8",
+      backgroundColor: Colors.neutralWhite,
+    },
+    googleIconContainer: {
+      width: 20,
+      height: 20,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    googleButtonText: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_600SemiBold",
+      color: Colors.neutralCharcoal,
+    },
+    appleButton: {
+      backgroundColor: "#000000",
+      borderColor: "#000000",
+    },
+    appleIcon: {
+      fontSize: 20,
+      color: Colors.neutralWhite,
+    },
+    appleButtonText: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: "Poppins_600SemiBold",
+      color: Colors.neutralWhite,
+    },
+    signupRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: Spacing.md,
+    },
+    signupText: {
+      fontSize: Typography.bodyBase,
+      fontFamily: "Poppins_400Regular",
+      color: Colors.neutralMedium,
+    },
+    signupLink: {
+      fontSize: Typography.bodyBase,
+      fontFamily: "Poppins_700Bold",
+      color: Colors.primary900,
+    },
+  });
 
   return (
     <SafeAreaView style={styles.container}>

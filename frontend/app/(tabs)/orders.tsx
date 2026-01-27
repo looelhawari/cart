@@ -20,6 +20,7 @@ import {
   ShoppingBag,
 } from "lucide-react-native";
 import { router } from "expo-router";
+import { useResponsive } from "@/hooks/useResponsive";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -30,6 +31,7 @@ import { useStore } from "@/store";
 type TabType = "all" | "active" | "delivered" | "cancelled";
 
 export default function OrdersScreen() {
+  const { wp, hp, isSmallDevice } = useResponsive();
   const { user } = useStore();
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [orders, setOrders] = useState<Order[]>([]);
@@ -39,6 +41,14 @@ export default function OrdersScreen() {
   useEffect(() => {
     if (user) {
       fetchOrders();
+
+      // Set up polling to refresh orders every 60 seconds
+      const pollInterval = setInterval(() => {
+        fetchOrders();
+      }, 60000); // 60 seconds
+
+      // Cleanup interval on unmount
+      return () => clearInterval(pollInterval);
     }
   }, [user, activeTab]);
 
@@ -123,6 +133,187 @@ export default function OrdersScreen() {
         return Colors.neutralMedium;
     }
   };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors.neutralCloud,
+    },
+    header: {
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      paddingVertical: Spacing.md,
+    },
+    title: {
+      fontSize: isSmallDevice ? Typography.h2 : Typography.h1,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+    },
+    tabContainer: {
+      flexDirection: "row",
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      marginBottom: Spacing.md,
+      gap: isSmallDevice ? 4 : Spacing.sm,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: Spacing.sm,
+      borderRadius: 12,
+      alignItems: "center",
+      backgroundColor: Colors.neutralWhite,
+    },
+    activeTab: {
+      backgroundColor: Colors.primary900,
+    },
+    tabText: {
+      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
+      fontWeight: Typography.semibold,
+      color: Colors.neutralMedium,
+    },
+    activeTabText: {
+      color: Colors.neutralWhite,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: Spacing.xl,
+    },
+    emptyTitle: {
+      fontSize: isSmallDevice ? Typography.h3 : Typography.h2,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+      marginTop: Spacing.lg,
+      marginBottom: Spacing.sm,
+    },
+    emptyText: {
+      fontSize: Typography.bodyBase,
+      color: Colors.neutralMedium,
+      textAlign: "center",
+      marginBottom: Spacing.lg,
+    },
+    shopButton: {
+      backgroundColor: Colors.primary900,
+      paddingHorizontal: Spacing.xl,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: 16,
+      minHeight: isSmallDevice ? 44 : 50,
+    },
+    shopButtonText: {
+      fontSize: Typography.bodyLarge,
+      fontWeight: Typography.bold,
+      color: Colors.neutralWhite,
+    },
+    loginButton: {
+      backgroundColor: Colors.primary900,
+      paddingHorizontal: Spacing.xl,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: 16,
+      minHeight: isSmallDevice ? 44 : 50,
+    },
+    loginButtonText: {
+      fontSize: Typography.bodyLarge,
+      fontWeight: Typography.bold,
+      color: Colors.neutralWhite,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    orderCard: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: 24,
+      padding: isSmallDevice ? Spacing.sm : Spacing.md,
+      marginBottom: isSmallDevice ? Spacing.sm : Spacing.md,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    orderHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: Spacing.md,
+    },
+    orderHeaderLeft: {
+      flex: 1,
+    },
+    orderNumber: {
+      fontSize: isSmallDevice ? Typography.bodyBase : Typography.bodyLarge,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+      marginBottom: 4,
+    },
+    orderDate: {
+      fontSize: Typography.bodyMedium,
+      color: Colors.neutralMedium,
+    },
+    statusBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    statusText: {
+      fontSize: Typography.bodySmall,
+      fontWeight: Typography.semibold,
+    },
+    orderItems: {
+      flexDirection: "row",
+      gap: Spacing.xs,
+      marginBottom: Spacing.md,
+    },
+    miniItem: {
+      width: isSmallDevice ? 45 : 50,
+      height: isSmallDevice ? 45 : 50,
+      borderRadius: 12,
+      overflow: "hidden",
+    },
+    miniImage: {
+      width: "100%",
+      height: "100%",
+      backgroundColor: Colors.neutralLight,
+    },
+    moreItems: {
+      width: isSmallDevice ? 45 : 50,
+      height: isSmallDevice ? 45 : 50,
+      borderRadius: 12,
+      backgroundColor: Colors.neutralLight,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    moreItemsText: {
+      fontSize: Typography.bodySmall,
+      fontWeight: Typography.bold,
+      color: Colors.neutralMedium,
+    },
+    orderFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingTop: Spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: Colors.neutralLight,
+    },
+    orderTotal: {
+      fontSize: isSmallDevice ? Typography.bodyBase : Typography.bodyLarge,
+      fontWeight: Typography.bold,
+      color: Colors.primary900,
+    },
+    viewDetails: {
+      fontSize: Typography.bodyBase,
+      fontWeight: Typography.semibold,
+      color: Colors.primary900,
+    },
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -252,181 +443,3 @@ export default function OrdersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  header: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  title: {
-    fontSize: Typography.h1,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: 12,
-    alignItems: "center",
-    backgroundColor: Colors.neutralWhite,
-  },
-  activeTab: {
-    backgroundColor: Colors.primary900,
-  },
-  tabText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralMedium,
-  },
-  activeTabText: {
-    color: Colors.neutralWhite,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: Typography.h2,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  emptyText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-    textAlign: "center",
-    marginBottom: Spacing.lg,
-  },
-  shopButton: {
-    backgroundColor: Colors.primary900,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-  },
-  shopButtonText: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
-  loginButton: {
-    backgroundColor: Colors.primary900,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-  },
-  loginButtonText: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-  },
-  orderCard: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 24,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  orderHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: Spacing.md,
-  },
-  orderHeaderLeft: {
-    flex: 1,
-  },
-  orderNumber: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
-  },
-  orderDate: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statusText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.semibold,
-  },
-  orderItems: {
-    flexDirection: "row",
-    gap: Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  miniItem: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  miniImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.neutralLight,
-  },
-  moreItems: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: Colors.neutralLight,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  moreItemsText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.bold,
-    color: Colors.neutralMedium,
-  },
-  orderFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutralLight,
-  },
-  orderTotal: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-  },
-  viewDetails: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.primary900,
-  },
-});

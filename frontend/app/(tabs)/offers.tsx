@@ -1,268 +1,475 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
   Image,
-  Dimensions,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
-import { Zap, Tag, Star, TrendingUp, Clock, Percent } from 'lucide-react-native';
-
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+  Tag,
+  Percent,
+  Clock,
+  Gift,
+  Sparkles,
+  ChevronRight,
+  Flame,
+  TrendingUp,
+} from 'lucide-react-native';
+import { useResponsive } from '@/hooks/useResponsive';
+import { CountdownTimer } from '@/components/CountdownTimer';
+import type { Promotion } from '@/types/promotion';
+import { getPromotions } from '@/services/api/promotionApi';
 import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
+import { Typography } from '@/constants/Typography';
+import { Spacing } from '@/constants/Spacing';
 
-const { width } = Dimensions.get('window');
-
-type OfferTab = 'flash' | 'featured' | 'clearance' | 'trending';
-
-interface Offer {
-  id: string;
-  title: string;
-  subtitle: string;
-  discount: string;
-  imageUrl: string;
-  category: string;
-  validUntil: string;
-  badge?: string;
-}
-
-const offers: Record<OfferTab, Offer[]> = {
-  flash: [
-    {
-      id: '1',
-      title: 'Flash Sale - Fresh Fruits',
-      subtitle: 'Limited Time Offer',
-      discount: 'Up to 50% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=800',
-      category: 'Fruits',
-      validUntil: '2 hours left',
-      badge: '⚡ Flash',
-    },
-    {
-      id: '2',
-      title: 'Dairy Products Deal',
-      subtitle: 'Fresh from farm',
-      discount: '40% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=800',
-      category: 'Dairy',
-      validUntil: '5 hours left',
-      badge: '⚡ Flash',
-    },
-    {
-      id: '3',
-      title: 'Organic Vegetables',
-      subtitle: 'Farm fresh',
-      discount: '35% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=800',
-      category: 'Vegetables',
-      validUntil: '3 hours left',
-      badge: '⚡ Flash',
-    },
-  ],
-  featured: [
-    {
-      id: '4',
-      title: 'Premium Bakery Items',
-      subtitle: 'Freshly baked daily',
-      discount: '25% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800',
-      category: 'Bakery',
-      validUntil: 'This week',
-      badge: '⭐ Featured',
-    },
-    {
-      id: '5',
-      title: 'Meat & Seafood',
-      subtitle: 'Premium quality',
-      discount: '30% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=800',
-      category: 'Meat',
-      validUntil: 'This week',
-      badge: '⭐ Featured',
-    },
-    {
-      id: '6',
-      title: 'Beverages Bundle',
-      subtitle: 'Stay refreshed',
-      discount: 'Buy 2 Get 1',
-      imageUrl: 'https://images.unsplash.com/photo-1546173159-315724a31696?w=800',
-      category: 'Beverages',
-      validUntil: 'This week',
-      badge: '⭐ Featured',
-    },
-  ],
-  clearance: [
-    {
-      id: '7',
-      title: 'Snacks Clearance',
-      subtitle: 'Stock up now',
-      discount: '60% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=800',
-      category: 'Snacks',
-      validUntil: 'While stocks last',
-      badge: '🔥 Clearance',
-    },
-    {
-      id: '8',
-      title: 'Household Items',
-      subtitle: 'Clear stock sale',
-      discount: '45% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1584362917165-526a968579e8?w=800',
-      category: 'Household',
-      validUntil: 'While stocks last',
-      badge: '🔥 Clearance',
-    },
-  ],
-  trending: [
-    {
-      id: '9',
-      title: 'Trending Now - Superfoods',
-      subtitle: 'Health conscious',
-      discount: '20% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=800',
-      category: 'Health',
-      validUntil: 'This month',
-      badge: '📈 Trending',
-    },
-    {
-      id: '10',
-      title: 'Plant-Based Products',
-      subtitle: 'Eco-friendly',
-      discount: '25% OFF',
-      imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=800',
-      category: 'Vegan',
-      validUntil: 'This month',
-      badge: '📈 Trending',
-    },
-  ],
-};
+type FilterType = 'all' | 'category' | 'products';
 
 export default function OffersScreen() {
-  const [activeTab, setActiveTab] = useState<OfferTab>('flash');
+  const router = useRouter();
+  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
 
-  const tabs: { key: OfferTab; label: string; icon: typeof Zap }[] = [
-    { key: 'flash', label: 'Flash', icon: Zap },
-    { key: 'featured', label: 'Featured', icon: Star },
-    { key: 'clearance', label: 'Clearance', icon: Percent },
-    { key: 'trending', label: 'Trending', icon: TrendingUp },
-  ];
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [featuredPromotion, setFeaturedPromotion] = useState<Promotion | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<FilterType>('all');
+
+  // Animation values
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const slideAnim = useState(new Animated.Value(30))[0];
+
+  useEffect(() => {
+    loadPromotions();
+  }, [filter]);
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [loading]);
+
+  const loadPromotions = async () => {
+    try {
+      setLoading(true);
+      fadeAnim.setValue(0);
+      slideAnim.setValue(30);
+
+      const response = await getPromotions({ applies_to: filter === 'all' ? undefined : filter });
+      if (response.success) {
+        const allPromotions = response.data.promotions || [];
+
+        // Find featured promotion
+        const featured = allPromotions.find((p: Promotion) => p.is_featured);
+        if (featured) {
+          setFeaturedPromotion(featured);
+          setPromotions(allPromotions.filter((p: Promotion) => p.id !== featured.id));
+        } else if (allPromotions.length > 0) {
+          setFeaturedPromotion(allPromotions[0]);
+          setPromotions(allPromotions.slice(1));
+        } else {
+          setFeaturedPromotion(null);
+          setPromotions([]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load promotions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadPromotions();
+    setRefreshing(false);
+  }, [filter]);
+
+  const navigateToPromotion = (id: number) => {
+    router.push(`/promotions/${id}` as any);
+  };
+
+  // Dynamic styles based on screen size
+  const dynamicStyles = StyleSheet.create({
+    heroCard: {
+      marginHorizontal: wp(4),
+      borderRadius: isSmallDevice ? 16 : 20,
+      overflow: 'hidden',
+      marginBottom: Spacing.lg,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    heroImage: {
+      width: '100%',
+      height: isSmallDevice ? hp(22) : hp(28),
+    },
+    heroOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    heroTitle: {
+      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontWeight: Typography.bold,
+      color: Colors.neutralWhite,
+      marginBottom: Spacing.xs,
+      textShadowColor: 'rgba(0,0,0,0.5)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 4,
+    },
+    heroSubtitle: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      color: Colors.neutralWhite,
+      opacity: 0.9,
+      textShadowColor: 'rgba(0,0,0,0.5)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 4,
+    },
+    gridContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: wp(4) - Spacing.xs,
+    },
+    gridItem: {
+      width: isLargeDevice ? '50%' : '100%',
+      padding: Spacing.xs,
+    },
+    promotionCard: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: isSmallDevice ? 12 : 16,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    cardImage: {
+      width: '100%',
+      height: isSmallDevice ? 120 : 140,
+      backgroundColor: Colors.neutralLight,
+    },
+    cardContent: {
+      padding: isSmallDevice ? Spacing.sm : Spacing.md,
+    },
+    discountBadge: {
+      position: 'absolute',
+      top: Spacing.sm,
+      right: Spacing.sm,
+      backgroundColor: Colors.accentRed,
+      paddingVertical: 4,
+      paddingHorizontal: isSmallDevice ? 8 : 12,
+      borderRadius: 8,
+    },
+    discountText: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      fontWeight: Typography.bold,
+      color: Colors.neutralWhite,
+    },
+    cardTitle: {
+      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyLarge,
+      fontWeight: Typography.semibold,
+      color: Colors.neutralCharcoal,
+      marginBottom: 4,
+    },
+    cardDescription: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      color: Colors.neutralMedium,
+      lineHeight: isSmallDevice ? 16 : 18,
+    },
+    statsCard: {
+      width: isLargeDevice ? wp(28) : wp(26),
+      marginRight: Spacing.sm,
+    },
+  });
+
+  // Filter button component
+  const FilterChip = ({ label, value, icon: Icon }: {
+    label: string;
+    value: FilterType;
+    icon: React.ComponentType<any>;
+  }) => (
+    <TouchableOpacity
+      style={[
+        styles.filterChip,
+        filter === value && styles.filterChipActive,
+      ]}
+      onPress={() => setFilter(value)}
+      activeOpacity={0.7}
+    >
+      <Icon
+        size={isSmallDevice ? 14 : 16}
+        color={filter === value ? Colors.primary900 : Colors.neutralMedium}
+      />
+      <Text style={[
+        styles.filterChipText,
+        filter === value && styles.filterChipTextActive,
+      ]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // Quick stats cards
+  const StatCard = ({ icon: Icon, value, label, color }: {
+    icon: React.ComponentType<any>;
+    value: string;
+    label: string;
+    color: string;
+  }) => (
+    <View style={[dynamicStyles.statsCard, styles.statCard, { borderLeftColor: color }]}>
+      <View style={[styles.statIconContainer, { backgroundColor: color + '15' }]}>
+        <Icon size={18} color={color} />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+
+  // Promotion card component
+  const OfferCard = ({ promotion }: { promotion: Promotion }) => {
+    const getDiscountText = () => {
+      if (promotion.discount_type === 'percentage') {
+        return `${promotion.discount_value}% OFF`;
+      } else if (promotion.discount_type === 'fixed') {
+        return `${promotion.discount_value} EGP OFF`;
+      }
+      return 'Special Offer';
+    };
+
+    return (
+      <TouchableOpacity
+        style={dynamicStyles.promotionCard}
+        onPress={() => navigateToPromotion(promotion.id)}
+        activeOpacity={0.8}
+      >
+        <View>
+          <Image
+            source={{ uri: promotion.image_url }}
+            style={dynamicStyles.cardImage}
+            resizeMode="cover"
+          />
+          <View style={dynamicStyles.discountBadge}>
+            <Text style={dynamicStyles.discountText}>{getDiscountText()}</Text>
+          </View>
+          {promotion.is_featured && (
+            <View style={styles.featuredTag}>
+              <Sparkles size={12} color={Colors.accentYellow} />
+              <Text style={styles.featuredTagText}>Featured</Text>
+            </View>
+          )}
+        </View>
+        <View style={dynamicStyles.cardContent}>
+          <Text style={dynamicStyles.cardTitle} numberOfLines={1}>
+            {promotion.title}
+          </Text>
+          <Text style={dynamicStyles.cardDescription} numberOfLines={2}>
+            {promotion.description}
+          </Text>
+          {promotion.end_date && (
+            <View style={styles.timerRow}>
+              <Clock size={12} color={Colors.accentOrange} />
+              <CountdownTimer endDate={promotion.end_date} compact />
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingIconContainer}>
+            <Tag size={40} color={Colors.primary900} />
+          </View>
+          <ActivityIndicator size="large" color={Colors.primary900} style={{ marginTop: Spacing.lg }} />
+          <Text style={styles.loadingText}>Finding the best deals for you...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Offers & Deals',
-          headerStyle: {
-            backgroundColor: Colors.neutralWhite,
-          },
-          headerTitleStyle: {
-            fontSize: Typography.h2,
-            fontWeight: Typography.bold as '700',
-            color: Colors.neutralCharcoal,
-          },
-        }}
-      />
-      <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.tabsContainer}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[Colors.primary900]}
+            tintColor={Colors.primary900}
+          />
+        }
+      >
+        {/* Header Section */}
+        <LinearGradient
+          colors={[Colors.primary900, Colors.primary800]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerIconBg}>
+              <Gift size={isSmallDevice ? 24 : 28} color={Colors.neutralWhite} />
+            </View>
+            <Text style={[styles.headerTitle, isSmallDevice && { fontSize: Typography.h3 }]}>
+              Special Offers
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              Exclusive deals & discounts just for you
+            </Text>
+          </View>
+
+          {/* Decorative elements */}
+          <View style={styles.headerDecor1} />
+          <View style={styles.headerDecor2} />
+        </LinearGradient>
+
+        {/* Quick Stats */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.statsContainer}
+        >
+          <StatCard
+            icon={Flame}
+            value={`${promotions.length + (featuredPromotion ? 1 : 0)}`}
+            label="Active Offers"
+            color={Colors.accentRed}
+          />
+          <StatCard
+            icon={Percent}
+            value="Up to 50%"
+            label="Max Discount"
+            color={Colors.primary900}
+          />
+          <StatCard
+            icon={TrendingUp}
+            value="Limited"
+            label="Time Deals"
+            color={Colors.accentOrange}
+          />
+        </ScrollView>
+
+        {/* Filter Chips */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterLabel}>Browse by type</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsContent}
+            contentContainerStyle={styles.filterContainer}
           >
-            {tabs.map(({ key, label, icon: Icon }) => (
-              <TouchableOpacity
-                key={key}
-                style={[styles.tab, activeTab === key && styles.tabActive]}
-                onPress={() => setActiveTab(key)}
-                activeOpacity={0.7}
-              >
-                <Icon
-                  size={18}
-                  color={activeTab === key ? Colors.primary900 : Colors.neutralMedium}
-                />
-                <Text
-                  style={[styles.tabText, activeTab === key && styles.tabTextActive]}
-                >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <FilterChip label="All Offers" value="all" icon={Tag} />
+            <FilterChip label="Categories" value="category" icon={Sparkles} />
+            <FilterChip label="Products" value="products" icon={Gift} />
           </ScrollView>
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-        >
-          {activeTab === 'flash' && (
-            <View style={styles.timerCard}>
-              <View style={styles.timerLeft}>
-                <Zap size={24} color={Colors.accentOrange} />
-                <View>
-                  <Text style={styles.timerTitle}>Flash Sale Active!</Text>
-                  <Text style={styles.timerSubtitle}>Limited time offers</Text>
+        <Animated.View style={{
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }}>
+          {/* Featured Hero Card */}
+          {featuredPromotion && (
+            <TouchableOpacity
+              style={dynamicStyles.heroCard}
+              onPress={() => navigateToPromotion(featuredPromotion.id)}
+              activeOpacity={0.9}
+            >
+              <Image
+                source={{ uri: featuredPromotion.image_url }}
+                style={dynamicStyles.heroImage}
+                resizeMode="cover"
+              />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={dynamicStyles.heroOverlay}
+              >
+                <View style={styles.heroBadge}>
+                  <Sparkles size={14} color={Colors.accentYellow} />
+                  <Text style={styles.heroBadgeText}>Featured Deal</Text>
                 </View>
-              </View>
-              <View style={styles.timerRight}>
-                <Clock size={16} color={Colors.accentRed} />
-                <Text style={styles.timerText}>5h 23m</Text>
-              </View>
+                <Text style={dynamicStyles.heroTitle} numberOfLines={2}>
+                  {featuredPromotion.title}
+                </Text>
+                <Text style={dynamicStyles.heroSubtitle} numberOfLines={1}>
+                  {featuredPromotion.description}
+                </Text>
+                {featuredPromotion.end_date && (
+                  <View style={styles.heroTimer}>
+                    <Clock size={14} color={Colors.neutralWhite} />
+                    <Text style={styles.heroTimerText}>Ends soon</Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* Section Title */}
+          {promotions.length > 0 && (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>More Offers</Text>
+              <Text style={styles.sectionCount}>{promotions.length} deals</Text>
             </View>
           )}
 
-          {offers[activeTab].map((offer) => (
-            <TouchableOpacity
-              key={offer.id}
-              style={styles.offerCard}
-              activeOpacity={0.9}
-              onPress={() => router.push('/categories')}
-            >
-              <Image
-                source={{ uri: offer.imageUrl }}
-                style={styles.offerImage}
-                resizeMode="cover"
-              />
-              <View style={styles.offerOverlay} />
-              <View style={styles.offerContent}>
-                {offer.badge && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{offer.badge}</Text>
-                  </View>
-                )}
-                <View style={styles.offerInfo}>
-                  <Text style={styles.category}>{offer.category}</Text>
-                  <Text style={styles.offerTitle}>{offer.title}</Text>
-                  <Text style={styles.offerSubtitle}>{offer.subtitle}</Text>
-                  <View style={styles.offerBottom}>
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discount}>{offer.discount}</Text>
-                    </View>
-                    <View style={styles.validUntil}>
-                      <Clock size={14} color={Colors.neutralWhite} />
-                      <Text style={styles.validText}>{offer.validUntil}</Text>
-                    </View>
-                  </View>
+          {/* Promotions Grid */}
+          {promotions.length > 0 ? (
+            <View style={dynamicStyles.gridContainer}>
+              {promotions.map((promotion) => (
+                <View key={promotion.id} style={dynamicStyles.gridItem}>
+                  <OfferCard promotion={promotion} />
                 </View>
+              ))}
+            </View>
+          ) : !featuredPromotion ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconContainer}>
+                <Gift size={48} color={Colors.neutralGray} />
               </View>
-            </TouchableOpacity>
-          ))}
+              <Text style={styles.emptyTitle}>No Offers Available</Text>
+              <Text style={styles.emptyText}>
+                Check back soon for amazing deals and exclusive promotions!
+              </Text>
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </Animated.View>
 
-          <View style={styles.emptyFooter}>
-            <Tag size={48} color={Colors.neutralGray} />
-            <Text style={styles.emptyText}>More deals coming soon!</Text>
-            <Text style={styles.emptySubtext}>
-              Check back regularly for new offers
-            </Text>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+        {/* Bottom Spacing */}
+        <View style={{ height: Spacing.xxxl }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -271,179 +478,271 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.neutralCloud,
   },
-  tabsContainer: {
-    backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralLight,
-  },
-  tabsContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: 20,
-    backgroundColor: Colors.neutralLight,
-  },
-  tabActive: {
-    backgroundColor: `${Colors.primary900}15`,
-  },
-  tabText: {
-    fontSize: Typography.bodyMedium,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralMedium,
-  },
-  tabTextActive: {
-    color: Colors.primary900,
-  },
-  content: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  timerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.neutralWhite,
-    padding: Spacing.md,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: Colors.accentOrange,
-    shadowColor: Colors.accentOrange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  timerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  timerTitle: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold as '700',
-    color: Colors.neutralCharcoal,
-  },
-  timerSubtitle: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-  },
-  timerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: `${Colors.accentRed}15`,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: 12,
-  },
-  timerText: {
-    fontSize: Typography.bodyMedium,
-    fontWeight: Typography.bold as '700',
-    color: Colors.accentRed,
-  },
-  offerCard: {
-    height: 220,
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  offerImage: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-  },
-  offerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  offerContent: {
+  scrollView: {
     flex: 1,
-    padding: Spacing.md,
-    justifyContent: 'space-between',
   },
-  badge: {
-    backgroundColor: Colors.neutralWhite,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  badgeText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.bold as '700',
-    color: Colors.neutralCharcoal,
-  },
-  offerInfo: {
-    gap: 4,
-  },
-  category: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.semibold,
-    color: Colors.accentLime,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  offerTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold as '700',
-    color: Colors.neutralWhite,
-  },
-  offerSubtitle: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralWhite,
-    opacity: 0.9,
-  },
-  offerBottom: {
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.xl,
   },
-  discountBadge: {
-    backgroundColor: Colors.primary900,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: 12,
+  loadingIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.primary900 + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  discount: {
+  loadingText: {
+    marginTop: Spacing.md,
     fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold as '700',
-    color: Colors.neutralWhite,
-  },
-  validUntil: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  validText: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralWhite,
-    fontWeight: Typography.semibold,
-  },
-  emptyFooter: {
-    alignItems: 'center',
-    padding: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  emptyText: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-  },
-  emptySubtext: {
-    fontSize: Typography.bodyMedium,
     color: Colors.neutralMedium,
     textAlign: 'center',
+  },
+
+  // Header
+  headerGradient: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerContent: {
+    zIndex: 10,
+  },
+  headerIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  headerTitle: {
+    fontSize: Typography.h2,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
+    marginBottom: Spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralWhite,
+    opacity: 0.85,
+  },
+  headerDecor1: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  headerDecor2: {
+    position: 'absolute',
+    bottom: -50,
+    right: 50,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  // Stats
+  statsContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.lg,
+  },
+  statCard: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 12,
+    padding: Spacing.sm,
+    borderLeftWidth: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  statValue: {
+    fontSize: Typography.bodyLarge,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+  },
+  statLabel: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginTop: 2,
+  },
+
+  // Filters
+  filterSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  filterLabel: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginBottom: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 24,
+    backgroundColor: Colors.neutralWhite,
+    borderWidth: 1.5,
+    borderColor: Colors.neutralGray,
+    marginRight: Spacing.sm,
+  },
+  filterChipActive: {
+    backgroundColor: Colors.primary100,
+    borderColor: Colors.primary900,
+  },
+  filterChipText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    fontWeight: Typography.medium,
+  },
+  filterChipTextActive: {
+    color: Colors.primary900,
+    fontWeight: Typography.semibold,
+  },
+
+  // Hero
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.sm,
+  },
+  heroBadgeText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralWhite,
+    fontWeight: Typography.semibold,
+  },
+  heroTimer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.sm,
+  },
+  heroTimerText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralWhite,
+    fontWeight: Typography.medium,
+  },
+
+  // Cards
+  featuredTag: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  featuredTagText: {
+    fontSize: 10,
+    color: Colors.accentYellow,
+    fontWeight: Typography.bold,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: Spacing.sm,
+  },
+
+  // Section
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+  },
+  sectionCount: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    backgroundColor: Colors.neutralLight,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+
+  // Empty State
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxxl,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.neutralLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.sm,
+  },
+  emptyText: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralMedium,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Spacing.lg,
+  },
+  refreshButton: {
+    backgroundColor: Colors.primary900,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: 24,
+  },
+  refreshButtonText: {
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
+    color: Colors.neutralWhite,
   },
 });

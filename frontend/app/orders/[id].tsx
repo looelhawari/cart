@@ -24,6 +24,7 @@ import {
   CreditCard,
   Wallet,
 } from "lucide-react-native";
+import { useResponsive } from "@/hooks/useResponsive";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -37,32 +38,434 @@ import {
 import { useStore } from "@/store";
 
 export default function OrderDetailsScreen() {
+  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
   const { id } = useLocalSearchParams();
   const { fetchCart } = useStore();
 
   const [order, setOrder] = useState<Order | null>(null);
+  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      fetchOrderDetails();
-    }
-  }, [id]);
+  // Create responsive styles
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors.neutralCloud,
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.md,
+    },
+    loadingText: {
+      fontSize: Typography.bodyBase,
+      color: Colors.neutralMedium,
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.md,
+    },
+    emptyTitle: {
+      fontSize: Typography.h3,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+    },
+    backButton: {
+      backgroundColor: Colors.primary900,
+      paddingHorizontal: Spacing.xl,
+      paddingVertical: Spacing.md,
+      borderRadius: 16,
+      marginTop: Spacing.md,
+    },
+    backButtonText: {
+      fontSize: Typography.bodyBase,
+      fontWeight: Typography.bold,
+      color: Colors.neutralWhite,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.md,
+      backgroundColor: Colors.neutralWhite,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.neutralLight,
+    },
+    headerButton: {
+      width: 40,
+      height: 40,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: {
+      fontSize: isSmallDevice ? Typography.bodyLarge : Typography.h3,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+    },
+    content: {
+      flex: 1,
+    },
+    orderHeader: {
+      backgroundColor: Colors.neutralWhite,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.neutralGray,
+    },
+    orderNumberRow: {
+      flexDirection: isSmallDevice ? "column" : "row",
+      justifyContent: "space-between",
+      alignItems: isSmallDevice ? "flex-start" : "center",
+      marginBottom: Spacing.xs,
+      gap: isSmallDevice ? Spacing.xs : 0,
+    },
+    orderNumber: {
+      fontSize: isSmallDevice ? Typography.bodyLarge : Typography.h3,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+    },
+    statusBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.xs,
+      paddingHorizontal: isSmallDevice ? Spacing.sm : Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: isSmallDevice ? 16 : 20,
+    },
+    statusText: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      fontWeight: Typography.semibold,
+    },
+    orderDate: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      color: Colors.neutralMedium,
+    },
+    section: {
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      marginTop: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    sectionTitle: {
+      fontSize: isSmallDevice ? Typography.bodyLarge : Typography.h4,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+      marginBottom: Spacing.md,
+    },
+    timeline: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: isSmallDevice ? 12 : 16,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    timelineItem: {
+      flexDirection: "row",
+    },
+    timelineIconContainer: {
+      alignItems: "center",
+      marginRight: isSmallDevice ? Spacing.sm : Spacing.md,
+    },
+    timelineDot: {
+      width: isSmallDevice ? 10 : 12,
+      height: isSmallDevice ? 10 : 12,
+      borderRadius: isSmallDevice ? 5 : 6,
+    },
+    timelineLine: {
+      width: 2,
+      flex: 1,
+      backgroundColor: Colors.neutralGray,
+      marginVertical: Spacing.xs,
+    },
+    timelineContent: {
+      flex: 1,
+      paddingBottom: isSmallDevice ? Spacing.sm : Spacing.md,
+    },
+    timelineStatus: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      fontWeight: Typography.semibold,
+      color: Colors.neutralCharcoal,
+      textTransform: "capitalize",
+    },
+    timelineDate: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      color: Colors.neutralMedium,
+      marginTop: 2,
+    },
+    timelineNotes: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      color: Colors.neutralMedium,
+      marginTop: Spacing.xs,
+      fontStyle: "italic",
+    },
+    infoCard: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: isSmallDevice ? 12 : 16,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    infoRow: {
+      flexDirection: "row",
+      gap: isSmallDevice ? Spacing.sm : Spacing.md,
+    },
+    infoTextContainer: {
+      flex: 1,
+    },
+    infoLabel: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      color: Colors.neutralMedium,
+      marginBottom: Spacing.xs,
+    },
+    infoValue: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      color: Colors.neutralCharcoal,
+      lineHeight: isSmallDevice ? 18 : 20,
+    },
+    paymentStatus: {
+      fontSize: Typography.bodySmall,
+      color: Colors.neutralMedium,
+      marginTop: Spacing.xs,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: Colors.neutralGray,
+      marginVertical: Spacing.md,
+    },
+    itemsContainer: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: isSmallDevice ? 12 : 16,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      gap: isSmallDevice ? Spacing.sm : Spacing.md,
+    },
+    orderItem: {
+      flexDirection: "row",
+      gap: isSmallDevice ? Spacing.sm : Spacing.md,
+      paddingBottom: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.neutralGray,
+    },
+    itemImage: {
+      width: isSmallDevice ? 50 : 60,
+      height: isSmallDevice ? 50 : 60,
+      borderRadius: 8,
+      backgroundColor: Colors.neutralGray,
+    },
+    itemInfo: {
+      flex: 1,
+      justifyContent: "center",
+    },
+    itemName: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      fontWeight: Typography.semibold,
+      color: Colors.neutralCharcoal,
+      marginBottom: 4,
+    },
+    itemQuantity: {
+      fontSize: isSmallDevice ? 11 : Typography.bodySmall,
+      color: Colors.neutralMedium,
+    },
+    itemSku: {
+      fontSize: isSmallDevice ? 10 : Typography.bodySmall,
+      color: Colors.neutralGray,
+      marginTop: 2,
+    },
+    itemPrice: {
+      fontSize: isSmallDevice ? Typography.bodyBase : Typography.bodyLarge,
+      fontWeight: Typography.bold,
+      color: Colors.primary900,
+      alignSelf: "center",
+    },
+    summaryCard: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: isSmallDevice ? 12 : 16,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    summaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: Spacing.sm,
+    },
+    summaryLabel: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      color: Colors.neutralMedium,
+    },
+    summaryValue: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      color: Colors.neutralCharcoal,
+    },
+    discountLabel: {
+      color: Colors.accentRed,
+    },
+    discountValue: {
+      color: Colors.accentRed,
+    },
+    promoRow: {
+      marginBottom: Spacing.sm,
+    },
+    promoLabel: {
+      fontSize: Typography.bodySmall,
+      color: Colors.primary700,
+      fontWeight: Typography.semibold,
+    },
+    totalLabel: {
+      fontSize: isSmallDevice ? Typography.bodyLarge : Typography.h4,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+    },
+    totalValue: {
+      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontWeight: Typography.bold,
+      color: Colors.primary900,
+    },
+    footer: {
+      flexDirection: isSmallDevice ? "column" : "row",
+      gap: isSmallDevice ? Spacing.sm : Spacing.md,
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      backgroundColor: Colors.neutralWhite,
+      borderTopWidth: 1,
+      borderTopColor: Colors.neutralGray,
+    },
+    reorderButton: {
+      flex: isSmallDevice ? undefined : 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.sm,
+      backgroundColor: Colors.neutralWhite,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: isSmallDevice ? 12 : 16,
+      borderWidth: 2,
+      borderColor: Colors.primary900,
+    },
+    reorderText: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      fontWeight: Typography.bold,
+      color: Colors.primary900,
+    },
+    cancelButton: {
+      flex: isSmallDevice ? undefined : 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: Spacing.sm,
+      backgroundColor: Colors.neutralWhite,
+      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: isSmallDevice ? 12 : 16,
+      borderWidth: 2,
+      borderColor: Colors.accentRed,
+    },
+    cancelText: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      fontWeight: Typography.bold,
+      color: Colors.accentRed,
+    },
+    modalOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+    },
+    modalContent: {
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: isSmallDevice ? 16 : 24,
+      padding: isSmallDevice ? Spacing.lg : Spacing.xl,
+      width: "100%",
+      maxWidth: 400,
+    },
+    modalTitle: {
+      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+      marginBottom: Spacing.sm,
+    },
+    modalMessage: {
+      fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
+      color: Colors.neutralMedium,
+      marginBottom: Spacing.md,
+    },
+    modalInput: {
+      backgroundColor: Colors.neutralCloud,
+      borderRadius: 12,
+      padding: Spacing.md,
+      fontSize: Typography.bodyBase,
+      color: Colors.neutralCharcoal,
+      minHeight: 80,
+      textAlignVertical: "top",
+      marginBottom: Spacing.lg,
+    },
+    modalButtons: {
+      flexDirection: "row",
+      gap: Spacing.md,
+    },
+    modalButton: {
+      flex: 1,
+      paddingVertical: Spacing.md,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    modalButtonSecondary: {
+      backgroundColor: Colors.neutralCloud,
+    },
+    modalButtonPrimary: {
+      backgroundColor: Colors.accentRed,
+    },
+    modalButtonTextSecondary: {
+      fontSize: Typography.bodyBase,
+      fontWeight: Typography.bold,
+      color: Colors.neutralCharcoal,
+    },
+    modalButtonTextPrimary: {
+      fontSize: Typography.bodyBase,
+      fontWeight: Typography.bold,
+      color: Colors.neutralWhite,
+    },
+  });
 
-  const fetchOrderDetails = async () => {
+  const fetchOrderDetails = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await getOrder(Number(id));
-      setOrder(response.data.order);
+      const newOrder = response.data.order;
+
+      // Check if status changed
+      if (order && newOrder.status !== order.status) {
+        console.log("📦 [ORDER] Status changed:", order.status, "->", newOrder.status);
+
+        // Show alert for status change
+        Alert.alert(
+          "Order Status Updated",
+          `Your order status has been updated to: ${newOrder.status_label}`,
+          [{ text: "OK" }]
+        );
+
+        setPreviousStatus(order.status);
+      }
+
+      setOrder(newOrder);
+      setLastUpdated(new Date());
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to load order details");
-      router.back();
+      if (!silent) {
+        Alert.alert("Error", error.message || "Failed to load order details");
+        router.back();
+      } else {
+        console.error("Failed to refresh order:", error);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -84,19 +487,122 @@ export default function OrderDetailsScreen() {
   };
 
   const handleReorder = async () => {
+    if (!order) return;
+
+    // Check if order is in a state that can be reordered
+    const canReorderStatus = [
+      "delivered",
+      "cancelled",
+      "failed",
+    ];
+
+    if (!canReorderStatus.includes(order.status)) {
+      Alert.alert(
+        "Cannot Reorder",
+        "You can only reorder completed, cancelled, or failed orders. This order is still active.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     setReordering(true);
     try {
-      await reorder(Number(id));
+      console.log("🛒 [REORDER] Starting reorder for order ID:", id);
+      const response = await reorder(Number(id));
+      console.log("🛒 [REORDER] API Response:", JSON.stringify(response.data?.summary, null, 2));
+
+      // Force fetch cart from backend to ensure sync
+      console.log("🔄 [REORDER] Refreshing cart from backend...");
       await fetchCart();
-      Alert.alert("Success", "Items added to cart!", [
-        { text: "View Cart", onPress: () => router.push("/(tabs)/cart") },
-        { text: "OK" },
-      ]);
+      console.log("✅ [REORDER] Cart refreshed successfully");
+
+      const summary = response.data?.summary;
+      const unavailableItems = response.data?.unavailable_items || [];
+
+      if (!summary) {
+        Alert.alert("Success", "Items have been added to your cart!", [
+          { text: "OK", style: "cancel" },
+          {
+            text: "View Cart",
+            onPress: async () => {
+              // Give store a moment to update before navigating
+              await new Promise(resolve => setTimeout(resolve, 200));
+              router.push("/(tabs)/cart");
+            }
+          },
+        ]);
+        return;
+      }
+
+      const { items_added, items_unavailable, total_items_requested } = summary;
+
+      if (items_added === 0) {
+        // Build message with unavailable items details
+        let message = "Sorry, none of the items from this order are currently available.\n\n";
+        if (unavailableItems.length > 0) {
+          message += "Unavailable items:\n";
+          unavailableItems.forEach((item: any) => {
+            const reason =
+              item.reason === "discontinued"
+                ? "discontinued"
+                : item.reason === "inactive"
+                  ? "no longer available"
+                  : "out of stock";
+            message += `• ${item.product_name} (${reason})\n`;
+          });
+        }
+
+        Alert.alert("Items Unavailable", message, [{ text: "OK" }]);
+      } else if (items_unavailable > 0) {
+        // Partial reorder
+        let message = `${items_added} of ${total_items_requested} items were added to your cart.\n\n`;
+        message += "Unavailable items:\n";
+        unavailableItems.forEach((item: any) => {
+          const reason =
+            item.reason === "discontinued"
+              ? "discontinued"
+              : item.reason === "inactive"
+                ? "no longer available"
+                : "out of stock";
+          message += `• ${item.product_name} (${reason})\n`;
+        });
+
+        Alert.alert("Partial Reorder", message, [
+          { text: "OK", style: "cancel" },
+          {
+            text: "View Cart",
+            onPress: async () => {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              router.push("/(tabs)/cart");
+            }
+          },
+        ]);
+      } else {
+        // All items added successfully
+        Alert.alert(
+          "Success",
+          `All ${items_added} item${items_added > 1 ? "s" : ""} have been added to your cart!`,
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "View Cart",
+              onPress: async () => {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                router.push("/(tabs)/cart");
+              }
+            },
+          ]
+        );
+      }
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to reorder");
     } finally {
       setReordering(false);
     }
+  };
+
+  const canReorderOrder = (status: string) => {
+    return ["delivered", "cancelled", "failed"].includes(status);
   };
 
   const getStatusIcon = (status: string) => {
@@ -144,6 +650,20 @@ export default function OrderDetailsScreen() {
   const canCancelOrder = (status: string) => {
     return ["pending", "processing", "confirmed"].includes(status);
   };
+
+  useEffect(() => {
+    if (id) {
+      fetchOrderDetails();
+
+      // Set up polling to refresh order status every 30 seconds
+      const pollInterval = setInterval(() => {
+        fetchOrderDetails(true); // Silent refresh
+      }, 30000); // 30 seconds
+
+      // Cleanup interval on unmount
+      return () => clearInterval(pollInterval);
+    }
+  }, [id]);
 
   if (loading) {
     return (
@@ -220,6 +740,20 @@ export default function OrderDetailsScreen() {
               minute: "2-digit",
             })}
           </Text>
+          {lastUpdated && (
+            <Text
+              style={{
+                fontSize: 10,
+                color: Colors.neutralGray,
+                marginTop: 4,
+              }}
+            >
+              Last updated: {lastUpdated.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          )}
         </View>
 
         {/* Status History Timeline */}
@@ -336,11 +870,31 @@ export default function OrderDetailsScreen() {
                     ? "Cash on Delivery"
                     : "Card Payment"}
                 </Text>
-                <Text style={styles.paymentStatus}>
+                <Text
+                  style={[
+                    styles.paymentStatus,
+                    order.payment_status === "refunded" && {
+                      color: Colors.accentOrange,
+                      fontWeight: Typography.semibold,
+                    },
+                  ]}
+                >
                   Status:{" "}
                   {order.payment_status.charAt(0).toUpperCase() +
                     order.payment_status.slice(1)}
                 </Text>
+                {order.payment_status === "refunded" && (
+                  <Text
+                    style={{
+                      fontSize: isSmallDevice ? 10 : Typography.bodySmall,
+                      color: Colors.accentOrange,
+                      marginTop: Spacing.xs,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Your payment has been refunded to your original payment method
+                  </Text>
+                )}
               </View>
             </View>
           </View>
@@ -426,23 +980,8 @@ export default function OrderDetailsScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.reorderButton}
-          onPress={handleReorder}
-          disabled={reordering}
-        >
-          {reordering ? (
-            <ActivityIndicator size="small" color={Colors.primary900} />
-          ) : (
-            <>
-              <RotateCcw size={20} color={Colors.primary900} />
-              <Text style={styles.reorderText}>Reorder</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {canCancelOrder(order.status) && (
+      {canCancelOrder(order.status) && (
+        <View style={styles.footer}>
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => setShowCancelDialog(true)}
@@ -450,8 +989,8 @@ export default function OrderDetailsScreen() {
             <XCircle size={20} color={Colors.accentRed} />
             <Text style={styles.cancelText}>Cancel Order</Text>
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
 
       {/* Cancel Dialog */}
       {showCancelDialog && (
@@ -500,381 +1039,3 @@ export default function OrderDetailsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.md,
-  },
-  loadingText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.md,
-  },
-  emptyTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  backButton: {
-    backgroundColor: Colors.primary900,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-    marginTop: Spacing.md,
-  },
-  backButtonText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralLight,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  content: {
-    flex: 1,
-  },
-  orderHeader: {
-    backgroundColor: Colors.neutralWhite,
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralGray,
-  },
-  orderNumberRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  orderNumber: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.semibold,
-  },
-  orderDate: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-  },
-  section: {
-    paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: Typography.h4,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: Spacing.md,
-  },
-  timeline: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.lg,
-  },
-  timelineItem: {
-    flexDirection: "row",
-  },
-  timelineIconContainer: {
-    alignItems: "center",
-    marginRight: Spacing.md,
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: Colors.neutralGray,
-    marginVertical: Spacing.xs,
-  },
-  timelineContent: {
-    flex: 1,
-    paddingBottom: Spacing.md,
-  },
-  timelineStatus: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-    textTransform: "capitalize",
-  },
-  timelineDate: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    marginTop: 2,
-  },
-  timelineNotes: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    marginTop: Spacing.xs,
-    fontStyle: "italic",
-  },
-  infoCard: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.lg,
-  },
-  infoRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  infoTextContainer: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    marginBottom: Spacing.xs,
-  },
-  infoValue: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-    lineHeight: 20,
-  },
-  paymentStatus: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    marginTop: Spacing.xs,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.neutralGray,
-    marginVertical: Spacing.md,
-  },
-  itemsContainer: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  orderItem: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralGray,
-  },
-  itemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: Colors.neutralGray,
-  },
-  itemInfo: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  itemName: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
-  },
-  itemQuantity: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-  },
-  itemSku: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralGray,
-    marginTop: 2,
-  },
-  itemPrice: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-    alignSelf: "center",
-  },
-  summaryCard: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.lg,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  summaryLabel: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-  },
-  summaryValue: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-  },
-  discountLabel: {
-    color: Colors.accentRed,
-  },
-  discountValue: {
-    color: Colors.accentRed,
-  },
-  promoRow: {
-    marginBottom: Spacing.sm,
-  },
-  promoLabel: {
-    fontSize: Typography.bodySmall,
-    color: Colors.primary700,
-    fontWeight: Typography.semibold,
-  },
-  totalLabel: {
-    fontSize: Typography.h4,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  totalValue: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-  },
-  footer: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    backgroundColor: Colors.neutralWhite,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutralGray,
-  },
-  reorderButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    backgroundColor: Colors.neutralWhite,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.primary900,
-  },
-  reorderText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-  },
-  cancelButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    backgroundColor: Colors.neutralWhite,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.accentRed,
-  },
-  cancelText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.accentRed,
-  },
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 24,
-    padding: Spacing.xl,
-    width: "100%",
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: Spacing.sm,
-  },
-  modalMessage: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-    marginBottom: Spacing.md,
-  },
-  modalInput: {
-    backgroundColor: Colors.neutralCloud,
-    borderRadius: 12,
-    padding: Spacing.md,
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-    minHeight: 80,
-    textAlignVertical: "top",
-    marginBottom: Spacing.lg,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalButtonSecondary: {
-    backgroundColor: Colors.neutralCloud,
-  },
-  modalButtonPrimary: {
-    backgroundColor: Colors.accentRed,
-  },
-  modalButtonTextSecondary: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  modalButtonTextPrimary: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
-});

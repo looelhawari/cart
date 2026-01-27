@@ -17,6 +17,7 @@ import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
+import { useResponsive } from "@/hooks/useResponsive";
 import { StatusBar } from "expo-status-bar";
 import {
   Eye,
@@ -37,6 +38,7 @@ export default function SignupScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const register = useStore((state) => state.register);
+  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
 
   const [step, setStep] = useState<Step>(
     params.step ? parseInt(params.step as string) as Step : 1

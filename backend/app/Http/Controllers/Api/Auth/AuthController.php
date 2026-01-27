@@ -665,4 +665,47 @@ class AuthController extends Controller
             'message' => 'Phone number is available',
         ]);
     }
+
+    /**
+     * Confirm user password for sensitive actions.
+     * POST /api/v1/auth/confirm-password
+     */
+    public function confirmPassword(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Incorrect password',
+                'errors' => [
+                    'password' => ['The provided password is incorrect.'],
+                ],
+            ], 401);
+        }
+
+        // Store password confirmation timestamp in session
+        $request->session()->put('auth.password_confirmed_at', now());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password confirmed successfully',
+            'data' => [
+                'confirmed_at' => now()->toISOString(),
+                'valid_for_minutes' => 30,
+            ],
+        ]);
+    }
 }

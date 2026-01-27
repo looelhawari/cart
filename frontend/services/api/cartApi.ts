@@ -38,8 +38,9 @@ export const getCart = async (): Promise<{
   success: boolean;
   data: { cart: Cart };
 }> => {
-  const sessionId = await getSessionId();
   const token = await getAuthToken();
+  // Always send session ID to ensure cart consistency
+  const sessionId = await getSessionId();
 
   const response = await fetch(`${API_BASE_URL}/cart`, {
     method: "GET",
@@ -98,8 +99,8 @@ export const updateCartItem = async (
   itemId: number,
   quantity: number,
 ): Promise<{ success: boolean; message: string; data: { cart: Cart } }> => {
-  const sessionId = await getSessionId();
   const token = await getAuthToken();
+  const sessionId = await getSessionId();
 
   const response = await fetch(`${API_BASE_URL}/cart/items/${itemId}`, {
     method: "PUT",
@@ -125,9 +126,9 @@ export const updateCartItem = async (
  */
 export const removeCartItem = async (
   itemId: number,
-): Promise<{ success: boolean; message: string }> => {
-  const sessionId = await getSessionId();
+): Promise<{ success: boolean; message: string; data: { cart: Cart } }> => {
   const token = await getAuthToken();
+  const sessionId = await getSessionId();
 
   const response = await fetch(`${API_BASE_URL}/cart/items/${itemId}`, {
     method: "DELETE",
@@ -154,10 +155,10 @@ export const clearCart = async (): Promise<{
   success: boolean;
   message: string;
 }> => {
-  const sessionId = await getSessionId();
   const token = await getAuthToken();
+  const sessionId = await getSessionId();
 
-  const response = await fetch(`${API_BASE_URL}/cart/clear`, {
+  const response = await fetch(`${API_BASE_URL}/cart`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
@@ -181,8 +182,8 @@ export const clearCart = async (): Promise<{
 export const applyPromoCode = async (
   code: string,
 ): Promise<{ success: boolean; message: string; data: any }> => {
-  const sessionId = await getSessionId();
   const token = await getAuthToken();
+  const sessionId = await getSessionId();
 
   const response = await fetch(`${API_BASE_URL}/cart/apply-promo`, {
     method: "POST",
@@ -211,8 +212,8 @@ export const removePromoCode = async (): Promise<{
   message: string;
   data: { cart: Cart };
 }> => {
-  const sessionId = await getSessionId();
   const token = await getAuthToken();
+  const sessionId = await getSessionId();
 
   const response = await fetch(`${API_BASE_URL}/cart/remove-promo`, {
     method: "DELETE",

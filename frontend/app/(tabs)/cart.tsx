@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Minus, Plus, Trash2, ShoppingBag, Tag, X } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -29,11 +29,22 @@ export default function CartScreen() {
     clearCart,
     applyPromoCodeToCart,
     removePromoCodeFromCart,
+    fetchCart,
     user,
+    cartLoading,
   } = useStore();
   const [promoCode, setPromoCode] = useState("");
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
+
+  // Refresh cart when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchCart().catch(error => {
+        console.error("🛒 [CART SCREEN] Failed to refresh cart:", error);
+      });
+    }, [])
+  );
 
   const cartItems = cart?.items || [];
   const subtotal = cart?.subtotal || 0;
@@ -77,6 +88,18 @@ export default function CartScreen() {
     router.push("/checkout/address" as any);
   };
 
+  // Show loading state only when cartLoading is true AND cart is null/empty
+  if (cartLoading && (!cart || !cart.items || cart.items.length === 0)) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary900} />
+          <Text style={styles.loadingText}>Loading cart...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (cartItems.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -115,7 +138,7 @@ export default function CartScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
-        {cartItems.map((item) => (
+        {cartItems.map((item: any) => (
           <View key={item.id} style={styles.cartItem}>
             <Image
               source={{ uri: item.product.image }}
@@ -222,7 +245,7 @@ export default function CartScreen() {
                 style={[
                   styles.applyButton,
                   (!promoCode.trim() || isApplyingPromo) &&
-                    styles.applyButtonDisabled,
+                  styles.applyButtonDisabled,
                 ]}
                 onPress={handleApplyPromo}
                 disabled={!promoCode.trim() || isApplyingPromo}
@@ -400,6 +423,16 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
     textAlign: "center",
     marginBottom: Spacing.lg,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralMedium,
   },
   summary: {
     backgroundColor: Colors.neutralWhite,

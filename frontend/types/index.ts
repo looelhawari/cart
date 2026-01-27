@@ -7,14 +7,17 @@ export interface Product {
   description_ar?: string;
   price: number;
   sale_price?: number;
+  cost_price?: number;
   stock_quantity: number;
   image?: string;
   weight?: number;
   unit?: string;
+  nutrition_facts?: string | object; // JSON field from database
   rating?: number;
   review_count?: number;
   is_featured?: boolean;
   is_active: boolean;
+  sales_count?: number;
   created_at?: string;
   updated_at?: string;
   categories?: Category[];
@@ -29,8 +32,9 @@ export interface Product {
   category?: string;
   inStock?: boolean;
   stock?: number;
-  rating?: number;
-  reviews?: number;
+  nutritionFacts?: any;
+  ingredients?: string;
+  allergens?: string[];
 }
 
 export interface Category {
@@ -61,12 +65,12 @@ export interface Order {
   orderNumber: string;
   date: string;
   status:
-    | "processing"
-    | "confirmed"
-    | "preparing"
-    | "out_for_delivery"
-    | "delivered"
-    | "cancelled";
+  | "processing"
+  | "confirmed"
+  | "preparing"
+  | "out_for_delivery"
+  | "delivered"
+  | "cancelled";
   subtotal: number;
   deliveryFee: number;
   discount: number;

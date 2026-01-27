@@ -63,6 +63,7 @@ interface StoreState {
   cart: any | null;
   cartLoading: boolean;
   cartError: string | null;
+  setCart: (cart: any) => void;
   fetchCart: () => Promise<void>;
   addToCart: (productId: number, quantity?: number) => Promise<void>;
   removeFromCart: (itemId: number) => Promise<void>;
@@ -282,14 +283,24 @@ export const useStore = create<StoreState>()(
       cartLoading: false,
       cartError: null,
 
+      setCart: (cart: any) => {
+        set({ cart, cartLoading: false, cartError: null });
+      },
+
       fetchCart: async () => {
         set({ cartLoading: true, cartError: null });
         try {
-          const { getCart } = await import("@/services/api/cartApi");
+          const { getCart, getSessionId } = await import("@/services/api/cartApi");
+          const sessionId = await getSessionId();
+          console.log("🛒 [STORE] Fetching cart with session ID:", sessionId);
           const response = await getCart();
           console.log(
-            "Cart fetched:",
-            JSON.stringify(response.data.cart, null, 2),
+            "🛒 [STORE] Cart fetched successfully:",
+            {
+              items_count: response.data.cart?.items?.length || 0,
+              subtotal: response.data.cart?.subtotal || 0,
+              session_id: sessionId
+            }
           );
           set({ cart: response.data.cart, cartLoading: false });
         } catch (error: any) {
@@ -302,93 +313,88 @@ export const useStore = create<StoreState>()(
       },
 
       addToCart: async (productId: number, quantity: number = 1) => {
-        set({ cartLoading: true, cartError: null });
+        // Don't block UI with loading state for better responsiveness
+        set({ cartError: null });
         try {
           const { addToCart: addToCartApi } =
             await import("@/services/api/cartApi");
           const response = await addToCartApi(productId, quantity);
-          set({ cart: response.data.cart, cartLoading: false });
+          set({ cart: response.data.cart });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to add item to cart",
-            cartLoading: false,
           });
           throw error;
         }
       },
 
       removeFromCart: async (itemId: number) => {
-        set({ cartLoading: true, cartError: null });
+        set({ cartError: null });
         try {
           const { removeCartItem } = await import("@/services/api/cartApi");
-          await removeCartItem(itemId);
-          // Refresh cart after removal
-          await get().fetchCart();
+          const response = await removeCartItem(itemId);
+          // Update cart directly from response - no need for double fetch
+          set({ cart: response.data.cart });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to remove item",
-            cartLoading: false,
           });
           throw error;
         }
       },
 
       updateQuantity: async (itemId: number, quantity: number) => {
-        set({ cartLoading: true, cartError: null });
+        set({ cartError: null });
         try {
           const { updateCartItem } = await import("@/services/api/cartApi");
           const response = await updateCartItem(itemId, quantity);
-          set({ cart: response.data.cart, cartLoading: false });
+          set({ cart: response.data.cart });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to update quantity",
-            cartLoading: false,
           });
           throw error;
         }
       },
 
       clearCart: async () => {
-        set({ cartLoading: true, cartError: null });
+        set({ cartError: null });
         try {
           const { clearCart: clearCartApi } =
             await import("@/services/api/cartApi");
           await clearCartApi();
-          set({ cart: null, cartLoading: false });
+          set({ cart: null });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to clear cart",
-            cartLoading: false,
           });
           throw error;
         }
       },
 
       applyPromoCodeToCart: async (code: string) => {
-        set({ cartLoading: true, cartError: null });
+        set({ cartError: null });
         try {
           const { applyPromoCode } = await import("@/services/api/cartApi");
           const response = await applyPromoCode(code);
-          set({ cart: response.data.cart, cartLoading: false });
+          set({ cart: response.data.cart });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to apply promo code",
-            cartLoading: false,
           });
           throw error;
         }
       },
 
       removePromoCodeFromCart: async () => {
-        set({ cartLoading: true, cartError: null });
+        set({ cartError: null });
         try {
           const { removePromoCode } = await import("@/services/api/cartApi");
           const response = await removePromoCode();
-          set({ cart: response.data.cart, cartLoading: false });
+          set({ cart: response.data.cart });
         } catch (error: any) {
           set({
             cartError: error.message || "Failed to remove promo code",
-            cartLoading: false,
           });
           throw error;
         }

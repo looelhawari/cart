@@ -5,6 +5,13 @@ export const Colors = {
   primary800: '#15803d',
   primary700: '#22c55e',
   primary500: '#84cc16',
+  primary100: '#dcfce7',
+
+  // Success/Danger States
+  success900: '#16a34a',
+  success700: '#22c55e',
+  success100: '#dcfce7',
+  danger900: '#dc2626',
 
   // Neutral System
   neutralWhite: '#ffffff',

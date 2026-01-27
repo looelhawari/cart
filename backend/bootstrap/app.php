@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'force.json' => \App\Http\Middleware\ForceJsonResponse::class,
             'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'password.confirm' => \App\Http\Middleware\RequirePasswordConfirmation::class,
         ]);
 
         // Apply ForceJsonResponse and SecurityHeaders to all API routes

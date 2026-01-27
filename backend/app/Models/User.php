@@ -58,6 +58,7 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'is_verified' => 'boolean',
             'is_social_only' => 'boolean',
+            'push_tokens' => 'array',
         ];
     }
 

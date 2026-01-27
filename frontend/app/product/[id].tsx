@@ -155,7 +155,7 @@ export default function ProductDetailScreen() {
             fill={isFavorite ? Colors.primary900 : "none"}
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => {}} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => { }} style={styles.headerButton}>
           <Share2 size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -213,7 +213,7 @@ export default function ProductDetailScreen() {
       <Text style={styles.productName}>{product.name_en || product.name}</Text>
 
       <TouchableOpacity
-        onPress={() => router.push(`/product/${product.barcode}/reviews`)}
+        onPress={() => router.push(`/product/reviews/${product.barcode}`)}
         style={styles.ratingRow}
       >
         <View style={styles.stars}>
@@ -323,56 +323,118 @@ export default function ProductDetailScreen() {
     </View>
   );
 
+  const renderCategories = () => {
+    if (!product.categories || product.categories.length === 0) return null;
+    return (
+      <View style={styles.categoriesSection}>
+        <Text style={styles.categoriesTitle}>Categories</Text>
+        <View style={styles.categoryTags}>
+          {product.categories.map((category, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.categoryTag}
+              onPress={() => router.push(`/categories/${category.id}`)}
+            >
+              <Text style={styles.categoryText}>{category.name_en}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
   const renderDescription = () =>
     renderExpandableSection(
       "description",
       "About this product",
-      <Text style={styles.descriptionText}>
-        {product.description_en ||
-          product.description ||
-          "No description available"}
-      </Text>
+      <View>
+        <Text style={styles.descriptionText}>
+          {product.description_en ||
+            product.description ||
+            "No description available"}
+        </Text>
+        {product.description_ar && (
+          <View style={styles.arabicSection}>
+            <Text style={styles.arabicLabel}>الوصف بالعربية</Text>
+            <Text style={[styles.descriptionText, styles.arabicText]}>
+              {product.description_ar}
+            </Text>
+          </View>
+        )}
+      </View>
     );
 
   const renderNutrition = () => {
-    if (!product.nutritionFacts) return null;
-    const facts = product.nutritionFacts;
+    // Try to parse nutrition_facts from database (JSON field)
+    let facts = null;
+    if (product.nutrition_facts) {
+      try {
+        facts = typeof product.nutrition_facts === 'string'
+          ? JSON.parse(product.nutrition_facts)
+          : product.nutrition_facts;
+      } catch (e) {
+        console.error('Failed to parse nutrition facts:', e);
+      }
+    }
+    // Fallback to old nutritionFacts property
+    if (!facts && product.nutritionFacts) {
+      facts = product.nutritionFacts;
+    }
+
+    if (!facts) return null;
+
     return renderExpandableSection(
       "nutrition",
       "Nutrition Facts",
       <View style={styles.nutritionTable}>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Serving Size</Text>
-          <Text style={styles.nutritionValue}>{facts.servingSize}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Calories</Text>
-          <Text style={styles.nutritionValue}>{facts.calories}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Total Fat</Text>
-          <Text style={styles.nutritionValue}>{facts.totalFat}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Saturated Fat</Text>
-          <Text style={styles.nutritionValue}>{facts.saturatedFat}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Cholesterol</Text>
-          <Text style={styles.nutritionValue}>{facts.cholesterol}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Sodium</Text>
-          <Text style={styles.nutritionValue}>{facts.sodium}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Total Carbohydrate</Text>
-          <Text style={styles.nutritionValue}>{facts.totalCarbohydrate}</Text>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Protein</Text>
-          <Text style={styles.nutritionValue}>{facts.protein}</Text>
-        </View>
+        {facts.servingSize && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Serving Size</Text>
+            <Text style={styles.nutritionValue}>{facts.servingSize}</Text>
+          </View>
+        )}
+        {facts.calories && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Calories</Text>
+            <Text style={styles.nutritionValue}>{facts.calories}</Text>
+          </View>
+        )}
+        {facts.totalFat && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Total Fat</Text>
+            <Text style={styles.nutritionValue}>{facts.totalFat}</Text>
+          </View>
+        )}
+        {facts.saturatedFat && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Saturated Fat</Text>
+            <Text style={styles.nutritionValue}>{facts.saturatedFat}</Text>
+          </View>
+        )}
+        {facts.cholesterol && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Cholesterol</Text>
+            <Text style={styles.nutritionValue}>{facts.cholesterol}</Text>
+          </View>
+        )}
+        {facts.sodium && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Sodium</Text>
+            <Text style={styles.nutritionValue}>{facts.sodium}</Text>
+          </View>
+        )}
+        {facts.totalCarbohydrate && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Total Carbohydrate</Text>
+            <Text style={styles.nutritionValue}>{facts.totalCarbohydrate}</Text>
+          </View>
+        )}
+        {facts.protein && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutritionLabel}>Protein</Text>
+            <Text style={styles.nutritionValue}>{facts.protein}</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -389,18 +451,34 @@ export default function ProductDetailScreen() {
   const renderSpecs = () =>
     renderExpandableSection(
       "specs",
-      "Specifications",
+      "Product Details & Specifications",
       <View style={styles.specsTable}>
+        {product.name_ar && (
+          <View style={styles.specRow}>
+            <Text style={styles.specLabel}>Arabic Name</Text>
+            <Text style={[styles.specValue, styles.arabicText]}>
+              {product.name_ar}
+            </Text>
+          </View>
+        )}
         {product.weight && (
           <View style={styles.specRow}>
             <Text style={styles.specLabel}>Weight</Text>
-            <Text style={styles.specValue}>{product.weight}</Text>
+            <Text style={styles.specValue}>{product.weight}g</Text>
           </View>
         )}
-        <View style={styles.specRow}>
-          <Text style={styles.specLabel}>Barcode</Text>
-          <Text style={styles.specValue}>{product.barcode}</Text>
-        </View>
+        {product.unit && (
+          <View style={styles.specRow}>
+            <Text style={styles.specLabel}>Unit</Text>
+            <Text style={styles.specValue}>{product.unit}</Text>
+          </View>
+        )}
+        {product.is_featured && (
+          <View style={styles.specRow}>
+            <Text style={styles.specLabel}>Featured Product</Text>
+            <Text style={[styles.specValue, styles.featuredBadge]}>⭐ Yes</Text>
+          </View>
+        )}
       </View>
     );
 
@@ -492,6 +570,7 @@ export default function ProductDetailScreen() {
       >
         {renderImageGallery()}
         {renderProductInfo()}
+        {renderCategories()}
         {renderQuantitySelector()}
         {renderAllergens()}
         {renderDescription()}
@@ -750,6 +829,56 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyMedium,
     color: Colors.accentRed,
     fontWeight: "600",
+  },
+  categoriesSection: {
+    backgroundColor: Colors.neutralWhite,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  categoriesTitle: {
+    fontSize: Typography.bodyLarge,
+    fontWeight: "bold",
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.sm,
+  },
+  categoryTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  categoryTag: {
+    backgroundColor: Colors.primary900 + "15",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.primary900 + "30",
+  },
+  categoryText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.primary900,
+    fontWeight: "600",
+  },
+  arabicSection: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralLight,
+  },
+  arabicLabel: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "bold",
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.xs,
+    textAlign: "right",
+  },
+  arabicText: {
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  featuredBadge: {
+    color: Colors.accentYellow,
+    fontWeight: "bold",
   },
   expandableSection: {
     backgroundColor: Colors.neutralWhite,

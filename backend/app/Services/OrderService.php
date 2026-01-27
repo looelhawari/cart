@@ -298,8 +298,14 @@ class OrderService
     /**
      * Reorder - create new cart from previous order
      */
-    public function reorder(int $orderId, int $userId, ?string $sessionId = null): Cart
+    public function reorder(int $orderId, int $userId, ?string $sessionId = null): array
     {
+        \Log::info('🛒 [REORDER] Starting reorder process', [
+            'order_id' => $orderId,
+            'user_id' => $userId,
+            'session_id' => $sessionId,
+        ]);
+
         $order = Order::where('id', $orderId)
             ->where('user_id', $userId)
             ->with('items.product')
@@ -307,17 +313,57 @@ class OrderService
 
         $cart = $this->cartService->getCart($userId, $sessionId);
 
+        \Log::info('🛒 [REORDER] Cart retrieved', [
+            'cart_id' => $cart->id,
+            'existing_items' => $cart->items->count(),
+            'session_id' => $cart->session_id,
+        ]);
+
         // Clear existing cart
         $this->cartService->clearCart($cart);
+
+        $addedItems = [];
+        $unavailableItems = [];
 
         // Add items from order to cart
         foreach ($order->items as $item) {
             // Check if product still exists and is active
             if ($item->product && $item->product->is_active && $item->product->stock_quantity > 0) {
                 $this->cartService->addItem($cart, $item->product_id, $item->quantity);
+                $addedItems[] = [
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product_name,
+                    'quantity' => $item->quantity,
+                ];
+            } else {
+                $unavailableItems[] = [
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product_name,
+                    'quantity' => $item->quantity,
+                    'reason' => !$item->product ? 'discontinued' : (!$item->product->is_active ? 'inactive' : 'out_of_stock'),
+                ];
             }
         }
 
-        return $cart->fresh('items.product');
+        $cart->fresh('items.product');
+
+        \Log::info('✅ [REORDER] Reorder completed', [
+            'cart_id' => $cart->id,
+            'items_added' => count($addedItems),
+            'items_unavailable' => count($unavailableItems),
+            'final_items_count' => $cart->items->count(),
+            'session_id' => $cart->session_id,
+        ]);
+
+        return [
+            'cart' => $cart->fresh('items.product'),
+            'added_items' => $addedItems,
+            'unavailable_items' => $unavailableItems,
+            'summary' => [
+                'total_items_requested' => count($order->items),
+                'items_added' => count($addedItems),
+                'items_unavailable' => count($unavailableItems),
+            ],
+        ];
     }
 }

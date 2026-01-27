@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ShoppingBag, Tag, User, CheckCircle } from 'lucide-react-native';
 import { formatDistanceToNow } from 'date-fns';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
@@ -21,6 +22,7 @@ import { Notification } from '@/types';
 type Tab = 'all' | 'orders' | 'offers' | 'account';
 
 export default function NotificationsScreen() {
+  const { wp, hp, isSmallDevice } = useResponsive();
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [notificationList, setNotificationList] = useState(notifications);
 
@@ -86,6 +88,149 @@ export default function NotificationsScreen() {
     </TouchableOpacity>
   );
 
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors.neutralCloud,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      paddingVertical: Spacing.md,
+      backgroundColor: Colors.neutralWhite,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.neutralGray,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontFamily: 'Poppins_700Bold',
+      color: Colors.neutralCharcoal,
+      flex: 1,
+      textAlign: 'center',
+    },
+    markAllText: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: 'Poppins_600SemiBold',
+      color: Colors.primary900,
+    },
+    tabsContainer: {
+      flexDirection: 'row',
+      backgroundColor: Colors.neutralWhite,
+      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      paddingVertical: Spacing.sm,
+      gap: Spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.neutralGray,
+    },
+    tab: {
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: isSmallDevice ? Spacing.sm : Spacing.md,
+      borderRadius: 20,
+    },
+    activeTab: {
+      backgroundColor: Colors.primary900,
+    },
+    tabText: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: 'Poppins_600SemiBold',
+      color: Colors.neutralMedium,
+    },
+    activeTabText: {
+      color: Colors.neutralWhite,
+    },
+    listContent: {
+      padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      gap: Spacing.sm,
+    },
+    notificationCard: {
+      flexDirection: 'row',
+      backgroundColor: Colors.neutralWhite,
+      borderRadius: 16,
+      padding: isSmallDevice ? Spacing.sm : Spacing.md,
+      gap: isSmallDevice ? Spacing.sm : Spacing.md,
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+        },
+        android: {
+          elevation: 2,
+        },
+      }),
+    },
+    unreadCard: {
+      backgroundColor: Colors.neutralLight,
+      borderLeftWidth: 3,
+      borderLeftColor: Colors.primary900,
+    },
+    iconContainer: {
+      width: isSmallDevice ? 40 : 48,
+      height: isSmallDevice ? 40 : 48,
+      borderRadius: isSmallDevice ? 20 : 24,
+      backgroundColor: Colors.neutralLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    contentContainer: {
+      flex: 1,
+      gap: 4,
+    },
+    title: {
+      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
+      fontFamily: 'Poppins_600SemiBold',
+      color: Colors.neutralCharcoal,
+    },
+    unreadTitle: {
+      fontFamily: 'Poppins_700Bold',
+    },
+    message: {
+      fontSize: Typography.bodyMedium,
+      fontFamily: 'Poppins_400Regular',
+      color: Colors.neutralMedium,
+      lineHeight: 20,
+    },
+    timestamp: {
+      fontSize: Typography.bodySmall,
+      fontFamily: 'Poppins_400Regular',
+      color: Colors.neutralMedium,
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: Colors.primary900,
+      alignSelf: 'center',
+    },
+    emptyState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.xxl,
+    },
+    emptyTitle: {
+      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontFamily: 'Poppins_700Bold',
+      color: Colors.neutralCharcoal,
+      marginBottom: Spacing.sm,
+    },
+    emptyText: {
+      fontSize: Typography.bodyBase,
+      fontFamily: 'Poppins_400Regular',
+      color: Colors.neutralMedium,
+      textAlign: 'center',
+    },
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -145,145 +290,3 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralGray,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: Typography.h3,
-    fontFamily: 'Poppins_700Bold',
-    color: Colors.neutralCharcoal,
-    flex: 1,
-    textAlign: 'center',
-  },
-  markAllText: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: 'Poppins_600SemiBold',
-    color: Colors.primary900,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.neutralWhite,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralGray,
-  },
-  tab: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: 20,
-  },
-  activeTab: {
-    backgroundColor: Colors.primary900,
-  },
-  tabText: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: 'Poppins_600SemiBold',
-    color: Colors.neutralMedium,
-  },
-  activeTabText: {
-    color: Colors.neutralWhite,
-  },
-  listContent: {
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  notificationCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.md,
-    gap: Spacing.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  unreadCard: {
-    backgroundColor: Colors.neutralLight,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary900,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contentContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  title: {
-    fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_600SemiBold',
-    color: Colors.neutralCharcoal,
-  },
-  unreadTitle: {
-    fontFamily: 'Poppins_700Bold',
-  },
-  message: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: 'Poppins_400Regular',
-    color: Colors.neutralMedium,
-    lineHeight: 20,
-  },
-  timestamp: {
-    fontSize: Typography.bodySmall,
-    fontFamily: 'Poppins_400Regular',
-    color: Colors.neutralMedium,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.primary900,
-    alignSelf: 'center',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xxl,
-  },
-  emptyTitle: {
-    fontSize: Typography.h3,
-    fontFamily: 'Poppins_700Bold',
-    color: Colors.neutralCharcoal,
-    marginBottom: Spacing.sm,
-  },
-  emptyText: {
-    fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_400Regular',
-    color: Colors.neutralMedium,
-    textAlign: 'center',
-  },
-});

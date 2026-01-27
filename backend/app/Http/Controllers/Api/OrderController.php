@@ -230,14 +230,19 @@ class OrderController extends Controller
             }
 
             $sessionId = $request->header('X-Session-ID');
-            $cart = $this->orderService->reorder($id, $user->id, $sessionId);
+            $reorderResult = $this->orderService->reorder($id, $user->id, $sessionId);
 
-            $cartDetails = $this->cartService->getCartDetails($cart);
+            $cartDetails = $this->cartService->getCartDetails($reorderResult['cart']);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Items added to cart',
-                'data' => $cartDetails,
+                'data' => [
+                    'cart' => $cartDetails,
+                    'added_items' => $reorderResult['added_items'],
+                    'unavailable_items' => $reorderResult['unavailable_items'],
+                    'summary' => $reorderResult['summary'],
+                ],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([

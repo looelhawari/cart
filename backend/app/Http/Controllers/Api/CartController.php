@@ -30,7 +30,19 @@ class CartController extends Controller
             $userId = $request->user()?->id;
             $sessionId = $request->header('X-Session-ID');
 
+            \Log::info('🛒 [CART GET] Fetching cart', [
+                'user_id' => $userId,
+                'session_id' => $sessionId,
+            ]);
+
             $cart = $this->cartService->getCart($userId, $sessionId);
+
+            \Log::info('🛒 [CART GET] Cart retrieved', [
+                'cart_id' => $cart->id,
+                'cart_user_id' => $cart->user_id,
+                'cart_session_id' => $cart->session_id,
+                'items_count' => $cart->items->count(),
+            ]);
 
             $cartDetails = $this->cartService->getCartDetails($cart, null);
 
@@ -40,6 +52,10 @@ class CartController extends Controller
                 'session_id' => $cart->session_id, // Return session ID for guest users
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
+            \Log::error('🛒 [CART GET] Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve cart',
@@ -173,9 +189,13 @@ class CartController extends Controller
 
             $this->cartService->removeItem($cartItem);
 
+            // Return updated cart details
+            $cartDetails = $this->cartService->getCartDetails($cart->fresh(), null);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Item removed from cart',
+                'data' => $cartDetails,
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
