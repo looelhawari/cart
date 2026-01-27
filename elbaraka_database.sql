@@ -331,13 +331,6 @@ CREATE TABLE promo_code_usage (
     INDEX idx_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- PROMO CODES UPGRADE (NO REDUNDANCY - PRODUCTION READY)
--- =====================================================
-
-/* =====================================================
-   1) Extend existing promo_codes (NO redundancy)
-   ===================================================== */
 
 ALTER TABLE promo_codes
   MODIFY type ENUM('percentage', 'fixed_amount', 'free_delivery', 'bogo') NOT NULL;
