@@ -75,23 +75,6 @@ export default function OrdersScreen() {
     fetchOrders();
   };
 
-  if (!user) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.emptyContainer}>
-          <Package size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>Please Login</Text>
-          <Text style={styles.emptyText}>Sign in to view your orders</Text>
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.push("/(auth)/login")}
-          >
-            <Text style={styles.loginButtonText}>Login</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
@@ -314,6 +297,25 @@ export default function OrdersScreen() {
       color: Colors.primary900,
     },
   });
+
+  // Early return for non-logged-in users (after styles are defined)
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.emptyContainer}>
+          <Package size={80} color={Colors.neutralGray} />
+          <Text style={styles.emptyTitle}>Please Login</Text>
+          <Text style={styles.emptyText}>Sign in to view your orders</Text>
+          <TouchableOpacity
+            style={styles.loginButton}
+            onPress={() => router.push("/(auth)/login")}
+          >
+            <Text style={styles.loginButtonText}>Login</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

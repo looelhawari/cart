@@ -52,7 +52,11 @@ export const HeroBanner: React.FC = () => {
             // If no featured, get all active promotions
             const response = await getPromotions();
             if (response.success) {
-                setPromotions(response.data.promotions.slice(0, 5)); // Limit to 5 for carousel
+                // Filter out null/undefined promotions and those without image_url
+                const validPromotions = response.data.promotions
+                    .filter((promo: Promotion | null) => promo && promo.image_url)
+                    .slice(0, 5); // Limit to 5 for carousel
+                setPromotions(validPromotions);
             }
         } catch (error) {
             console.error('Failed to load promotions:', error);
@@ -92,10 +96,6 @@ export const HeroBanner: React.FC = () => {
         );
     }
 
-    if (promotions.length === 0) {
-        return null;
-    }
-
     const getDiscountText = (promotion: Promotion) => {
         if (promotion.discount_type === 'percentage') {
             return `${promotion.discount_value}% OFF`;
@@ -129,41 +129,56 @@ export const HeroBanner: React.FC = () => {
                 decelerationRate="fast"
                 snapToInterval={CARD_WIDTH + Spacing.md}
             >
-                {promotions.map((promotion) => (
-                    <TouchableOpacity
-                        key={promotion.id}
-                        style={styles.slide}
-                        onPress={() => router.push(`/promotions/${promotion.id}` as any)}
-                        activeOpacity={0.9}
-                    >
-                        <Image
-                            source={{ uri: promotion.image_url }}
-                            style={styles.bannerImage}
-                            resizeMode="cover"
-                        />
-                        <LinearGradient
-                            colors={['transparent', 'rgba(0,0,0,0.8)']}
-                            style={styles.gradient}
+                {promotions.length > 0 ? (
+                    promotions.filter(promo => promo && promo.image_url).map((promotion) => (
+                        <TouchableOpacity
+                            key={promotion.id}
+                            style={styles.slide}
+                            onPress={() => router.push(`/promotions/${promotion.id}` as any)}
+                            activeOpacity={0.9}
                         >
-                            <View style={styles.discountBadge}>
-                                <Sparkles size={14} color={Colors.neutralWhite} />
-                                <Text style={styles.discountText}>{getDiscountText(promotion)}</Text>
-                            </View>
-                            <Text style={styles.bannerTitle} numberOfLines={2}>
-                                {promotion.title}
-                            </Text>
-                            <Text style={styles.bannerSubtitle} numberOfLines={1}>
-                                {promotion.description}
-                            </Text>
-                            {promotion.end_date && (
-                                <View style={styles.timerRow}>
-                                    <Clock size={12} color={Colors.neutralWhite} />
-                                    <Text style={styles.timerText}>Limited Time Only</Text>
+                            <Image
+                                source={{ uri: promotion.image_url }}
+                                style={styles.bannerImage}
+                                resizeMode="cover"
+                            />
+                            <LinearGradient
+                                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                                style={styles.gradient}
+                            >
+                                <View style={styles.discountBadge}>
+                                    <Sparkles size={14} color={Colors.neutralWhite} />
+                                    <Text style={styles.discountText}>{getDiscountText(promotion)}</Text>
                                 </View>
-                            )}
+                                <Text style={styles.bannerTitle} numberOfLines={2}>
+                                    {promotion.title}
+                                </Text>
+                                <Text style={styles.bannerSubtitle} numberOfLines={1}>
+                                    {promotion.description}
+                                </Text>
+                                {promotion.end_date && (
+                                    <View style={styles.timerRow}>
+                                        <Clock size={12} color={Colors.neutralWhite} />
+                                        <Text style={styles.timerText}>Limited Time Only</Text>
+                                    </View>
+                                )}
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    ))
+                ) : (
+                    <View style={styles.slide}>
+                        <LinearGradient
+                            colors={[Colors.primary700, Colors.primary900]}
+                            style={styles.placeholderGradient}
+                        >
+                            <Sparkles size={48} color={Colors.neutralWhite} strokeWidth={1.5} />
+                            <Text style={styles.placeholderTitle}>Exciting Deals Coming Soon! 🎉</Text>
+                            <Text style={styles.placeholderSubtitle}>
+                                Stay tuned for amazing offers and exclusive promotions
+                            </Text>
                         </LinearGradient>
-                    </TouchableOpacity>
-                ))}
+                    </View>
+                )}
             </ScrollView>
 
             {promotions.length > 1 && (
@@ -298,5 +313,27 @@ const styles = StyleSheet.create({
     paginationDotActive: {
         backgroundColor: Colors.primary900,
         width: 24,
+    },
+    placeholderGradient: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.xl,
+    },
+    placeholderTitle: {
+        fontSize: Typography.h4,
+        fontWeight: Typography.bold,
+        color: Colors.neutralWhite,
+        marginTop: Spacing.md,
+        marginBottom: Spacing.xs,
+        textAlign: 'center',
+    },
+    placeholderSubtitle: {
+        fontSize: Typography.bodyBase,
+        color: Colors.neutralWhite,
+        opacity: 0.9,
+        textAlign: 'center',
+        lineHeight: 20,
     },
 });
