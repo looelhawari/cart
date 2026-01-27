@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { comprehensiveAnalyticsService } from '@/services/comprehensive-analytics.service'
 import type {
     SalesAnalyticsResponse,
@@ -151,6 +152,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ComprehensiveAnalyticsPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
+
     const [activeTab, setActiveTab] = useState('overview')
     const [dateRange, setDateRange] = useState({
         from: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -254,38 +258,38 @@ export default function ComprehensiveAnalyticsPage() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6" dir={isRTL ? 'rtl' : 'ltr'}>
             {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className={`flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 ${isRTL ? 'lg:flex-row-reverse' : ''}`}>
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">{t('analytics.analyticsDashboard')}</h1>
                     <p className="text-muted-foreground mt-1">
-                        Comprehensive business insights and performance metrics
+                        {t('analytics.analyticsSubtitle')}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className={`flex flex-wrap items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     {/* Quick Date Filters */}
-                    <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                         <Button variant="outline" size="sm" onClick={() => setQuickDateRange(7)}>
-                            7 Days
+                            {t('analytics.days7')}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setQuickDateRange(30)}>
-                            30 Days
+                            {t('analytics.days30')}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setQuickDateRange(90)}>
-                            90 Days
+                            {t('analytics.days90')}
                         </Button>
                     </div>
 
                     {/* Date Range Inputs */}
-                    <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                         <Input
                             type="date"
                             value={dateRange.from}
                             onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
                             className="w-36"
                         />
-                        <span className="text-muted-foreground">to</span>
+                        <span className="text-muted-foreground">{t('common.to')}</span>
                         <Input
                             type="date"
                             value={dateRange.to}
@@ -300,9 +304,9 @@ export default function ComprehensiveAnalyticsPage() {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="daily">{t('analytics.daily')}</SelectItem>
+                            <SelectItem value="weekly">{t('analytics.weekly')}</SelectItem>
+                            <SelectItem value="monthly">{t('analytics.monthly')}</SelectItem>
                         </SelectContent>
                     </Select>
 
@@ -311,8 +315,8 @@ export default function ComprehensiveAnalyticsPage() {
                         <RefreshCw className="h-4 w-4" />
                     </Button>
                     <Button variant="outline" onClick={() => handleExport(activeTab)}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Export
+                        <Download className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                        {t('analytics.export')}
                     </Button>
                 </div>
             </div>
@@ -320,29 +324,29 @@ export default function ComprehensiveAnalyticsPage() {
             {/* Main Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <TabsList className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg h-auto">
-                    <TabsTrigger value="overview" className="flex items-center gap-2">
-                        <BarChart3 className="h-4 w-4" /> Overview
+                    <TabsTrigger value="overview" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <BarChart3 className="h-4 w-4" /> {t('analytics.overview')}
                     </TabsTrigger>
-                    <TabsTrigger value="sales" className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4" /> Sales
+                    <TabsTrigger value="sales" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <DollarSign className="h-4 w-4" /> {t('analytics.sales')}
                     </TabsTrigger>
-                    <TabsTrigger value="products" className="flex items-center gap-2">
-                        <Package className="h-4 w-4" /> Products
+                    <TabsTrigger value="products" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <Package className="h-4 w-4" /> {t('analytics.products')}
                     </TabsTrigger>
-                    <TabsTrigger value="orders" className="flex items-center gap-2">
-                        <ShoppingCart className="h-4 w-4" /> Orders
+                    <TabsTrigger value="orders" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <ShoppingCart className="h-4 w-4" /> {t('analytics.ordersTab')}
                     </TabsTrigger>
-                    <TabsTrigger value="marketing" className="flex items-center gap-2">
-                        <Tag className="h-4 w-4" /> Marketing
+                    <TabsTrigger value="marketing" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <Tag className="h-4 w-4" /> {t('analytics.marketing')}
                     </TabsTrigger>
-                    <TabsTrigger value="financial" className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" /> Financial
+                    <TabsTrigger value="financial" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <CreditCard className="h-4 w-4" /> {t('analytics.financial')}
                     </TabsTrigger>
-                    <TabsTrigger value="inventory" className="flex items-center gap-2">
-                        <Box className="h-4 w-4" /> Inventory
+                    <TabsTrigger value="inventory" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <Box className="h-4 w-4" /> {t('analytics.inventory')}
                     </TabsTrigger>
-                    <TabsTrigger value="operational" className="flex items-center gap-2">
-                        <Activity className="h-4 w-4" /> Operations
+                    <TabsTrigger value="operational" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                        <Activity className="h-4 w-4" /> {t('analytics.operations')}
                     </TabsTrigger>
                 </TabsList>
 
@@ -357,42 +361,42 @@ export default function ComprehensiveAnalyticsPage() {
                             {/* Key Metrics */}
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
                                 <MetricCard
-                                    title="Total Revenue"
+                                    title={t('analytics.totalRevenue')}
                                     value={formatCurrency(overviewData.current_period.metrics.total_revenue)}
                                     change={overviewData.growth_rates?.revenue_growth}
                                     icon={DollarSign}
                                     color="green"
                                 />
                                 <MetricCard
-                                    title="Net Revenue"
+                                    title={t('analytics.netRevenue')}
                                     value={formatCurrency(overviewData.current_period.metrics.net_revenue)}
                                     icon={TrendingUp}
                                     color="blue"
-                                    subtitle="After discounts"
+                                    subtitle={t('analytics.afterDiscounts')}
                                 />
                                 <MetricCard
-                                    title="Gross Profit"
+                                    title={t('analytics.grossProfit')}
                                     value={formatCurrency(overviewData.current_period.metrics.gross_profit)}
                                     change={overviewData.growth_rates?.profit_growth}
                                     icon={Target}
                                     color="purple"
                                 />
                                 <MetricCard
-                                    title="Total Orders"
+                                    title={t('analytics.totalOrders')}
                                     value={overviewData.current_period.metrics.total_orders.toLocaleString()}
                                     change={overviewData.growth_rates?.orders_growth}
                                     icon={ShoppingCart}
                                     color="orange"
                                 />
                                 <MetricCard
-                                    title="Avg Order Value"
+                                    title={t('analytics.avgOrderValue')}
                                     value={formatCurrency(overviewData.current_period.metrics.avg_order_value)}
                                     change={overviewData.growth_rates?.aov_growth}
                                     icon={ShoppingBag}
                                     color="cyan"
                                 />
                                 <MetricCard
-                                    title="Active Customers"
+                                    title={t('analytics.activeCustomers')}
                                     value={overviewData.current_period.metrics.active_customers.toLocaleString()}
                                     change={overviewData.growth_rates?.customers_growth}
                                     icon={Users}
@@ -403,25 +407,25 @@ export default function ComprehensiveAnalyticsPage() {
                             {/* Secondary Metrics */}
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                                 <MetricCard
-                                    title="Gross Margin"
+                                    title={t('analytics.grossMargin')}
                                     value={`${overviewData.current_period.metrics.gross_margin.toFixed(1)}%`}
                                     icon={Percent}
                                     color="green"
                                 />
                                 <MetricCard
-                                    title="Items Sold"
+                                    title={t('analytics.itemsSold')}
                                     value={overviewData.current_period.metrics.items_sold.toLocaleString()}
                                     icon={Package}
                                     color="blue"
                                 />
                                 <MetricCard
-                                    title="New Customers"
+                                    title={t('analytics.newCustomers')}
                                     value={overviewData.current_period.metrics.new_customers.toLocaleString()}
                                     icon={Users}
                                     color="purple"
                                 />
                                 <MetricCard
-                                    title="Total Discounts"
+                                    title={t('analytics.totalDiscounts')}
                                     value={formatCurrency(overviewData.current_period.metrics.total_discounts)}
                                     icon={Tag}
                                     color="orange"
@@ -433,9 +437,9 @@ export default function ComprehensiveAnalyticsPage() {
                                 {/* Revenue Trend */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
+                                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <TrendingUp className="h-5 w-5 text-green-600" />
-                                            Revenue Trend
+                                            {t('analytics.revenueTrend')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
@@ -452,7 +456,7 @@ export default function ComprehensiveAnalyticsPage() {
                                                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                                                 <Tooltip
                                                     formatter={(value: number) => formatCurrency(value)}
-                                                    labelFormatter={(label) => `Date: ${label}`}
+                                                    labelFormatter={(label) => `${t('analytics.date')}: ${label}`}
                                                 />
                                                 <Area
                                                     type="monotone"
@@ -460,7 +464,7 @@ export default function ComprehensiveAnalyticsPage() {
                                                     stroke={COLORS.primary}
                                                     strokeWidth={2}
                                                     fill="url(#colorRevenue)"
-                                                    name="Revenue"
+                                                    name={t('analytics.revenue')}
                                                 />
                                                 <Line
                                                     type="monotone"
@@ -469,7 +473,7 @@ export default function ComprehensiveAnalyticsPage() {
                                                     strokeWidth={2}
                                                     dot={false}
                                                     yAxisId="right"
-                                                    name="Orders"
+                                                    name={t('analytics.ordersTab')}
                                                 />
                                             </AreaChart>
                                         </ResponsiveContainer>
@@ -479,9 +483,9 @@ export default function ComprehensiveAnalyticsPage() {
                                 {/* Order Status Distribution */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
+                                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <PieChartIcon className="h-5 w-5 text-blue-600" />
-                                            Order Status Distribution
+                                            {t('analytics.orderStatusDistribution')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
@@ -516,9 +520,9 @@ export default function ComprehensiveAnalyticsPage() {
                                 {/* Payment Method Breakdown */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
+                                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <CreditCard className="h-5 w-5 text-purple-600" />
-                                            Revenue by Payment Method
+                                            {t('analytics.revenueByPaymentMethod')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
@@ -541,9 +545,9 @@ export default function ComprehensiveAnalyticsPage() {
                                 {/* Category Revenue */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
+                                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <Package className="h-5 w-5 text-orange-600" />
-                                            Revenue by Category
+                                            {t('analytics.revenueByCategory')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
@@ -569,15 +573,15 @@ export default function ComprehensiveAnalyticsPage() {
                                 {/* Top Products */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
+                                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <Star className="h-5 w-5 text-yellow-500" />
-                                            Top Selling Products
+                                            {t('analytics.topProducts')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-3">
                                             {salesData?.top_products?.slice(0, 6).map((product, index) => (
-                                                <div key={product.barcode} className="flex items-center gap-3">
+                                                <div key={product.barcode} className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                     <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
                                                         {index + 1}
                                                     </div>
@@ -591,14 +595,14 @@ export default function ComprehensiveAnalyticsPage() {
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-medium truncate">{product.name}</p>
                                                         <p className="text-xs text-muted-foreground">
-                                                            {product.quantity_sold} sold
+                                                            {product.quantity_sold} {t('analytics.sold')}
                                                         </p>
                                                     </div>
                                                     <p className="font-semibold text-green-600">
                                                         {formatCurrency(product.revenue)}
                                                     </p>
                                                 </div>
-                                            )) || <p className="text-muted-foreground text-sm">No sales data yet</p>}
+                                            )) || <p className="text-muted-foreground text-sm">{t('analytics.noSalesDataYet')}</p>}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -606,27 +610,27 @@ export default function ComprehensiveAnalyticsPage() {
                                 {/* Stock Alerts */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
+                                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <AlertTriangle className="h-5 w-5 text-orange-500" />
-                                            Stock Alerts
+                                            {t('analytics.stockAlerts')}
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-3">
                                             {productData?.stock_alerts?.low_stock?.slice(0, 5).map((product) => (
-                                                <div key={product.barcode} className="flex items-center justify-between p-2 bg-yellow-50 rounded">
+                                                <div key={product.barcode} className={`flex items-center justify-between p-2 bg-yellow-50 rounded ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                     <span className="text-sm font-medium truncate flex-1">{product.name}</span>
-                                                    <Badge variant="outline" className="text-yellow-700">{product.stock_quantity} left</Badge>
+                                                    <Badge variant="outline" className="text-yellow-700">{product.stock_quantity} {t('analytics.left')}</Badge>
                                                 </div>
                                             ))}
                                             {productData?.stock_alerts?.out_of_stock?.slice(0, 3).map((product) => (
-                                                <div key={product.barcode} className="flex items-center justify-between p-2 bg-red-50 rounded">
+                                                <div key={product.barcode} className={`flex items-center justify-between p-2 bg-red-50 rounded ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                     <span className="text-sm font-medium truncate flex-1">{product.name}</span>
-                                                    <Badge variant="destructive">Out of Stock</Badge>
+                                                    <Badge variant="destructive">{t('analytics.outOfStock')}</Badge>
                                                 </div>
                                             ))}
                                             {(!productData?.stock_alerts?.low_stock?.length && !productData?.stock_alerts?.out_of_stock?.length) && (
-                                                <p className="text-muted-foreground text-sm">All products are well stocked</p>
+                                                <p className="text-muted-foreground text-sm">{t('analytics.allProductsWellStocked')}</p>
                                             )}
                                         </div>
                                     </CardContent>
@@ -638,37 +642,37 @@ export default function ComprehensiveAnalyticsPage() {
 
                 {/* Sales Tab */}
                 <TabsContent value="sales" className="space-y-6">
-                    <SalesTabContent data={salesData} loading={loadingSales} error={errorSales} />
+                    <SalesTabContent data={salesData} loading={loadingSales} error={errorSales} t={t} isRTL={isRTL} />
                 </TabsContent>
 
                 {/* Products Tab */}
                 <TabsContent value="products" className="space-y-6">
-                    <ProductsTabContent data={productData} loading={loadingProducts} error={errorProducts} />
+                    <ProductsTabContent data={productData} loading={loadingProducts} error={errorProducts} t={t} isRTL={isRTL} />
                 </TabsContent>
 
                 {/* Orders Tab */}
                 <TabsContent value="orders" className="space-y-6">
-                    <OrdersTabContent data={orderData} loading={loadingOrders} error={errorOrders} />
+                    <OrdersTabContent data={orderData} loading={loadingOrders} error={errorOrders} t={t} isRTL={isRTL} />
                 </TabsContent>
 
                 {/* Marketing Tab */}
                 <TabsContent value="marketing" className="space-y-6">
-                    <MarketingTabContent data={marketingData} loading={loadingMarketing} error={errorMarketing} />
+                    <MarketingTabContent data={marketingData} loading={loadingMarketing} error={errorMarketing} t={t} isRTL={isRTL} />
                 </TabsContent>
 
                 {/* Financial Tab */}
                 <TabsContent value="financial" className="space-y-6">
-                    <FinancialTabContent data={financialData} loading={loadingFinancial} error={errorFinancial} />
+                    <FinancialTabContent data={financialData} loading={loadingFinancial} error={errorFinancial} t={t} isRTL={isRTL} />
                 </TabsContent>
 
                 {/* Inventory Tab */}
                 <TabsContent value="inventory" className="space-y-6">
-                    <InventoryTabContent data={inventoryData} loading={loadingInventory} error={errorInventory} />
+                    <InventoryTabContent data={inventoryData} loading={loadingInventory} error={errorInventory} t={t} isRTL={isRTL} />
                 </TabsContent>
 
                 {/* Operational Tab */}
                 <TabsContent value="operational" className="space-y-6">
-                    <OperationalTabContent data={operationalData} loading={loadingOperational} error={errorOperational} />
+                    <OperationalTabContent data={operationalData} loading={loadingOperational} error={errorOperational} t={t} isRTL={isRTL} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -676,18 +680,18 @@ export default function ComprehensiveAnalyticsPage() {
 }
 
 // Sales Tab Component
-function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function SalesTabContent({ data, loading, error, t, isRTL }: { data?: SalesAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load sales data: ${error.message}`} />
-    if (!data) return <EmptyState message="No sales data available" />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Revenue Trend Chart */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Revenue Trend</CardTitle>
-                    <CardDescription>Daily revenue and orders over time</CardDescription>
+                    <CardTitle>{t('analytics.revenueTrend')}</CardTitle>
+                    <CardDescription>{t('analytics.revenueTrendDescription')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={400}>
@@ -697,12 +701,12 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
                             <YAxis yAxisId="left" tickFormatter={(v) => formatCurrency(v)} />
                             <YAxis yAxisId="right" orientation="right" />
                             <Tooltip formatter={(value: number, name) =>
-                                name === 'Orders' ? value : formatCurrency(value)
+                                name === t('analytics.ordersTab') ? value : formatCurrency(value)
                             } />
                             <Legend />
-                            <Area yAxisId="left" type="monotone" dataKey="revenue" fill={COLORS.primary} fillOpacity={0.2} stroke={COLORS.primary} strokeWidth={2} name="Revenue" />
-                            <Line yAxisId="left" type="monotone" dataKey="net_revenue" stroke={COLORS.secondary} strokeWidth={2} name="Net Revenue" dot={false} />
-                            <Bar yAxisId="right" dataKey="orders" fill={COLORS.warning} name="Orders" opacity={0.6} />
+                            <Area yAxisId="left" type="monotone" dataKey="revenue" fill={COLORS.primary} fillOpacity={0.2} stroke={COLORS.primary} strokeWidth={2} name={t('analytics.revenue')} />
+                            <Line yAxisId="left" type="monotone" dataKey="net_revenue" stroke={COLORS.secondary} strokeWidth={2} name={t('analytics.netRevenue')} dot={false} />
+                            <Bar yAxisId="right" dataKey="orders" fill={COLORS.warning} name={t('analytics.ordersTab')} opacity={0.6} />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -712,8 +716,8 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
                 {/* Hourly Distribution */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Peak Hours</CardTitle>
-                        <CardDescription>Orders by hour of day</CardDescription>
+                        <CardTitle>{t('analytics.peakHours')}</CardTitle>
+                        <CardDescription>{t('analytics.peakHoursDescription')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -731,8 +735,8 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
                 {/* Day of Week Distribution */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Weekly Pattern</CardTitle>
-                        <CardDescription>Orders by day of week</CardDescription>
+                        <CardTitle>{t('analytics.weeklyPattern')}</CardTitle>
+                        <CardDescription>{t('analytics.weeklyPatternDescription')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -741,8 +745,8 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
                                 <XAxis dataKey="day_name" />
                                 <YAxis />
                                 <Tooltip />
-                                <Bar dataKey="orders" fill={COLORS.secondary} name="Orders" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="revenue" fill={COLORS.primary} name="Revenue" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="orders" fill={COLORS.secondary} name={t('analytics.ordersTab')} radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="revenue" fill={COLORS.primary} name={t('analytics.revenue')} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -752,17 +756,17 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
             {/* Top Products Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Top Revenue Products</CardTitle>
+                    <CardTitle>{t('analytics.topRevenueProducts')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b">
-                                    <th className="text-left p-3">#</th>
-                                    <th className="text-left p-3">Product</th>
-                                    <th className="text-right p-3">Qty Sold</th>
-                                    <th className="text-right p-3">Revenue</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>#</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('analytics.product')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.qtySold')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.revenue')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -770,15 +774,15 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
                                     <tr key={product.barcode} className="border-b hover:bg-gray-50">
                                         <td className="p-3 font-medium">{index + 1}</td>
                                         <td className="p-3">
-                                            <div className="flex items-center gap-3">
+                                            <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                 {product.image && (
                                                     <img src={product.image} alt="" className="w-10 h-10 rounded object-cover" />
                                                 )}
                                                 <span className="font-medium">{product.name}</span>
                                             </div>
                                         </td>
-                                        <td className="p-3 text-right">{product.quantity_sold}</td>
-                                        <td className="p-3 text-right font-semibold text-green-600">{formatCurrency(product.revenue)}</td>
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'}`}>{product.quantity_sold}</td>
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'} font-semibold text-green-600`}>{formatCurrency(product.revenue)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -791,36 +795,36 @@ function SalesTabContent({ data, loading, error }: { data?: SalesAnalyticsRespon
 }
 
 // Products Tab Component
-function ProductsTabContent({ data, loading, error }: { data?: ProductAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function ProductsTabContent({ data, loading, error, t, isRTL }: { data?: ProductAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load product data: ${error.message}`} />
-    if (!data) return <EmptyState message="No product data available. Click on the Products tab to load data." />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Inventory Summary */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard title="Total Products" value={data.inventory.total_products.toLocaleString()} icon={Package} color="blue" />
-                <MetricCard title="Total Units" value={data.inventory.total_units.toLocaleString()} icon={Box} color="green" />
-                <MetricCard title="Retail Value" value={formatCurrency(data.inventory.retail_value)} icon={DollarSign} color="purple" />
-                <MetricCard title="Cost Value" value={formatCurrency(data.inventory.cost_value)} icon={Tag} color="orange" />
+                <MetricCard title={t('analytics.totalProducts')} value={data.inventory.total_products.toLocaleString()} icon={Package} color="blue" />
+                <MetricCard title={t('analytics.totalUnits')} value={data.inventory.total_units.toLocaleString()} icon={Box} color="green" />
+                <MetricCard title={t('analytics.retailValue')} value={formatCurrency(data.inventory.retail_value)} icon={DollarSign} color="purple" />
+                <MetricCard title={t('analytics.costValue')} value={formatCurrency(data.inventory.cost_value)} icon={Tag} color="orange" />
             </div>
 
             {/* Stock Alerts */}
             <div className="grid gap-4 md:grid-cols-2">
                 <Card className="border-yellow-200 bg-yellow-50">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-yellow-700">
+                        <CardTitle className={`flex items-center gap-2 text-yellow-700 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <AlertTriangle className="h-5 w-5" />
-                            Low Stock ({data.stock_alerts.low_stock_count})
+                            {t('analytics.lowStock')} ({data.stock_alerts.low_stock_count})
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                             {data.stock_alerts.low_stock.slice(0, 5).map((product) => (
-                                <div key={product.barcode} className="flex items-center justify-between bg-white p-2 rounded">
+                                <div key={product.barcode} className={`flex items-center justify-between bg-white p-2 rounded ${isRTL ? 'flex-row-reverse' : ''}`}>
                                     <span className="text-sm font-medium truncate flex-1">{product.name}</span>
-                                    <Badge variant="outline" className="text-yellow-700">{product.stock_quantity} left</Badge>
+                                    <Badge variant="outline" className="text-yellow-700">{product.stock_quantity} {t('analytics.left')}</Badge>
                                 </div>
                             ))}
                         </div>
@@ -829,17 +833,17 @@ function ProductsTabContent({ data, loading, error }: { data?: ProductAnalyticsR
 
                 <Card className="border-red-200 bg-red-50">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-red-700">
+                        <CardTitle className={`flex items-center gap-2 text-red-700 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <XCircle className="h-5 w-5" />
-                            Out of Stock ({data.stock_alerts.out_of_stock_count})
+                            {t('analytics.outOfStock')} ({data.stock_alerts.out_of_stock_count})
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                             {data.stock_alerts.out_of_stock.slice(0, 5).map((product) => (
-                                <div key={product.barcode} className="flex items-center justify-between bg-white p-2 rounded">
+                                <div key={product.barcode} className={`flex items-center justify-between bg-white p-2 rounded ${isRTL ? 'flex-row-reverse' : ''}`}>
                                     <span className="text-sm font-medium truncate flex-1">{product.name}</span>
-                                    <Badge variant="destructive">Out of Stock</Badge>
+                                    <Badge variant="destructive">{t('analytics.outOfStock')}</Badge>
                                 </div>
                             ))}
                         </div>
@@ -851,20 +855,20 @@ function ProductsTabContent({ data, loading, error }: { data?: ProductAnalyticsR
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Best Sellers</CardTitle>
+                        <CardTitle>{t('analytics.bestSellers')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3 max-h-80 overflow-y-auto">
                             {data.best_sellers.slice(0, 10).map((product, index) => (
-                                <div key={product.barcode} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                                <div key={product.barcode} className={`flex items-center gap-3 p-2 bg-gray-50 rounded ${isRTL ? 'flex-row-reverse' : ''}`}>
                                     <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-sm font-bold">{index + 1}</span>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium truncate">{product.name}</p>
-                                        <p className="text-xs text-muted-foreground">{product.units_sold} units sold</p>
+                                        <p className="text-xs text-muted-foreground">{product.units_sold} {t('analytics.unitsSold')}</p>
                                     </div>
-                                    <div className="text-right">
+                                    <div className={isRTL ? 'text-left' : 'text-right'}>
                                         <p className="font-semibold text-green-600">{formatCurrency(product.revenue)}</p>
-                                        <p className="text-xs text-muted-foreground">Profit: {formatCurrency(product.profit)}</p>
+                                        <p className="text-xs text-muted-foreground">{t('analytics.profit')}: {formatCurrency(product.profit)}</p>
                                     </div>
                                 </div>
                             ))}
@@ -874,7 +878,7 @@ function ProductsTabContent({ data, loading, error }: { data?: ProductAnalyticsR
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Category Performance</CardTitle>
+                        <CardTitle>{t('analytics.categoryPerformance')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -894,31 +898,31 @@ function ProductsTabContent({ data, loading, error }: { data?: ProductAnalyticsR
 }
 
 // Orders Tab Component
-function OrdersTabContent({ data, loading, error }: { data?: OrderAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function OrdersTabContent({ data, loading, error, t, isRTL }: { data?: OrderAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load order data: ${error.message}`} />
-    if (!data) return <EmptyState message="No order data available" />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Order Metrics */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard title="Total Orders" value={data.summary.total_orders.toLocaleString()} icon={ShoppingCart} color="blue" />
-                <MetricCard title="Delivered" value={data.summary.delivered_orders.toLocaleString()} icon={CheckCircle} color="green" />
-                <MetricCard title="Cancelled" value={data.summary.cancelled_orders.toLocaleString()} icon={XCircle} color="red" />
-                <MetricCard title="Delivery Success" value={`${data.summary.delivery_success_rate}%`} icon={Truck} color="purple" />
+                <MetricCard title={t('analytics.totalOrders')} value={data.summary.total_orders.toLocaleString()} icon={ShoppingCart} color="blue" />
+                <MetricCard title={t('analytics.delivered')} value={data.summary.delivered_orders.toLocaleString()} icon={CheckCircle} color="green" />
+                <MetricCard title={t('analytics.cancelled')} value={data.summary.cancelled_orders.toLocaleString()} icon={XCircle} color="red" />
+                <MetricCard title={t('analytics.deliverySuccessRate')} value={`${data.summary.delivery_success_rate}%`} icon={Truck} color="purple" />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-                <MetricCard title="Cancellation Rate" value={`${data.summary.cancellation_rate}%`} icon={AlertTriangle} color="orange" />
-                <MetricCard title="Avg Completion Time" value={`${data.summary.avg_completion_hours} hrs`} icon={Clock} color="cyan" />
+                <MetricCard title={t('analytics.cancellationRate')} value={`${data.summary.cancellation_rate}%`} icon={AlertTriangle} color="orange" />
+                <MetricCard title={t('analytics.avgCompletionTime')} value={`${data.summary.avg_completion_hours} ${t('analytics.hrs')}`} icon={Clock} color="cyan" />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
                 {/* Status Breakdown */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Order Status Breakdown</CardTitle>
+                        <CardTitle>{t('analytics.orderStatusBreakdown')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -945,7 +949,7 @@ function OrdersTabContent({ data, loading, error }: { data?: OrderAnalyticsRespo
                 {/* Order Value Distribution */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Order Value Distribution</CardTitle>
+                        <CardTitle>{t('analytics.orderValueDistribution')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -954,7 +958,7 @@ function OrdersTabContent({ data, loading, error }: { data?: OrderAnalyticsRespo
                                 <XAxis dataKey="value_bucket" tick={{ fontSize: 10 }} />
                                 <YAxis />
                                 <Tooltip />
-                                <Bar dataKey="count" fill={COLORS.secondary} name="Orders" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="count" fill={COLORS.secondary} name={t('analytics.ordersTab')} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -964,19 +968,19 @@ function OrdersTabContent({ data, loading, error }: { data?: OrderAnalyticsRespo
             {/* Recent Orders */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Recent Orders</CardTitle>
+                    <CardTitle>{t('analytics.recentOrders')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b">
-                                    <th className="text-left p-3">Order #</th>
-                                    <th className="text-left p-3">Customer</th>
-                                    <th className="text-center p-3">Status</th>
-                                    <th className="text-right p-3">Items</th>
-                                    <th className="text-right p-3">Total</th>
-                                    <th className="text-left p-3">Date</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('analytics.orderNumber')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('analytics.customer')}</th>
+                                    <th className="text-center p-3">{t('analytics.status')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.items')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.total')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('analytics.date')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -988,8 +992,8 @@ function OrdersTabContent({ data, loading, error }: { data?: OrderAnalyticsRespo
                                             <p className="text-xs text-muted-foreground">{order.user?.email}</p>
                                         </td>
                                         <td className="p-3 text-center"><StatusBadge status={order.status} /></td>
-                                        <td className="p-3 text-right">{order.items?.length || 0}</td>
-                                        <td className="p-3 text-right font-semibold">{formatCurrency(order.total)}</td>
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'}`}>{order.items?.length || 0}</td>
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'} font-semibold`}>{formatCurrency(order.total)}</td>
                                         <td className="p-3 text-sm">{formatDate(order.created_at)}</td>
                                     </tr>
                                 ))}
@@ -1003,43 +1007,43 @@ function OrdersTabContent({ data, loading, error }: { data?: OrderAnalyticsRespo
 }
 
 // Marketing Tab Component
-function MarketingTabContent({ data, loading, error }: { data?: MarketingAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function MarketingTabContent({ data, loading, error, t, isRTL }: { data?: MarketingAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load marketing data: ${error.message}`} />
-    if (!data) return <EmptyState message="No marketing data available" />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Discount Summary */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard title="Total Discounts Given" value={formatCurrency(data.discounts_summary.total_discounts_given)} icon={Tag} color="orange" />
-                <MetricCard title="Orders with Discount" value={data.discounts_summary.orders_with_discount.toLocaleString()} icon={Percent} color="green" />
-                <MetricCard title="Orders without Discount" value={data.discounts_summary.orders_without_discount.toLocaleString()} icon={ShoppingCart} color="blue" />
-                <MetricCard title="Discount Usage Rate" value={`${data.discounts_summary.discount_usage_rate}%`} icon={Activity} color="purple" />
+                <MetricCard title={t('analytics.totalDiscountsGiven')} value={formatCurrency(data.discounts_summary.total_discounts_given)} icon={Tag} color="orange" />
+                <MetricCard title={t('analytics.ordersWithDiscount')} value={data.discounts_summary.orders_with_discount.toLocaleString()} icon={Percent} color="green" />
+                <MetricCard title={t('analytics.ordersWithoutDiscount')} value={data.discounts_summary.orders_without_discount.toLocaleString()} icon={ShoppingCart} color="blue" />
+                <MetricCard title={t('analytics.discountUsageRate')} value={`${data.discounts_summary.discount_usage_rate}%`} icon={Activity} color="purple" />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-                <MetricCard title="Products on Sale" value={data.products_on_sale.toLocaleString()} icon={Gift} color="cyan" />
-                <MetricCard title="Discounted Product Revenue" value={formatCurrency(data.discounted_product_revenue)} icon={DollarSign} color="green" />
+                <MetricCard title={t('analytics.productsOnSale')} value={data.products_on_sale.toLocaleString()} icon={Gift} color="cyan" />
+                <MetricCard title={t('analytics.discountedProductRevenue')} value={formatCurrency(data.discounted_product_revenue)} icon={DollarSign} color="green" />
             </div>
 
             {/* Promo Codes Performance */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Promo Code Performance</CardTitle>
+                    <CardTitle>{t('analytics.promoCodePerformance')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b">
-                                    <th className="text-left p-3">Code</th>
-                                    <th className="text-center p-3">Type</th>
-                                    <th className="text-right p-3">Value</th>
-                                    <th className="text-right p-3">Used</th>
-                                    <th className="text-right p-3">Limit</th>
-                                    <th className="text-right p-3">Redemption Rate</th>
-                                    <th className="text-left p-3">Valid Until</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('analytics.code')}</th>
+                                    <th className="text-center p-3">{t('analytics.type')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.value')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.used')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.limit')}</th>
+                                    <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('analytics.redemptionRate')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('analytics.validUntil')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1049,13 +1053,13 @@ function MarketingTabContent({ data, loading, error }: { data?: MarketingAnalyti
                                         <td className="p-3 text-center">
                                             <Badge variant="outline">{promo.type}</Badge>
                                         </td>
-                                        <td className="p-3 text-right">
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'}`}>
                                             {promo.type === 'percentage' ? `${promo.value}%` : formatCurrency(promo.value)}
                                         </td>
-                                        <td className="p-3 text-right">{promo.used_count}</td>
-                                        <td className="p-3 text-right">{promo.usage_limit || '∞'}</td>
-                                        <td className="p-3 text-right">
-                                            <div className="flex items-center gap-2">
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'}`}>{promo.used_count}</td>
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'}`}>{promo.usage_limit || '∞'}</td>
+                                        <td className={`p-3 ${isRTL ? 'text-left' : 'text-right'}`}>
+                                            <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                 <Progress value={promo.redemption_rate} className="w-16 h-2" />
                                                 <span className="text-sm">{promo.redemption_rate}%</span>
                                             </div>
@@ -1072,24 +1076,24 @@ function MarketingTabContent({ data, loading, error }: { data?: MarketingAnalyti
             {/* Active Promotions */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Active Promotions</CardTitle>
+                    <CardTitle>{t('analytics.activePromotions')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {data.active_promotions.map((promo) => (
                             <Card key={promo.id} className="border-2 border-green-200">
                                 <CardContent className="p-4">
-                                    <div className="flex items-start justify-between">
+                                    <div className={`flex items-start justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                                         <div>
                                             <h4 className="font-semibold">{promo.title}</h4>
                                             <p className="text-2xl font-bold text-green-600 mt-1">
-                                                {promo.discount_type === 'percentage' ? `${promo.discount_value}% OFF` : `${formatCurrency(promo.discount_value)} OFF`}
+                                                {promo.discount_type === 'percentage' ? `${promo.discount_value}% ${t('analytics.off')}` : `${formatCurrency(promo.discount_value)} ${t('analytics.off')}`}
                                             </p>
                                         </div>
-                                        {promo.is_featured && <Badge className="bg-yellow-500">Featured</Badge>}
+                                        {promo.is_featured && <Badge className="bg-yellow-500">{t('analytics.featured')}</Badge>}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-2">
-                                        Valid until: {formatDate(promo.end_date)}
+                                        {t('analytics.validUntil')}: {formatDate(promo.end_date)}
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1102,36 +1106,36 @@ function MarketingTabContent({ data, loading, error }: { data?: MarketingAnalyti
 }
 
 // Financial Tab Component
-function FinancialTabContent({ data, loading, error }: { data?: FinancialAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function FinancialTabContent({ data, loading, error, t, isRTL }: { data?: FinancialAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load financial data: ${error.message}`} />
-    if (!data) return <EmptyState message="No financial data available" />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Revenue Metrics */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <MetricCard title="Gross Revenue" value={formatCurrency(data.revenue.gross_revenue)} icon={DollarSign} color="green" />
-                <MetricCard title="Net Revenue" value={formatCurrency(data.revenue.net_revenue)} icon={TrendingUp} color="blue" />
-                <MetricCard title="Total Discounts" value={formatCurrency(data.revenue.total_discounts)} icon={Tag} color="orange" />
+                <MetricCard title={t('analytics.grossRevenue')} value={formatCurrency(data.revenue.gross_revenue)} icon={DollarSign} color="green" />
+                <MetricCard title={t('analytics.netRevenue')} value={formatCurrency(data.revenue.net_revenue)} icon={TrendingUp} color="blue" />
+                <MetricCard title={t('analytics.totalDiscounts')} value={formatCurrency(data.revenue.total_discounts)} icon={Tag} color="orange" />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <MetricCard title="Cost of Goods Sold" value={formatCurrency(data.profitability.cost_of_goods_sold)} icon={Package} color="red" />
-                <MetricCard title="Gross Profit" value={formatCurrency(data.profitability.gross_profit)} icon={Target} color="green" />
-                <MetricCard title="Gross Margin" value={`${data.profitability.gross_margin_percent.toFixed(1)}%`} icon={Percent} color="purple" />
+                <MetricCard title={t('analytics.costOfGoodsSold')} value={formatCurrency(data.profitability.cost_of_goods_sold)} icon={Package} color="red" />
+                <MetricCard title={t('analytics.grossProfit')} value={formatCurrency(data.profitability.gross_profit)} icon={Target} color="green" />
+                <MetricCard title={t('analytics.grossMargin')} value={`${data.profitability.gross_margin_percent.toFixed(1)}%`} icon={Percent} color="purple" />
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-                <MetricCard title="Delivery Fees" value={formatCurrency(data.revenue.delivery_fees)} icon={Truck} color="blue" />
-                <MetricCard title="Tax Collected" value={formatCurrency(data.revenue.tax_collected)} icon={FileText} color="cyan" />
-                <MetricCard title="Refunds" value={`${formatCurrency(data.refunds.total)} (${data.refunds.count})`} icon={AlertTriangle} color="red" />
+                <MetricCard title={t('analytics.deliveryFees')} value={formatCurrency(data.revenue.delivery_fees)} icon={Truck} color="blue" />
+                <MetricCard title={t('analytics.taxCollected')} value={formatCurrency(data.revenue.tax_collected)} icon={FileText} color="cyan" />
+                <MetricCard title={t('analytics.refunds')} value={`${formatCurrency(data.refunds.total)} (${data.refunds.count})`} icon={AlertTriangle} color="red" />
             </div>
 
             {/* Revenue Trend */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Daily Revenue Trend</CardTitle>
+                    <CardTitle>{t('analytics.dailyRevenueTrend')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={400}>
@@ -1140,11 +1144,11 @@ function FinancialTabContent({ data, loading, error }: { data?: FinancialAnalyti
                             <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                             <YAxis yAxisId="left" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                             <YAxis yAxisId="right" orientation="right" />
-                            <Tooltip formatter={(value: number, name) => name === 'Orders' ? value : formatCurrency(value)} />
+                            <Tooltip formatter={(value: number, name) => name === t('analytics.ordersTab') ? value : formatCurrency(value)} />
                             <Legend />
-                            <Bar yAxisId="left" dataKey="revenue" fill={COLORS.primary} name="Revenue" opacity={0.8} />
-                            <Line yAxisId="left" type="monotone" dataKey="net_revenue" stroke={COLORS.secondary} strokeWidth={2} name="Net Revenue" />
-                            <Line yAxisId="right" type="monotone" dataKey="orders" stroke={COLORS.warning} strokeWidth={2} name="Orders" dot={false} />
+                            <Bar yAxisId="left" dataKey="revenue" fill={COLORS.primary} name={t('analytics.revenue')} opacity={0.8} />
+                            <Line yAxisId="left" type="monotone" dataKey="net_revenue" stroke={COLORS.secondary} strokeWidth={2} name={t('analytics.netRevenue')} />
+                            <Line yAxisId="right" type="monotone" dataKey="orders" stroke={COLORS.warning} strokeWidth={2} name={t('analytics.ordersTab')} dot={false} />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -1153,7 +1157,7 @@ function FinancialTabContent({ data, loading, error }: { data?: FinancialAnalyti
             {/* Revenue by Payment */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Revenue by Payment Method</CardTitle>
+                    <CardTitle>{t('analytics.revenueByPayment')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -1182,64 +1186,64 @@ function FinancialTabContent({ data, loading, error }: { data?: FinancialAnalyti
 }
 
 // Inventory Tab Component
-function InventoryTabContent({ data, loading, error }: { data?: InventoryAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function InventoryTabContent({ data, loading, error, t, isRTL }: { data?: InventoryAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load inventory data: ${error.message}`} />
-    if (!data) return <EmptyState message="No inventory data available" />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Stock Status */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard title="In Stock" value={data.status.in_stock.toLocaleString()} icon={CheckCircle} color="green" />
-                <MetricCard title="Low Stock" value={data.status.low_stock.toLocaleString()} icon={AlertTriangle} color="orange" />
-                <MetricCard title="Out of Stock" value={data.status.out_of_stock.toLocaleString()} icon={XCircle} color="red" />
-                <MetricCard title="Total Products" value={data.total_inventory.total_products.toLocaleString()} icon={Package} color="blue" />
+                <MetricCard title={t('analytics.inStockProducts')} value={data.status.in_stock.toLocaleString()} icon={CheckCircle} color="green" />
+                <MetricCard title={t('analytics.lowStock')} value={data.status.low_stock.toLocaleString()} icon={AlertTriangle} color="orange" />
+                <MetricCard title={t('analytics.outOfStock')} value={data.status.out_of_stock.toLocaleString()} icon={XCircle} color="red" />
+                <MetricCard title={t('analytics.totalProducts')} value={data.total_inventory.total_products.toLocaleString()} icon={Package} color="blue" />
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-                <MetricCard title="Total Units" value={data.total_inventory.total_units.toLocaleString()} icon={Box} color="purple" />
-                <MetricCard title="Retail Value" value={formatCurrency(data.total_inventory.retail_value)} icon={DollarSign} color="green" />
-                <MetricCard title="Cost Value" value={formatCurrency(data.total_inventory.cost_value)} icon={Tag} color="cyan" />
+                <MetricCard title={t('analytics.totalUnits')} value={data.total_inventory.total_units.toLocaleString()} icon={Box} color="purple" />
+                <MetricCard title={t('analytics.retailValue')} value={formatCurrency(data.total_inventory.retail_value)} icon={DollarSign} color="green" />
+                <MetricCard title={t('analytics.costValue')} value={formatCurrency(data.total_inventory.cost_value)} icon={Tag} color="cyan" />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
                 {/* ABC Analysis */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>ABC Analysis</CardTitle>
-                        <CardDescription>Products classified by revenue contribution</CardDescription>
+                        <CardTitle>{t('analytics.abcAnalysis')}</CardTitle>
+                        <CardDescription>{t('analytics.abcDescription')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                            <div className={`flex items-center justify-between p-3 bg-green-50 rounded-lg ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <div>
-                                    <p className="font-semibold text-green-700">A Items</p>
-                                    <p className="text-sm text-muted-foreground">Top 80% of revenue</p>
+                                    <p className="font-semibold text-green-700">{t('analytics.aItems')}</p>
+                                    <p className="text-sm text-muted-foreground">{t('analytics.aItemsDescription')}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className={isRTL ? 'text-left' : 'text-right'}>
                                     <p className="text-2xl font-bold text-green-700">{data.abc_analysis.A}</p>
-                                    <p className="text-sm text-muted-foreground">products</p>
+                                    <p className="text-sm text-muted-foreground">{t('analytics.productsLabel')}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                            <div className={`flex items-center justify-between p-3 bg-yellow-50 rounded-lg ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <div>
-                                    <p className="font-semibold text-yellow-700">B Items</p>
-                                    <p className="text-sm text-muted-foreground">Next 15% of revenue</p>
+                                    <p className="font-semibold text-yellow-700">{t('analytics.bItems')}</p>
+                                    <p className="text-sm text-muted-foreground">{t('analytics.bItemsDescription')}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className={isRTL ? 'text-left' : 'text-right'}>
                                     <p className="text-2xl font-bold text-yellow-700">{data.abc_analysis.B}</p>
-                                    <p className="text-sm text-muted-foreground">products</p>
+                                    <p className="text-sm text-muted-foreground">{t('analytics.productsLabel')}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className={`flex items-center justify-between p-3 bg-gray-50 rounded-lg ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <div>
-                                    <p className="font-semibold text-gray-700">C Items</p>
-                                    <p className="text-sm text-muted-foreground">Bottom 5% of revenue</p>
+                                    <p className="font-semibold text-gray-700">{t('analytics.cItems')}</p>
+                                    <p className="text-sm text-muted-foreground">{t('analytics.cItemsDescription')}</p>
                                 </div>
-                                <div className="text-right">
+                                <div className={isRTL ? 'text-left' : 'text-right'}>
                                     <p className="text-2xl font-bold text-gray-700">{data.abc_analysis.C}</p>
-                                    <p className="text-sm text-muted-foreground">products</p>
+                                    <p className="text-sm text-muted-foreground">{t('analytics.productsLabel')}</p>
                                 </div>
                             </div>
                         </div>
@@ -1249,7 +1253,7 @@ function InventoryTabContent({ data, loading, error }: { data?: InventoryAnalyti
                 {/* Stock Movement */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Stock Movement (Last 30 Days)</CardTitle>
+                        <CardTitle>{t('analytics.stockMovement')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={250}>
@@ -1268,7 +1272,7 @@ function InventoryTabContent({ data, loading, error }: { data?: InventoryAnalyti
             {/* Inventory by Category */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Inventory by Category</CardTitle>
+                    <CardTitle>{t('analytics.inventoryByCategory')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -1279,8 +1283,8 @@ function InventoryTabContent({ data, loading, error }: { data?: InventoryAnalyti
                             <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                             <Tooltip formatter={(value: number, name: string) => String(name).includes('Value') ? formatCurrency(value) : value.toLocaleString()} />
                             <Legend />
-                            <Bar yAxisId="left" dataKey="total_units" fill={COLORS.secondary} name="Units" />
-                            <Bar yAxisId="right" dataKey="retail_value" fill={COLORS.primary} name="Retail Value" />
+                            <Bar yAxisId="left" dataKey="total_units" fill={COLORS.secondary} name={t('analytics.totalUnits')} />
+                            <Bar yAxisId="right" dataKey="retail_value" fill={COLORS.primary} name={t('analytics.retailValue')} />
                         </BarChart>
                     </ResponsiveContainer>
                 </CardContent>
@@ -1290,27 +1294,27 @@ function InventoryTabContent({ data, loading, error }: { data?: InventoryAnalyti
 }
 
 // Operational Tab Component
-function OperationalTabContent({ data, loading, error }: { data?: OperationalAnalyticsResponse; loading: boolean; error?: Error | null }) {
+function OperationalTabContent({ data, loading, error, t, isRTL }: { data?: OperationalAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
-    if (error) return <ErrorState message={`Failed to load operational data: ${error.message}`} />
-    if (!data) return <EmptyState message="No operational data available. Click on the Operations tab to load data." />
+    if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
+    if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />
 
     return (
         <>
             {/* Key Operational Metrics */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard title="Fulfillment Rate" value={`${data.fulfillment_rate}%`} icon={CheckCircle} color="green" />
-                <MetricCard title="Avg Items/Order" value={data.avg_items_per_order.toFixed(1)} icon={Package} color="blue" />
-                <MetricCard title="Total Orders" value={data.total_orders.toLocaleString()} icon={ShoppingCart} color="purple" />
-                <MetricCard title="Delivered Orders" value={data.delivered_orders.toLocaleString()} icon={Truck} color="green" />
+                <MetricCard title={t('analytics.fulfillmentRate')} value={`${data.fulfillment_rate}%`} icon={CheckCircle} color="green" />
+                <MetricCard title={t('analytics.avgItemsPerOrder')} value={data.avg_items_per_order.toFixed(1)} icon={Package} color="blue" />
+                <MetricCard title={t('analytics.totalOrders')} value={data.total_orders.toLocaleString()} icon={ShoppingCart} color="purple" />
+                <MetricCard title={t('analytics.deliveredOrders')} value={data.delivered_orders.toLocaleString()} icon={Truck} color="green" />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
                 {/* Peak Hours */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Peak Hours</CardTitle>
-                        <CardDescription>Busiest hours for orders</CardDescription>
+                        <CardTitle>{t('analytics.peakHours')}</CardTitle>
+                        <CardDescription>{t('analytics.peakHoursDescription')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -1319,7 +1323,7 @@ function OperationalTabContent({ data, loading, error }: { data?: OperationalAna
                                 <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
                                 <YAxis />
                                 <Tooltip labelFormatter={(h) => `${h}:00`} />
-                                <Bar dataKey="orders" fill={COLORS.primary} name="Orders" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="orders" fill={COLORS.primary} name={t('analytics.ordersTab')} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -1328,8 +1332,8 @@ function OperationalTabContent({ data, loading, error }: { data?: OperationalAna
                 {/* Peak Days */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Busiest Days</CardTitle>
-                        <CardDescription>Orders by day of week</CardDescription>
+                        <CardTitle>{t('analytics.busiestDays')}</CardTitle>
+                        <CardDescription>{t('analytics.busiestDaysDescription')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -1340,8 +1344,8 @@ function OperationalTabContent({ data, loading, error }: { data?: OperationalAna
                                 <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => formatCurrency(v)} />
                                 <Tooltip />
                                 <Legend />
-                                <Bar yAxisId="left" dataKey="orders" fill={COLORS.secondary} name="Orders" />
-                                <Bar yAxisId="right" dataKey="revenue" fill={COLORS.primary} name="Revenue" />
+                                <Bar yAxisId="left" dataKey="orders" fill={COLORS.secondary} name={t('analytics.ordersTab')} />
+                                <Bar yAxisId="right" dataKey="revenue" fill={COLORS.primary} name={t('analytics.revenue')} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -1352,17 +1356,17 @@ function OperationalTabContent({ data, loading, error }: { data?: OperationalAna
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Order Processing</CardTitle>
+                        <CardTitle>{t('analytics.orderProcessing')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
                             {data.processing_metrics.map((metric) => (
-                                <div key={metric.status} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div className="flex items-center gap-3">
+                                <div key={metric.status} className={`flex items-center justify-between p-3 bg-gray-50 rounded-lg ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                    <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                         <StatusBadge status={metric.status} />
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-semibold">{metric.count} orders</p>
+                                    <div className={isRTL ? 'text-left' : 'text-right'}>
+                                        <p className="font-semibold">{metric.count} {t('analytics.orders')}</p>
                                         <p className="text-sm text-muted-foreground">
                                             Avg: {Math.round(metric.avg_time_minutes)} min
                                         </p>
@@ -1375,7 +1379,7 @@ function OperationalTabContent({ data, loading, error }: { data?: OperationalAna
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Delivery Slot Usage</CardTitle>
+                        <CardTitle>{t('analytics.deliverySlotUsage')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={250}>

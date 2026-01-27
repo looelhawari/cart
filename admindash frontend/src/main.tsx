@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
+import '@/i18n' // Import i18n for internationalization
 import { Toaster } from '@/components/ui/toaster'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -22,6 +23,7 @@ import UsersPage from '@/pages/users/UsersPage'
 import ComprehensiveAnalyticsPage from '@/pages/analytics/ComprehensiveAnalyticsPage'
 import PromotionsPage from '@/pages/promotions/PromotionsPage'
 import PromoCodesPage from '@/pages/promo-codes/PromoCodesPage'
+import PromoCodeAnalyticsPage from '@/pages/promo-codes/PromoCodeAnalyticsPage'
 import ActivityLogsPage from '@/pages/ActivityLogsPage'
 import AdminLogsPage from '@/pages/AdminLogsPage'
 
@@ -53,6 +55,7 @@ function App() {
                             <Route element={<DashboardLayout><PromotionsPage /></DashboardLayout>} path="/promotions" />
 
                             <Route element={<DashboardLayout><PromoCodesPage /></DashboardLayout>} path="/promo-codes" />
+                            <Route element={<DashboardLayout><PromoCodeAnalyticsPage /></DashboardLayout>} path="/promo-codes/:id/analytics" />
 
                             <Route element={<DashboardLayout><OrdersPage /></DashboardLayout>} path="/orders" />
                             <Route element={<DashboardLayout><OrderDetailPage /></DashboardLayout>} path="/orders/:id" />

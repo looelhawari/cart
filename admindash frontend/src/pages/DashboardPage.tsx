@@ -15,8 +15,12 @@ import {
     Legend, AreaChart, Area
 } from 'recharts'
 import { exportDashboardPDF } from '@/lib/pdf-export'
+import { useTranslation } from 'react-i18next'
 
 export default function DashboardPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
+
     // Fetch comprehensive data for analytics
     const { data: ordersData, isLoading } = useQuery({
         queryKey: ['admin-orders-analytics'],
@@ -57,22 +61,23 @@ export default function DashboardPage() {
     // Chart Data Preparations
     // 1. Order Status Distribution (Pie Chart)
     const statusData = [
-        { name: 'Pending', value: summary.pending_count || 0, color: '#FFA500' },
-        { name: 'Confirmed', value: summary.confirmed_count || 0, color: '#2196F3' },
-        { name: 'Preparing', value: summary.preparing_count || 0, color: '#FF9800' },
-        { name: 'Out for Delivery', value: summary.out_for_delivery_count || 0, color: '#9C27B0' },
-        { name: 'Delivered', value: summary.delivered_count || 0, color: '#4CAF50' },
-        { name: 'Cancelled', value: summary.cancelled_count || 0, color: '#F44336' },
+        { name: t('orders.status.pending'), value: summary.pending_count || 0, color: '#FFA500' },
+        { name: t('orders.status.confirmed'), value: summary.confirmed_count || 0, color: '#2196F3' },
+        { name: t('orders.status.preparing'), value: summary.preparing_count || 0, color: '#FF9800' },
+        { name: t('orders.status.outForDelivery'), value: summary.out_for_delivery_count || 0, color: '#9C27B0' },
+        { name: t('orders.status.delivered'), value: summary.delivered_count || 0, color: '#4CAF50' },
+        { name: t('orders.status.cancelled'), value: summary.cancelled_count || 0, color: '#F44336' },
     ].filter(item => item.value > 0)
 
     // 2. Last 7 Days Trend (Area Chart)
+    const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-US'
     const last7Days = Array.from({ length: 7 }, (_, i) => {
         const date = new Date()
         date.setDate(date.getDate() - (6 - i))
         const dateStr = date.toISOString().split('T')[0]
         const dayOrders = orders.filter((o: any) => o.created_at?.startsWith(dateStr))
         return {
-            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            date: date.toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
             orders: dayOrders.length,
             revenue: dayOrders.reduce((sum: number, o: any) => sum + parseFloat(o.total || 0), 0),
             customers: new Set(dayOrders.map((o: any) => o.user_id)).size,
@@ -81,27 +86,27 @@ export default function DashboardPage() {
 
     // 3. Payment Methods (Pie Chart)
     const paymentMethods = [
-        { name: 'Cash on Delivery', value: orders.filter((o: any) => o.payment_method === 'cash_on_delivery').length, color: '#4CAF50' },
-        { name: 'Card', value: orders.filter((o: any) => o.payment_method === 'card').length, color: '#2196F3' },
-        { name: 'Wallet', value: orders.filter((o: any) => o.payment_method === 'wallet').length, color: '#9C27B0' },
+        { name: t('orders.paymentMethods.cashOnDelivery'), value: orders.filter((o: any) => o.payment_method === 'cash_on_delivery').length, color: '#4CAF50' },
+        { name: t('orders.paymentMethods.card'), value: orders.filter((o: any) => o.payment_method === 'card').length, color: '#2196F3' },
+        { name: t('orders.paymentMethods.wallet'), value: orders.filter((o: any) => o.payment_method === 'wallet').length, color: '#9C27B0' },
     ].filter(item => item.value > 0)
 
     // 4. Revenue by Payment Status (Bar Chart)
     const revenueByStatus = [
         {
-            status: 'Completed',
+            status: t('orders.paymentStatus.completed'),
             revenue: orders.filter((o: any) => o.payment_status === 'completed')
                 .reduce((sum: number, o: any) => sum + parseFloat(o.total || 0), 0),
             color: '#4CAF50'
         },
         {
-            status: 'Pending',
+            status: t('orders.paymentStatus.pending'),
             revenue: orders.filter((o: any) => o.payment_status === 'pending')
                 .reduce((sum: number, o: any) => sum + parseFloat(o.total || 0), 0),
             color: '#FFA500'
         },
         {
-            status: 'Failed',
+            status: t('orders.paymentStatus.failed'),
             revenue: orders.filter((o: any) => o.payment_status === 'failed')
                 .reduce((sum: number, o: any) => sum + parseFloat(o.total || 0), 0),
             color: '#F44336'
@@ -182,7 +187,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-center h-screen">
                 <div className="text-center">
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-elbaraka-primary"></div>
-                    <p className="mt-4 text-lg text-muted-foreground">Loading Analytics...</p>
+                    <p className="mt-4 text-lg text-muted-foreground">{t('common.loading')}...</p>
                 </div>
             </div>
         )
@@ -191,37 +196,37 @@ export default function DashboardPage() {
     return (
         <div className="space-y-6 p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                    <h1 className="text-4xl font-bold text-elbaraka-primary flex items-center gap-2">
+                    <h1 className={`text-4xl font-bold text-elbaraka-primary flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                         <BarChart3 className="h-10 w-10" />
-                        Overview Dashboard
+                        {t('dashboard.title')}
                     </h1>
                     <p className="text-muted-foreground mt-2">
-                        Comprehensive business intelligence and performance metrics
+                        {t('dashboard.subtitle')}
                     </p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className={`flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     <Button
                         onClick={handleExportPDF}
                         className="bg-elbaraka-primary hover:bg-elbaraka-secondary"
                     >
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export PDF
+                        <FileText className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                        {t('common.exportPDF')}
                     </Button>
-                    <div className="text-right text-sm text-muted-foreground">
-                        <p>Last Updated: {new Date().toLocaleString()}</p>
-                        <p>Data Range: Last 30 days</p>
+                    <div className={`text-sm text-muted-foreground ${isRTL ? 'text-left' : 'text-right'}`}>
+                        <p>{t('common.lastUpdated')}: {new Date().toLocaleString(locale)}</p>
+                        <p>{t('dashboard.dataRange')}</p>
                     </div>
                 </div>
             </div>
 
             {/* Key Metrics Cards */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-l-4 border-l-green-500">
+                <Card className={`${isRTL ? 'border-r-4 border-r-green-500 border-l-0' : 'border-l-4 border-l-green-500'}`}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Total Revenue
+                            {t('dashboard.totalRevenue')}
                         </CardTitle>
                         <DollarSign className="h-5 w-5 text-green-600" />
                     </CardHeader>
@@ -230,38 +235,38 @@ export default function DashboardPage() {
                             {formatCurrency(totalRevenue)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            {summary.delivered || 0} completed orders
+                            {summary.delivered || 0} {t('dashboard.completedOrders')}
                         </p>
-                        <div className="flex items-center mt-2 text-xs text-green-600">
-                            <TrendingUp className="h-3 w-3 mr-1" />
-                            <span>From {totalOrders} total orders</span>
+                        <div className={`flex items-center mt-2 text-xs text-green-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <TrendingUp className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                            <span>{t('common.from')} {totalOrders} {t('dashboard.totalOrders').toLowerCase()}</span>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-blue-500">
+                <Card className={`${isRTL ? 'border-r-4 border-r-blue-500 border-l-0' : 'border-l-4 border-l-blue-500'}`}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Total Orders
+                            {t('dashboard.totalOrders')}
                         </CardTitle>
                         <ShoppingCart className="h-5 w-5 text-blue-600" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-blue-600">{totalOrders}</div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            {uniqueCustomers} unique customers
+                            {uniqueCustomers} {t('dashboard.uniqueCustomers')}
                         </p>
-                        <div className="flex items-center mt-2 text-xs text-blue-600">
-                            <Activity className="h-3 w-3 mr-1" />
-                            <span>{completionRate.toFixed(1)}% completion rate</span>
+                        <div className={`flex items-center mt-2 text-xs text-blue-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <Activity className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                            <span>{completionRate.toFixed(1)}% {t('dashboard.completionRate')}</span>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-purple-500">
+                <Card className={`${isRTL ? 'border-r-4 border-r-purple-500 border-l-0' : 'border-l-4 border-l-purple-500'}`}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Avg Order Value
+                            {t('dashboard.avgOrderValue')}
                         </CardTitle>
                         <TrendingUp className="h-5 w-5 text-purple-600" />
                     </CardHeader>
@@ -270,19 +275,19 @@ export default function DashboardPage() {
                             {formatCurrency(avgOrderValue)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            {avgItemsPerOrder.toFixed(1)} items per order
+                            {avgItemsPerOrder.toFixed(1)} {t('dashboard.itemsPerOrder')}
                         </p>
-                        <div className="flex items-center mt-2 text-xs text-purple-600">
-                            <Package className="h-3 w-3 mr-1" />
-                            <span>Average transaction</span>
+                        <div className={`flex items-center mt-2 text-xs text-purple-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <Package className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                            <span>{t('dashboard.averageTransaction')}</span>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-orange-500">
+                <Card className={`${isRTL ? 'border-r-4 border-r-orange-500 border-l-0' : 'border-l-4 border-l-orange-500'}`}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Active Orders
+                            {t('dashboard.activeOrders')}
                         </CardTitle>
                         <Clock className="h-5 w-5 text-orange-600" />
                     </CardHeader>
@@ -291,11 +296,11 @@ export default function DashboardPage() {
                             {(summary.preparing_count || 0) + (summary.out_for_delivery_count || 0)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                            {summary.pending_count || 0} pending confirmation
+                            {summary.pending_count || 0} {t('dashboard.pendingConfirmation')}
                         </p>
-                        <div className="flex items-center mt-2 text-xs text-orange-600">
-                            <Truck className="h-3 w-3 mr-1" />
-                            <span>In progress</span>
+                        <div className={`flex items-center mt-2 text-xs text-orange-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <Truck className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                            <span>{t('dashboard.inProgress')}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -304,10 +309,10 @@ export default function DashboardPage() {
             {/* Promotions Overview */}
             {promotionsData && (
                 <div className="grid gap-6 md:grid-cols-4">
-                    <Card className="border-l-4 border-l-pink-500">
+                    <Card className={`${isRTL ? 'border-r-4 border-r-pink-500 border-l-0' : 'border-l-4 border-l-pink-500'}`}>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Active Promotions
+                                {t('dashboard.activePromotions')}
                             </CardTitle>
                             <Tag className="h-5 w-5 text-pink-600" />
                         </CardHeader>
@@ -316,19 +321,19 @@ export default function DashboardPage() {
                                 {promotionsData.active_promotions || 0}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                                {promotionsData.total_promotions || 0} total promotions
+                                {promotionsData.total_promotions || 0} {t('dashboard.totalPromotions')}
                             </p>
-                            <div className="flex items-center mt-2 text-xs text-pink-600">
-                                <Activity className="h-3 w-3 mr-1" />
-                                <span>{promotionsData.scheduled_promotions || 0} scheduled</span>
+                            <div className={`flex items-center mt-2 text-xs text-pink-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                <Activity className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                                <span>{promotionsData.scheduled_promotions || 0} {t('dashboard.scheduled')}</span>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-l-4 border-l-yellow-500">
+                    <Card className={`${isRTL ? 'border-r-4 border-r-yellow-500 border-l-0' : 'border-l-4 border-l-yellow-500'}`}>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Products on Sale
+                                {t('dashboard.productsOnSale')}
                             </CardTitle>
                             <Gift className="h-5 w-5 text-yellow-600" />
                         </CardHeader>
@@ -337,19 +342,19 @@ export default function DashboardPage() {
                                 {promotionsData.products_on_sale || 0}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                                Currently discounted
+                                {t('dashboard.currentlyDiscounted')}
                             </p>
-                            <div className="flex items-center mt-2 text-xs text-yellow-600">
-                                <Percent className="h-3 w-3 mr-1" />
-                                <span>Special offers active</span>
+                            <div className={`flex items-center mt-2 text-xs text-yellow-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                <Percent className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                                <span>{t('dashboard.specialOffersActive')}</span>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-l-4 border-l-indigo-500">
+                    <Card className={`${isRTL ? 'border-r-4 border-r-indigo-500 border-l-0' : 'border-l-4 border-l-indigo-500'}`}>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Total Discounts
+                                {t('dashboard.totalDiscounts')}
                             </CardTitle>
                             <DollarSign className="h-5 w-5 text-indigo-600" />
                         </CardHeader>
@@ -358,35 +363,35 @@ export default function DashboardPage() {
                                 {formatCurrency(promotionsData.total_discount_given || 0)}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                                Potential savings
+                                {t('dashboard.potentialSavings')}
                             </p>
-                            <div className="flex items-center mt-2 text-xs text-indigo-600">
-                                <TrendingUp className="h-3 w-3 mr-1" />
-                                <span>Customer savings</span>
+                            <div className={`flex items-center mt-2 text-xs text-indigo-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                <TrendingUp className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                                <span>{t('dashboard.customerSavings')}</span>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-l-4 border-l-teal-500">
+                    <Card className={`${isRTL ? 'border-r-4 border-r-teal-500 border-l-0' : 'border-l-4 border-l-teal-500'}`}>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">
-                                Featured Promotion
+                                {t('dashboard.featuredPromotion')}
                             </CardTitle>
                             <Tag className="h-5 w-5 text-teal-600" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-lg font-bold text-teal-600">
-                                {promotionsData.featured_promotion?.title || 'None'}
+                                {promotionsData.featured_promotion?.title || t('common.none')}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
                                 {promotionsData.featured_promotion
-                                    ? `${promotionsData.featured_promotion.discount_value}${promotionsData.featured_promotion.discount_type === 'percentage' ? '%' : ' EGP'} off`
-                                    : 'No featured promotion'
+                                    ? `${promotionsData.featured_promotion.discount_value}${promotionsData.featured_promotion.discount_type === 'percentage' ? '%' : ` ${t('common.egp')}`} ${t('common.off')}`
+                                    : t('dashboard.noFeaturedPromotion')
                                 }
                             </p>
-                            <div className="flex items-center mt-2 text-xs text-teal-600">
-                                <ArrowUpRight className="h-3 w-3 mr-1" />
-                                <span>Homepage banner</span>
+                            <div className={`flex items-center mt-2 text-xs text-teal-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                <ArrowUpRight className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                                <span>{t('dashboard.homepageBanner')}</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -397,9 +402,9 @@ export default function DashboardPage() {
             <div className="grid gap-6 md:grid-cols-4">
                 <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
                     <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
-                                <p className="text-sm font-medium text-orange-700">Preparing</p>
+                                <p className="text-sm font-medium text-orange-700">{t('orders.status.preparing')}</p>
                                 <p className="text-3xl font-bold text-orange-600 mt-2">
                                     {summary.preparing_count || 0}
                                 </p>
@@ -411,9 +416,9 @@ export default function DashboardPage() {
 
                 <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
                     <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
-                                <p className="text-sm font-medium text-purple-700">Out for Delivery</p>
+                                <p className="text-sm font-medium text-purple-700">{t('orders.status.outForDelivery')}</p>
                                 <p className="text-3xl font-bold text-purple-600 mt-2">
                                     {summary.out_for_delivery_count || 0}
                                 </p>
@@ -425,9 +430,9 @@ export default function DashboardPage() {
 
                 <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
                     <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
-                                <p className="text-sm font-medium text-green-700">Delivered</p>
+                                <p className="text-sm font-medium text-green-700">{t('orders.status.delivered')}</p>
                                 <p className="text-3xl font-bold text-green-600 mt-2">
                                     {summary.delivered_count || 0}
                                 </p>
@@ -439,9 +444,9 @@ export default function DashboardPage() {
 
                 <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
                     <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
-                                <p className="text-sm font-medium text-red-700">Cancelled</p>
+                                <p className="text-sm font-medium text-red-700">{t('orders.status.cancelled')}</p>
                                 <p className="text-3xl font-bold text-red-600 mt-2">
                                     {summary.cancelled_count || 0}
                                 </p>
@@ -457,9 +462,9 @@ export default function DashboardPage() {
                 {/* 7-Day Trend */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <TrendingUp className="h-5 w-5" />
-                            7-Day Revenue & Orders Trend
+                            {t('dashboard.charts.revenueOrdersTrend')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -493,7 +498,7 @@ export default function DashboardPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Activity className="h-5 w-5" />
-                            Order Status Distribution
+                            {t('dashboard.charts.orderStatusDistribution')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -526,9 +531,9 @@ export default function DashboardPage() {
                 {/* Payment Methods */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <DollarSign className="h-5 w-5" />
-                            Payment Method Distribution
+                            {t('dashboard.charts.paymentMethodDistribution')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -559,9 +564,9 @@ export default function DashboardPage() {
                 {/* Revenue by Payment Status */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <BarChart3 className="h-5 w-5" />
-                            Revenue by Payment Status
+                            {t('dashboard.charts.revenueByPaymentStatus')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -588,9 +593,9 @@ export default function DashboardPage() {
                 {/* Top Products */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <Package className="h-5 w-5" />
-                            Top Selling Products
+                            {t('dashboard.charts.topSellingProducts')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -616,9 +621,9 @@ export default function DashboardPage() {
                 {/* Stock Health */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <Activity className="h-5 w-5" />
-                            Product Stock Levels
+                            {t('dashboard.charts.productStockLevels')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -641,16 +646,16 @@ export default function DashboardPage() {
             <div className="grid gap-6 md:grid-cols-3">
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">Completion Rate</CardTitle>
+                        <CardTitle className="text-base">{t('dashboard.completionRate')}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
                                 <div className="text-4xl font-bold text-green-600">
                                     {completionRate.toFixed(1)}%
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    {summary.delivered || 0} of {totalOrders} orders
+                                    {summary.delivered || 0} {t('common.of')} {totalOrders} {t('orders.title').toLowerCase()}
                                 </p>
                             </div>
                             <CheckCircle className="h-16 w-16 text-green-500 opacity-20" />
@@ -666,16 +671,16 @@ export default function DashboardPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">Cancellation Rate</CardTitle>
+                        <CardTitle className="text-base">{t('dashboard.cancellationRate')}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
                                 <div className="text-4xl font-bold text-red-600">
                                     {cancellationRate.toFixed(1)}%
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    {summary.cancelled || 0} of {totalOrders} orders
+                                    {summary.cancelled || 0} {t('common.of')} {totalOrders} {t('orders.title').toLowerCase()}
                                 </p>
                             </div>
                             <AlertCircle className="h-16 w-16 text-red-500 opacity-20" />
@@ -691,23 +696,23 @@ export default function DashboardPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">Customer Retention</CardTitle>
+                        <CardTitle className="text-base">{t('dashboard.customerRetention')}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <div>
                                 <div className="text-4xl font-bold text-blue-600">
                                     {uniqueCustomers}
                                 </div>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    Unique customers
+                                    {t('dashboard.uniqueCustomers')}
                                 </p>
                             </div>
                             <Users className="h-16 w-16 text-blue-500 opacity-20" />
                         </div>
-                        <div className="mt-4 flex items-center text-sm text-blue-600">
-                            <ArrowUpRight className="h-4 w-4 mr-1" />
-                            <span>{(totalOrders / Math.max(uniqueCustomers, 1)).toFixed(1)} orders per customer</span>
+                        <div className={`mt-4 flex items-center text-sm text-blue-600 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <ArrowUpRight className={`h-4 w-4 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                            <span>{(totalOrders / Math.max(uniqueCustomers, 1)).toFixed(1)} {t('dashboard.ordersPerCustomer')}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -717,9 +722,9 @@ export default function DashboardPage() {
             {hourlyDistribution.length > 0 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                             <Clock className="h-5 w-5" />
-                            Hourly Order Distribution
+                            {t('dashboard.charts.hourlyOrderDistribution')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>

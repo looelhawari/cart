@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { promotionService, type PromotionFilters } from '@/services/promotion.service'
 import { categoryService } from '@/services/category.service'
@@ -18,6 +19,9 @@ import { useForm, Controller } from 'react-hook-form'
 import type { Promotion } from '@/types'
 
 export default function PromotionsPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
+
     const [filters, setFilters] = useState<PromotionFilters>({ page: 1, per_page: 20 })
     const [searchTerm, setSearchTerm] = useState('')
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -59,8 +63,8 @@ export default function PromotionsPage() {
                 console.error('Failed to load products:', error)
                 console.error('Error response:', error.response?.data)
                 toast({
-                    title: 'Error loading products',
-                    description: error.response?.data?.message || 'Failed to load products',
+                    title: t('promotions.errorLoadingProducts'),
+                    description: error.response?.data?.message || t('promotions.createError'),
                     variant: 'destructive',
                 })
                 throw error
@@ -105,14 +109,14 @@ export default function PromotionsPage() {
             setSelectedImageFile(null)
             setSelectedBannerFile(null)
             toast({
-                title: 'Success',
-                description: 'Promotion created successfully',
+                title: t('common.success'),
+                description: t('promotions.createSuccess'),
             })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to create promotion',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promotions.createError'),
                 variant: 'destructive',
             })
         },
@@ -128,14 +132,14 @@ export default function PromotionsPage() {
             setSelectedImageFile(null)
             setSelectedBannerFile(null)
             toast({
-                title: 'Success',
-                description: 'Promotion updated successfully',
+                title: t('common.success'),
+                description: t('promotions.updateSuccess'),
             })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to update promotion',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promotions.updateError'),
                 variant: 'destructive',
             })
         },
@@ -146,14 +150,14 @@ export default function PromotionsPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['promotions'] })
             toast({
-                title: 'Success',
-                description: 'Promotion deleted successfully',
+                title: t('common.success'),
+                description: t('promotions.deleteSuccess'),
             })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to delete promotion',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promotions.deleteError'),
                 variant: 'destructive',
             })
         },
@@ -164,8 +168,8 @@ export default function PromotionsPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['promotions'] })
             toast({
-                title: 'Success',
-                description: 'Promotion set as featured',
+                title: t('common.success'),
+                description: t('promotions.featuredSuccess'),
             })
         },
     })
@@ -233,7 +237,7 @@ export default function PromotionsPage() {
     }
 
     const handleDelete = (id: number) => {
-        if (confirm('Are you sure you want to delete this promotion?')) {
+        if (confirm(t('promotions.confirmDelete'))) {
             deleteMutation.mutate(id)
         }
     }
@@ -246,50 +250,51 @@ export default function PromotionsPage() {
 
     const getStatusBadge = (promotion: Promotion) => {
         if (!promotion.is_active) {
-            return <span className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">Inactive</span>
+            return <span className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">{t('common.inactive')}</span>
         }
         if (promotion.is_currently_active) {
-            return <span className="px-2 py-1 text-xs rounded bg-green-200 text-green-700">Active</span>
+            return <span className="px-2 py-1 text-xs rounded bg-green-200 text-green-700">{t('common.active')}</span>
         }
         const now = new Date()
         const start = new Date(promotion.start_date)
         if (now < start) {
-            return <span className="px-2 py-1 text-xs rounded bg-blue-200 text-blue-700">Scheduled</span>
+            return <span className="px-2 py-1 text-xs rounded bg-blue-200 text-blue-700">{t('promotions.scheduled')}</span>
         }
-        return <span className="px-2 py-1 text-xs rounded bg-red-200 text-red-700">Expired</span>
+        return <span className="px-2 py-1 text-xs rounded bg-red-200 text-red-700">{t('promotions.expired')}</span>
     }
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">Promotions & Sales</h1>
-                    <p className="text-gray-500 mt-1">Manage sales, offers, and promotions</p>
+        <div className={`p-6 space-y-6 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+            <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <div className={isRTL ? 'text-right' : 'text-left'}>
+                    <h1 className="text-3xl font-bold">{t('promotions.title')}</h1>
+                    <p className="text-gray-500 mt-1">{t('promotions.subtitle')}</p>
                 </div>
                 <Button onClick={() => { reset(); setIsCreateDialogOpen(true) }}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Promotion
+                    <Plus className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {t('promotions.createPromotion')}
                 </Button>
             </div>
 
             <Card>
                 <CardContent className="pt-6">
-                    <div className="flex gap-4 mb-4">
+                    <div className={`flex gap-4 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                         <div className="flex-1">
                             <Input
-                                placeholder="Search promotions..."
+                                placeholder={t('promotions.searchPlaceholder')}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                className={isRTL ? 'text-right' : 'text-left'}
                             />
                         </div>
                         <Button onClick={handleSearch}>
-                            <Search className="w-4 h-4 mr-2" />
-                            Search
+                            <Search className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                            {t('common.search')}
                         </Button>
                     </div>
 
-                    <div className="flex gap-4 mb-4">
+                    <div className={`flex gap-4 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                         <Select
                             value={filters.is_active?.toString() ?? 'all'}
                             onValueChange={(value) => setFilters({
@@ -299,12 +304,12 @@ export default function PromotionsPage() {
                             })}
                         >
                             <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Filter by status" />
+                                <SelectValue placeholder={t('promotions.filterByStatus')} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="true">Active</SelectItem>
-                                <SelectItem value="false">Inactive</SelectItem>
+                                <SelectItem value="all">{t('promotions.allStatus')}</SelectItem>
+                                <SelectItem value="true">{t('common.active')}</SelectItem>
+                                <SelectItem value="false">{t('common.inactive')}</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -317,30 +322,30 @@ export default function PromotionsPage() {
                             })}
                         >
                             <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Filter by featured" />
+                                <SelectValue placeholder={t('promotions.filterByFeatured')} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Promotions</SelectItem>
-                                <SelectItem value="true">Featured Only</SelectItem>
-                                <SelectItem value="false">Not Featured</SelectItem>
+                                <SelectItem value="all">{t('promotions.allPromotions')}</SelectItem>
+                                <SelectItem value="true">{t('promotions.featuredOnly')}</SelectItem>
+                                <SelectItem value="false">{t('promotions.notFeatured')}</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
 
                     {isLoading ? (
-                        <div className="text-center py-8">Loading...</div>
+                        <div className="text-center py-8">{t('common.loading')}</div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="text-left p-3">Promotion</th>
-                                        <th className="text-left p-3">Discount</th>
-                                        <th className="text-left p-3">Applies To</th>
-                                        <th className="text-left p-3">Duration</th>
-                                        <th className="text-left p-3">Status</th>
-                                        <th className="text-left p-3">Featured</th>
-                                        <th className="text-right p-3">Actions</th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.promotion')}</th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.discount')}</th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.appliesTo')}</th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.duration')}</th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.featured')}</th>
+                                        <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
@@ -434,17 +439,17 @@ export default function PromotionsPage() {
                     setProductPage(1)
                 }
             }}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir={isRTL ? 'rtl' : 'ltr'}>
                     <DialogHeader>
                         <DialogTitle>
-                            {editingPromotion ? 'Edit Promotion' : 'Create New Promotion'}
+                            {editingPromotion ? t('promotions.editPromotion') : t('promotions.createNewPromotion')}
                         </DialogTitle>
                     </DialogHeader>
 
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="title">Title (English) *</Label>
+                                <Label htmlFor="title">{t('promotions.form.titleEnglish')} *</Label>
                                 <Input
                                     id="title"
                                     {...register('title', { required: true })}
@@ -452,7 +457,7 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="title_ar">Title (Arabic) *</Label>
+                                <Label htmlFor="title_ar">{t('promotions.form.titleArabic')} *</Label>
                                 <Input
                                     id="title_ar"
                                     {...register('title_ar', { required: true })}
@@ -464,7 +469,7 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="description">Description (English)</Label>
+                                <Label htmlFor="description">{t('promotions.form.descriptionEnglish')}</Label>
                                 <Textarea
                                     id="description"
                                     {...register('description')}
@@ -472,7 +477,7 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="description_ar">Description (Arabic)</Label>
+                                <Label htmlFor="description_ar">{t('promotions.form.descriptionArabic')}</Label>
                                 <Textarea
                                     id="description_ar"
                                     {...register('description_ar')}
@@ -484,7 +489,7 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-3 gap-4">
                             <div>
-                                <Label htmlFor="discount_type">Discount Type *</Label>
+                                <Label htmlFor="discount_type">{t('promotions.form.discountType')} *</Label>
                                 <Controller
                                     name="discount_type"
                                     control={control}
@@ -493,19 +498,19 @@ export default function PromotionsPage() {
                                     render={({ field }) => (
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Select type" />
+                                                <SelectValue placeholder={t('promotions.form.selectType')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="percentage">Percentage (%)</SelectItem>
-                                                <SelectItem value="fixed">Fixed Amount</SelectItem>
-                                                <SelectItem value="buy_x_get_y">Buy X Get Y</SelectItem>
+                                                <SelectItem value="percentage">{t('promotions.types.percentage')}</SelectItem>
+                                                <SelectItem value="fixed">{t('promotions.types.fixed')}</SelectItem>
+                                                <SelectItem value="buy_x_get_y">{t('promotions.types.buyXGetY')}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     )}
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="discount_value">Discount Value *</Label>
+                                <Label htmlFor="discount_value">{t('promotions.form.discountValue')} *</Label>
                                 <Input
                                     id="discount_value"
                                     type="number"
@@ -515,7 +520,7 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="max_discount">Max Discount Cap</Label>
+                                <Label htmlFor="max_discount">{t('promotions.form.maxDiscountCap')}</Label>
                                 <Input
                                     id="max_discount"
                                     type="number"
@@ -528,7 +533,7 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="start_date">Start Date *</Label>
+                                <Label htmlFor="start_date">{t('promotions.startDate')} *</Label>
                                 <Input
                                     id="start_date"
                                     type="datetime-local"
@@ -536,7 +541,7 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="end_date">End Date *</Label>
+                                <Label htmlFor="end_date">{t('promotions.endDate')} *</Label>
                                 <Input
                                     id="end_date"
                                     type="datetime-local"
@@ -546,7 +551,7 @@ export default function PromotionsPage() {
                         </div>
 
                         <div>
-                            <Label htmlFor="applies_to">Applies To *</Label>
+                            <Label htmlFor="applies_to">{t('promotions.appliesTo')} *</Label>
                             <Controller
                                 name="applies_to"
                                 control={control}
@@ -555,12 +560,12 @@ export default function PromotionsPage() {
                                 render={({ field }) => (
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select scope" />
+                                            <SelectValue placeholder={t('promotions.form.selectScope')} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Products</SelectItem>
-                                            <SelectItem value="category">Specific Categories/Subcategories</SelectItem>
-                                            <SelectItem value="products">Specific Products</SelectItem>
+                                            <SelectItem value="all">{t('promotions.allProducts')}</SelectItem>
+                                            <SelectItem value="category">{t('promotions.form.specificCategories')}</SelectItem>
+                                            <SelectItem value="products">{t('promotions.form.specificProducts')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 )}
@@ -570,10 +575,10 @@ export default function PromotionsPage() {
                         {appliesTo === 'category' && (
                             <div className="border rounded-lg p-4 bg-gray-50">
                                 <Label className="text-base font-semibold mb-3 block">
-                                    Select Categories & Subcategories
+                                    {t('promotions.form.selectCategories')}
                                 </Label>
                                 <p className="text-sm text-gray-500 mb-3">
-                                    Hold Ctrl/Cmd to select multiple categories. Promotion will apply to all products in selected categories.
+                                    {t('promotions.form.selectCategoriesHint')}
                                 </p>
                                 <select
                                     multiple
@@ -584,7 +589,7 @@ export default function PromotionsPage() {
                                     {categories?.data?.map((cat: any) => (
                                         <optgroup key={cat.id} label={`${cat.name_en} (${cat.name_ar})`}>
                                             <option value={cat.id} className="font-semibold">
-                                                ✓ Main Category: {cat.name_en}
+                                                ✓ {t('promotions.form.mainCategory')}: {cat.name_en}
                                             </option>
                                             {cat.subcategories?.map((sub: any) => (
                                                 <option key={sub.id} value={sub.id} className="pl-4">
@@ -595,27 +600,27 @@ export default function PromotionsPage() {
                                     ))}
                                 </select>
                                 <p className="text-xs text-gray-400 mt-2">
-                                    {categories?.data?.length || 0} categories available
+                                    {categories?.data?.length || 0} {t('promotions.form.categoriesAvailable')}
                                 </p>
                             </div>
                         )}
 
                         {appliesTo === 'products' && (
                             <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
-                                <div className="flex items-center justify-between">
+                                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                                     <Label className="text-base font-semibold">
-                                        Select Specific Products
+                                        {t('promotions.form.selectSpecificProducts')}
                                     </Label>
                                     <div className="text-sm text-gray-600">
-                                        {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected
+                                        {selectedProducts.length} {t('promotions.form.productsSelected')}
                                     </div>
                                 </div>
 
                                 {/* Selected Products */}
                                 {selectedProducts.length > 0 && (
                                     <div className="border rounded-md bg-white p-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-sm font-medium">Selected Products:</span>
+                                        <div className={`flex items-center justify-between mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                            <span className="text-sm font-medium">{t('promotions.selectedProducts')}:</span>
                                             <Button
                                                 type="button"
                                                 variant="ghost"
@@ -623,7 +628,7 @@ export default function PromotionsPage() {
                                                 onClick={handleClearProducts}
                                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                             >
-                                                Clear All
+                                                {t('promotions.form.clearAll')}
                                             </Button>
                                         </div>
                                         <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -658,10 +663,10 @@ export default function PromotionsPage() {
                                 {/* Product Search */}
                                 <div>
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                        <Search className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400`} />
                                         <Input
-                                            placeholder="Search products by name, barcode, or price..."
-                                            className="pl-10"
+                                            placeholder={t('promotions.form.searchProductsPlaceholder')}
+                                            className={isRTL ? 'pr-10' : 'pl-10'}
                                             value={productSearchTerm}
                                             onChange={(e) => {
                                                 setProductSearchTerm(e.target.value)
@@ -670,7 +675,7 @@ export default function PromotionsPage() {
                                         />
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Showing {filteredProducts.length} of {products?.data?.length || 0} products
+                                        {t('promotions.form.showingProducts', { filtered: filteredProducts.length, total: products?.data?.length || 0 })}
                                     </p>
                                 </div>
 
@@ -679,17 +684,17 @@ export default function PromotionsPage() {
                                     {isLoadingProducts ? (
                                         <div className="p-8 text-center text-gray-500">
                                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-elbaraka-primary mx-auto mb-2"></div>
-                                            <p>Loading products...</p>
+                                            <p>{t('promotions.loadingProducts')}</p>
                                         </div>
                                     ) : paginatedProducts.length === 0 && !isLoadingProducts ? (
                                         <div className="p-8 text-center text-gray-500">
                                             <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                                            <p>No products found</p>
+                                            <p>{t('promotions.noProductsFound')}</p>
                                             {productSearchTerm && (
-                                                <p className="text-sm mt-1">Try a different search term</p>
+                                                <p className="text-sm mt-1">{t('promotions.tryDifferentSearch')}</p>
                                             )}
                                             {!productSearchTerm && filteredProducts.length === 0 && (
-                                                <p className="text-sm mt-1">No products available in the system</p>
+                                                <p className="text-sm mt-1">{t('promotions.noProductsAvailable')}</p>
                                             )}
                                         </div>
                                     ) : (
@@ -753,11 +758,11 @@ export default function PromotionsPage() {
 
                                 {/* Pagination */}
                                 {totalProductPages > 1 && (
-                                    <div className="flex items-center justify-between pt-2">
+                                    <div className={`flex items-center justify-between pt-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                         <div className="text-sm text-gray-600">
-                                            Page {productPage} of {totalProductPages}
+                                            {t('promotions.form.page')} {productPage} {t('common.of')} {totalProductPages}
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <Button
                                                 type="button"
                                                 variant="outline"
@@ -765,7 +770,7 @@ export default function PromotionsPage() {
                                                 onClick={() => setProductPage(Math.max(1, productPage - 1))}
                                                 disabled={productPage === 1}
                                             >
-                                                Previous
+                                                {t('common.previous')}
                                             </Button>
                                             <Button
                                                 type="button"
@@ -774,7 +779,7 @@ export default function PromotionsPage() {
                                                 onClick={() => setProductPage(Math.min(totalProductPages, productPage + 1))}
                                                 disabled={productPage === totalProductPages}
                                             >
-                                                Next
+                                                {t('common.next')}
                                             </Button>
                                         </div>
                                     </div>
@@ -783,7 +788,7 @@ export default function PromotionsPage() {
                         )}
 
                         <div>
-                            <Label htmlFor="min_purchase">Minimum Purchase Amount</Label>
+                            <Label htmlFor="min_purchase">{t('promotions.form.minPurchaseAmount')}</Label>
                             <Input
                                 id="min_purchase"
                                 type="number"
@@ -795,7 +800,7 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="terms_conditions">Terms & Conditions (English)</Label>
+                                <Label htmlFor="terms_conditions">{t('promotions.form.termsEnglish')}</Label>
                                 <Textarea
                                     id="terms_conditions"
                                     {...register('terms_conditions')}
@@ -803,7 +808,7 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="terms_conditions_ar">Terms & Conditions (Arabic)</Label>
+                                <Label htmlFor="terms_conditions_ar">{t('promotions.form.termsArabic')}</Label>
                                 <Textarea
                                     id="terms_conditions_ar"
                                     {...register('terms_conditions_ar')}
@@ -815,7 +820,7 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="image">Promotion Image</Label>
+                                <Label htmlFor="image">{t('promotions.form.promotionImage')}</Label>
                                 <Input
                                     id="image"
                                     type="file"
@@ -824,7 +829,7 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="banner_image">Banner Image (Homepage)</Label>
+                                <Label htmlFor="banner_image">{t('promotions.form.bannerImage')}</Label>
                                 <Input
                                     id="banner_image"
                                     type="file"
@@ -834,8 +839,8 @@ export default function PromotionsPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <Controller
                                     name="is_active"
                                     control={control}
@@ -847,9 +852,9 @@ export default function PromotionsPage() {
                                         />
                                     )}
                                 />
-                                <Label htmlFor="is_active">Active</Label>
+                                <Label htmlFor="is_active">{t('common.active')}</Label>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <Controller
                                     name="is_featured"
                                     control={control}
@@ -861,11 +866,11 @@ export default function PromotionsPage() {
                                         />
                                     )}
                                 />
-                                <Label htmlFor="is_featured">Featured (Homepage Banner)</Label>
+                                <Label htmlFor="is_featured">{t('promotions.form.featuredHomepage')}</Label>
                             </div>
                         </div>
 
-                        <DialogFooter>
+                        <DialogFooter className={isRTL ? 'flex-row-reverse' : ''}>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -875,14 +880,14 @@ export default function PromotionsPage() {
                                     reset()
                                 }}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
                                 {createMutation.isPending || updateMutation.isPending
-                                    ? 'Saving...'
+                                    ? t('promotions.saving')
                                     : editingPromotion
-                                        ? 'Update Promotion'
-                                        : 'Create Promotion'
+                                        ? t('promotions.updatePromotion')
+                                        : t('promotions.createPromotion')
                                 }
                             </Button>
                         </DialogFooter>

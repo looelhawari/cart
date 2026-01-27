@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Base font family */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
 @layer base {
     :root {
         --background: 0 0% 100%;
@@ -57,4 +62,120 @@
     body {
         @apply bg-background text-foreground;
     }
+}
+
+/* RTL Support */
+html[dir="rtl"] {
+    direction: rtl;
+}
+
+html[dir="rtl"] body {
+    font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* RTL specific adjustments */
+body.rtl {
+    direction: rtl;
+    text-align: right;
+}
+
+body.ltr {
+    direction: ltr;
+    text-align: left;
+}
+
+/* RTL: Flip icons and specific elements */
+html[dir="rtl"] .rtl-flip {
+    transform: scaleX(-1);
+}
+
+/* RTL: Adjust margins and paddings */
+html[dir="rtl"] .ml-auto {
+    margin-left: unset;
+    margin-right: auto;
+}
+
+html[dir="rtl"] .mr-auto {
+    margin-right: unset;
+    margin-left: auto;
+}
+
+/* RTL: Sidebar adjustments */
+html[dir="rtl"] .sidebar {
+    right: 0;
+    left: auto;
+    border-left: 1px solid hsl(var(--border));
+    border-right: none;
+}
+
+html[dir="ltr"] .sidebar {
+    left: 0;
+    right: auto;
+    border-right: 1px solid hsl(var(--border));
+    border-left: none;
+}
+
+/* RTL: Table adjustments */
+html[dir="rtl"] table {
+    direction: rtl;
+}
+
+html[dir="rtl"] th,
+html[dir="rtl"] td {
+    text-align: right;
+}
+
+html[dir="rtl"] th:last-child,
+html[dir="rtl"] td:last-child {
+    text-align: left;
+}
+
+/* RTL: Form inputs */
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+    text-align: right;
+}
+
+/* RTL: Dropdown menus */
+html[dir="rtl"] [data-radix-popper-content-wrapper] {
+    direction: rtl;
+}
+
+/* RTL: Dialog positioning */
+html[dir="rtl"] [role="dialog"] {
+    direction: rtl;
+}
+
+/* RTL: Badge positioning */
+html[dir="rtl"] .badge-rtl {
+    left: auto;
+    right: 0;
+}
+
+/* RTL: Flex row reverse for nav items */
+html[dir="rtl"] .flex-row-rtl {
+    flex-direction: row-reverse;
+}
+
+/* RTL: Checkbox and radio button spacing */
+html[dir="rtl"] .checkbox-label {
+    margin-right: 0.5rem;
+    margin-left: 0;
+}
+
+html[dir="ltr"] .checkbox-label {
+    margin-left: 0.5rem;
+    margin-right: 0;
+}
+
+/* RTL: Progress bars */
+html[dir="rtl"] .progress-bar {
+    direction: ltr;
+    /* Keep progress bars LTR */
+}
+
+/* Transition for smooth language switch */
+body {
+    transition: direction 0.3s ease;
 }
