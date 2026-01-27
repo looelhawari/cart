@@ -11,7 +11,12 @@
  *   const response = await httpClient.get('/api/v1/endpoint');
  */
 
-import { getAuthToken, clearAuthData, API_BASE_URL } from "./api/base";
+import {
+  getAuthToken,
+  clearAuthData,
+  API_BASE_URL,
+  getCommonHeaders,
+} from "./api/base";
 
 /**
  * Enhanced fetch wrapper with auth and error handling
@@ -23,8 +28,7 @@ async function httpRequest<T>(
   const token = await getAuthToken();
 
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+    ...getCommonHeaders(),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };

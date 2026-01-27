@@ -27,11 +27,13 @@ import {
   EyeOff,
   Lock as LockIcon,
 } from "lucide-react-native";
+import { useTranslation } from "@/i18n";
 
 type Step = 1 | 2 | 3;
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
@@ -49,7 +51,7 @@ export default function ForgotPasswordScreen() {
 
   const handleSendCode = async () => {
     if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email");
+      Alert.alert(t.common.error, t.forgotPassword.enterEmail);
       return;
     }
 
@@ -57,9 +59,12 @@ export default function ForgotPasswordScreen() {
       setLoading(true);
       await forgotPassword({ email });
       setStep(2);
-      Alert.alert("Success", "Reset code has been sent to your email");
+      Alert.alert(t.common.success, t.forgotPassword.codeSent);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to send reset code");
+      Alert.alert(
+        t.common.error,
+        error.message || t.forgotPassword.failedToSend,
+      );
     } finally {
       setLoading(false);
     }
@@ -67,7 +72,7 @@ export default function ForgotPasswordScreen() {
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code");
+      Alert.alert(t.common.error, t.forgotPassword.enterCode);
       return;
     }
 
@@ -77,7 +82,7 @@ export default function ForgotPasswordScreen() {
       await verifyResetOtp({ email, otp });
       setStep(3);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Invalid or expired OTP");
+      Alert.alert(t.common.error, error.message || t.forgotPassword.invalidOtp);
     } finally {
       setLoading(false);
     }
@@ -87,15 +92,15 @@ export default function ForgotPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!newPassword) {
-      Alert.alert("Error", "Please enter a new password");
+      Alert.alert(t.common.error, t.forgotPassword.enterNewPassword);
       return;
     }
     if (newPassword.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters");
+      Alert.alert(t.common.error, t.signup.passwordMinLength);
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert(t.common.error, t.signup.passwordsNotMatch);
       return;
     }
 
@@ -107,11 +112,14 @@ export default function ForgotPasswordScreen() {
         password: newPassword,
         password_confirmation: confirmPassword,
       });
-      Alert.alert("Success", "Password has been reset successfully", [
-        { text: "OK", onPress: () => router.replace("/(auth)/login") },
+      Alert.alert(t.common.success, t.forgotPassword.passwordResetSuccess, [
+        { text: t.common.ok, onPress: () => router.replace("/(auth)/login") },
       ]);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to reset password");
+      Alert.alert(
+        t.common.error,
+        error.message || t.forgotPassword.failedToReset,
+      );
     } finally {
       setLoading(false);
     }
@@ -119,13 +127,11 @@ export default function ForgotPasswordScreen() {
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Forgot Password?</Text>
-      <Text style={styles.stepSubtitle}>
-        Enter your email address and we will send you a reset code
-      </Text>
+      <Text style={styles.stepTitle}>{t.forgotPassword.title}</Text>
+      <Text style={styles.stepSubtitle}>{t.forgotPassword.subtitle}</Text>
 
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>{t.signup.email}</Text>
         <View style={styles.inputWrapper}>
           <Mail
             size={20}
@@ -134,7 +140,7 @@ export default function ForgotPasswordScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Enter your email"
+            placeholder={t.signup.enterEmailPlaceholder}
             placeholderTextColor={Colors.neutralMedium}
             value={email}
             onChangeText={setEmail}
@@ -154,7 +160,9 @@ export default function ForgotPasswordScreen() {
         {loading ? (
           <ActivityIndicator color={Colors.neutralWhite} />
         ) : (
-          <Text style={styles.actionButtonText}>Send Reset Code</Text>
+          <Text style={styles.actionButtonText}>
+            {t.forgotPassword.sendResetCode}
+          </Text>
         )}
       </TouchableOpacity>
     </View>
@@ -162,9 +170,10 @@ export default function ForgotPasswordScreen() {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Verify Code</Text>
+      <Text style={styles.stepTitle}>{t.forgotPassword.verifyCode}</Text>
       <Text style={styles.stepSubtitle}>
-        Enter the 6-digit code sent to{"\n"}
+        {t.forgotPassword.enterCodeSentTo}
+        {"\n"}
         {email}
       </Text>
 
@@ -183,7 +192,9 @@ export default function ForgotPasswordScreen() {
 
       <TouchableOpacity style={styles.resendButton} disabled={otpTimer > 0}>
         <Text style={styles.resendText}>
-          {otpTimer > 0 ? `Resend code in ${otpTimer}s` : "Resend Code"}
+          {otpTimer > 0
+            ? `${t.signup.resendIn} ${otpTimer}s`
+            : t.signup.resendCode}
         </Text>
       </TouchableOpacity>
 
@@ -196,7 +207,9 @@ export default function ForgotPasswordScreen() {
         {loading ? (
           <ActivityIndicator color={Colors.neutralWhite} />
         ) : (
-          <Text style={styles.actionButtonText}>Verify Code</Text>
+          <Text style={styles.actionButtonText}>
+            {t.forgotPassword.verifyCode}
+          </Text>
         )}
       </TouchableOpacity>
     </View>
@@ -204,12 +217,14 @@ export default function ForgotPasswordScreen() {
 
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>New Password</Text>
-      <Text style={styles.stepSubtitle}>Create a new strong password</Text>
+      <Text style={styles.stepTitle}>{t.forgotPassword.newPassword}</Text>
+      <Text style={styles.stepSubtitle}>
+        {t.forgotPassword.createNewPassword}
+      </Text>
 
       <View style={styles.form}>
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>New Password</Text>
+          <Text style={styles.label}>{t.forgotPassword.newPassword}</Text>
           <View style={styles.inputWrapper}>
             <LockIcon
               size={20}
@@ -218,7 +233,7 @@ export default function ForgotPasswordScreen() {
             />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder="Enter new password"
+              placeholder={t.forgotPassword.enterNewPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={newPassword}
               onChangeText={setNewPassword}
@@ -239,7 +254,7 @@ export default function ForgotPasswordScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Confirm Password</Text>
+          <Text style={styles.label}>{t.signup.confirmPassword}</Text>
           <View style={styles.inputWrapper}>
             <LockIcon
               size={20}
@@ -248,7 +263,7 @@ export default function ForgotPasswordScreen() {
             />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder="Confirm new password"
+              placeholder={t.forgotPassword.confirmNewPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -257,7 +272,7 @@ export default function ForgotPasswordScreen() {
             />
             <TouchableOpacity
               onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              style={styles.eyeIcon}  
+              style={styles.eyeIcon}
             >
               {showConfirmPassword ? (
                 <EyeOff size={20} color={Colors.neutralMedium} />
@@ -278,7 +293,7 @@ export default function ForgotPasswordScreen() {
         {loading ? (
           <ActivityIndicator color={Colors.neutralWhite} />
         ) : (
-          <Text style={styles.actionButtonText}>Reset Password</Text>
+          <Text style={styles.actionButtonText}>{t.auth.resetPassword}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -289,7 +304,7 @@ export default function ForgotPasswordScreen() {
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView} 
+        style={styles.keyboardView}
       >
         <View style={styles.header}>
           <TouchableOpacity

@@ -18,6 +18,7 @@ import {
   CheckCircle,
   XCircle,
   ShoppingBag,
+  RotateCcw,
 } from "lucide-react-native";
 import { router } from "expo-router";
 import { useResponsive } from "@/hooks/useResponsive";
@@ -25,14 +26,17 @@ import { useResponsive } from "@/hooks/useResponsive";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { getOrders, Order } from "@/services/api/orderApi";
+import { getOrders, reorder, Order } from "@/services/api/orderApi";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 
 type TabType = "all" | "active" | "delivered" | "cancelled";
 
 export default function OrdersScreen() {
+  const { t } = useTranslation();
   const { wp, hp, isSmallDevice } = useResponsive();
-  const { user } = useStore();
+  const { user, fetchCart } = useStore();
+  const [reorderingId, setReorderingId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +67,7 @@ export default function OrdersScreen() {
       const ordersData = response.data.orders || [];
       setOrders(ordersData);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to load orders");
+      Alert.alert(t.common.error, error.message || t.alerts.errorOccurred);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -73,6 +77,46 @@ export default function OrdersScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchOrders();
+  };
+
+  const handleReorder = async (orderId: number, e: any) => {
+    e.stopPropagation(); // Prevent navigation to order details
+
+    setReorderingId(orderId);
+    try {
+      const response = await reorder(orderId);
+      await fetchCart();
+
+      const summary = response.data?.summary;
+      const unavailableItems = response.data?.unavailable_items || [];
+
+      if (!summary || summary.items_added > 0) {
+        const itemsAdded = summary?.items_added || 0;
+        Alert.alert(
+          t.common.success,
+          itemsAdded > 0
+            ? `${itemsAdded} ${t.orders.itemsAddedToCart}`
+            : t.orders.itemsAddedToCart,
+          [
+            { text: t.cart.continueShopping, style: "cancel" },
+            {
+              text: t.orders.viewCart,
+              onPress: () => router.push("/(tabs)/cart"),
+            },
+          ],
+        );
+      } else {
+        Alert.alert(t.orders.unavailable, t.orders.itemsUnavailable);
+      }
+    } catch (error: any) {
+      Alert.alert(t.common.error, error.message || t.orders.reorderFailed);
+    } finally {
+      setReorderingId(null);
+    }
+  };
+
+  const canReorder = (status: string) => {
+    return ["delivered", "cancelled", "failed"].includes(status);
   };
 
   const getStatusIcon = (status: string) => {
@@ -296,6 +340,25 @@ export default function OrdersScreen() {
       fontWeight: Typography.semibold,
       color: Colors.primary900,
     },
+    footerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: Spacing.sm,
+    },
+    reorderButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: Colors.primary100,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    reorderButtonText: {
+      fontSize: Typography.bodySmall,
+      fontWeight: Typography.semibold,
+      color: Colors.primary900,
+    },
   });
 
   // Early return for non-logged-in users (after styles are defined)
@@ -304,13 +367,13 @@ export default function OrdersScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyContainer}>
           <Package size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>Please Login</Text>
-          <Text style={styles.emptyText}>Sign in to view your orders</Text>
+          <Text style={styles.emptyTitle}>{t.orders.pleaseLogin}</Text>
+          <Text style={styles.emptyText}>{t.orders.signInToView}</Text>
           <TouchableOpacity
             style={styles.loginButton}
             onPress={() => router.push("/(auth)/login")}
           >
-            <Text style={styles.loginButtonText}>Login</Text>
+            <Text style={styles.loginButtonText}>{t.auth.login}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -320,7 +383,7 @@ export default function OrdersScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Orders</Text>
+        <Text style={styles.title}>{t.orders.title}</Text>
       </View>
 
       {/* Tabs */}
@@ -352,15 +415,13 @@ export default function OrdersScreen() {
       ) : orders.length === 0 ? (
         <View style={styles.emptyContainer}>
           <ShoppingBag size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>No Orders Yet</Text>
-          <Text style={styles.emptyText}>
-            Start shopping to see your orders here
-          </Text>
+          <Text style={styles.emptyTitle}>{t.orders.noOrdersYet}</Text>
+          <Text style={styles.emptyText}>{t.orders.startShoppingToSee}</Text>
           <TouchableOpacity
             style={styles.shopButton}
             onPress={() => router.push("/(tabs)")}
           >
-            <Text style={styles.shopButtonText}>Start Shopping</Text>
+            <Text style={styles.shopButtonText}>{t.orders.startShopping}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -432,9 +493,35 @@ export default function OrdersScreen() {
 
               <View style={styles.orderFooter}>
                 <Text style={styles.orderTotal}>
-                  Total: {parseFloat(order.total.toString()).toFixed(2)} EGP
+                  {t.orders.total}:{" "}
+                  {parseFloat(order.total.toString()).toFixed(2)}{" "}
+                  {t.common.currency}
                 </Text>
-                <Text style={styles.viewDetails}>View Details →</Text>
+                <View style={styles.footerActions}>
+                  {canReorder(order.status) && (
+                    <TouchableOpacity
+                      style={styles.reorderButton}
+                      onPress={(e) => handleReorder(order.id, e)}
+                      disabled={reorderingId === order.id}
+                      activeOpacity={0.7}
+                    >
+                      {reorderingId === order.id ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={Colors.primary900}
+                        />
+                      ) : (
+                        <>
+                          <RotateCcw size={14} color={Colors.primary900} />
+                          <Text style={styles.reorderButtonText}>
+                            {t.orders.reorder}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  <Text style={styles.viewDetails}>{t.orders.details} →</Text>
+                </View>
               </View>
             </TouchableOpacity>
           ))}
@@ -444,4 +531,3 @@ export default function OrdersScreen() {
     </SafeAreaView>
   );
 }
-

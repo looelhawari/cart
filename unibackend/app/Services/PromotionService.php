@@ -63,6 +63,8 @@ class PromotionService
 
     /**
      * Get all promotions applicable to a product
+     * Since database schema doesn't have applies_to, we return all active promotions
+     * that either have no products/categories (applies to all) or match the product
      */
     protected function getApplicablePromotions(Product $product): Collection
     {
@@ -70,24 +72,19 @@ class PromotionService
 
         return Promotion::active()
             ->where(function ($query) use ($product, $productCategories) {
-                // All products promotion
-                $query->where('applies_to', 'all')
-                    // Product-specific promotion
-                    ->orWhere(function ($q) use ($product) {
-                        $q->where('applies_to', 'products')
-                            ->whereHas('products', function ($q2) use ($product) {
-                                $q2->where('products.barcode', $product->barcode);
-                            });
-                    })
-                    // Category promotion
-                    ->orWhere(function ($q) use ($productCategories) {
-                        if ($productCategories->isNotEmpty()) {
-                            $q->where('applies_to', 'category')
-                                ->whereHas('categories', function ($q2) use ($productCategories) {
-                                    $q2->whereIn('categories.id', $productCategories);
-                                });
-                        }
+                // Promotions with no specific products (applies to all)
+                $query->whereDoesntHave('products')
+                    // Or product-specific promotion
+                    ->orWhereHas('products', function ($q) use ($product) {
+                        $q->where('products.barcode', $product->barcode);
                     });
+
+                // Also include category-based promotions
+                if ($productCategories->isNotEmpty()) {
+                    $query->orWhereHas('categories', function ($q) use ($productCategories) {
+                        $q->whereIn('categories.id', $productCategories);
+                    });
+                }
             })
             ->get();
     }
@@ -102,7 +99,7 @@ class PromotionService
 
         foreach ($promotions as $promotion) {
             $discount = $promotion->calculateDiscount($price);
-            
+
             if ($discount > $highestDiscount) {
                 $highestDiscount = $discount;
                 $bestPromotion = $promotion;
@@ -140,25 +137,25 @@ class PromotionService
 
     /**
      * Get products that should be affected by a promotion
+     * Based on linked products/categories or all products if no specific links
      */
     protected function getProductsForPromotion(Promotion $promotion): Collection
     {
-        if ($promotion->applies_to === 'all') {
-            return Product::where('is_active', true)->get();
-        }
-
-        if ($promotion->applies_to === 'products') {
+        // If promotion has specific products linked
+        if ($promotion->products()->count() > 0) {
             return $promotion->products()->where('products.is_active', true)->get();
         }
 
-        if ($promotion->applies_to === 'category') {
+        // If promotion has categories linked
+        if ($promotion->categories()->count() > 0) {
             $categoryIds = $promotion->categories->pluck('id');
             return Product::whereHas('categories', function ($q) use ($categoryIds) {
                 $q->whereIn('categories.id', $categoryIds);
             })->where('is_active', true)->get();
         }
 
-        return collect();
+        // No specific links - applies to all products
+        return Product::where('is_active', true)->get();
     }
 
     /**
@@ -233,10 +230,10 @@ class PromotionService
         // Calculate promo code discount on remaining amount
         if ($promoCode) {
             $remainingAmount = $subtotal - $promotionDiscount;
-            
+
             if ($promoCode->type === 'percentage') {
                 $promoCodeDiscount = $remainingAmount * ($promoCode->value / 100);
-                
+
                 if ($promoCode->maximum_discount && $promoCodeDiscount > $promoCode->maximum_discount) {
                     $promoCodeDiscount = (float) $promoCode->maximum_discount;
                 }
@@ -268,10 +265,11 @@ class PromotionService
      */
     public function getActivePromotions(?string $type = null, ?int $categoryId = null): Collection
     {
-        $query = Promotion::active()->orderBy('created_at', 'desc');
+        $query = Promotion::active()->orderBy('priority', 'desc')->orderBy('created_at', 'desc');
 
+        // Filter by promotion type (flash_sale, deal, seasonal, clearance) if specified
         if ($type && $type !== 'all') {
-            $query->where('applies_to', $type);
+            $query->where('type', $type);
         }
 
         if ($categoryId) {
@@ -294,8 +292,8 @@ class PromotionService
 
         // Activate promotions that should start
         $toActivate = Promotion::where('is_active', false)
-            ->where('start_date', '<=', $now)
-            ->where('end_date', '>=', $now)
+            ->where('starts_at', '<=', $now)
+            ->where('ends_at', '>=', $now)
             ->get();
 
         foreach ($toActivate as $promotion) {
@@ -306,7 +304,7 @@ class PromotionService
 
         // Deactivate expired promotions
         $toDeactivate = Promotion::where('is_active', true)
-            ->where('end_date', '<', $now)
+            ->where('ends_at', '<', $now)
             ->get();
 
         foreach ($toDeactivate as $promotion) {
@@ -332,10 +330,10 @@ class PromotionService
     public function getPromotionAnalytics(int $promotionId): array
     {
         $promotion = Promotion::findOrFail($promotionId);
-        
+
         // Get products with this promotion
         $products = Product::where('active_promotion_id', $promotionId)->get();
-        
+
         // Basic analytics (can be extended with order data later)
         return [
             'promotion_id' => $promotionId,

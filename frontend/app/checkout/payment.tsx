@@ -21,9 +21,11 @@ import {
 } from "@/services/paymentMethodsApi";
 import SavedCardsList from "@/components/SavedCardsList";
 import { Toast } from "@/components/Toast";
+import { useTranslation } from "@/i18n";
 
 export default function CheckoutPaymentScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams();
   const addressId = params.addressId as string;
 
@@ -70,7 +72,7 @@ export default function CheckoutPaymentScreen() {
     } catch (error) {
       console.error("Failed to load saved cards:", error);
       setToastType("error");
-      setToastMessage("Failed to load saved cards. Please try again.");
+      setToastMessage(t.checkout.failedToLoadCards);
       setShowToast(true);
     } finally {
       setLoadingCards(false);
@@ -116,7 +118,7 @@ export default function CheckoutPaymentScreen() {
         <TouchableOpacity style={styles.backButton} onPress={router.back}>
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payment Method</Text>
+        <Text style={styles.headerTitle}>{t.checkout.paymentMethod}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -146,7 +148,7 @@ export default function CheckoutPaymentScreen() {
             onPress={() => setPaymentType("card")}
           >
             <CreditCard size={24} color={Colors.primary900} />
-            <Text style={styles.paymentTypeText}>Card</Text>
+            <Text style={styles.paymentTypeText}>{t.checkout.card}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -157,7 +159,7 @@ export default function CheckoutPaymentScreen() {
             onPress={() => setPaymentType("cod")}
           >
             <Banknote size={24} color={Colors.primary900} />
-            <Text style={styles.paymentTypeText}>Cash</Text>
+            <Text style={styles.paymentTypeText}>{t.checkout.cash}</Text>
           </TouchableOpacity>
         </View>
 
@@ -167,7 +169,9 @@ export default function CheckoutPaymentScreen() {
             {/* Saved Cards Toggle */}
             {savedCards.length > 0 && (
               <View style={styles.toggleContainer}>
-                <Text style={styles.toggleLabel}>Use saved card</Text>
+                <Text style={styles.toggleLabel}>
+                  {t.checkout.useSavedCard}
+                </Text>
                 <Switch
                   value={useSavedCard}
                   onValueChange={handleCardModeToggle}
@@ -183,12 +187,14 @@ export default function CheckoutPaymentScreen() {
             {loadingCards ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={Colors.primary900} />
-                <Text style={styles.loadingText}>Loading saved cards...</Text>
+                <Text style={styles.loadingText}>
+                  {t.checkout.loadingCards}
+                </Text>
               </View>
             ) : useSavedCard ? (
               // Show saved cards list
               <View style={styles.savedCardsContainer}>
-                <Text style={styles.sectionTitle}>Select a card</Text>
+                <Text style={styles.sectionTitle}>{t.checkout.selectCard}</Text>
                 <SavedCardsList
                   cards={getEligiblePaymentMethods(savedCards)}
                   selectedCardId={selectedCardId}
@@ -197,10 +203,10 @@ export default function CheckoutPaymentScreen() {
                 {getEligiblePaymentMethods(savedCards).length === 0 && (
                   <View style={styles.noEligibleCards}>
                     <Text style={styles.noEligibleText}>
-                      No eligible saved cards available
+                      {t.checkout.noEligibleCards}
                     </Text>
                     <Text style={styles.noEligibleSubtext}>
-                      Please add a new card or use another payment method
+                      {t.checkout.addNewCardOrOther}
                     </Text>
                     <TouchableOpacity
                       style={styles.addPaymentButton}
@@ -209,7 +215,7 @@ export default function CheckoutPaymentScreen() {
                     >
                       <CreditCard size={20} color={Colors.neutralWhite} />
                       <Text style={styles.addPaymentButtonText}>
-                        Add Payment Method
+                        {t.checkout.addPaymentMethod}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -219,10 +225,11 @@ export default function CheckoutPaymentScreen() {
               // Show new card description with save option
               <View style={styles.paymentDescription}>
                 <CreditCard size={48} color={Colors.primary900} />
-                <Text style={styles.descriptionTitle}>Secure Card Payment</Text>
+                <Text style={styles.descriptionTitle}>
+                  {t.checkout.secureCardPayment}
+                </Text>
                 <Text style={styles.descriptionText}>
-                  You will be redirected to our secure payment gateway to enter
-                  your card details.
+                  {t.checkout.redirectToPayment}
                 </Text>
 
                 {/* Save card checkbox */}
@@ -242,7 +249,7 @@ export default function CheckoutPaymentScreen() {
                     )}
                   </View>
                   <Text style={styles.saveCardText}>
-                    Save this card for future purchases
+                    {t.checkout.saveCardForFuture}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -254,10 +261,8 @@ export default function CheckoutPaymentScreen() {
         {paymentType === "cod" && (
           <View style={styles.codInfo}>
             <Banknote size={48} color={Colors.primary900} />
-            <Text style={styles.codTitle}>Cash on Delivery</Text>
-            <Text style={styles.codDescription}>
-              Pay when your order arrives.
-            </Text>
+            <Text style={styles.codTitle}>{t.checkout.cashOnDelivery}</Text>
+            <Text style={styles.codDescription}>{t.checkout.payOnArrival}</Text>
           </View>
         )}
 
@@ -270,7 +275,7 @@ export default function CheckoutPaymentScreen() {
           style={styles.continueButton}
           onPress={handleContinue}
         >
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>{t.common.next}</Text>
         </TouchableOpacity>
       </View>
 

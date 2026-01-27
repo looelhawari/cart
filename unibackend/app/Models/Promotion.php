@@ -10,40 +10,57 @@ use Carbon\Carbon;
 
 class Promotion extends Model
 {
+    // Database schema uses: name, description, type, discount_type, discount_value,
+    // min_purchase, max_discount, starts_at, ends_at, is_active, priority, banner_image
     protected $fillable = [
-        'title',
-        'title_ar',
+        'name',
         'description',
-        'description_ar',
-        'image_url',
-        'banner_image_url',
-        'discount_type',
+        'type',           // flash_sale, deal, seasonal, clearance
+        'discount_type',  // percentage, fixed
         'discount_value',
-        'start_date',
-        'end_date',
-        'is_active',
-        'is_featured',
-        'applies_to',
         'min_purchase',
         'max_discount',
-        'terms_conditions',
-        'terms_conditions_ar',
-        'created_by',
+        'starts_at',
+        'ends_at',
+        'is_active',
+        'priority',
+        'banner_image',
     ];
 
     protected $casts = [
         'discount_value' => 'decimal:2',
         'min_purchase' => 'decimal:2',
         'max_discount' => 'decimal:2',
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
+        'starts_at' => 'datetime',
+        'ends_at' => 'datetime',
         'is_active' => 'boolean',
-        'is_featured' => 'boolean',
+        'priority' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
     protected $appends = ['is_currently_active', 'time_remaining'];
+
+    // Accessors to map database columns to expected API fields
+    public function getTitleAttribute()
+    {
+        return $this->name;
+    }
+
+    public function getStartDateAttribute()
+    {
+        return $this->starts_at;
+    }
+
+    public function getEndDateAttribute()
+    {
+        return $this->ends_at;
+    }
+
+    public function getBannerImageUrlAttribute()
+    {
+        return $this->banner_image;
+    }
 
     /**
      * Get the admin who created this promotion
@@ -79,7 +96,7 @@ class Promotion extends Model
         }
 
         $now = Carbon::now();
-        return $now->between($this->start_date, $this->end_date);
+        return $now->between($this->starts_at, $this->ends_at);
     }
 
     /**
@@ -92,7 +109,7 @@ class Promotion extends Model
         }
 
         $now = Carbon::now();
-        $diff = $now->diff($this->end_date);
+        $diff = $now->diff($this->ends_at);
 
         return [
             'days' => $diff->days,
@@ -109,7 +126,7 @@ class Promotion extends Model
     {
         if ($this->discount_type === 'percentage') {
             $discount = $price * ($this->discount_value / 100);
-            
+
             // Apply maximum discount cap if set
             if ($this->max_discount && $discount > $this->max_discount) {
                 $discount = (float) $this->max_discount;
@@ -132,16 +149,16 @@ class Promotion extends Model
     {
         $now = Carbon::now();
         return $query->where('is_active', true)
-            ->where('start_date', '<=', $now)
-            ->where('end_date', '>=', $now);
+            ->where('starts_at', '<=', $now)
+            ->where('ends_at', '>=', $now);
     }
 
     /**
-     * Scope: Get featured promotion
+     * Scope: Get featured promotion (highest priority)
      */
     public function scopeFeatured($query)
     {
-        return $query->where('is_featured', true)->active();
+        return $query->active()->orderBy('priority', 'desc');
     }
 
     /**
@@ -150,14 +167,8 @@ class Promotion extends Model
     public function scopeForCategory($query, int $categoryId)
     {
         return $query->active()
-            ->where(function ($q) use ($categoryId) {
-                $q->where('applies_to', 'all')
-                    ->orWhere(function ($q2) use ($categoryId) {
-                        $q2->where('applies_to', 'category')
-                            ->whereHas('categories', function ($q3) use ($categoryId) {
-                                $q3->where('categories.id', $categoryId);
-                            });
-                    });
+            ->whereHas('categories', function ($q) use ($categoryId) {
+                $q->where('categories.id', $categoryId);
             });
     }
 
@@ -167,14 +178,8 @@ class Promotion extends Model
     public function scopeForProduct($query, string $barcode)
     {
         return $query->active()
-            ->where(function ($q) use ($barcode) {
-                $q->where('applies_to', 'all')
-                    ->orWhere(function ($q2) use ($barcode) {
-                        $q2->where('applies_to', 'products')
-                            ->whereHas('products', function ($q3) use ($barcode) {
-                                $q3->where('products.barcode', $barcode);
-                            });
-                    });
+            ->whereHas('products', function ($q) use ($barcode) {
+                $q->where('products.barcode', $barcode);
             });
     }
 }

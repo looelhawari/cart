@@ -31,6 +31,7 @@ import {
   Edit3,
   RefreshCw,
 } from "lucide-react-native";
+import { useTranslation } from "@/i18n";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -39,9 +40,10 @@ export default function SignupScreen() {
   const params = useLocalSearchParams();
   const register = useStore((state) => state.register);
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
+  const { t } = useTranslation();
 
   const [step, setStep] = useState<Step>(
-    params.step ? parseInt(params.step as string) as Step : 1
+    params.step ? (parseInt(params.step as string) as Step) : 1,
   );
   const [loading, setLoading] = useState(false);
 
@@ -68,7 +70,8 @@ export default function SignupScreen() {
     if (params.step === "3") {
       startOtpTimer();
     }
-  }, []); const checkEmailAvailability = async (emailToCheck: string) => {
+  }, []);
+  const checkEmailAvailability = async (emailToCheck: string) => {
     try {
       setIsCheckingEmail(true);
       setEmailError("");
@@ -81,7 +84,7 @@ export default function SignupScreen() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ email: emailToCheck }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -109,7 +112,7 @@ export default function SignupScreen() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ phone: phoneToCheck }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -126,27 +129,27 @@ export default function SignupScreen() {
 
   const validateStep1 = () => {
     if (!firstName.trim()) {
-      Alert.alert("Error", "Please enter your first name");
+      Alert.alert(t.common.error, t.signup.enterFirstName);
       return false;
     }
     if (!lastName.trim()) {
-      Alert.alert("Error", "Please enter your last name");
+      Alert.alert(t.common.error, t.signup.enterLastName);
       return false;
     }
     if (!email.trim()) {
-      Alert.alert("Error", "Please enter your email");
+      Alert.alert(t.common.error, t.signup.enterEmail);
       return false;
     }
     if (emailError) {
-      Alert.alert("Error", emailError);
+      Alert.alert(t.common.error, emailError);
       return false;
     }
     if (!phone.trim()) {
-      Alert.alert("Error", "Please enter your phone number");
+      Alert.alert(t.common.error, t.signup.enterPhone);
       return false;
     }
     if (phoneError) {
-      Alert.alert("Error", phoneError);
+      Alert.alert(t.common.error, phoneError);
       return false;
     }
     return true;
@@ -154,15 +157,15 @@ export default function SignupScreen() {
 
   const validateStep2 = () => {
     if (!password) {
-      Alert.alert("Error", "Please enter a password");
+      Alert.alert(t.common.error, t.signup.enterPassword);
       return false;
     }
     if (password.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters");
+      Alert.alert(t.common.error, t.signup.passwordMinLength);
       return false;
     }
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert(t.common.error, t.signup.passwordsNotMatch);
       return false;
     }
     return true;
@@ -198,9 +201,15 @@ export default function SignupScreen() {
             setPhoneError(error.errors.phone[0]);
             setStep(1); // Go back to Step 1 to show phone error
           }
-          Alert.alert("Validation Error", error.message || "Please check your input");
+          Alert.alert(
+            t.signup.validationError,
+            error.message || t.signup.checkInput,
+          );
         } else {
-          Alert.alert("Error", error.message || "Registration failed");
+          Alert.alert(
+            t.common.error,
+            error.message || t.signup.registrationFailed,
+          );
         }
       } finally {
         setLoading(false);
@@ -268,47 +277,43 @@ export default function SignupScreen() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ email }),
-        }
+        },
       );
 
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert("Success", "OTP has been resent to your email");
+        Alert.alert(t.common.success, t.signup.otpResent);
         startOtpTimer();
       } else {
-        Alert.alert("Error", data.message || "Failed to resend OTP");
+        Alert.alert(t.common.error, data.message || t.signup.failedToResendOtp);
       }
     } catch (error: any) {
-      Alert.alert("Error", "Failed to resend OTP");
+      Alert.alert(t.common.error, t.signup.failedToResendOtp);
     } finally {
       setIsResending(false);
     }
   };
 
   const handleEditEmail = () => {
-    Alert.alert(
-      "Edit Email",
-      "Do you want to change your email address?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
+    Alert.alert(t.signup.editEmail, t.signup.editEmailConfirm, [
+      {
+        text: t.common.cancel,
+        style: "cancel",
+      },
+      {
+        text: t.signup.yesEdit,
+        onPress: () => {
+          setStep(1);
+          setOtp("");
         },
-        {
-          text: "Yes, Edit",
-          onPress: () => {
-            setStep(1);
-            setOtp("");
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code");
+      Alert.alert(t.common.error, t.signup.enterOtpCode);
       return;
     }
 
@@ -321,7 +326,7 @@ export default function SignupScreen() {
         router.replace("/(tabs)");
       }, 2000);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Verification failed");
+      Alert.alert(t.common.error, error.message || t.signup.verificationFailed);
     } finally {
       setLoading(false);
     }
@@ -340,12 +345,12 @@ export default function SignupScreen() {
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Create Account</Text>
-      <Text style={styles.stepSubtitle}>Enter your personal information</Text>
+      <Text style={styles.stepTitle}>{t.signup.createAccount}</Text>
+      <Text style={styles.stepSubtitle}>{t.signup.enterPersonalInfo}</Text>
 
       <View style={styles.form}>
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>First Name</Text>
+          <Text style={styles.label}>{t.signup.firstName}</Text>
           <View style={styles.inputWrapper}>
             <User
               size={20}
@@ -354,7 +359,7 @@ export default function SignupScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="Enter your first name"
+              placeholder={t.signup.enterFirstNamePlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={firstName}
               onChangeText={setFirstName}
@@ -364,7 +369,7 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Last Name</Text>
+          <Text style={styles.label}>{t.signup.lastName}</Text>
           <View style={styles.inputWrapper}>
             <User
               size={20}
@@ -373,7 +378,7 @@ export default function SignupScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="Enter your last name"
+              placeholder={t.signup.enterLastNamePlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={lastName}
               onChangeText={setLastName}
@@ -383,7 +388,7 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t.signup.email}</Text>
           <View style={[styles.inputWrapper, emailError && styles.inputError]}>
             <Mail
               size={20}
@@ -392,7 +397,7 @@ export default function SignupScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="Enter your email"
+              placeholder={t.signup.enterEmailPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={email}
               onChangeText={(text) => {
@@ -403,14 +408,20 @@ export default function SignupScreen() {
               autoCapitalize="none"
             />
             {isCheckingEmail && (
-              <ActivityIndicator size="small" color={Colors.primary900} style={styles.inputLoader} />
+              <ActivityIndicator
+                size="small"
+                color={Colors.primary900}
+                style={styles.inputLoader}
+              />
             )}
           </View>
-          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+          {emailError ? (
+            <Text style={styles.errorText}>{emailError}</Text>
+          ) : null}
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Phone Number</Text>
+          <Text style={styles.label}>{t.signup.phoneNumber}</Text>
           <View style={[styles.inputWrapper, phoneError && styles.inputError]}>
             <Phone
               size={20}
@@ -429,14 +440,20 @@ export default function SignupScreen() {
               keyboardType="phone-pad"
             />
             {isCheckingPhone && (
-              <ActivityIndicator size="small" color={Colors.primary900} style={styles.inputLoader} />
+              <ActivityIndicator
+                size="small"
+                color={Colors.primary900}
+                style={styles.inputLoader}
+              />
             )}
           </View>
-          {phoneError ? <Text style={styles.errorText}>{phoneError}</Text> : null}
+          {phoneError ? (
+            <Text style={styles.errorText}>{phoneError}</Text>
+          ) : null}
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Language</Text>
+          <Text style={styles.label}>{t.signup.language}</Text>
           <View style={styles.languageToggle}>
             <TouchableOpacity
               style={[
@@ -478,12 +495,12 @@ export default function SignupScreen() {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Create Password</Text>
-      <Text style={styles.stepSubtitle}>Choose a strong password</Text>
+      <Text style={styles.stepTitle}>{t.signup.createPassword}</Text>
+      <Text style={styles.stepSubtitle}>{t.signup.chooseStrongPassword}</Text>
 
       <View style={styles.form}>
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t.signup.password}</Text>
           <View style={styles.inputWrapper}>
             <LockIcon
               size={20}
@@ -492,7 +509,7 @@ export default function SignupScreen() {
             />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder="Enter password"
+              placeholder={t.signup.enterPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={password}
               onChangeText={setPassword}
@@ -513,7 +530,7 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Confirm Password</Text>
+          <Text style={styles.label}>{t.signup.confirmPassword}</Text>
           <View style={styles.inputWrapper}>
             <LockIcon
               size={20}
@@ -522,7 +539,7 @@ export default function SignupScreen() {
             />
             <TextInput
               style={[styles.input, styles.passwordInput]}
-              placeholder="Confirm password"
+              placeholder={t.signup.confirmPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
@@ -543,7 +560,9 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.requirementsContainer}>
-          <Text style={styles.requirementsTitle}>Password must contain:</Text>
+          <Text style={styles.requirementsTitle}>
+            {t.signup.passwordMustContain}
+          </Text>
           <View style={styles.requirementRow}>
             <Check
               size={16}
@@ -557,7 +576,7 @@ export default function SignupScreen() {
                 password.length >= 8 && styles.requirementMet,
               ]}
             >
-              At least 8 characters
+              {t.signup.atLeast8Chars}
             </Text>
           </View>
           <View style={styles.requirementRow}>
@@ -575,7 +594,7 @@ export default function SignupScreen() {
                 /[A-Z]/.test(password) && styles.requirementMet,
               ]}
             >
-              One uppercase letter
+              {t.signup.oneUppercase}
             </Text>
           </View>
           <View style={styles.requirementRow}>
@@ -593,7 +612,7 @@ export default function SignupScreen() {
                 /[0-9]/.test(password) && styles.requirementMet,
               ]}
             >
-              One number
+              {t.signup.oneNumber}
             </Text>
           </View>
           <View style={styles.requirementRow}>
@@ -609,10 +628,10 @@ export default function SignupScreen() {
               style={[
                 styles.requirementText,
                 /[!@#$%^&*(),.?":{}|<>]/.test(password) &&
-                styles.requirementMet,
+                  styles.requirementMet,
               ]}
             >
-              One special character
+              {t.signup.oneSpecialChar}
             </Text>
           </View>
         </View>
@@ -622,16 +641,14 @@ export default function SignupScreen() {
 
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Verify Your Account</Text>
+      <Text style={styles.stepTitle}>{t.signup.verifyAccount}</Text>
       <View style={styles.emailDisplayContainer}>
-        <Text style={styles.stepSubtitle}>
-          Enter the 6-digit code sent to
-        </Text>
+        <Text style={styles.stepSubtitle}>{t.signup.enterCodeSentTo}</Text>
         <View style={styles.emailRow}>
           <Text style={styles.emailText}>{email}</Text>
           <TouchableOpacity onPress={handleEditEmail} style={styles.editButton}>
             <Edit3 size={16} color={Colors.primary900} />
-            <Text style={styles.editText}>Edit</Text>
+            <Text style={styles.editText}>{t.common.edit}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -650,10 +667,7 @@ export default function SignupScreen() {
       </View>
 
       <TouchableOpacity
-        style={[
-          styles.resendButton,
-          !canResend && styles.resendButtonDisabled
-        ]}
+        style={[styles.resendButton, !canResend && styles.resendButtonDisabled]}
         disabled={!canResend || isResending}
         onPress={handleResendOtp}
       >
@@ -661,12 +675,19 @@ export default function SignupScreen() {
           <ActivityIndicator size="small" color={Colors.primary900} />
         ) : (
           <View style={styles.resendContent}>
-            <RefreshCw size={16} color={canResend ? Colors.primary900 : Colors.neutralMedium} />
-            <Text style={[
-              styles.resendText,
-              !canResend && styles.resendTextDisabled
-            ]}>
-              {canResend ? "Resend Code" : `Resend in ${otpTimer}s`}
+            <RefreshCw
+              size={16}
+              color={canResend ? Colors.primary900 : Colors.neutralMedium}
+            />
+            <Text
+              style={[
+                styles.resendText,
+                !canResend && styles.resendTextDisabled,
+              ]}
+            >
+              {canResend
+                ? t.signup.resendCode
+                : `${t.signup.resendIn} ${otpTimer}s`}
             </Text>
           </View>
         )}
@@ -679,9 +700,9 @@ export default function SignupScreen() {
       <View style={styles.successCircle}>
         <Check size={64} color={Colors.neutralWhite} />
       </View>
-      <Text style={styles.successTitle}>Account Created!</Text>
+      <Text style={styles.successTitle}>{t.signup.accountCreated}</Text>
       <Text style={styles.successMessage}>
-        Your account has been created successfully.{"\n"}Redirecting to home...
+        {t.signup.accountCreatedSuccess}
       </Text>
     </View>
   );
@@ -725,7 +746,7 @@ export default function SignupScreen() {
               {loading ? (
                 <ActivityIndicator color={Colors.neutralWhite} />
               ) : (
-                <Text style={styles.nextButtonText}>Next</Text>
+                <Text style={styles.nextButtonText}>{t.common.next}</Text>
               )}
             </TouchableOpacity>
           )}
@@ -740,16 +761,18 @@ export default function SignupScreen() {
               {loading ? (
                 <ActivityIndicator color={Colors.neutralWhite} />
               ) : (
-                <Text style={styles.nextButtonText}>Verify</Text>
+                <Text style={styles.nextButtonText}>{t.signup.verify}</Text>
               )}
             </TouchableOpacity>
           )}
 
           {step === 1 && (
             <View style={styles.loginRow}>
-              <Text style={styles.loginText}>Already have an account? </Text>
+              <Text style={styles.loginText}>
+                {t.signup.alreadyHaveAccount}{" "}
+              </Text>
               <TouchableOpacity onPress={() => router.push("/(auth)/login")}>
-                <Text style={styles.loginLink}>Sign In</Text>
+                <Text style={styles.loginLink}>{t.signup.signIn}</Text>
               </TouchableOpacity>
             </View>
           )}

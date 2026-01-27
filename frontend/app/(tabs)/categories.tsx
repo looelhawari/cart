@@ -28,6 +28,7 @@ import {
   initImageCache,
 } from "@/services/cache/imageCache";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import { useLocalizedValue, useTranslation } from "@/i18n";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - Spacing.lg * 3) / 2;
@@ -42,6 +43,8 @@ export default function CategoriesScreen() {
   const { cart } = useStore();
   const cartItemsCount =
     cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const { getName } = useLocalizedValue();
+  const { t, isRTL } = useTranslation();
 
   useEffect(() => {
     initImageCache();
@@ -146,7 +149,7 @@ export default function CategoriesScreen() {
           >
             {item.icon && <Text style={styles.iconText}>{item.icon}</Text>}
             <Text style={styles.categoryName} numberOfLines={2}>
-              {item.name_en}
+              {getName(item)}
             </Text>
             {item.products_count !== undefined && item.products_count > 0 && (
               <View style={styles.badge}>
@@ -161,9 +164,9 @@ export default function CategoriesScreen() {
 
   const renderHeader = () => (
     <View style={styles.listHeader}>
-      <Text style={styles.sectionTitle}>Explore All Categories</Text>
+      <Text style={styles.sectionTitle}>{t.nav.categories}</Text>
       <Text style={styles.sectionSubtitle}>
-        Browse {categories.length} categories
+        {t.common.browse} {categories.length} {t.nav.categories.toLowerCase()}
       </Text>
     </View>
   );

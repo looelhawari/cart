@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,20 +8,22 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { ArrowLeft, Eye, EyeOff, Check, X } from 'lucide-react-native';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react-native";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { authApi } from '@/services/api';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { authApi } from "@/services/api";
+import { useTranslation } from "@/i18n";
 
 export default function ChangePasswordScreen() {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { t } = useTranslation();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -29,28 +31,35 @@ export default function ChangePasswordScreen() {
   const [loading, setLoading] = useState(false);
 
   const passwordRequirements = [
-    { text: 'At least 8 characters', met: newPassword.length >= 8 },
-    { text: 'Contains uppercase letter', met: /[A-Z]/.test(newPassword) },
-    { text: 'Contains lowercase letter', met: /[a-z]/.test(newPassword) },
-    { text: 'Contains number', met: /[0-9]/.test(newPassword) },
+    { text: t.changePassword.atLeast8Chars, met: newPassword.length >= 8 },
+    {
+      text: t.changePassword.containsUppercase,
+      met: /[A-Z]/.test(newPassword),
+    },
+    {
+      text: t.changePassword.containsLowercase,
+      met: /[a-z]/.test(newPassword),
+    },
+    { text: t.changePassword.containsNumber, met: /[0-9]/.test(newPassword) },
   ];
 
   const allRequirementsMet = passwordRequirements.every((req) => req.met);
-  const passwordsMatch = newPassword === confirmPassword && newPassword.length > 0;
+  const passwordsMatch =
+    newPassword === confirmPassword && newPassword.length > 0;
 
   const handleUpdatePassword = async () => {
     if (!currentPassword) {
-      Alert.alert('Error', 'Please enter your current password');
+      Alert.alert(t.common.error, t.changePassword.enterCurrentPassword);
       return;
     }
 
     if (!allRequirementsMet) {
-      Alert.alert('Error', 'Please meet all password requirements');
+      Alert.alert(t.common.error, t.changePassword.meetRequirements);
       return;
     }
 
     if (!passwordsMatch) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t.common.error, t.signup.passwordsNotMatch);
       return;
     }
 
@@ -62,13 +71,13 @@ export default function ChangePasswordScreen() {
         password_confirmation: confirmPassword,
       });
 
-      Alert.alert('Success', 'Your password has been updated successfully', [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert(t.common.success, t.changePassword.passwordUpdated, [
+        { text: t.common.ok, onPress: () => router.back() },
       ]);
     } catch (error: any) {
       Alert.alert(
-        'Error',
-        error.message || 'Failed to update password. Please try again.'
+        t.common.error,
+        error.message || t.changePassword.failedToUpdate,
       );
     } finally {
       setLoading(false);
@@ -76,7 +85,7 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -87,7 +96,7 @@ export default function ChangePasswordScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Change Password</Text>
+        <Text style={styles.headerTitle}>{t.changePassword.title}</Text>
 
         <View style={styles.headerButton} />
       </View>
@@ -98,13 +107,13 @@ export default function ChangePasswordScreen() {
       >
         {/* Current Password */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Current Password</Text>
+          <Text style={styles.label}>{t.changePassword.currentPassword}</Text>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
               value={currentPassword}
               onChangeText={setCurrentPassword}
-              placeholder="Enter current password"
+              placeholder={t.changePassword.enterCurrentPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               secureTextEntry={!showCurrent}
               autoCapitalize="none"
@@ -125,13 +134,13 @@ export default function ChangePasswordScreen() {
 
         {/* New Password */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>New Password</Text>
+          <Text style={styles.label}>{t.changePassword.newPassword}</Text>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
               value={newPassword}
               onChangeText={setNewPassword}
-              placeholder="Enter new password"
+              placeholder={t.changePassword.enterNewPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               secureTextEntry={!showNew}
               autoCapitalize="none"
@@ -153,7 +162,9 @@ export default function ChangePasswordScreen() {
         {/* Password Requirements */}
         {newPassword.length > 0 && (
           <View style={styles.requirementsCard}>
-            <Text style={styles.requirementsTitle}>Password Requirements</Text>
+            <Text style={styles.requirementsTitle}>
+              {t.changePassword.passwordRequirements}
+            </Text>
             {passwordRequirements.map((req, index) => (
               <View key={index} style={styles.requirementRow}>
                 {req.met ? (
@@ -164,7 +175,9 @@ export default function ChangePasswordScreen() {
                 <Text
                   style={[
                     styles.requirementText,
-                    { color: req.met ? Colors.primary700 : Colors.neutralMedium },
+                    {
+                      color: req.met ? Colors.primary700 : Colors.neutralMedium,
+                    },
                   ]}
                 >
                   {req.text}
@@ -176,13 +189,15 @@ export default function ChangePasswordScreen() {
 
         {/* Confirm Password */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Confirm New Password</Text>
+          <Text style={styles.label}>
+            {t.changePassword.confirmNewPassword}
+          </Text>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="Confirm new password"
+              placeholder={t.changePassword.confirmNewPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               secureTextEntry={!showConfirm}
               autoCapitalize="none"
@@ -203,10 +218,14 @@ export default function ChangePasswordScreen() {
             <Text
               style={[
                 styles.matchText,
-                { color: passwordsMatch ? Colors.primary700 : Colors.accentRed },
+                {
+                  color: passwordsMatch ? Colors.primary700 : Colors.accentRed,
+                },
               ]}
             >
-              {passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match'}
+              {passwordsMatch
+                ? t.changePassword.passwordsMatch
+                : t.changePassword.passwordsNotMatch}
             </Text>
           )}
         </View>
@@ -215,17 +234,27 @@ export default function ChangePasswordScreen() {
         <TouchableOpacity
           style={[
             styles.updateButton,
-            ((!allRequirementsMet || !passwordsMatch || !currentPassword) || loading) &&
-            styles.updateButtonDisabled,
+            (!allRequirementsMet ||
+              !passwordsMatch ||
+              !currentPassword ||
+              loading) &&
+              styles.updateButtonDisabled,
           ]}
           onPress={handleUpdatePassword}
-          disabled={!allRequirementsMet || !passwordsMatch || !currentPassword || loading}
+          disabled={
+            !allRequirementsMet ||
+            !passwordsMatch ||
+            !currentPassword ||
+            loading
+          }
           activeOpacity={0.9}
         >
           {loading ? (
             <ActivityIndicator size="small" color={Colors.neutralWhite} />
           ) : (
-            <Text style={styles.updateButtonText}>Update Password</Text>
+            <Text style={styles.updateButtonText}>
+              {t.changePassword.updatePassword}
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -239,9 +268,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -251,8 +280,8 @@ const styles = StyleSheet.create({
   headerButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h3,
@@ -272,8 +301,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
     borderWidth: 2,
@@ -302,8 +331,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   requirementRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     marginBottom: Spacing.xs,
   },
@@ -319,7 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: Spacing.md,
   },
   updateButtonDisabled: {

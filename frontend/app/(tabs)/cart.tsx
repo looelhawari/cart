@@ -20,8 +20,11 @@ import Spacing from "@/constants/Spacing";
 import { Button } from "@/components/Button";
 import { useStore } from "@/store";
 import { GuestModal } from "@/components/GuestModal";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 export default function CartScreen() {
+  const { t } = useTranslation();
+  const { getName } = useLocalizedValue();
   const {
     cart,
     updateQuantity,
@@ -40,10 +43,10 @@ export default function CartScreen() {
   // Refresh cart when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchCart().catch(error => {
+      fetchCart().catch((error) => {
         console.error("🛒 [CART SCREEN] Failed to refresh cart:", error);
       });
-    }, [])
+    }, []),
   );
 
   const cartItems = cart?.items || [];
@@ -65,7 +68,7 @@ export default function CartScreen() {
     } catch (error: any) {
       Alert.alert(
         "Invalid Code",
-        error.message || "This promo code is not valid or has expired."
+        error.message || "This promo code is not valid or has expired.",
       );
     } finally {
       setIsApplyingPromo(false);
@@ -94,7 +97,7 @@ export default function CartScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading cart...</Text>
+          <Text style={styles.loadingText}>{t.common.loading}</Text>
         </View>
       </SafeAreaView>
     );
@@ -105,12 +108,10 @@ export default function CartScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyContainer}>
           <ShoppingBag size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptyText}>
-            Add some fresh groceries to get started!
-          </Text>
+          <Text style={styles.emptyTitle}>{t.cart.emptyCart}</Text>
+          <Text style={styles.emptyText}>{t.cart.emptyCartDesc}</Text>
           <Button
-            title="Browse Products"
+            title={t.cart.continueShopping}
             onPress={() => router.push("/(tabs)/categories")}
             variant="primary"
             fullWidth={false}
@@ -123,7 +124,9 @@ export default function CartScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Cart ({cartItems.length})</Text>
+        <Text style={styles.title}>
+          {t.cart.title} ({cartItems.length})
+        </Text>
         <TouchableOpacity
           onPress={async () => {
             try {
@@ -133,7 +136,7 @@ export default function CartScreen() {
             }
           }}
         >
-          <Text style={styles.clearText}>Clear All</Text>
+          <Text style={styles.clearText}>{t.cart.clearCart}</Text>
         </TouchableOpacity>
       </View>
 
@@ -147,7 +150,7 @@ export default function CartScreen() {
 
             <View style={styles.itemDetails}>
               <Text style={styles.itemName} numberOfLines={2}>
-                {item.product.name_en}
+                {getName(item.product)}
               </Text>
               <Text style={styles.itemPrice}>
                 {parseFloat(item.price?.toString() || "0").toFixed(2)} EGP
@@ -209,7 +212,7 @@ export default function CartScreen() {
 
         {/* Promo Code Section */}
         <View style={styles.promoContainer}>
-          <Text style={styles.promoTitle}>Have a promo code?</Text>
+          <Text style={styles.promoTitle}>{t.cart.havePromoCode}</Text>
 
           {appliedPromo ? (
             <View style={styles.appliedPromoCard}>
@@ -234,7 +237,7 @@ export default function CartScreen() {
             <View style={styles.promoInputRow}>
               <TextInput
                 style={styles.promoInput}
-                placeholder="Enter promo code"
+                placeholder={t.cart.enterPromoCode}
                 placeholderTextColor={Colors.neutralGray}
                 value={promoCode}
                 onChangeText={setPromoCode}
@@ -245,7 +248,7 @@ export default function CartScreen() {
                 style={[
                   styles.applyButton,
                   (!promoCode.trim() || isApplyingPromo) &&
-                  styles.applyButtonDisabled,
+                    styles.applyButtonDisabled,
                 ]}
                 onPress={handleApplyPromo}
                 disabled={!promoCode.trim() || isApplyingPromo}
@@ -253,7 +256,7 @@ export default function CartScreen() {
                 {isApplyingPromo ? (
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.applyButtonText}>Apply</Text>
+                  <Text style={styles.applyButtonText}>{t.cart.apply}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -262,39 +265,43 @@ export default function CartScreen() {
 
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
+            <Text style={styles.summaryLabel}>{t.orders.subtotal}</Text>
             <Text style={styles.summaryValue}>
-              {parseFloat(subtotal?.toString() || "0").toFixed(2)} EGP
+              {parseFloat(subtotal?.toString() || "0").toFixed(2)}{" "}
+              {t.common.currency}
             </Text>
           </View>
           {discount > 0 && (
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, styles.discountLabel]}>
-                Discount
+                {t.orders.discount}
               </Text>
               <Text style={[styles.summaryValue, styles.discountValue]}>
-                -{parseFloat(discount?.toString() || "0").toFixed(2)} EGP
+                -{parseFloat(discount?.toString() || "0").toFixed(2)}{" "}
+                {t.common.currency}
               </Text>
             </View>
           )}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
+            <Text style={styles.summaryLabel}>{t.orders.deliveryFee}</Text>
             <Text style={styles.summaryValue}>
               {deliveryFee === 0
-                ? "FREE"
-                : `${parseFloat(deliveryFee?.toString() || "0").toFixed(2)} EGP`}
+                ? t.common.free
+                : `${parseFloat(deliveryFee?.toString() || "0").toFixed(2)} ${t.common.currency}`}
             </Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tax (14%)</Text>
+            <Text style={styles.summaryLabel}>{t.orders.tax} (14%)</Text>
             <Text style={styles.summaryValue}>
-              {parseFloat(tax?.toString() || "0").toFixed(2)} EGP
+              {parseFloat(tax?.toString() || "0").toFixed(2)}{" "}
+              {t.common.currency}
             </Text>
           </View>
           <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalLabel}>{t.orders.total}</Text>
             <Text style={styles.totalValue}>
-              {parseFloat(total?.toString() || "0").toFixed(2)} EGP
+              {parseFloat(total?.toString() || "0").toFixed(2)}{" "}
+              {t.common.currency}
             </Text>
           </View>
         </View>
@@ -302,13 +309,14 @@ export default function CartScreen() {
 
       <View style={styles.footer}>
         <View style={styles.totalContainer}>
-          <Text style={styles.footerLabel}>Total</Text>
+          <Text style={styles.footerLabel}>{t.orders.total}</Text>
           <Text style={styles.footerTotal}>
-            {parseFloat(total?.toString() || "0").toFixed(2)} EGP
+            {parseFloat(total?.toString() || "0").toFixed(2)}{" "}
+            {t.common.currency}
           </Text>
         </View>
         <Button
-          title="Proceed to Checkout"
+          title={t.cart.checkout}
           onPress={handleCheckout}
           variant="primary"
         />
@@ -317,7 +325,7 @@ export default function CartScreen() {
       <GuestModal
         visible={showGuestModal}
         onClose={() => setShowGuestModal(false)}
-        message="Please sign in to proceed with checkout"
+        message={t.cart.signInToCheckout}
       />
     </SafeAreaView>
   );

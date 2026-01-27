@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,9 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import {
   ArrowLeft,
   Wallet,
@@ -22,17 +22,18 @@ import {
   CreditCard,
   Smartphone,
   X,
-} from 'lucide-react-native';
+} from "lucide-react-native";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { API_CONFIG } from '@/config/app.config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { API_CONFIG } from "@/config/app.config";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from "@/i18n";
 
 interface Transaction {
   id: number;
-  type: 'credit' | 'debit';
+  type: "credit" | "debit";
   description: string;
   amount: string;
   balance_before: string;
@@ -48,12 +49,13 @@ interface WalletData {
 }
 
 export default function WalletScreen() {
+  const { t } = useTranslation();
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddMoney, setShowAddMoney] = useState(false);
-  const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'WALLET'>('CARD');
+  const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"CARD" | "WALLET">("CARD");
   const [recharging, setRecharging] = useState(false);
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export default function WalletScreen() {
   }, []);
 
   const getToken = async () => {
-    return await AsyncStorage.getItem('access_token');
+    return await AsyncStorage.getItem("access_token");
   };
 
   const loadWallet = async () => {
@@ -69,43 +71,45 @@ export default function WalletScreen() {
       setLoading(true);
       const token = await getToken();
 
-      console.log('Token retrieved:', token ? 'Token exists' : 'No token');
+      console.log("Token retrieved:", token ? "Token exists" : "No token");
 
       if (!token) {
-        Alert.alert('Error', 'Please login to view your wallet');
-        router.replace('/login');
+        Alert.alert("Error", "Please login to view your wallet");
+        router.replace("/login");
         return;
       }
 
-      console.log('Calling wallet API:', `${API_CONFIG.BASE_URL}/wallet`);
+      console.log("Calling wallet API:", `${API_CONFIG.BASE_URL}/wallet`);
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/wallet`, {
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
         },
       });
 
-      console.log('Response status:', response.status);
+      console.log("Response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
+        console.error("Error response:", errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Wallet data received:', data);
+      console.log("Wallet data received:", data);
 
       if (data.success) {
         setWalletData(data.data);
       } else {
-        throw new Error(data.message || 'Failed to load wallet');
+        throw new Error(data.message || "Failed to load wallet");
       }
     } catch (error: any) {
-      console.error('Failed to load wallet', error);
-      Alert.alert('Error', error.message || 'Failed to load wallet');
+      console.error("Failed to load wallet", error);
+      Alert.alert("Error", error.message || "Failed to load wallet");
     } finally {
       setLoading(false);
     }
@@ -124,11 +128,11 @@ export default function WalletScreen() {
   const handleAddMoney = async () => {
     const amountNum = parseFloat(amount);
     if (!amount || amountNum < 10) {
-      Alert.alert('Error', 'Minimum recharge amount is 10 EGP');
+      Alert.alert(t.common.error, t.wallet.minimumRecharge);
       return;
     }
     if (amountNum > 10000) {
-      Alert.alert('Error', 'Maximum recharge amount is 10,000 EGP');
+      Alert.alert(t.common.error, t.wallet.maximumRecharge);
       return;
     }
 
@@ -136,11 +140,13 @@ export default function WalletScreen() {
       setRecharging(true);
       const token = await getToken();
       const response = await fetch(`${API_CONFIG.BASE_URL}/wallet/recharge`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
         },
         body: JSON.stringify({
           amount: amountNum,
@@ -152,30 +158,30 @@ export default function WalletScreen() {
 
       if (data.success) {
         setShowAddMoney(false);
-        setAmount('');
+        setAmount("");
 
         // Open Paymob iframe in browser
         Alert.alert(
-          'Complete Payment',
-          'You will be redirected to complete your payment securely with Paymob.',
+          "Complete Payment",
+          "You will be redirected to complete your payment securely with Paymob.",
           [
             {
-              text: 'Continue',
+              text: "Continue",
               onPress: () => {
                 // Here you would open the iframe_url in a WebView or browser
-                console.log('Payment URL:', data.data.iframe_url);
+                console.log("Payment URL:", data.data.iframe_url);
                 // For now, just reload wallet after 5 seconds to check for update
                 setTimeout(() => loadWallet(), 5000);
               },
             },
-          ]
+          ],
         );
       } else {
-        Alert.alert('Error', data.message || 'Failed to initiate recharge');
+        Alert.alert("Error", data.message || "Failed to initiate recharge");
       }
     } catch (error) {
-      console.error('Recharge failed', error);
-      Alert.alert('Error', 'Failed to process recharge');
+      console.error("Recharge failed", error);
+      Alert.alert("Error", "Failed to process recharge");
     } finally {
       setRecharging(false);
     }
@@ -185,18 +191,18 @@ export default function WalletScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.headerButton}
@@ -205,7 +211,7 @@ export default function WalletScreen() {
           >
             <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Wallet</Text>
+        <Text style={styles.headerTitle}>{t.wallet.title}</Text>
           <View style={styles.headerButton} />
         </View>
         <View style={styles.loadingContainer}>
@@ -216,7 +222,7 @@ export default function WalletScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -227,14 +233,16 @@ export default function WalletScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>My Wallet</Text>
+        <Text style={styles.headerTitle}>{t.wallet.title}</Text>
 
         <View style={styles.headerButton} />
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Balance Card */}
         <View style={styles.balanceCard}>
@@ -242,11 +250,11 @@ export default function WalletScreen() {
             <View style={styles.walletIcon}>
               <Wallet size={32} color={Colors.neutralWhite} />
             </View>
-            <Text style={styles.balanceLabel}>Total Balance</Text>
+            <Text style={styles.balanceLabel}>{t.wallet.totalBalance}</Text>
           </View>
 
           <Text style={styles.balanceAmount}>
-            {walletData?.balance.toFixed(2) || '0.00'} EGP
+            {walletData?.balance.toFixed(2) || "0.00"} EGP
           </Text>
 
           <View style={styles.balanceActions}>
@@ -256,17 +264,19 @@ export default function WalletScreen() {
               activeOpacity={0.9}
             >
               <Plus size={20} color={Colors.neutralWhite} />
-              <Text style={styles.actionButtonText}>Add Money</Text>
+              <Text style={styles.actionButtonText}>{t.wallet.addMoney}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Transactions Section */}
-        <Text style={styles.sectionTitle}>Recent Transactions</Text>
+        <Text style={styles.sectionTitle}>{t.wallet.recentTransactions}</Text>
 
         {/* Content */}
         <View style={styles.transactionsSection}>
-          {walletData && walletData.transactions && walletData.transactions.length > 0 ? (
+          {walletData &&
+          walletData.transactions &&
+          walletData.transactions.length > 0 ? (
             walletData.transactions.map((transaction) => (
               <View key={transaction.id} style={styles.transactionCard}>
                 <View style={styles.transactionLeft}>
@@ -275,13 +285,13 @@ export default function WalletScreen() {
                       styles.transactionIcon,
                       {
                         backgroundColor:
-                          transaction.type === 'credit'
+                          transaction.type === "credit"
                             ? `${Colors.primary900}15`
                             : `${Colors.accentRed}15`,
                       },
                     ]}
                   >
-                    {transaction.type === 'credit' ? (
+                    {transaction.type === "credit" ? (
                       <ArrowDownLeft size={20} color={Colors.primary900} />
                     ) : (
                       <ArrowUpRight size={20} color={Colors.accentRed} />
@@ -304,26 +314,26 @@ export default function WalletScreen() {
                       styles.transactionAmount,
                       {
                         color:
-                          transaction.type === 'credit'
+                          transaction.type === "credit"
                             ? Colors.primary900
                             : Colors.accentRed,
                       },
                     ]}
                   >
-                    {transaction.type === 'credit' ? '+' : '-'}
+                    {transaction.type === "credit" ? "+" : "-"}
                     {parseFloat(transaction.amount).toFixed(2)} EGP
                   </Text>
                   <Text style={styles.transactionBalance}>
-                    Bal: {parseFloat(transaction.balance_after).toFixed(2)} EGP
+                    {t.wallet.bal}: {parseFloat(transaction.balance_after).toFixed(2)} EGP
                   </Text>
                 </View>
               </View>
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateTitle}>No Transactions Yet</Text>
+              <Text style={styles.emptyStateTitle}>{t.wallet.noTransactionsYet}</Text>
               <Text style={styles.emptyStateText}>
-                Add money to your wallet to get started
+                {t.wallet.addMoneyToGetStarted}
               </Text>
             </View>
           )}
@@ -340,7 +350,7 @@ export default function WalletScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Money to Wallet</Text>
+              <Text style={styles.modalTitle}>{t.wallet.addMoneyToWallet}</Text>
               <TouchableOpacity onPress={() => setShowAddMoney(false)}>
                 <X size={24} color={Colors.neutralCharcoal} />
               </TouchableOpacity>
@@ -352,7 +362,8 @@ export default function WalletScreen() {
                   key={quickAmount}
                   style={[
                     styles.quickAmountButton,
-                    amount === quickAmount.toString() && styles.quickAmountButtonActive,
+                    amount === quickAmount.toString() &&
+                      styles.quickAmountButtonActive,
                   ]}
                   onPress={() => handleQuickAmount(quickAmount)}
                   activeOpacity={0.7}
@@ -360,7 +371,8 @@ export default function WalletScreen() {
                   <Text
                     style={[
                       styles.quickAmountText,
-                      amount === quickAmount.toString() && styles.quickAmountTextActive,
+                      amount === quickAmount.toString() &&
+                        styles.quickAmountTextActive,
                     ]}
                   >
                     {quickAmount} EGP
@@ -370,11 +382,11 @@ export default function WalletScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Custom Amount</Text>
+              <Text style={styles.inputLabel}>{t.wallet.customAmount}</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter amount"
+                  placeholder={t.wallet.enterAmount}
                   placeholderTextColor={Colors.neutralMedium}
                   keyboardType="decimal-pad"
                   value={amount}
@@ -382,28 +394,34 @@ export default function WalletScreen() {
                 />
                 <Text style={styles.currencyText}>EGP</Text>
               </View>
-              <Text style={styles.inputHint}>Min: 10 EGP • Max: 10,000 EGP</Text>
+              <Text style={styles.inputHint}>
+                {t.wallet.minMaxAmount}
+              </Text>
             </View>
 
             <View style={styles.paymentMethodSection}>
-              <Text style={styles.paymentMethodLabel}>Payment Method</Text>
+              <Text style={styles.paymentMethodLabel}>{t.wallet.paymentMethod}</Text>
 
               <TouchableOpacity
                 style={[
                   styles.paymentMethodCard,
-                  paymentMethod === 'CARD' && styles.paymentMethodCardActive,
+                  paymentMethod === "CARD" && styles.paymentMethodCardActive,
                 ]}
-                onPress={() => setPaymentMethod('CARD')}
+                onPress={() => setPaymentMethod("CARD")}
                 activeOpacity={0.7}
               >
                 <View style={styles.paymentMethodLeft}>
                   <CreditCard size={24} color={Colors.primary900} />
                   <View>
-                    <Text style={styles.paymentMethodTitle}>Credit/Debit Card</Text>
-                    <Text style={styles.paymentMethodSubtitle}>Visa, Mastercard, Amex</Text>
+                    <Text style={styles.paymentMethodTitle}>
+                      {t.wallet.creditDebitCard}
+                    </Text>
+                    <Text style={styles.paymentMethodSubtitle}>
+                      {t.wallet.visaMastercardAmex}
+                    </Text>
                   </View>
                 </View>
-                {paymentMethod === 'CARD' && (
+                {paymentMethod === "CARD" && (
                   <View style={styles.selectedCheck}>
                     <ArrowDownLeft size={16} color={Colors.neutralWhite} />
                   </View>
@@ -413,19 +431,21 @@ export default function WalletScreen() {
               <TouchableOpacity
                 style={[
                   styles.paymentMethodCard,
-                  paymentMethod === 'WALLET' && styles.paymentMethodCardActive,
+                  paymentMethod === "WALLET" && styles.paymentMethodCardActive,
                 ]}
-                onPress={() => setPaymentMethod('WALLET')}
+                onPress={() => setPaymentMethod("WALLET")}
                 activeOpacity={0.7}
               >
                 <View style={styles.paymentMethodLeft}>
                   <Smartphone size={24} color={Colors.accentOrange} />
                   <View>
-                    <Text style={styles.paymentMethodTitle}>Mobile Wallet</Text>
-                    <Text style={styles.paymentMethodSubtitle}>Vodafone, Orange, Etisalat</Text>
+                    <Text style={styles.paymentMethodTitle}>{t.wallet.mobileWallet}</Text>
+                    <Text style={styles.paymentMethodSubtitle}>
+                      {t.wallet.vodafoneOrangeEtisalat}
+                    </Text>
                   </View>
                 </View>
-                {paymentMethod === 'WALLET' && (
+                {paymentMethod === "WALLET" && (
                   <View style={styles.selectedCheck}>
                     <ArrowDownLeft size={16} color={Colors.neutralWhite} />
                   </View>
@@ -439,7 +459,7 @@ export default function WalletScreen() {
                 onPress={() => setShowAddMoney(false)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t.common.cancel}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -454,7 +474,7 @@ export default function WalletScreen() {
                 {recharging ? (
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.modalAddText}>Continue to Payment</Text>
+                  <Text style={styles.modalAddText}>{t.wallet.continueToPayment}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -471,9 +491,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -483,8 +503,8 @@ const styles = StyleSheet.create({
   headerButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h3,
@@ -496,15 +516,15 @@ const styles = StyleSheet.create({
     margin: Spacing.lg,
     borderRadius: 24,
     padding: Spacing.xl,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
   },
   balanceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
@@ -512,13 +532,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   balanceLabel: {
     fontSize: Typography.bodyBase,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
   },
   balanceAmount: {
     fontSize: 48,
@@ -527,16 +547,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   balanceActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.xs,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingVertical: Spacing.sm,
     borderRadius: 16,
   },
@@ -546,7 +566,7 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
   },
   tabs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
@@ -554,7 +574,7 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: Spacing.sm,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 16,
     backgroundColor: Colors.neutralWhite,
   },
@@ -574,22 +594,22 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
   },
   transactionCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     backgroundColor: Colors.neutralWhite,
     padding: Spacing.md,
     borderRadius: 20,
     marginBottom: Spacing.sm,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
   },
   transactionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     flex: 1,
   },
@@ -597,8 +617,8 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   transactionInfo: {
     flex: 1,
@@ -614,7 +634,7 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
   },
   transactionRight: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   transactionAmount: {
     fontSize: Typography.bodyBase,
@@ -629,7 +649,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: Spacing.xxl,
   },
   emptyStateTitle: {
@@ -644,8 +664,8 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: Colors.neutralWhite,
@@ -658,21 +678,21 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.lg,
-    textAlign: 'center',
+    textAlign: "center",
   },
   quickAmounts: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
   quickAmountButton: {
     flex: 1,
-    minWidth: '30%',
+    minWidth: "30%",
     paddingVertical: Spacing.sm,
     borderRadius: 12,
     backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
+    alignItems: "center",
   },
   quickAmountButtonActive: {
     backgroundColor: Colors.primary900,
@@ -696,8 +716,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   sectionTitle: {
     fontSize: Typography.h4,
@@ -707,9 +727,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
   inputHint: {
@@ -732,16 +752,16 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: Colors.primary900,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.neutralLight,
     borderRadius: 16,
     paddingHorizontal: Spacing.md,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   input: {
     flex: 1,
@@ -760,17 +780,17 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   paymentMethodCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: Colors.neutralLight,
     padding: Spacing.md,
     borderRadius: 16,
     marginBottom: Spacing.sm,
   },
   paymentMethodLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
   },
   paymentMethodTitle: {
@@ -784,14 +804,14 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
   },
   modalActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
   },
   modalCancelButton: {
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: Colors.neutralLight,
   },
   modalCancelText: {
@@ -803,7 +823,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: Colors.primary900,
   },
   modalAddButtonDisabled: {

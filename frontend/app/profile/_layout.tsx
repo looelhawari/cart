@@ -1,23 +1,23 @@
-import { Stack } from 'expo-router';
-import React from 'react';
+import { Stack } from "expo-router";
+import React from "react";
 
 export default function ProfileLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        headerBackTitle: 'Back',
+        headerBackTitle: "Back",
         headerStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: "#fff",
         },
-        headerTintColor: '#16a34a',
+        headerTintColor: "#16a34a",
       }}
     >
       <Stack.Screen
         name="favorites"
         options={{
-          headerShown: true,
-          title: 'My Favorites',
+          headerShown: false,
+          title: "My Favorites",
         }}
       />
       <Stack.Screen
@@ -29,15 +29,15 @@ export default function ProfileLayout() {
       <Stack.Screen
         name="help"
         options={{
-          headerShown: true,
-          title: 'Help & Support',
+          headerShown: false,
+          title: "Help & Support",
         }}
       />
       <Stack.Screen
         name="settings"
         options={{
-          headerShown: true,
-          title: 'Settings',
+          headerShown: false,
+          title: "Settings",
         }}
       />
     </Stack>

@@ -29,12 +29,18 @@ import { Spacing } from "@/constants/Spacing";
 import { Toast } from "@/components/Toast";
 import { getProduct } from "@/services/api/productsApi";
 import type { Product } from "@/types";
-import { fetchActiveOffersCached, getProductOfferPricing } from "@/utils/offerPricing";
+import {
+  fetchActiveOffersCached,
+  getProductOfferPricing,
+} from "@/utils/offerPricing";
 import type { Offer } from "@/services/api/types";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 const { width } = Dimensions.get("window");
 
 export default function ProductDetailScreen() {
+  const { t } = useTranslation();
+  const { getName, getDescription } = useLocalizedValue();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
@@ -44,7 +50,7 @@ export default function ProductDetailScreen() {
   const { cart, addToCart, updateQuantity, favorites, toggleFavorite } =
     useStore();
   const cartItem = cart?.items?.find(
-    (item) => item.product.barcode === Number(id)
+    (item) => item.product.barcode === Number(id),
   );
 
   const [quantity, setQuantity] = useState(1);
@@ -96,7 +102,7 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Product not found</Text>
+        <Text>{t.products.productNotFound}</Text>
       </SafeAreaView>
     );
   }
@@ -106,7 +112,7 @@ export default function ProductDetailScreen() {
   const images = [product.image];
   const price = parseFloat(product.price?.toString() || "0");
   const salePrice = parseFloat(
-    (product.sale_price || product.salePrice)?.toString() || "0"
+    (product.sale_price || product.salePrice)?.toString() || "0",
   );
   const discount =
     salePrice > 0 && salePrice < price
@@ -129,13 +135,11 @@ export default function ProductDetailScreen() {
       } else {
         await addToCart(product.barcode, quantity);
       }
-      setToastMessage(
-        `${quantity} ${quantity > 1 ? "items" : "item"} added to cart`
-      );
+      setToastMessage(`${quantity} ${t.cart.itemAdded}`);
       setShowToast(true);
     } catch (error) {
       console.error("Failed to add to cart:", error);
-      setToastMessage("Failed to add to cart");
+      setToastMessage(t.products.failedToAddToCart);
       setShowToast(true);
     }
   };
@@ -171,7 +175,7 @@ export default function ProductDetailScreen() {
             fill={isFavorite ? Colors.primary900 : "none"}
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => { }} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => {}} style={styles.headerButton}>
           <Share2 size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -226,7 +230,7 @@ export default function ProductDetailScreen() {
 
   const renderProductInfo = () => (
     <View style={styles.productInfo}>
-      <Text style={styles.productName}>{product.name_en || product.name}</Text>
+      <Text style={styles.productName}>{getName(product)}</Text>
 
       <TouchableOpacity
         onPress={() => router.push(`/product/reviews/${product.barcode}`)}
@@ -249,7 +253,8 @@ export default function ProductDetailScreen() {
           ))}
         </View>
         <Text style={styles.ratingText}>
-          {product.rating || 0} ({product.review_count || 0} reviews)
+          {product.rating || 0} ({product.review_count || 0}{" "}
+          {t.products.reviews})
         </Text>
       </TouchableOpacity>
 
@@ -265,13 +270,16 @@ export default function ProductDetailScreen() {
         </Text>
         {promoPrice !== null ? (
           <>
-            <Text style={styles.oldPrice}>EGP {basePrice.toFixed(2)}</Text>
+            <Text style={styles.oldPrice}>
+              {t.common.currency} {basePrice.toFixed(2)}
+            </Text>
             <Text style={styles.saveText}>
-              Save EGP {(basePrice - promoPrice).toFixed(2)}
+              {t.products.save} {t.common.currency}{" "}
+              {(basePrice - promoPrice).toFixed(2)}
             </Text>
             {offerPricing?.code && (
               <Text style={styles.offerNote}>
-                Offer price with code {offerPricing.code}
+                {t.products.offerPriceWithCode} {offerPricing.code}
               </Text>
             )}
           </>
@@ -279,9 +287,12 @@ export default function ProductDetailScreen() {
           salePrice > 0 &&
           salePrice < price && (
             <>
-              <Text style={styles.oldPrice}>EGP {price.toFixed(2)}</Text>
+              <Text style={styles.oldPrice}>
+                {t.common.currency} {price.toFixed(2)}
+              </Text>
               <Text style={styles.saveText}>
-                Save EGP {(price - salePrice).toFixed(2)}
+                {t.products.save} {t.common.currency}{" "}
+                {(price - salePrice).toFixed(2)}
               </Text>
             </>
           )
@@ -292,15 +303,18 @@ export default function ProductDetailScreen() {
         {(product.stock_quantity || 0) > 0 ? (
           <>
             <View style={styles.stockDot} />
-            <Text style={styles.stockText}>In Stock</Text>
+            <Text style={styles.stockText}>{t.products.inStock}</Text>
             {product.stock_quantity && product.stock_quantity < 10 && (
               <Text style={styles.limitedStock}>
-                Only {product.stock_quantity} left
+                {t.products.onlyLeft.replace(
+                  "{count}",
+                  product.stock_quantity.toString(),
+                )}
               </Text>
             )}
           </>
         ) : (
-          <Text style={styles.outOfStock}>Out of Stock</Text>
+          <Text style={styles.outOfStock}>{t.products.outOfStock}</Text>
         )}
       </View>
     </View>
@@ -308,7 +322,7 @@ export default function ProductDetailScreen() {
 
   const renderQuantitySelector = () => (
     <View style={styles.quantitySection}>
-      <Text style={styles.quantityLabel}>Quantity</Text>
+      <Text style={styles.quantityLabel}>{t.products.quantity}</Text>
       <View style={styles.quantityControls}>
         <TouchableOpacity
           onPress={() => setQuantity(Math.max(1, quantity - 1))}
@@ -334,7 +348,7 @@ export default function ProductDetailScreen() {
   const renderExpandableSection = (
     key: keyof typeof expandedSections,
     title: string,
-    content: React.ReactNode
+    content: React.ReactNode,
   ) => (
     <View style={styles.expandableSection}>
       <TouchableOpacity
@@ -360,7 +374,7 @@ export default function ProductDetailScreen() {
     if (!product.categories || product.categories.length === 0) return null;
     return (
       <View style={styles.categoriesSection}>
-        <Text style={styles.categoriesTitle}>Categories</Text>
+        <Text style={styles.categoriesTitle}>{t.nav.categories}</Text>
         <View style={styles.categoryTags}>
           {product.categories.map((category, index) => (
             <TouchableOpacity
@@ -368,7 +382,7 @@ export default function ProductDetailScreen() {
               style={styles.categoryTag}
               onPress={() => router.push(`/categories/${category.id}`)}
             >
-              <Text style={styles.categoryText}>{category.name_en}</Text>
+              <Text style={styles.categoryText}>{getName(category)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -379,22 +393,12 @@ export default function ProductDetailScreen() {
   const renderDescription = () =>
     renderExpandableSection(
       "description",
-      "About this product",
+      t.products.aboutThisProduct,
       <View>
         <Text style={styles.descriptionText}>
-          {product.description_en ||
-            product.description ||
-            "No description available"}
+          {getDescription(product) || t.products.noDescription}
         </Text>
-        {product.description_ar && (
-          <View style={styles.arabicSection}>
-            <Text style={styles.arabicLabel}>الوصف بالعربية</Text>
-            <Text style={[styles.descriptionText, styles.arabicText]}>
-              {product.description_ar}
-            </Text>
-          </View>
-        )}
-      </View>
+      </View>,
     );
 
   const renderNutrition = () => {
@@ -402,11 +406,12 @@ export default function ProductDetailScreen() {
     let facts = null;
     if (product.nutrition_facts) {
       try {
-        facts = typeof product.nutrition_facts === 'string'
-          ? JSON.parse(product.nutrition_facts)
-          : product.nutrition_facts;
+        facts =
+          typeof product.nutrition_facts === "string"
+            ? JSON.parse(product.nutrition_facts)
+            : product.nutrition_facts;
       } catch (e) {
-        console.error('Failed to parse nutrition facts:', e);
+        console.error("Failed to parse nutrition facts:", e);
       }
     }
     // Fallback to old nutritionFacts property
@@ -468,7 +473,7 @@ export default function ProductDetailScreen() {
             <Text style={styles.nutritionValue}>{facts.protein}</Text>
           </View>
         )}
-      </View>
+      </View>,
     );
   };
 
@@ -477,7 +482,7 @@ export default function ProductDetailScreen() {
     return renderExpandableSection(
       "ingredients",
       "Ingredients",
-      <Text style={styles.descriptionText}>{product.ingredients}</Text>
+      <Text style={styles.descriptionText}>{product.ingredients}</Text>,
     );
   };
 
@@ -512,7 +517,7 @@ export default function ProductDetailScreen() {
             <Text style={[styles.specValue, styles.featuredBadge]}>⭐ Yes</Text>
           </View>
         )}
-      </View>
+      </View>,
     );
 
   const renderAllergens = () => {

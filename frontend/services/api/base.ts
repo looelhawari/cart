@@ -4,6 +4,23 @@ import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 // API Configuration
 export const API_BASE_URL = API_CONFIG.BASE_URL;
 
+// Helper: Get common headers for all requests (including ngrok support)
+export const getCommonHeaders = (
+  includeContentType: boolean = true,
+): HeadersInit => {
+  const headers: HeadersInit = {
+    Accept: "application/json",
+    "ngrok-skip-browser-warning": "true",
+    "User-Agent": "ElBaraka-Mobile-App",
+  };
+
+  if (includeContentType) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  return headers;
+};
+
 // Helper: Safely parse JSON from response - handles all error cases
 export const safeResponseJson = async (response: Response): Promise<any> => {
   try {
@@ -118,8 +135,7 @@ export const apiRequest = async <T>(
   const token = await getAuthToken();
 
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+    ...getCommonHeaders(),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
@@ -128,6 +144,11 @@ export const apiRequest = async <T>(
     ...options,
     headers,
   });
+
+  // Log request for debugging (only in development)
+  if (__DEV__) {
+    console.log(`[API] ${options.method || "GET"} ${API_BASE_URL}${endpoint}`);
+  }
 
   if (!response.ok) {
     let error;

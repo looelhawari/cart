@@ -15,9 +15,11 @@ import { getAddresses, CheckoutAddress } from "@/services/api/checkoutApi";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
+import { useTranslation } from "@/i18n";
 
 export default function CheckoutAddressScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(
@@ -54,7 +56,10 @@ export default function CheckoutAddressScreen() {
       }
     } catch (error: any) {
       console.error("📍 Error fetching addresses:", error);
-      Alert.alert("Error", error.message || "Failed to load addresses");
+      Alert.alert(
+        t.common.error,
+        error.message || t.checkout.failedToLoadAddresses,
+      );
     } finally {
       setLoading(false);
     }
@@ -62,7 +67,7 @@ export default function CheckoutAddressScreen() {
 
   const handleContinue = () => {
     if (!selectedAddressId) {
-      Alert.alert("Select Address", "Please select a delivery address");
+      Alert.alert(t.checkout.selectAddress, t.checkout.pleaseSelectAddress);
       return;
     }
     router.push({
@@ -72,7 +77,7 @@ export default function CheckoutAddressScreen() {
   };
 
   const handleAddNewAddress = () => {
-    router.push("/profile/add-address" as any);
+    router.push("/profile/addresses/new" as any);
   };
 
   if (loading) {
@@ -80,7 +85,7 @@ export default function CheckoutAddressScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading addresses...</Text>
+          <Text style={styles.loadingText}>{t.checkout.loadingAddresses}</Text>
         </View>
       </SafeAreaView>
     );
@@ -95,7 +100,7 @@ export default function CheckoutAddressScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Delivery Address</Text>
+        <Text style={styles.headerTitle}>{t.checkout.deliveryAddress}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -122,22 +127,24 @@ export default function CheckoutAddressScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>
-          {addresses.length === 0 ? "No Saved Addresses" : "Saved Addresses"}
+          {addresses.length === 0
+            ? t.checkout.noSavedAddresses
+            : t.checkout.savedAddresses}
         </Text>
 
         {addresses.length === 0 ? (
           <View style={styles.emptyContainer}>
             <MapPin size={64} color={Colors.neutralGray} />
-            <Text style={styles.emptyTitle}>No addresses saved</Text>
+            <Text style={styles.emptyTitle}>{t.checkout.noAddressesSaved}</Text>
             <Text style={styles.emptyText}>
-              Add a delivery address to continue with checkout
+              {t.checkout.addAddressToCheckout}
             </Text>
             <TouchableOpacity
               style={styles.addButton}
               onPress={handleAddNewAddress}
             >
               <Plus size={20} color={Colors.neutralWhite} />
-              <Text style={styles.addButtonText}>Add Address</Text>
+              <Text style={styles.addButtonText}>{t.checkout.addAddress}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -158,7 +165,9 @@ export default function CheckoutAddressScreen() {
                     <Text style={styles.addressLabel}>{address.label}</Text>
                     {address.is_default && (
                       <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultText}>Default</Text>
+                        <Text style={styles.defaultText}>
+                          {t.checkout.defaultAddress}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -173,10 +182,14 @@ export default function CheckoutAddressScreen() {
                 <Text style={styles.addressText}>
                   {address.street_address}
                   {address.building_number
-                    ? `, Building ${address.building_number}`
+                    ? `, ${t.checkout.building} ${address.building_number}`
                     : ""}
-                  {address.floor ? `, Floor ${address.floor}` : ""}
-                  {address.apartment ? `, Apt ${address.apartment}` : ""}
+                  {address.floor
+                    ? `, ${t.checkout.floor} ${address.floor}`
+                    : ""}
+                  {address.apartment
+                    ? `, ${t.checkout.apt} ${address.apartment}`
+                    : ""}
                 </Text>
                 <Text style={styles.addressText}>
                   {address.city}, {address.governorate}
@@ -184,7 +197,7 @@ export default function CheckoutAddressScreen() {
                 </Text>
                 {address.landmark && (
                   <Text style={styles.addressLandmark}>
-                    Near: {address.landmark}
+                    {t.checkout.near}: {address.landmark}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -195,7 +208,9 @@ export default function CheckoutAddressScreen() {
               onPress={handleAddNewAddress}
             >
               <Plus size={20} color={Colors.primary900} />
-              <Text style={styles.addAddressText}>Add New Address</Text>
+              <Text style={styles.addAddressText}>
+                {t.checkout.addNewAddress}
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -213,7 +228,9 @@ export default function CheckoutAddressScreen() {
             onPress={handleContinue}
             disabled={!selectedAddressId}
           >
-            <Text style={styles.continueText}>Continue to Order Review</Text>
+            <Text style={styles.continueText}>
+              {t.checkout.continueToReview}
+            </Text>
           </TouchableOpacity>
         </View>
       )}

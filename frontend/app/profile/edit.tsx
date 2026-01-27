@@ -22,27 +22,34 @@ import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
 import { authApi } from "@/services/api";
+import { useTranslation } from "@/i18n";
 
 export default function EditProfileScreen() {
   const { user, updateProfile, fetchProfile } = useStore();
+  const { t } = useTranslation();
 
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
-    user?.date_of_birth ? new Date(user.date_of_birth) : null
+    user?.date_of_birth ? new Date(user.date_of_birth) : null,
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "other" | null>(
-    user?.gender || null
+    user?.gender || null,
   );
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const handleSave = async () => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
-      Alert.alert("Error", "Please fill in all required fields");
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim() ||
+      !phone.trim()
+    ) {
+      Alert.alert(t.common.error, t.editProfile.fillAllFields);
       return;
     }
 
@@ -57,7 +64,7 @@ export default function EditProfileScreen() {
 
       // Only include date_of_birth if it has a value
       if (dateOfBirth) {
-        updateData.date_of_birth = dateOfBirth.toISOString().split('T')[0];
+        updateData.date_of_birth = dateOfBirth.toISOString().split("T")[0];
       }
 
       // Only include gender if it has a value
@@ -67,13 +74,13 @@ export default function EditProfileScreen() {
 
       await updateProfile(updateData);
 
-      Alert.alert("Success", "Profile updated successfully", [
-        { text: "OK", onPress: () => router.back() },
+      Alert.alert(t.common.success, t.editProfile.profileUpdated, [
+        { text: t.common.ok, onPress: () => router.back() },
       ]);
     } catch (error: any) {
       Alert.alert(
-        "Error",
-        error.message || "Failed to update profile. Please try again."
+        t.common.error,
+        error.message || t.editProfile.failedToUpdate,
       );
     } finally {
       setLoading(false);
@@ -85,8 +92,8 @@ export default function EditProfileScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "Permission Required",
-        "Please grant camera roll permissions to change your profile picture."
+        t.editProfile.permissionRequired,
+        t.editProfile.grantCameraRollPermission,
       );
       return;
     }
@@ -107,8 +114,8 @@ export default function EditProfileScreen() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "Permission Required",
-        "Please grant camera permissions to take a photo."
+        t.editProfile.permissionRequired,
+        t.editProfile.grantCameraPermission,
       );
       return;
     }
@@ -131,20 +138,23 @@ export default function EditProfileScreen() {
       const formData: any = new FormData();
 
       // Get file extension
-      const fileExtension = uri.split('.').pop() || 'jpg';
+      const fileExtension = uri.split(".").pop() || "jpg";
       const fileName = `avatar_${Date.now()}.${fileExtension}`;
 
       formData.append("avatar", {
-        uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+        uri: Platform.OS === "ios" ? uri.replace("file://", "") : uri,
         type: `image/${fileExtension}`,
         name: fileName,
       } as any);
 
       await authApi.uploadAvatar(formData);
       await fetchProfile();
-      Alert.alert("Success", "Profile picture updated successfully");
+      Alert.alert(t.common.success, t.editProfile.pictureUpdated);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to upload image");
+      Alert.alert(
+        t.common.error,
+        error.message || t.editProfile.failedToUpload,
+      );
     } finally {
       setUploadingAvatar(false);
     }
@@ -152,52 +162,55 @@ export default function EditProfileScreen() {
 
   const handleChangePhoto = () => {
     Alert.alert(
-      "Change Profile Picture",
-      "Choose an option",
+      t.editProfile.changeProfilePicture,
+      t.editProfile.chooseOption,
       [
         {
-          text: "Take Photo",
+          text: t.editProfile.takePhoto,
           onPress: handleTakePhoto,
         },
         {
-          text: "Choose from Library",
+          text: t.editProfile.chooseFromLibrary,
           onPress: handlePickImage,
         },
         {
-          text: "Cancel",
+          text: t.common.cancel,
           style: "cancel",
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   };
 
   const handleDeleteAvatar = async () => {
     Alert.alert(
-      "Delete Profile Picture",
-      "Are you sure you want to delete your profile picture?",
+      t.editProfile.deleteProfilePicture,
+      t.editProfile.confirmDeletePicture,
       [
         {
-          text: "Cancel",
+          text: t.common.cancel,
           style: "cancel",
         },
         {
-          text: "Delete",
+          text: t.common.delete,
           style: "destructive",
           onPress: async () => {
             setUploadingAvatar(true);
             try {
               await authApi.deleteAvatar();
               await fetchProfile();
-              Alert.alert("Success", "Profile picture deleted");
+              Alert.alert(t.common.success, t.editProfile.pictureDeleted);
             } catch (error: any) {
-              Alert.alert("Error", error.message || "Failed to delete picture");
+              Alert.alert(
+                t.common.error,
+                error.message || t.editProfile.failedToDelete,
+              );
             } finally {
               setUploadingAvatar(false);
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -220,7 +233,7 @@ export default function EditProfileScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Edit Profile</Text>
+        <Text style={styles.headerTitle}>{t.profile.editProfile}</Text>
 
         <TouchableOpacity
           style={styles.headerButton}
@@ -274,40 +287,40 @@ export default function EditProfileScreen() {
               </>
             )}
           </View>
-          <Text style={styles.photoLabel}>Change Photo</Text>
+          <Text style={styles.photoLabel}>{t.editProfile.changePhoto}</Text>
         </View>
 
         {/* Form */}
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>First Name *</Text>
+            <Text style={styles.label}>{t.editProfile.firstName} *</Text>
             <TextInput
               style={styles.input}
               value={firstName}
               onChangeText={setFirstName}
-              placeholder="Enter your first name"
+              placeholder={t.editProfile.enterFirstName}
               placeholderTextColor={Colors.neutralMedium}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Last Name *</Text>
+            <Text style={styles.label}>{t.editProfile.lastName} *</Text>
             <TextInput
               style={styles.input}
               value={lastName}
               onChangeText={setLastName}
-              placeholder="Enter your last name"
+              placeholder={t.editProfile.enterLastName}
               placeholderTextColor={Colors.neutralMedium}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email *</Text>
+            <Text style={styles.label}>{t.auth.email} *</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="Enter your email"
+              placeholder={t.editProfile.enterEmail}
               placeholderTextColor={Colors.neutralMedium}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -315,19 +328,19 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number *</Text>
+            <Text style={styles.label}>{t.auth.phone} *</Text>
             <TextInput
               style={styles.input}
               value={phone}
               onChangeText={setPhone}
-              placeholder="Enter your phone number"
+              placeholder={t.editProfile.enterPhone}
               placeholderTextColor={Colors.neutralMedium}
               keyboardType="phone-pad"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date of Birth</Text>
+            <Text style={styles.label}>{t.editProfile.dateOfBirth}</Text>
             <TouchableOpacity
               style={styles.input}
               onPress={() => setShowDatePicker(true)}
@@ -341,7 +354,7 @@ export default function EditProfileScreen() {
               >
                 {dateOfBirth
                   ? dateOfBirth.toLocaleDateString()
-                  : "Select date of birth"}
+                  : t.editProfile.selectDateOfBirth}
               </Text>
             </TouchableOpacity>
 
@@ -358,7 +371,7 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Gender</Text>
+            <Text style={styles.label}>{t.editProfile.gender}</Text>
             <View style={styles.genderRow}>
               <TouchableOpacity
                 style={[
@@ -374,7 +387,7 @@ export default function EditProfileScreen() {
                     gender === "male" && styles.genderTextActive,
                   ]}
                 >
-                  Male
+                  {t.editProfile.male}
                 </Text>
               </TouchableOpacity>
 
@@ -392,7 +405,7 @@ export default function EditProfileScreen() {
                     gender === "female" && styles.genderTextActive,
                   ]}
                 >
-                  Female
+                  {t.editProfile.female}
                 </Text>
               </TouchableOpacity>
 
@@ -410,7 +423,7 @@ export default function EditProfileScreen() {
                     gender === "other" && styles.genderTextActive,
                   ]}
                 >
-                  Other
+                  {t.editProfile.other}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -422,7 +435,9 @@ export default function EditProfileScreen() {
             onPress={() => router.push("/profile/change-password" as any)}
             activeOpacity={0.9}
           >
-            <Text style={styles.changePasswordText}>Change Password</Text>
+            <Text style={styles.changePasswordText}>
+              {t.settings.changePassword}
+            </Text>
           </TouchableOpacity>
 
           {/* Save Button */}
@@ -435,7 +450,9 @@ export default function EditProfileScreen() {
             {loading ? (
               <ActivityIndicator size="small" color={Colors.neutralWhite} />
             ) : (
-              <Text style={styles.saveButtonText}>Save Changes</Text>
+              <Text style={styles.saveButtonText}>
+                {t.editProfile.saveChanges}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

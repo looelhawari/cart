@@ -1,4 +1,4 @@
-import { API_BASE_URL, safeResponseJson } from "./base";
+import { API_BASE_URL, safeResponseJson, getCommonHeaders } from "./base";
 import type { Product } from "@/types";
 import { cacheFirstFetch, networkFirstFetch } from "../cache/apiCache";
 
@@ -59,10 +59,7 @@ export const getProducts = async (
     try {
       const response = await fetch(`${API_BASE_URL}/products${queryString}`, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers: getCommonHeaders(),
       });
 
       if (!response.ok) {

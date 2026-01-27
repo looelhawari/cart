@@ -76,7 +76,11 @@ export const orderApi = {
   /**
    * Get user's orders with optional status filter
    */
-  getOrders: async (status?: string, page: number = 1, perPage: number = 10) => {
+  getOrders: async (
+    status?: string,
+    page: number = 1,
+    perPage: number = 10,
+  ) => {
     const token = await getAuthToken();
     const queryParams = new URLSearchParams();
     if (status) queryParams.append("status", status);
@@ -88,6 +92,8 @@ export const orderApi = {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
         ...(token && { Authorization: `Bearer ${token}` }),
       },
     });
@@ -113,6 +119,8 @@ export const orderApi = {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
         ...(token && { Authorization: `Bearer ${token}` }),
       },
     });
@@ -137,6 +145,8 @@ export const orderApi = {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
         "X-Session-ID": sessionId,
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -162,14 +172,16 @@ export const orderApi = {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
         ...(token && { Authorization: `Bearer ${token}` }),
       },
-      body: JSON.stringify({ cancellation_reason: reason }),
+      body: JSON.stringify({ reason: reason }),
     });
 
     if (!response.ok) {
       const error = await safeJsonParse(response);
-      throw error;
+      throw new Error(error?.message || "Failed to cancel order");
     }
 
     return await safeJsonParse(response);
@@ -188,6 +200,8 @@ export const orderApi = {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
         "X-Session-ID": sessionId,
         ...(token && { Authorization: `Bearer ${token}` }),
       },

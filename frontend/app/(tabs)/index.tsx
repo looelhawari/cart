@@ -40,6 +40,7 @@ import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
 import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
 import type { Product } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
+import { useLocalizedValue, useTranslation } from "@/i18n";
 
 export default function HomeScreen() {
   const { wp, hp, isSmallDevice, width } = useResponsive();
@@ -50,9 +51,15 @@ export default function HomeScreen() {
   });
 
   const { cart, user, isAuthenticated } = useStore();
-  const cartItemsCount = cart?.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+  const cartItemsCount =
+    cart?.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) ||
+    0;
+  const { getName } = useLocalizedValue();
+  const { t, isRTL } = useTranslation();
 
-  const [categoriesWithProducts, setCategoriesWithProducts] = useState<CategoryWithProducts[]>([]);
+  const [categoriesWithProducts, setCategoriesWithProducts] = useState<
+    CategoryWithProducts[]
+  >([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +84,8 @@ export default function HomeScreen() {
         getFlashDeals(),
       ]);
 
-      if (categoriesRes.success) setCategoriesWithProducts(categoriesRes.data.categories);
+      if (categoriesRes.success)
+        setCategoriesWithProducts(categoriesRes.data.categories);
       if (featuredRes.success) setFeaturedProducts(featuredRes.data.products);
       if (flashDealsRes.success) setFlashDeals(flashDealsRes.data.products);
     } catch (error) {
@@ -306,7 +314,9 @@ export default function HomeScreen() {
       marginBottom: Spacing.xl,
     },
     productCard: {
-      width: isSmallDevice ? (width - wp(4) * 2 - Spacing.sm) / 2 : (width - wp(4) * 2 - Spacing.md * 2) / 3,
+      width: isSmallDevice
+        ? (width - wp(4) * 2 - Spacing.sm) / 2
+        : (width - wp(4) * 2 - Spacing.md * 2) / 3,
       marginBottom: 0,
     },
   });
@@ -320,12 +330,12 @@ export default function HomeScreen() {
   }
 
   const quickCategories = [
-    { id: 1, name: "Fruits", emoji: "🍎" },
-    { id: 2, name: "Veggies", emoji: "🥕" },
-    { id: 3, name: "Meat", emoji: "🥩" },
-    { id: 4, name: "Dairy", emoji: "🥛" },
-    { id: 5, name: "Bakery", emoji: "🍞" },
-    { id: 6, name: "Snacks", emoji: "🍿" },
+    { id: 1, name: t.common.fruits, emoji: "🍎" },
+    { id: 2, name: t.common.vegetables, emoji: "🥕" },
+    { id: 3, name: t.common.meat, emoji: "🥩" },
+    { id: 4, name: t.common.dairy, emoji: "🥛" },
+    { id: 5, name: t.common.bakery, emoji: "🍞" },
+    { id: 6, name: t.common.snacks, emoji: "🍿" },
   ];
 
   return (
@@ -335,7 +345,9 @@ export default function HomeScreen() {
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>
-              {isAuthenticated && user ? `Hello, ${user.first_name}` : "Hello"}
+              {isAuthenticated && user
+                ? `${t.common.hello}, ${user.first_name}`
+                : t.common.hello}
             </Text>
             <View style={styles.location}>
               <MapPin size={16} color={Colors.primary900} />
@@ -385,7 +397,7 @@ export default function HomeScreen() {
             activeOpacity={0.7}
           >
             <Search size={20} color={Colors.neutralMedium} />
-            <Text style={styles.searchInput}>Search fresh products...</Text>
+            <Text style={styles.searchInput}>{t.common.searchPlaceholder}</Text>
           </TouchableOpacity>
         </View>
 
@@ -395,22 +407,40 @@ export default function HomeScreen() {
         {/* FEATURE HIGHLIGHTS */}
         <View style={styles.featuresContainer}>
           <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.primary900 + '15' }]}>
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: Colors.primary900 + "15" },
+              ]}
+            >
               <Truck size={isSmallDevice ? 18 : 20} color={Colors.primary900} />
             </View>
-            <Text style={styles.featureTitle}>Free Delivery</Text>
+            <Text style={styles.featureTitle}>{t.common.freeDelivery}</Text>
           </View>
           <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.accentOrange + '15' }]}>
-              <Sparkles size={isSmallDevice ? 18 : 20} color={Colors.accentOrange} />
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: Colors.accentOrange + "15" },
+              ]}
+            >
+              <Sparkles
+                size={isSmallDevice ? 18 : 20}
+                color={Colors.accentOrange}
+              />
             </View>
-            <Text style={styles.featureTitle}>Fresh Daily</Text>
+            <Text style={styles.featureTitle}>{t.common.freshDaily}</Text>
           </View>
           <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.primary700 + '15' }]}>
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: Colors.primary700 + "15" },
+              ]}
+            >
               <Leaf size={isSmallDevice ? 18 : 20} color={Colors.primary700} />
             </View>
-            <Text style={styles.featureTitle}>100% Organic</Text>
+            <Text style={styles.featureTitle}>{t.common.organic}</Text>
           </View>
         </View>
 
@@ -440,12 +470,14 @@ export default function HomeScreen() {
         {flashDeals.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Flash Deals ⚡</Text>
+              <Text style={styles.sectionTitle}>
+                {t.products.flashDeals} ⚡
+              </Text>
               <TouchableOpacity
                 style={styles.viewAllButton}
                 onPress={() => router.push("/deals/flash")}
               >
-                <Text style={styles.viewAllText}>View All</Text>
+                <Text style={styles.viewAllText}>{t.common.viewAll}</Text>
                 <ChevronRight size={18} color={Colors.primary900} />
               </TouchableOpacity>
             </View>
@@ -471,13 +503,13 @@ export default function HomeScreen() {
         {categoriesWithProducts.map((category) => (
           <View key={category.id} style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{category.name_en}</Text>
+              <Text style={styles.sectionTitle}>{getName(category)}</Text>
               <TouchableOpacity
                 style={styles.viewAllButton}
                 onPress={() => router.push(`/categories/${category.id}` as any)}
               >
                 <Text style={styles.viewAllText}>
-                  {category.products_count} items
+                  {category.products_count} {t.common.items}
                 </Text>
                 <ChevronRight size={18} color={Colors.primary900} />
               </TouchableOpacity>
@@ -504,25 +536,26 @@ export default function HomeScreen() {
         {featuredProducts.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Featured Products</Text>
+              <Text style={styles.sectionTitle}>{t.products.featured}</Text>
               <TouchableOpacity
                 style={styles.viewAllButton}
                 onPress={() => router.push("/(tabs)/categories")}
               >
-                <Text style={styles.viewAllText}>See All</Text>
+                <Text style={styles.viewAllText}>{t.common.seeAll}</Text>
                 <ChevronRight size={18} color={Colors.primary900} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.productsGrid}>
-              {Array.isArray(featuredProducts) && featuredProducts.map((product) => (
-                <View key={product.barcode} style={styles.productCard}>
-                  <ProductCard
-                    product={product}
-                    onPress={() => router.push(`/product/${product.barcode}`)}
-                  />
-                </View>
-              ))}
+              {Array.isArray(featuredProducts) &&
+                featuredProducts.map((product) => (
+                  <View key={product.barcode} style={styles.productCard}>
+                    <ProductCard
+                      product={product}
+                      onPress={() => router.push(`/product/${product.barcode}`)}
+                    />
+                  </View>
+                ))}
             </View>
           </View>
         )}
@@ -530,4 +563,3 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-

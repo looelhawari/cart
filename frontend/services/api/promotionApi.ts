@@ -1,95 +1,116 @@
-import { API_BASE_URL, getAuthToken } from './base';
+import { API_BASE_URL, getAuthToken, getCommonHeaders } from "./base";
 import type {
-    Promotion,
-    PromotionListResponse,
-    PromotionDetailResponse,
-    PromotionProductsResponse
-} from '@/types/promotion';
+  Promotion,
+  PromotionListResponse,
+  PromotionDetailResponse,
+  PromotionProductsResponse,
+} from "@/types/promotion";
 
 /**
  * Get all active promotions
  */
 export const getPromotions = async (params?: {
-    applies_to?: 'all' | 'category' | 'products';
-    category_id?: number;
+  applies_to?: "all" | "category" | "products";
+  category_id?: number;
 }): Promise<PromotionListResponse> => {
-    const queryParams = new URLSearchParams();
-    if (params?.applies_to) queryParams.append('applies_to', params.applies_to);
-    if (params?.category_id) queryParams.append('category_id', params.category_id.toString());
+  const queryParams = new URLSearchParams();
+  if (params?.applies_to) queryParams.append("applies_to", params.applies_to);
+  if (params?.category_id)
+    queryParams.append("category_id", params.category_id.toString());
 
-    const url = `${API_BASE_URL}/promotions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const url = `${API_BASE_URL}/promotions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
 
+  try {
     const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+      method: "GET",
+      headers: getCommonHeaders(),
     });
 
+    // Handle non-OK responses
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch promotions');
+      // Try to parse error message
+      const text = await response.text();
+      let errorMessage = "Failed to fetch promotions";
+
+      try {
+        const errorJson = JSON.parse(text);
+        errorMessage = errorJson.message || errorMessage;
+      } catch {
+        // Response wasn't JSON, might be HTML error page
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          errorMessage =
+            "Server returned HTML instead of JSON. Check ngrok/backend connection.";
+        }
+      }
+
+      console.error(`[Promotions API] Error ${response.status}:`, errorMessage);
+      throw new Error(errorMessage);
     }
 
-    return response.json();
+    const data = await response.json();
+    return data;
+  } catch (error: any) {
+    console.error("[Promotions API] Fetch error:", error.message);
+    throw error;
+  }
 };
 
 /**
  * Get featured promotion for homepage hero banner
  */
-export const getFeaturedPromotion = async (): Promise<PromotionDetailResponse> => {
+export const getFeaturedPromotion =
+  async (): Promise<PromotionDetailResponse> => {
     const response = await fetch(`${API_BASE_URL}/promotions/featured`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+      method: "GET",
+      headers: getCommonHeaders(),
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch featured promotion');
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch featured promotion");
     }
 
     return response.json();
-};
+  };
 
 /**
  * Get single promotion details
  */
-export const getPromotion = async (id: number): Promise<PromotionDetailResponse> => {
-    const response = await fetch(`${API_BASE_URL}/promotions/${id}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    });
+export const getPromotion = async (
+  id: number,
+): Promise<PromotionDetailResponse> => {
+  const response = await fetch(`${API_BASE_URL}/promotions/${id}`, {
+    method: "GET",
+    headers: getCommonHeaders(),
+  });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch promotion details');
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch promotion details");
+  }
 
-    return response.json();
+  return response.json();
 };
 
 /**
  * Get products in a promotion
  */
 export const getPromotionProducts = async (
-    id: number,
-    page: number = 1
+  id: number,
+  page: number = 1,
 ): Promise<PromotionProductsResponse> => {
-    const response = await fetch(`${API_BASE_URL}/promotions/${id}/products?page=${page}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    });
+  const response = await fetch(
+    `${API_BASE_URL}/promotions/${id}/products?page=${page}`,
+    {
+      method: "GET",
+      headers: getCommonHeaders(),
+    },
+  );
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch promotion products');
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch promotion products");
+  }
 
-    return response.json();
+  return response.json();
 };

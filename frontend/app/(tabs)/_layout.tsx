@@ -1,10 +1,20 @@
-import { Tabs } from 'expo-router';
-import { Home, Grid, ShoppingCart, Package, User, Tag } from 'lucide-react-native';
-import React from 'react';
+import { Tabs } from "expo-router";
+import {
+  Home,
+  Grid,
+  ShoppingCart,
+  Package,
+  User,
+  Tag,
+} from "lucide-react-native";
+import React from "react";
 
-import Colors from '@/constants/Colors';
+import Colors from "@/constants/Colors";
+import { useTranslation } from "@/i18n";
 
 export default function TabLayout() {
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -21,49 +31,53 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: "600",
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t.nav.home,
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="categories"
         options={{
-          title: 'Categories',
+          title: t.nav.categories,
           tabBarIcon: ({ color, size }) => <Grid size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="cart"
         options={{
-          title: 'Cart',
-          tabBarIcon: ({ color, size }) => <ShoppingCart size={size} color={color} />,
+          title: t.nav.cart,
+          tabBarIcon: ({ color, size }) => (
+            <ShoppingCart size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'Orders',
-          tabBarIcon: ({ color, size }) => <Package size={size} color={color} />,
+          title: t.nav.orders,
+          tabBarIcon: ({ color, size }) => (
+            <Package size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="offers"
         options={{
-          title: 'Offers',
+          title: t.nav.offers,
           tabBarIcon: ({ color, size }) => <Tag size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t.nav.profile,
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />

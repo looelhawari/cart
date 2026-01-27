@@ -32,9 +32,12 @@ import { initiatePayment } from "@/services/paymentMethodsApi";
 import { savePendingPayment } from "@/services/payment/paymentRecovery";
 import { validatePromoCode } from "@/services/api/promoCodeApi";
 import type { PromoCodeValidation } from "@/types/promoCode";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const { getName } = useLocalizedValue();
   const params = useLocalSearchParams();
   const addressId = params.addressId
     ? parseInt(params.addressId as string)
@@ -66,7 +69,9 @@ export default function CheckoutConfirmationScreen() {
   // Promo code state
   const [promoCode, setPromoCode] = useState("");
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
-  const [appliedPromo, setAppliedPromo] = useState<PromoCodeValidation | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<PromoCodeValidation | null>(
+    null,
+  );
   const [promoError, setPromoError] = useState("");
 
   const subtotal = cart?.subtotal || 0;
@@ -105,7 +110,7 @@ export default function CheckoutConfirmationScreen() {
       console.log("🛒 [CHECKOUT] Cart fetched, checking items...");
     } catch (error) {
       console.error("❌ [CHECKOUT] Error loading checkout data:", error);
-      Alert.alert("Error", "Failed to load checkout data");
+      Alert.alert(t.common.error, t.checkout.failedToLoadCheckout);
     } finally {
       setLoading(false);
     }
@@ -113,7 +118,7 @@ export default function CheckoutConfirmationScreen() {
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) {
-      setPromoError("Please enter a promo code");
+      setPromoError(t.checkout.enterPromoCode);
       return;
     }
 
@@ -128,7 +133,10 @@ export default function CheckoutConfirmationScreen() {
 
       if (response.success && response.data) {
         setAppliedPromo(response.data);
-        Alert.alert("Success", response.message || "Promo code applied successfully");
+        Alert.alert(
+          t.common.success,
+          response.message || t.checkout.promoApplied,
+        );
       }
     } catch (error: any) {
       console.error("Promo code validation error:", error);
@@ -155,12 +163,12 @@ export default function CheckoutConfirmationScreen() {
         value: date.toISOString().split("T")[0],
         label:
           i === 1
-            ? "Tomorrow"
+            ? t.checkout.tomorrow
             : date.toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            }),
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              }),
       });
     }
     return dates;
@@ -168,20 +176,17 @@ export default function CheckoutConfirmationScreen() {
 
   const handlePlaceOrder = async () => {
     if (!accepted) {
-      Alert.alert(
-        "Terms & Conditions",
-        "Please accept the terms and conditions to continue",
-      );
+      Alert.alert(t.checkout.termsAndConditions, t.checkout.pleaseAcceptTerms);
       return;
     }
 
     if (!addressId) {
-      Alert.alert("Error", "No delivery address selected");
+      Alert.alert(t.common.error, t.checkout.noAddressSelected);
       return;
     }
 
     if (!selectedDate || !selectedSlot) {
-      Alert.alert("Error", "Please select a delivery date and time slot");
+      Alert.alert(t.common.error, t.checkout.selectDateAndSlot);
       return;
     }
 
@@ -203,7 +208,8 @@ export default function CheckoutConfirmationScreen() {
           delivery_date: selectedDate,
           delivery_time_slot: selectedSlot,
           payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
-          promo_code: appliedPromo?.promo_code?.code || cart?.promo_code || undefined,
+          promo_code:
+            appliedPromo?.promo_code?.code || cart?.promo_code || undefined,
         });
 
         orderId = response.data.order.id;
@@ -315,9 +321,8 @@ export default function CheckoutConfirmationScreen() {
           }
         } catch (paymentError: any) {
           Alert.alert(
-            "Payment Error",
-            paymentError.message ||
-            "Failed to initiate payment. Please try again.",
+            t.checkout.paymentError,
+            paymentError.message || t.checkout.failedToInitiatePayment,
           );
           setIsPlacingOrder(false);
           return;
@@ -336,8 +341,8 @@ export default function CheckoutConfirmationScreen() {
       }
     } catch (error: any) {
       Alert.alert(
-        "Order Failed",
-        error.message || "Failed to create order. Please try again.",
+        t.checkout.orderFailed,
+        error.message || t.checkout.failedToCreateOrder,
       );
     } finally {
       setIsPlacingOrder(false);
@@ -349,7 +354,7 @@ export default function CheckoutConfirmationScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading checkout...</Text>
+          <Text style={styles.loadingText}>{t.checkout.loadingCheckout}</Text>
         </View>
       </SafeAreaView>
     );
@@ -364,7 +369,7 @@ export default function CheckoutConfirmationScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Review Order</Text>
+        <Text style={styles.headerTitle}>{t.checkout.reviewOrder}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -386,7 +391,7 @@ export default function CheckoutConfirmationScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Calendar size={20} color={Colors.primary900} />
-            <Text style={styles.sectionTitle}>Delivery Date</Text>
+            <Text style={styles.sectionTitle}>{t.checkout.deliveryDate}</Text>
           </View>
           <ScrollView
             horizontal
@@ -419,7 +424,7 @@ export default function CheckoutConfirmationScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Clock size={20} color={Colors.primary900} />
-            <Text style={styles.sectionTitle}>Delivery Time</Text>
+            <Text style={styles.sectionTitle}>{t.checkout.deliveryTime}</Text>
           </View>
           <View style={styles.slotGrid}>
             {deliverySlots.map((slot) => (
@@ -448,24 +453,30 @@ export default function CheckoutConfirmationScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <CreditCard size={20} color={Colors.primary900} />
-            <Text style={styles.sectionTitle}>Payment Method</Text>
+            <Text style={styles.sectionTitle}>{t.checkout.paymentMethod}</Text>
           </View>
           <View style={styles.summaryRow}>
             {paymentType === "cod" ? (
               <View style={styles.paymentSummary}>
                 <Banknote size={20} color={Colors.neutralMedium} />
                 <View style={styles.paymentTextContainer}>
-                  <Text style={styles.paymentType}>Cash on Delivery</Text>
-                  <Text style={styles.paymentDetail}>Pay when you receive</Text>
+                  <Text style={styles.paymentType}>
+                    {t.checkout.cashOnDelivery}
+                  </Text>
+                  <Text style={styles.paymentDetail}>
+                    {t.checkout.payWhenReceive}
+                  </Text>
                 </View>
               </View>
             ) : (
               <View style={styles.paymentSummary}>
                 <CreditCard size={20} color={Colors.neutralMedium} />
                 <View style={styles.paymentTextContainer}>
-                  <Text style={styles.paymentType}>Card Payment</Text>
+                  <Text style={styles.paymentType}>
+                    {t.checkout.cardPayment}
+                  </Text>
                   <Text style={styles.paymentDetail}>
-                    Secure payment via Paymob
+                    {t.checkout.securePaymentPaymob}
                   </Text>
                 </View>
               </View>
@@ -474,7 +485,7 @@ export default function CheckoutConfirmationScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Order Items</Text>
+          <Text style={styles.sectionTitle}>{t.checkout.orderItems}</Text>
           <View style={styles.orderItems}>
             {(cart?.items || []).map((item) => (
               <View key={item.id} style={styles.orderItem}>
@@ -484,12 +495,15 @@ export default function CheckoutConfirmationScreen() {
                 />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName} numberOfLines={2}>
-                    {item.product.name_en}
+                    {getName(item.product)}
                   </Text>
-                  <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
+                  <Text style={styles.itemQuantity}>
+                    {t.checkout.qty}: {item.quantity}
+                  </Text>
                 </View>
                 <Text style={styles.itemPrice}>
-                  {parseFloat(item.subtotal?.toString() || "0").toFixed(2)} EGP
+                  {parseFloat(item.subtotal?.toString() || "0").toFixed(2)}{" "}
+                  {t.common.currency}
                 </Text>
               </View>
             ))}
@@ -500,14 +514,14 @@ export default function CheckoutConfirmationScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Tag size={20} color={Colors.primary900} />
-            <Text style={styles.sectionTitle}>Promo Code</Text>
+            <Text style={styles.sectionTitle}>{t.checkout.promoCode}</Text>
           </View>
 
           {!appliedPromo ? (
             <View style={styles.promoInputContainer}>
               <TextInput
                 style={styles.promoInput}
-                placeholder="Enter promo code"
+                placeholder={t.checkout.enterPromoCodePlaceholder}
                 value={promoCode}
                 onChangeText={(text) => {
                   setPromoCode(text.toUpperCase());
@@ -517,14 +531,19 @@ export default function CheckoutConfirmationScreen() {
                 editable={!isValidatingPromo}
               />
               <TouchableOpacity
-                style={[styles.applyButton, isValidatingPromo && styles.applyButtonDisabled]}
+                style={[
+                  styles.applyButton,
+                  isValidatingPromo && styles.applyButtonDisabled,
+                ]}
                 onPress={handleApplyPromo}
                 disabled={isValidatingPromo}
               >
                 {isValidatingPromo ? (
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.applyButtonText}>Apply</Text>
+                  <Text style={styles.applyButtonText}>
+                    {t.checkout.applyCode}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -532,12 +551,18 @@ export default function CheckoutConfirmationScreen() {
             <View style={styles.appliedPromoContainer}>
               <View style={styles.appliedPromoContent}>
                 <View style={styles.appliedPromoInfo}>
-                  <Text style={styles.appliedPromoCode}>{appliedPromo.promo_code.code}</Text>
+                  <Text style={styles.appliedPromoCode}>
+                    {appliedPromo.promo_code.code}
+                  </Text>
                   <Text style={styles.appliedPromoDiscount}>
-                    -{promoCodeDiscount.toFixed(2)} EGP saved
+                    -{promoCodeDiscount.toFixed(2)} {t.common.currency}{" "}
+                    {t.checkout.saved}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={handleRemovePromo} style={styles.removePromoButton}>
+                <TouchableOpacity
+                  onPress={handleRemovePromo}
+                  style={styles.removePromoButton}
+                >
                   <X size={20} color={Colors.neutralMedium} />
                 </TouchableOpacity>
               </View>
@@ -550,46 +575,58 @@ export default function CheckoutConfirmationScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Price Summary</Text>
+          <Text style={styles.sectionTitle}>{t.checkout.priceSummary}</Text>
           <View style={styles.priceSummary}>
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Subtotal</Text>
-              <Text style={styles.priceValue}>{subtotal.toFixed(2)} EGP</Text>
+              <Text style={styles.priceLabel}>{t.checkout.subtotal}</Text>
+              <Text style={styles.priceValue}>
+                {subtotal.toFixed(2)} {t.common.currency}
+              </Text>
             </View>
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Delivery Fee</Text>
+              <Text style={styles.priceLabel}>{t.checkout.deliveryFee}</Text>
               <Text
                 style={[
                   styles.priceValue,
                   deliveryFee === 0 && styles.freeText,
                 ]}
               >
-                {deliveryFee === 0 ? "FREE" : `${deliveryFee.toFixed(2)} EGP`}
+                {deliveryFee === 0
+                  ? t.common.free
+                  : `${deliveryFee.toFixed(2)} ${t.common.currency}`}
               </Text>
             </View>
             {promotionDiscount > 0 && (
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Promotion Discount</Text>
+                <Text style={styles.priceLabel}>
+                  {t.checkout.promotionDiscount}
+                </Text>
                 <Text style={[styles.priceValue, styles.discountText]}>
-                  -{promotionDiscount.toFixed(2)} EGP
+                  -{promotionDiscount.toFixed(2)} {t.common.currency}
                 </Text>
               </View>
             )}
             {promoCodeDiscount > 0 && (
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Promo Code Discount</Text>
+                <Text style={styles.priceLabel}>
+                  {t.checkout.promoCodeDiscount}
+                </Text>
                 <Text style={[styles.priceValue, styles.discountText]}>
-                  -{promoCodeDiscount.toFixed(2)} EGP
+                  -{promoCodeDiscount.toFixed(2)} {t.common.currency}
                 </Text>
               </View>
             )}
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Tax</Text>
-              <Text style={styles.priceValue}>{tax.toFixed(2)} EGP</Text>
+              <Text style={styles.priceLabel}>{t.checkout.tax}</Text>
+              <Text style={styles.priceValue}>
+                {tax.toFixed(2)} {t.common.currency}
+              </Text>
             </View>
             <View style={[styles.priceRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{total.toFixed(2)} EGP</Text>
+              <Text style={styles.totalLabel}>{t.checkout.total}</Text>
+              <Text style={styles.totalValue}>
+                {total.toFixed(2)} {t.common.currency}
+              </Text>
             </View>
           </View>
         </View>
@@ -602,8 +639,10 @@ export default function CheckoutConfirmationScreen() {
             {accepted && <Check size={16} color={Colors.neutralWhite} />}
           </View>
           <Text style={styles.termsText}>
-            I agree to the{" "}
-            <Text style={styles.termsLink}>Terms & Conditions</Text>
+            {t.checkout.iAgreeTo}{" "}
+            <Text style={styles.termsLink}>
+              {t.checkout.termsAndConditions}
+            </Text>
           </Text>
         </TouchableOpacity>
 
@@ -620,7 +659,7 @@ export default function CheckoutConfirmationScreen() {
           disabled={isPlacingOrder}
         >
           <Text style={styles.placeOrderText}>
-            {isPlacingOrder ? "Placing Order..." : "Place Order"}
+            {isPlacingOrder ? t.checkout.placingOrder : t.checkout.placeOrder}
           </Text>
         </TouchableOpacity>
       </View>
@@ -935,7 +974,8 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
-  }, promoInputContainer: {
+  },
+  promoInputContainer: {
     flexDirection: "row",
     gap: Spacing.sm,
     alignItems: "center",

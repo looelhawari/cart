@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,34 +7,37 @@ import {
   TouchableOpacity,
   FlatList,
   ScrollView,
-} from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Search, X, SlidersHorizontal } from 'lucide-react-native';
+} from "react-native";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ArrowLeft, Search, X, SlidersHorizontal } from "lucide-react-native";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/data/products';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { ProductCard } from "@/components/ProductCard";
+import { products } from "@/data/products";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 const POPULAR_SEARCHES = [
-  'Tomatoes',
-  'Milk',
-  'Bread',
-  'Chicken',
-  'Eggs',
-  'Rice',
-  'Pasta',
-  'Yogurt',
+  "Tomatoes",
+  "Milk",
+  "Bread",
+  "Chicken",
+  "Eggs",
+  "Rice",
+  "Pasta",
+  "Yogurt",
 ];
 
 export default function SearchScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { t } = useTranslation();
+  const { getName } = useLocalizedValue();
+  const [searchQuery, setSearchQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([
-    'Fresh Milk',
-    'Organic Tomatoes',
-    'Bread',
+    "Fresh Milk",
+    "Organic Tomatoes",
+    "Bread",
   ]);
   const [searchResults, setSearchResults] = useState<typeof products>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -43,7 +46,7 @@ export default function SearchScreen() {
     if (searchQuery.trim()) {
       setIsSearching(true);
       const results = products.filter((product) =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase())
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()),
       );
       setSearchResults(results);
     } else {
@@ -68,7 +71,7 @@ export default function SearchScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -83,7 +86,7 @@ export default function SearchScreen() {
           <Search size={20} color={Colors.neutralMedium} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search for products..."
+            placeholder={t.common.searchPlaceholder}
             placeholderTextColor={Colors.neutralMedium}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -92,7 +95,7 @@ export default function SearchScreen() {
             onSubmitEditing={() => handleSearch(searchQuery)}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
               <X size={20} color={Colors.neutralMedium} />
             </TouchableOpacity>
           )}
@@ -115,9 +118,11 @@ export default function SearchScreen() {
           {recentSearches.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Recent Searches</Text>
+                <Text style={styles.sectionTitle}>
+                  {t.search.recentSearches}
+                </Text>
                 <TouchableOpacity onPress={clearAllRecent}>
-                  <Text style={styles.clearText}>Clear All</Text>
+                  <Text style={styles.clearText}>{t.search.clearAll}</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.chipsContainer}>
@@ -143,7 +148,7 @@ export default function SearchScreen() {
 
           {/* Popular Searches */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Popular Searches</Text>
+            <Text style={styles.sectionTitle}>{t.search.popularSearches}</Text>
             <View style={styles.chipsContainer}>
               {POPULAR_SEARCHES.map((search, index) => (
                 <TouchableOpacity
@@ -163,7 +168,7 @@ export default function SearchScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Search by Category</Text>
             <View style={styles.categoryFilters}>
-              {['Fruits', 'Dairy', 'Meat', 'Bakery', 'Beverages', 'Snacks'].map(
+              {["Fruits", "Dairy", "Meat", "Bakery", "Beverages", "Snacks"].map(
                 (category, index) => (
                   <TouchableOpacity
                     key={index}
@@ -172,7 +177,7 @@ export default function SearchScreen() {
                   >
                     <Text style={styles.categoryFilterText}>{category}</Text>
                   </TouchableOpacity>
-                )
+                ),
               )}
             </View>
           </View>
@@ -182,7 +187,8 @@ export default function SearchScreen() {
           {/* Results Header */}
           <View style={styles.resultsHeader}>
             <Text style={styles.resultsCount}>
-              {searchResults.length} {searchResults.length === 1 ? 'result' : 'results'} found
+              {searchResults.length}{" "}
+              {searchResults.length === 1 ? "result" : "results"} found
             </Text>
             <TouchableOpacity style={styles.sortButton}>
               <Text style={styles.sortText}>Sort</Text>
@@ -227,8 +233,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
@@ -239,13 +245,13 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchInputContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.neutralLight,
     borderRadius: 12,
     paddingHorizontal: Spacing.md,
@@ -256,13 +262,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.bodyBase,
     color: Colors.neutralCharcoal,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
   },
   filterButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     flex: 1,
@@ -272,29 +278,29 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   sectionTitle: {
     fontSize: Typography.h4,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
     color: Colors.neutralCharcoal,
   },
   clearText: {
     fontSize: Typography.bodyMedium,
     color: Colors.primary900,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
   },
   chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.neutralWhite,
     borderRadius: 20,
     paddingVertical: Spacing.xs,
@@ -309,17 +315,17 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralCharcoal,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
   },
   chipRemove: {
     width: 24,
     height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   popularChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.neutralWhite,
     borderRadius: 20,
     paddingVertical: Spacing.sm,
@@ -331,11 +337,11 @@ const styles = StyleSheet.create({
   popularChipText: {
     fontSize: Typography.bodyMedium,
     color: Colors.primary900,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
   },
   categoryFilters: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   categoryFilter: {
@@ -349,15 +355,15 @@ const styles = StyleSheet.create({
   categoryFilterText: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralCharcoal,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
   },
   resultsContainer: {
     flex: 1,
   },
   resultsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -367,17 +373,17 @@ const styles = StyleSheet.create({
   resultsCount: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
   },
   sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   sortText: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralMedium,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
   },
   resultsGrid: {
     paddingHorizontal: Spacing.lg,
@@ -385,25 +391,25 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   resultItem: {
-    width: '48%',
+    width: "48%",
     marginBottom: Spacing.md,
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: Spacing.xxl,
   },
   emptyTitle: {
     fontSize: Typography.h3,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.sm,
   },
   emptyText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
-    fontFamily: 'Poppins_400Regular',
+    textAlign: "center",
+    fontFamily: "Poppins_400Regular",
   },
 });

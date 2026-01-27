@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,10 @@ import {
   RefreshControl,
   Image,
   Animated,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   Tag,
   Percent,
@@ -22,34 +22,46 @@ import {
   ChevronRight,
   Flame,
   TrendingUp,
-} from 'lucide-react-native';
-import { useResponsive } from '@/hooks/useResponsive';
-import { CountdownTimer } from '@/components/CountdownTimer';
-import type { Promotion } from '@/types/promotion';
-import { getPromotions } from '@/services/api/promotionApi';
-import Colors from '@/constants/Colors';
-import { Typography } from '@/constants/Typography';
-import { Spacing } from '@/constants/Spacing';
+} from "lucide-react-native";
+import { useResponsive } from "@/hooks/useResponsive";
+import { CountdownTimer } from "@/components/CountdownTimer";
+import type { Promotion } from "@/types/promotion";
+import { getPromotions } from "@/services/api/promotionApi";
+import Colors from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
+import { Spacing } from "@/constants/Spacing";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
-type FilterType = 'all' | 'category' | 'products';
+type FilterType = "all" | "category" | "products";
 
 export default function OffersScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const { getName, getDescription } = useLocalizedValue();
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
 
+  const [allPromotions, setAllPromotions] = useState<Promotion[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [featuredPromotion, setFeaturedPromotion] = useState<Promotion | null>(null);
+  const [featuredPromotion, setFeaturedPromotion] = useState<Promotion | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [filter, setFilter] = useState<FilterType>("all");
 
   // Animation values
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
 
+  // Load promotions once on mount
   useEffect(() => {
     loadPromotions();
-  }, [filter]);
+  }, []);
+
+  // Filter promotions dynamically without reload
+  useEffect(() => {
+    filterPromotions(filter);
+  }, [filter, allPromotions]);
 
   useEffect(() => {
     if (!loading) {
@@ -68,31 +80,44 @@ export default function OffersScreen() {
     }
   }, [loading]);
 
+  const filterPromotions = (currentFilter: FilterType) => {
+    let filtered = allPromotions;
+
+    // Filter by type if not 'all'
+    if (currentFilter !== "all") {
+      filtered = allPromotions.filter(
+        (p: Promotion) =>
+          p.applies_to === currentFilter || p.type === currentFilter,
+      );
+    }
+
+    // Find featured promotion
+    const featured = filtered.find((p: Promotion) => p.is_featured);
+    if (featured) {
+      setFeaturedPromotion(featured);
+      setPromotions(filtered.filter((p: Promotion) => p.id !== featured.id));
+    } else if (filtered.length > 0) {
+      setFeaturedPromotion(filtered[0]);
+      setPromotions(filtered.slice(1));
+    } else {
+      setFeaturedPromotion(null);
+      setPromotions([]);
+    }
+  };
+
   const loadPromotions = async () => {
     try {
       setLoading(true);
       fadeAnim.setValue(0);
       slideAnim.setValue(30);
 
-      const response = await getPromotions({ applies_to: filter === 'all' ? undefined : filter });
+      const response = await getPromotions({});
       if (response.success) {
-        const allPromotions = response.data.promotions || [];
-
-        // Find featured promotion
-        const featured = allPromotions.find((p: Promotion) => p.is_featured);
-        if (featured) {
-          setFeaturedPromotion(featured);
-          setPromotions(allPromotions.filter((p: Promotion) => p.id !== featured.id));
-        } else if (allPromotions.length > 0) {
-          setFeaturedPromotion(allPromotions[0]);
-          setPromotions(allPromotions.slice(1));
-        } else {
-          setFeaturedPromotion(null);
-          setPromotions([]);
-        }
+        const fetchedPromotions = response.data.promotions || [];
+        setAllPromotions(fetchedPromotions);
       }
     } catch (error) {
-      console.error('Failed to load promotions:', error);
+      console.error("Failed to load promotions:", error);
     } finally {
       setLoading(false);
     }
@@ -102,7 +127,7 @@ export default function OffersScreen() {
     setRefreshing(true);
     await loadPromotions();
     setRefreshing(false);
-  }, [filter]);
+  }, []);
 
   const navigateToPromotion = (id: number) => {
     router.push(`/promotions/${id}` as any);
@@ -113,20 +138,20 @@ export default function OffersScreen() {
     heroCard: {
       marginHorizontal: wp(4),
       borderRadius: isSmallDevice ? 16 : 20,
-      overflow: 'hidden',
+      overflow: "hidden",
       marginBottom: Spacing.lg,
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
       shadowRadius: 12,
       elevation: 8,
     },
     heroImage: {
-      width: '100%',
+      width: "100%",
       height: isSmallDevice ? hp(22) : hp(28),
     },
     heroOverlay: {
-      position: 'absolute',
+      position: "absolute",
       bottom: 0,
       left: 0,
       right: 0,
@@ -137,7 +162,7 @@ export default function OffersScreen() {
       fontWeight: Typography.bold,
       color: Colors.neutralWhite,
       marginBottom: Spacing.xs,
-      textShadowColor: 'rgba(0,0,0,0.5)',
+      textShadowColor: "rgba(0,0,0,0.5)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
@@ -145,31 +170,31 @@ export default function OffersScreen() {
       fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
       color: Colors.neutralWhite,
       opacity: 0.9,
-      textShadowColor: 'rgba(0,0,0,0.5)',
+      textShadowColor: "rgba(0,0,0,0.5)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 4,
     },
     gridContainer: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       paddingHorizontal: wp(4) - Spacing.xs,
     },
     gridItem: {
-      width: isLargeDevice ? '50%' : '100%',
+      width: isLargeDevice ? "50%" : "100%",
       padding: Spacing.xs,
     },
     promotionCard: {
       backgroundColor: Colors.neutralWhite,
       borderRadius: isSmallDevice ? 12 : 16,
-      overflow: 'hidden',
-      shadowColor: '#000',
+      overflow: "hidden",
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.08,
       shadowRadius: 8,
       elevation: 3,
     },
     cardImage: {
-      width: '100%',
+      width: "100%",
       height: isSmallDevice ? 120 : 140,
       backgroundColor: Colors.neutralLight,
     },
@@ -177,7 +202,7 @@ export default function OffersScreen() {
       padding: isSmallDevice ? Spacing.sm : Spacing.md,
     },
     discountBadge: {
-      position: 'absolute',
+      position: "absolute",
       top: Spacing.sm,
       right: Spacing.sm,
       backgroundColor: Colors.accentRed,
@@ -208,16 +233,17 @@ export default function OffersScreen() {
   });
 
   // Filter button component
-  const FilterChip = ({ label, value, icon: Icon }: {
+  const FilterChip = ({
+    label,
+    value,
+    icon: Icon,
+  }: {
     label: string;
     value: FilterType;
     icon: React.ComponentType<any>;
   }) => (
     <TouchableOpacity
-      style={[
-        styles.filterChip,
-        filter === value && styles.filterChipActive,
-      ]}
+      style={[styles.filterChip, filter === value && styles.filterChipActive]}
       onPress={() => setFilter(value)}
       activeOpacity={0.7}
     >
@@ -225,24 +251,39 @@ export default function OffersScreen() {
         size={isSmallDevice ? 14 : 16}
         color={filter === value ? Colors.primary900 : Colors.neutralMedium}
       />
-      <Text style={[
-        styles.filterChipText,
-        filter === value && styles.filterChipTextActive,
-      ]}>
+      <Text
+        style={[
+          styles.filterChipText,
+          filter === value && styles.filterChipTextActive,
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
   );
 
   // Quick stats cards
-  const StatCard = ({ icon: Icon, value, label, color }: {
+  const StatCard = ({
+    icon: Icon,
+    value,
+    label,
+    color,
+  }: {
     icon: React.ComponentType<any>;
     value: string;
     label: string;
     color: string;
   }) => (
-    <View style={[dynamicStyles.statsCard, styles.statCard, { borderLeftColor: color }]}>
-      <View style={[styles.statIconContainer, { backgroundColor: color + '15' }]}>
+    <View
+      style={[
+        dynamicStyles.statsCard,
+        styles.statCard,
+        { borderLeftColor: color },
+      ]}
+    >
+      <View
+        style={[styles.statIconContainer, { backgroundColor: color + "15" }]}
+      >
         <Icon size={18} color={color} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
@@ -253,12 +294,12 @@ export default function OffersScreen() {
   // Promotion card component
   const OfferCard = ({ promotion }: { promotion: Promotion }) => {
     const getDiscountText = () => {
-      if (promotion.discount_type === 'percentage') {
+      if (promotion.discount_type === "percentage") {
         return `${promotion.discount_value}% OFF`;
-      } else if (promotion.discount_type === 'fixed') {
+      } else if (promotion.discount_type === "fixed") {
         return `${promotion.discount_value} EGP OFF`;
       }
-      return 'Special Offer';
+      return "Special Offer";
     };
 
     return (
@@ -303,20 +344,24 @@ export default function OffersScreen() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <View style={styles.loadingIconContainer}>
             <Tag size={40} color={Colors.primary900} />
           </View>
-          <ActivityIndicator size="large" color={Colors.primary900} style={{ marginTop: Spacing.lg }} />
-          <Text style={styles.loadingText}>Finding the best deals for you...</Text>
+          <ActivityIndicator
+            size="large"
+            color={Colors.primary900}
+            style={{ marginTop: Spacing.lg }}
+          />
+          <Text style={styles.loadingText}>{t.offers.findingDeals}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -338,14 +383,20 @@ export default function OffersScreen() {
         >
           <View style={styles.headerContent}>
             <View style={styles.headerIconBg}>
-              <Gift size={isSmallDevice ? 24 : 28} color={Colors.neutralWhite} />
+              <Gift
+                size={isSmallDevice ? 24 : 28}
+                color={Colors.neutralWhite}
+              />
             </View>
-            <Text style={[styles.headerTitle, isSmallDevice && { fontSize: Typography.h3 }]}>
-              Special Offers
+            <Text
+              style={[
+                styles.headerTitle,
+                isSmallDevice && { fontSize: Typography.h3 },
+              ]}
+            >
+              {t.offers.specialOffers}
             </Text>
-            <Text style={styles.headerSubtitle}>
-              Exclusive deals & discounts just for you
-            </Text>
+            <Text style={styles.headerSubtitle}>{t.offers.exclusiveDeals}</Text>
           </View>
 
           {/* Decorative elements */}
@@ -362,41 +413,51 @@ export default function OffersScreen() {
           <StatCard
             icon={Flame}
             value={`${promotions.length + (featuredPromotion ? 1 : 0)}`}
-            label="Active Offers"
+            label={t.offers.activeOffers}
             color={Colors.accentRed}
           />
           <StatCard
             icon={Percent}
-            value="Up to 50%"
-            label="Max Discount"
+            value={t.offers.upTo50}
+            label={t.offers.maxDiscount}
             color={Colors.primary900}
           />
           <StatCard
             icon={TrendingUp}
-            value="Limited"
-            label="Time Deals"
+            value={t.offers.limited}
+            label={t.offers.timeDeals}
             color={Colors.accentOrange}
           />
         </ScrollView>
 
         {/* Filter Chips */}
         <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Browse by type</Text>
+          <Text style={styles.filterLabel}>{t.offers.browseByType}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterContainer}
           >
-            <FilterChip label="All Offers" value="all" icon={Tag} />
-            <FilterChip label="Categories" value="category" icon={Sparkles} />
-            <FilterChip label="Products" value="products" icon={Gift} />
+            <FilterChip label={t.offers.allOffers} value="all" icon={Tag} />
+            <FilterChip
+              label={t.nav.categories}
+              value="category"
+              icon={Sparkles}
+            />
+            <FilterChip
+              label={t.offers.products}
+              value="products"
+              icon={Gift}
+            />
           </ScrollView>
         </View>
 
-        <Animated.View style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }}>
+        <Animated.View
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          }}
+        >
           {/* Featured Hero Card */}
           {featuredPromotion && (
             <TouchableOpacity
@@ -410,12 +471,14 @@ export default function OffersScreen() {
                 resizeMode="cover"
               />
               <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                colors={["transparent", "rgba(0,0,0,0.8)"]}
                 style={dynamicStyles.heroOverlay}
               >
                 <View style={styles.heroBadge}>
                   <Sparkles size={14} color={Colors.accentYellow} />
-                  <Text style={styles.heroBadgeText}>Featured Deal</Text>
+                  <Text style={styles.heroBadgeText}>
+                    {t.offers.featuredDeal}
+                  </Text>
                 </View>
                 <Text style={dynamicStyles.heroTitle} numberOfLines={2}>
                   {featuredPromotion.title}
@@ -426,7 +489,9 @@ export default function OffersScreen() {
                 {featuredPromotion.end_date && (
                   <View style={styles.heroTimer}>
                     <Clock size={14} color={Colors.neutralWhite} />
-                    <Text style={styles.heroTimerText}>Ends soon</Text>
+                    <Text style={styles.heroTimerText}>
+                      {t.offers.endsSoon}
+                    </Text>
                   </View>
                 )}
               </LinearGradient>
@@ -436,8 +501,10 @@ export default function OffersScreen() {
           {/* Section Title */}
           {promotions.length > 0 && (
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>More Offers</Text>
-              <Text style={styles.sectionCount}>{promotions.length} deals</Text>
+              <Text style={styles.sectionTitle}>{t.offers.moreOffers}</Text>
+              <Text style={styles.sectionCount}>
+                {promotions.length} {t.offers.deals}
+              </Text>
             </View>
           )}
 
@@ -459,7 +526,10 @@ export default function OffersScreen() {
               <Text style={styles.emptyText}>
                 Check back soon for amazing deals and exclusive promotions!
               </Text>
-              <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={handleRefresh}
+              >
                 <Text style={styles.refreshButtonText}>Refresh</Text>
               </TouchableOpacity>
             </View>
@@ -483,23 +553,23 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: Spacing.xl,
   },
   loadingIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.primary900 + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: Colors.primary900 + "15",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingText: {
     marginTop: Spacing.md,
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   // Header
@@ -507,8 +577,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.xl,
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   headerContent: {
     zIndex: 10,
@@ -517,9 +587,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.md,
   },
   headerTitle: {
@@ -534,22 +604,22 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   headerDecor1: {
-    position: 'absolute',
+    position: "absolute",
     top: -30,
     right: -30,
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   headerDecor2: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -50,
     right: 50,
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
 
   // Stats
@@ -562,7 +632,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: Spacing.sm,
     borderLeftWidth: 3,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -572,8 +642,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.xs,
   },
   statValue: {
@@ -596,16 +666,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySmall,
     color: Colors.neutralMedium,
     marginBottom: Spacing.sm,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   filterContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
@@ -631,14 +701,14 @@ const styles = StyleSheet.create({
 
   // Hero
   heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: "rgba(0,0,0,0.4)",
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginBottom: Spacing.sm,
   },
   heroBadgeText: {
@@ -647,8 +717,8 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
   },
   heroTimer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginTop: Spacing.sm,
   },
@@ -660,13 +730,13 @@ const styles = StyleSheet.create({
 
   // Cards
   featuredTag: {
-    position: 'absolute',
+    position: "absolute",
     top: Spacing.sm,
     right: Spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
@@ -677,17 +747,17 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
   },
   timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginTop: Spacing.sm,
   },
 
   // Section
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
   },
@@ -707,8 +777,8 @@ const styles = StyleSheet.create({
 
   // Empty State
   emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: Spacing.xxxl,
     paddingHorizontal: Spacing.xl,
   },
@@ -717,8 +787,8 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     backgroundColor: Colors.neutralLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.lg,
   },
   emptyTitle: {
@@ -730,7 +800,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: Spacing.lg,
   },

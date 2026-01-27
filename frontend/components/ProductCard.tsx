@@ -9,6 +9,7 @@ import { useStore } from "@/store";
 import RatingStars from "./RatingStars";
 import { getCachedImage } from "@/services/cache/imageCache";
 import { SaleBadge } from "./SaleBadge";
+import { useLocalizedValue, useTranslation } from "@/i18n";
 
 interface ProductCardProps {
   product: Product;
@@ -20,15 +21,17 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
   const [cachedImageUri, setCachedImageUri] = useState<string | undefined>();
   const productId = product.barcode || Number(product.id) || 0;
   const isFavorite = favorites.includes(productId.toString());
+  const { getName } = useLocalizedValue();
+  const { t, isRTL } = useTranslation();
 
   // Convert string prices to numbers (database returns DECIMAL as string)
   const displayPrice = parseFloat(product.price?.toString() || "0");
   const displaySalePrice = parseFloat(
-    (product.sale_price || product.salePrice)?.toString() || "0"
+    (product.sale_price || product.salePrice)?.toString() || "0",
   );
   const hasDiscount = displaySalePrice > 0 && displaySalePrice < displayPrice;
 
-  const displayName = product.name_en || product.name || "Product";
+  const displayName = getName(product) || "Product";
   const displayImage = product.image || "https://via.placeholder.com/160";
 
   // Cache product image
@@ -62,7 +65,7 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
         {hasDiscount && (
           <SaleBadge
             discountPercentage={Math.round(
-              ((displayPrice - displaySalePrice) / displayPrice) * 100
+              ((displayPrice - displaySalePrice) / displayPrice) * 100,
             )}
             small
             position="top-left"
@@ -115,7 +118,7 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
             }
           }}
         >
-          <Text style={styles.addButtonText}>Add to Cart</Text>
+          <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

@@ -30,6 +30,7 @@ import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 
 interface MenuItem {
   id: string;
@@ -40,6 +41,7 @@ interface MenuItem {
 }
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const { user, fetchProfile, logout, isAuthenticated } = useStore();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,9 +49,9 @@ export default function ProfileScreen() {
   useEffect(() => {
     // Check if user is authenticated before loading
     if (!isAuthenticated) {
-      Alert.alert("Not Logged In", "Please login to view your profile.", [
+      Alert.alert(t.alerts.sessionExpired, t.auth.loginRequired, [
         {
-          text: "Login",
+          text: t.auth.login,
           onPress: () => router.replace("/login"),
         },
       ]);
@@ -72,21 +74,17 @@ export default function ProfileScreen() {
         error?.message === "Unauthenticated." ||
         error?.message === "TOKEN_EXPIRED"
       ) {
-        Alert.alert(
-          "Session Expired",
-          "Your session has expired. Please login again.",
-          [
-            {
-              text: "Login",
-              onPress: () => {
-                logout();
-                router.replace("/login");
-              },
+        Alert.alert(t.alerts.sessionExpired, t.alerts.sessionExpiredMessage, [
+          {
+            text: t.auth.login,
+            onPress: () => {
+              logout();
+              router.replace("/login");
             },
-          ],
-        );
+          },
+        ]);
       } else {
-        Alert.alert("Error", "Failed to load profile. Please try again.");
+        Alert.alert(t.common.error, t.alerts.errorOccurred);
       }
     } finally {
       setLoading(false);
@@ -100,10 +98,10 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t.alerts.logoutConfirmTitle, t.alerts.logoutConfirmMessage, [
+      { text: t.common.cancel, style: "cancel" },
       {
-        text: "Logout",
+        text: t.auth.logout,
         style: "destructive",
         onPress: async () => {
           try {
@@ -120,63 +118,63 @@ export default function ProfileScreen() {
   const menuItems: MenuItem[] = [
     {
       id: "1",
-      title: "Edit Profile",
+      title: t.profile.editProfile,
       icon: <User size={24} color={Colors.primary900} />,
       route: "/profile/edit",
       color: Colors.primary900,
     },
     {
       id: "2",
-      title: "My Addresses",
+      title: t.profile.myAddresses,
       icon: <MapPin size={24} color={Colors.primary700} />,
       route: "/profile/addresses",
       color: Colors.primary700,
     },
     {
       id: "3",
-      title: "Payment Methods",
+      title: t.profile.paymentMethods,
       icon: <CreditCard size={24} color={Colors.primary700} />,
       route: "/profile/payment-methods",
       color: Colors.primary700,
     },
     {
       id: "4",
-      title: "Favorites",
+      title: t.profile.myFavorites,
       icon: <Heart size={24} color={Colors.accentRed} />,
       route: "/profile/favorites",
       color: Colors.accentRed,
     },
     {
       id: "5",
-      title: "My Wallet",
+      title: t.profile.wallet,
       icon: <Wallet size={24} color={Colors.primary700} />,
       route: "/profile/wallet",
       color: Colors.primary700,
     },
     {
       id: "6",
-      title: "My Complaints",
+      title: t.profile.myComplaints,
       icon: <MessageSquare size={24} color={Colors.accentOrange} />,
       route: "/complaints",
       color: Colors.accentOrange,
     },
     {
       id: "7",
-      title: "Notifications",
+      title: t.profile.notifications,
       icon: <Bell size={24} color={Colors.primary700} />,
       route: "/notifications",
       color: Colors.primary700,
     },
     {
       id: "8",
-      title: "Help & Support",
+      title: t.profile.help,
       icon: <HelpCircle size={24} color={Colors.neutralMedium} />,
       route: "/profile/help",
       color: Colors.neutralMedium,
     },
     {
       id: "9",
-      title: "Settings",
+      title: t.profile.settings,
       icon: <Settings size={24} color={Colors.neutralMedium} />,
       route: "/profile/settings",
       color: Colors.neutralMedium,
@@ -188,7 +186,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
+          <Text style={styles.loadingText}>{t.common.loading}</Text>
         </View>
       </SafeAreaView>
     );
@@ -229,17 +227,17 @@ export default function ProfileScreen() {
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>0</Text>
-              <Text style={styles.statLabel}>Orders</Text>
+              <Text style={styles.statLabel}>{t.nav.orders}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>EGP 0</Text>
-              <Text style={styles.statLabel}>Spent</Text>
+              <Text style={styles.statValue}>{t.common.currency} 0</Text>
+              <Text style={styles.statLabel}>{t.profile.spent}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>0</Text>
-              <Text style={styles.statLabel}>Favorites</Text>
+              <Text style={styles.statLabel}>{t.profile.favorites}</Text>
             </View>
           </View>
         </View>
@@ -273,7 +271,7 @@ export default function ProfileScreen() {
             onPress={handleLogout}
           >
             <LogOut size={24} color={Colors.accentRed} />
-            <Text style={styles.logoutText}>Logout</Text>
+            <Text style={styles.logoutText}>{t.auth.logout}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

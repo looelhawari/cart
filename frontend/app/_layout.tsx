@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppState, AppStateStatus } from "react-native";
 import { useStore } from "@/store";
+import { I18nProvider } from "@/i18n";
 import {
   hasPendingPayment,
   isActivePaymentFlow,
@@ -167,9 +168,11 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <RootLayoutNav />
-      </GestureHandlerRootView>
+      <I18nProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <RootLayoutNav />
+        </GestureHandlerRootView>
+      </I18nProvider>
     </QueryClientProvider>
   );
 }

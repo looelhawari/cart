@@ -45,7 +45,7 @@ export interface User {
   email: string;
   phone: string;
   date_of_birth: string | null;
-  gender: 'male' | 'female' | 'other' | null;
+  gender: "male" | "female" | "other" | null;
   avatar: string | null;
   language: "en" | "ar";
   role: "customer" | "admin" | "super_admin";
@@ -100,7 +100,7 @@ const clearAuthData = async () => {
 // Main API request function
 const apiRequest = async <T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> => {
   const token = await getAuthToken();
 
@@ -108,6 +108,8 @@ const apiRequest = async <T>(
     "Content-Type": "application/json",
     Accept: "application/json",
     "X-App-Version": "1.0.0",
+    "ngrok-skip-browser-warning": "true",
+    "User-Agent": "ElBaraka-Mobile-App",
   };
 
   if (token && !endpoint.includes("/auth/")) {
@@ -186,7 +188,7 @@ export const authApi = {
         email: response.data.user.email,
         phone: response.data.user.phone,
         language: response.data.user.language,
-      })
+      }),
     );
 
     return response;
@@ -210,7 +212,7 @@ export const authApi = {
         email: response.data.user.email,
         phone: response.data.user.phone,
         language: response.data.user.language,
-      })
+      }),
     );
 
     return response;
@@ -231,7 +233,7 @@ export const authApi = {
   // Refresh Token
   async refreshToken(): Promise<AuthResponse> {
     const refreshToken = await AsyncStorage.getItem(
-      TOKEN_CONFIG.REFRESH_TOKEN_KEY
+      TOKEN_CONFIG.REFRESH_TOKEN_KEY,
     );
     if (!refreshToken) throw new Error("No refresh token");
 
@@ -272,7 +274,7 @@ export const authApi = {
   // Get Current User (always fresh from server)
   async getMe(): Promise<User> {
     const response = await apiRequest<{ success: true; data: { user: User } }>(
-      "/me"
+      "/me",
     );
     return response.data.user;
   },
@@ -295,7 +297,7 @@ export const authApi = {
         email: response.data.user.email,
         phone: response.data.user.phone,
         language: response.data.user.language,
-      })
+      }),
     );
 
     return response;
@@ -322,7 +324,7 @@ export const authApi = {
         email: response.data.user.email,
         phone: response.data.user.phone,
         language: response.data.user.language,
-      })
+      }),
     );
 
     return response;
@@ -358,8 +360,8 @@ export const authApi = {
     email?: string;
     phone?: string;
     date_of_birth?: string;
-    gender?: 'male' | 'female' | 'other';
-    language?: 'en' | 'ar';
+    gender?: "male" | "female" | "other";
+    language?: "en" | "ar";
   }) {
     return apiRequest("/profile", {
       method: "PUT",
@@ -439,7 +441,7 @@ export const authApi = {
       street?: string;
       city?: string;
       is_default?: boolean;
-    }
+    },
   ) {
     return apiRequest(`/addresses/${id}`, {
       method: "PUT",

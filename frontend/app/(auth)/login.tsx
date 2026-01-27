@@ -19,8 +19,15 @@ import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useTranslation } from "@/i18n";
 import { StatusBar } from "expo-status-bar";
-import { Eye, EyeOff, Mail, Lock as LockIcon, Fingerprint } from "lucide-react-native";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock as LockIcon,
+  Fingerprint,
+} from "lucide-react-native";
 import {
   useGoogleAuth,
   handleGoogleResponse,
@@ -39,6 +46,7 @@ import {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { login, socialLogin } = useStore();
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
 
@@ -50,7 +58,7 @@ export default function LoginScreen() {
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<BiometricType>({
     available: false,
-    type: 'none',
+    type: "none",
     enrolled: false,
   });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -92,7 +100,7 @@ export default function LoginScreen() {
         }
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Google sign-in failed");
+      Alert.alert(t.common.error, error.message || t.login.googleSignInFailed);
     } finally {
       setLoading(false);
     }
@@ -109,7 +117,7 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       if (error.message !== "Apple Sign-In was canceled") {
-        Alert.alert("Error", error.message || "Apple sign-in failed");
+        Alert.alert(t.common.error, error.message || t.login.appleSignInFailed);
       }
     } finally {
       setLoading(false);
@@ -118,7 +126,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please enter email and password");
+      Alert.alert(t.common.error, t.auth.enterEmailPassword);
       return;
     }
 
@@ -129,23 +137,35 @@ export default function LoginScreen() {
       // Offer to enable biometric login after successful login
       if (rememberMe && biometricSupport.available && !biometricEnabled) {
         Alert.alert(
-          `Enable ${getBiometricTypeName(biometricSupport.type)}?`,
-          `Would you like to use ${getBiometricTypeName(biometricSupport.type)} to login next time?`,
+          t.login.enableBiometric.replace(
+            "{type}",
+            getBiometricTypeName(biometricSupport.type),
+          ),
+          t.login.wouldYouLikeBiometric.replace(
+            "{type}",
+            getBiometricTypeName(biometricSupport.type),
+          ),
           [
             {
-              text: "Enable",
+              text: t.login.enable,
               onPress: async () => {
                 try {
                   await enableBiometricLogin(email, password);
                   setBiometricEnabled(true);
-                  Alert.alert("Success", `${getBiometricTypeName(biometricSupport.type)} login enabled`);
+                  Alert.alert(
+                    t.common.success,
+                    t.login.biometricEnabled.replace(
+                      "{type}",
+                      getBiometricTypeName(biometricSupport.type),
+                    ),
+                  );
                 } catch (error: any) {
                   console.log("Failed to enable biometric:", error);
                 }
               },
             },
-            { text: "Not Now", style: "cancel" },
-          ]
+            { text: t.login.notNow, style: "cancel" },
+          ],
         );
       }
 
@@ -154,11 +174,11 @@ export default function LoginScreen() {
       // Check if user needs email verification
       if (error.requires_verification) {
         Alert.alert(
-          "Email Verification Required",
-          error.message || "Please verify your email address to continue",
+          t.login.emailVerificationRequired,
+          error.message || t.login.pleaseVerifyEmail,
           [
             {
-              text: "Verify Now",
+              text: t.login.verifyNow,
               onPress: () => {
                 // Navigate to signup with email pre-filled and go directly to OTP step
                 router.push({
@@ -167,11 +187,14 @@ export default function LoginScreen() {
                 });
               },
             },
-            { text: "Cancel", style: "cancel" },
-          ]
+            { text: t.common.cancel, style: "cancel" },
+          ],
         );
       } else {
-        Alert.alert("Error", error.message || "Invalid credentials");
+        Alert.alert(
+          t.common.error,
+          error.message || t.login.invalidCredentials,
+        );
       }
     } finally {
       setLoading(false);
@@ -188,7 +211,10 @@ export default function LoginScreen() {
         router.replace("/(tabs)");
       }
     } catch (error: any) {
-      Alert.alert("Login Failed", error.message || "Biometric authentication failed");
+      Alert.alert(
+        t.login.loginFailed,
+        error.message || t.login.biometricFailed,
+      );
     } finally {
       setLoading(false);
     }
@@ -429,13 +455,13 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to your account</Text>
+            <Text style={styles.title}>{t.login.welcomeBack}</Text>
+            <Text style={styles.subtitle}>{t.login.signInToAccount}</Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{t.signup.email}</Text>
               <View style={styles.inputWrapper}>
                 <Mail
                   size={20}
@@ -444,7 +470,7 @@ export default function LoginScreen() {
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your email"
+                  placeholder={t.signup.enterEmailPlaceholder}
                   placeholderTextColor={Colors.neutralMedium}
                   value={email}
                   onChangeText={setEmail}
@@ -456,7 +482,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t.signup.password}</Text>
               <View style={styles.inputWrapper}>
                 <LockIcon
                   size={20}
@@ -465,7 +491,7 @@ export default function LoginScreen() {
                 />
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
-                  placeholder="Enter your password"
+                  placeholder={t.signup.enterPasswordPlaceholder}
                   placeholderTextColor={Colors.neutralMedium}
                   value={password}
                   onChangeText={setPassword}
@@ -498,13 +524,13 @@ export default function LoginScreen() {
                 >
                   {rememberMe && <Text style={styles.checkmark}>✓</Text>}
                 </View>
-                <Text style={styles.rememberText}>Remember me</Text>
+                <Text style={styles.rememberText}>{t.auth.rememberMe}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => router.push("/(auth)/forgot-password")}
               >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
+                <Text style={styles.forgotText}>{t.auth.forgotPassword}</Text>
               </TouchableOpacity>
             </View>
 
@@ -517,7 +543,7 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color={Colors.neutralWhite} />
               ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
+                <Text style={styles.loginButtonText}>{t.auth.login}</Text>
               )}
             </TouchableOpacity>
 
@@ -530,14 +556,17 @@ export default function LoginScreen() {
               >
                 <Fingerprint size={24} color={Colors.primary} />
                 <Text style={styles.biometricButtonText}>
-                  Login with {getBiometricTypeName(biometricSupport.type)}
+                  {t.login.loginWithBiometric.replace(
+                    "{type}",
+                    getBiometricTypeName(biometricSupport.type),
+                  )}
                 </Text>
               </TouchableOpacity>
             )}
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>{t.login.or}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -550,7 +579,7 @@ export default function LoginScreen() {
               >
                 <GoogleIcon size={20} />
                 <Text style={styles.googleButtonText}>
-                  Continue with Google
+                  {t.auth.continueWithGoogle}
                 </Text>
               </TouchableOpacity>
 
@@ -563,16 +592,16 @@ export default function LoginScreen() {
                 >
                   <AppleIcon size={20} color="#FFFFFF" />
                   <Text style={styles.appleButtonText}>
-                    Continue with Apple
+                    {t.auth.continueWithApple}
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
 
             <View style={styles.signupRow}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
+              <Text style={styles.signupText}>{t.auth.dontHaveAccount} </Text>
               <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
-                <Text style={styles.signupLink}>Sign Up</Text>
+                <Text style={styles.signupLink}>{t.auth.signUp}</Text>
               </TouchableOpacity>
             </View>
           </View>
