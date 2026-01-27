@@ -16,7 +16,7 @@ class FinancialController extends Controller
         $fromDate = $request->get('date_from', now()->subDays(30)->startOfDay());
         $toDate = $request->get('date_to', now()->endOfDay());
 
-        \Log::info('[FinancialController] Dashboard request', [
+        Log::info('[FinancialController] Dashboard request', [
             'date_from' => $fromDate,
             'date_to' => $toDate,
             'params' => $request->all()
