@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Complaint extends Model
+{
+    protected $fillable = [
+        'user_id',
+        'order_id',
+        'ticket_number',
+        'subject',
+        'category',
+        'priority',
+        'status',
+        'description',
+        'resolved_at',
+        'resolved_by',
+    ];
+
+    protected $casts = [
+        'resolved_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    /**
+     * The user who created the complaint.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The order related to this complaint.
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    /**
+     * The admin who resolved the complaint.
+     */
+    public function resolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    /**
+     * Messages in this complaint thread.
+     */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(ComplaintMessage::class);
+    }
+
+    /**
+     * Attachments for this complaint.
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ComplaintAttachment::class);
+    }
+
+    /**
+     * Generate a unique ticket number.
+     */
+    public static function generateTicketNumber(): string
+    {
+        do {
+            $ticketNumber = 'TKT-' . date('Ymd') . '-' . str_pad((string) rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        } while (self::where('ticket_number', $ticketNumber)->exists());
+
+        return $ticketNumber;
+    }
+}

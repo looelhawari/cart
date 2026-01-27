@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
@@ -16,53 +17,52 @@ import { ArrowLeft, Send, AlertCircle } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
-import { Button } from '@/components/Button';
-
-interface Message {
-  id: string;
-  text: string;
-  isAdmin: boolean;
-  timestamp: string;
-}
-
-const mockMessages: Message[] = [
-  {
-    id: '1',
-    text: 'I received a damaged product in my order #ORD-2024-001. The milk carton was leaking.',
-    isAdmin: false,
-    timestamp: '2024-01-20 10:30 AM',
-  },
-  {
-    id: '2',
-    text: 'We apologize for the inconvenience. We will issue a full refund and send a replacement. Please allow 24-48 hours for processing.',
-    isAdmin: true,
-    timestamp: '2024-01-20 11:15 AM',
-  },
-  {
-    id: '3',
-    text: 'Thank you! When can I expect the replacement?',
-    isAdmin: false,
-    timestamp: '2024-01-20 11:20 AM',
-  },
-];
+import {
+  getComplaint,
+  replyToComplaint,
+  type ComplaintDetail,
+} from '@/services/api/complaintsApi';
 
 export default function ComplaintDetailsScreen() {
   const { id } = useLocalSearchParams();
   const [message, setMessage] = useState('');
+  const [complaint, setComplaint] = useState<ComplaintDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const complaint = {
-    ticketNumber: '#TKT-001',
-    subject: 'Damaged Product Received',
-    category: 'Product Quality',
-    status: 'in_progress',
-    priority: 'high',
-    date: '2024-01-20',
-    orderId: '#ORD-2024-001',
+  const loadComplaint = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getComplaint(Number(id));
+      if (!response.success || !response.data?.complaint) {
+        throw new Error('Failed to load complaint');
+      }
+      setComplaint(response.data.complaint);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load complaint');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSend = () => {
-    if (message.trim()) {
+  useEffect(() => {
+    loadComplaint();
+  }, [id]);
+
+  const handleSend = async () => {
+    if (!message.trim() || !complaint) return;
+    try {
+      setSending(true);
+      await replyToComplaint(complaint.id, message.trim());
       setMessage('');
+      await loadComplaint();
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reply');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -86,7 +86,7 @@ export default function ComplaintDetailsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: complaint.ticketNumber,
+          title: complaint?.ticket_number || 'Complaint',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: -8 }}>
               <ArrowLeft size={24} color={Colors.neutralCharcoal} />
@@ -101,52 +101,79 @@ export default function ComplaintDetailsScreen() {
         >
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.content}>
-              <View style={styles.headerCard}>
-                <View style={styles.headerRow}>
-                  <Text style={styles.subject}>{complaint.subject}</Text>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: `${getStatusColor(complaint.status)}20` },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: getStatusColor(complaint.status) },
-                      ]}
-                    >
-                      {complaint.status.replace('_', ' ').toUpperCase()}
+              {loading && (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={Colors.primary900} />
+                  <Text style={styles.loadingText}>Loading complaint...</Text>
+                </View>
+              )}
+              {error && <Text style={styles.errorText}>{error}</Text>}
+              {!loading && !complaint && (
+                <Text style={styles.errorText}>Complaint not found</Text>
+              )}
+              {complaint && (
+                <>
+                  <View style={styles.headerCard}>
+                    <View style={styles.headerRow}>
+                      <Text style={styles.subject}>{complaint.subject}</Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: `${getStatusColor(complaint.status)}20` },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: getStatusColor(complaint.status) },
+                          ]}
+                        >
+                          {complaint.status.replace('_', ' ').toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.metaRow}>
+                      <Text style={styles.metaText}>
+                        Category: {complaint.category.replace('_', ' ')}
+                      </Text>
+                    </View>
+                    {complaint.order_id && (
+                      <Text style={styles.orderId}>
+                        Related Order: #{complaint.order_id}
+                      </Text>
+                    )}
+                    <Text style={styles.descriptionText}>
+                      {complaint.description}
                     </Text>
                   </View>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaText}>Category: {complaint.category}</Text>
-                  <Text style={styles.metaText}>•</Text>
-                  <Text style={styles.metaText}>Priority: {complaint.priority.toUpperCase()}</Text>
-                </View>
-                {complaint.orderId && (
-                  <Text style={styles.orderId}>Related Order: {complaint.orderId}</Text>
-                )}
-              </View>
 
-              <View style={styles.messagesSection}>
-                {mockMessages.map((msg) => (
-                  <View
-                    key={msg.id}
-                    style={[
-                      styles.messageCard,
-                      msg.isAdmin ? styles.adminMessage : styles.userMessage,
-                    ]}
-                  >
-                    <Text style={styles.messageSender}>
-                      {msg.isAdmin ? 'Support Team' : 'You'}
-                    </Text>
-                    <Text style={styles.messageText}>{msg.text}</Text>
-                    <Text style={styles.messageTime}>{msg.timestamp}</Text>
+                  <View style={styles.messagesSection}>
+                    {(complaint.messages || []).map((msg) => (
+                      <View
+                        key={msg.id}
+                        style={[
+                          styles.messageCard,
+                          msg.is_admin_reply ? styles.adminMessage : styles.userMessage,
+                        ]}
+                      >
+                        <Text style={styles.messageSender}>
+                          {msg.is_admin_reply ? 'Support Team' : 'You'}
+                        </Text>
+                        <Text style={styles.messageText}>{msg.message}</Text>
+                        <Text style={styles.messageTime}>
+                          {new Date(msg.created_at).toLocaleString()}
+                        </Text>
+                      </View>
+                    ))}
+                    {(complaint.messages || []).length === 0 && (
+                      <View style={styles.emptyMessages}>
+                        <AlertCircle size={40} color={Colors.neutralMedium} />
+                        <Text style={styles.emptyText}>No messages yet</Text>
+                      </View>
+                    )}
                   </View>
-                ))}
-              </View>
+                </>
+              )}
             </View>
           </ScrollView>
 
@@ -163,12 +190,16 @@ export default function ComplaintDetailsScreen() {
               <TouchableOpacity
                 style={[
                   styles.sendButton,
-                  !message.trim() && styles.sendButtonDisabled,
+                  (!message.trim() || sending) && styles.sendButtonDisabled,
                 ]}
                 onPress={handleSend}
-                disabled={!message.trim()}
+                disabled={!message.trim() || sending}
               >
-                <Send size={20} color={Colors.neutralWhite} />
+                {sending ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Send size={20} color={Colors.neutralWhite} />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -188,6 +219,21 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  loadingText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+  },
+  errorText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.accentRed,
+    marginBottom: Spacing.sm,
   },
   headerCard: {
     backgroundColor: Colors.neutralWhite,
@@ -237,9 +283,24 @@ const styles = StyleSheet.create({
     color: Colors.primary900,
     fontWeight: Typography.semibold,
   },
+  descriptionText: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralMedium,
+    marginTop: Spacing.sm,
+    lineHeight: 22,
+  },
   messagesSection: {
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
+  },
+  emptyMessages: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+  },
+  emptyText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    marginTop: Spacing.sm,
   },
   messageCard: {
     borderRadius: 16,

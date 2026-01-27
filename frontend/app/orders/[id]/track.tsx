@@ -210,7 +210,7 @@ export default function OrderTrackingScreen() {
       {/* Order Summary */}
       <View style={styles.orderSummary}>
         <Text style={styles.summaryTitle}>{order.items.length} items</Text>
-        <Text style={styles.summaryTotal}>${order.total.toFixed(2)}</Text>
+        <Text style={styles.summaryTotal}>EGP {order.total.toFixed(2)}</Text>
       </View>
     </SafeAreaView>
   );

@@ -1,52 +1,54 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
 import { ArrowLeft, Plus, AlertCircle } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
 import { Button } from '@/components/Button';
-
-interface Complaint {
-  id: string;
-  ticketNumber: string;
-  subject: string;
-  category: string;
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  date: string;
-}
-
-const complaints: Complaint[] = [
-  {
-    id: '1',
-    ticketNumber: '#TKT-001',
-    subject: 'Damaged Product Received',
-    category: 'Product Quality',
-    status: 'in_progress',
-    priority: 'high',
-    date: '2024-01-20',
-  },
-  {
-    id: '2',
-    ticketNumber: '#TKT-002',
-    subject: 'Late Delivery',
-    category: 'Delivery Problem',
-    status: 'resolved',
-    priority: 'medium',
-    date: '2024-01-18',
-  },
-];
+import { listComplaints, type ComplaintSummary } from '@/services/api/complaintsApi';
 
 export default function ComplaintsScreen() {
+  const [complaints, setComplaints] = useState<ComplaintSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadComplaints = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await listComplaints(undefined, 50);
+      if (!response.success) {
+        throw new Error('Failed to load complaints');
+      }
+      setComplaints(response.data.complaints || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load complaints');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadComplaints();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadComplaints();
+    }, []),
+  );
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'open':
@@ -77,13 +79,13 @@ export default function ComplaintsScreen() {
     }
   };
 
-  const renderComplaint = ({ item }: { item: Complaint }) => (
+  const renderComplaint = ({ item }: { item: ComplaintSummary }) => (
     <TouchableOpacity
       style={styles.complaintCard}
       onPress={() => router.push(`/complaints/${item.id}` as any)}
     >
       <View style={styles.complaintHeader}>
-        <Text style={styles.ticketNumber}>{item.ticketNumber}</Text>
+        <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
         <View
           style={[
             styles.priorityBadge,
@@ -103,7 +105,7 @@ export default function ComplaintsScreen() {
       <Text style={styles.subject} numberOfLines={1}>
         {item.subject}
       </Text>
-      <Text style={styles.category}>{item.category}</Text>
+      <Text style={styles.category}>{item.category.replace('_', ' ')}</Text>
       <View style={styles.complaintFooter}>
         <View
           style={[
@@ -118,7 +120,7 @@ export default function ComplaintsScreen() {
           </Text>
         </View>
         <Text style={styles.date}>
-          {new Date(item.date).toLocaleDateString()}
+          {new Date(item.created_at).toLocaleDateString()}
         </Text>
       </View>
     </TouchableOpacity>
@@ -139,9 +141,16 @@ export default function ComplaintsScreen() {
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.content}>
+          {loading && (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={Colors.primary900} />
+              <Text style={styles.loadingText}>Loading complaints...</Text>
+            </View>
+          )}
+          {error && <Text style={styles.errorText}>{error}</Text>}
           <FlatList
             data={complaints}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderComplaint}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -179,6 +188,21 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
     paddingBottom: Spacing.md,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  loadingText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+  },
+  errorText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.accentRed,
+    marginBottom: Spacing.sm,
   },
   complaintCard: {
     backgroundColor: Colors.neutralWhite,

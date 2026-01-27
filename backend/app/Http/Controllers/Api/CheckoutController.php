@@ -4,16 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\CheckoutService;
+use App\Services\CartService;
+use App\Models\PromoCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CheckoutController extends Controller
 {
     protected CheckoutService $checkoutService;
+    protected CartService $cartService;
 
-    public function __construct(CheckoutService $checkoutService)
+    public function __construct(CheckoutService $checkoutService, CartService $cartService)
     {
         $this->checkoutService = $checkoutService;
+        $this->cartService = $cartService;
     }
 
     /**
@@ -305,35 +309,70 @@ class CheckoutController extends Controller
         }
 
         try {
-            $promo = $this->checkoutService->validatePromoCode(
-                $request->promo_code,
-                $request->order_total,
-                $request->user()->id
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
+            $cart = $this->cartService->getCart($user->id, $sessionId);
+            $cartTotals = $this->cartService->calculateTotals($cart);
+
+            $promo = PromoCode::where('code', $request->promo_code)->first();
+            if (!$promo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->cartService->promoReasonMessage('INVALID_CODE'),
+                    'data' => [
+                        'promo' => [
+                            'applied_code' => $request->promo_code,
+                            'promo_id' => null,
+                            'promo_code' => $request->promo_code,
+                            'type' => null,
+                            'applies_to' => null,
+                            'discount_amount' => 0.00,
+                            'discount_type' => null,
+                            'breakdown' => [],
+                            'validation_state' => 'invalid',
+                            'invalid_reason' => 'INVALID_CODE',
+                        ],
+                    ],
+                ], 422);
+            }
+
+            $promoEvaluation = $this->cartService->evaluatePromoForCart(
+                $promo,
+                $cart,
+                $user->id,
+                $cartTotals['subtotal'],
+                $cartTotals['delivery_fee']
             );
 
-            // Calculate discount amount
-            $discount = 0;
-            if ($promo->type === 'percentage') {
-                $discount = $request->order_total * ($promo->value / 100);
-                if ($promo->maximum_discount && $discount > $promo->maximum_discount) {
-                    $discount = $promo->maximum_discount;
-                }
-            } elseif ($promo->type === 'fixed_amount') {
-                $discount = min($promo->value, $request->order_total);
+            if ($promoEvaluation['validation_state'] === 'invalid') {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->cartService->promoReasonMessage($promoEvaluation['invalid_reason']),
+                    'data' => [
+                        'promo' => $promoEvaluation,
+                    ],
+                ], 422);
             }
+
+            $totals = $this->cartService->calculateTotals($cart, $promo);
+            $discount = $totals['discount'];
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'promo_code' => [
-                        'code' => $promo->code,
-                        'type' => $promo->type,
-                        'value' => $promo->value,
-                        'discount_amount' => round($discount, 2),
-                        'description' => $promo->description,
-                    ],
+                    'promo' => $promoEvaluation,
+                    'cart_totals' => $totals,
                 ],
-                'message' => 'Promo code applied successfully',
+                'message' => $promoEvaluation['validation_state'] === 'pending'
+                    ? $this->cartService->promoReasonMessage($promoEvaluation['invalid_reason'])
+                    : 'Promo code applied successfully',
             ]);
 
         } catch (\Exception $e) {

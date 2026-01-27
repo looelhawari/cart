@@ -569,6 +569,8 @@ class PaymentController extends Controller
                         // REQUIREMENT 6: NEVER touch orders.total or recalculate anything
                     ]);
 
+                    app(\App\Services\OrderService::class)->finalizePromoUsage($order);
+
                     // 4. REQUIREMENT 5: Clear cart ONLY when success confirmed (inside transaction)
                     $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
                     if ($cart) {

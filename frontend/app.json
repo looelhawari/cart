@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ELBARAKA Hypermarket App",
+    "name": "CART",
     "slug": "elbaraka-hypermarket-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

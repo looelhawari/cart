@@ -30,6 +30,8 @@ import type { Product, Category, SortOption, SortOrder } from "@/types";
 import { useStore } from "@/store";
 import { getCachedImage } from "@/services/cache/imageCache";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import { fetchActiveOffersCached, getProductOfferPricing } from "@/utils/offerPricing";
+import type { Offer } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
 
@@ -46,6 +48,7 @@ export default function CategoryDetailScreen() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [showSortModal, setShowSortModal] = useState(false);
   const [cachedHeroImage, setCachedHeroImage] = useState<string | undefined>();
+  const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
 
   const { cart } = useStore();
 
@@ -58,6 +61,15 @@ export default function CategoryDetailScreen() {
       loadCategoryData(true);
     }
   }, [id]);
+
+  useEffect(() => {
+    fetchActiveOffersCached()
+      .then(setActiveOffers)
+      .catch((error) => {
+        console.error("Failed to load active offers:", error);
+        setActiveOffers([]);
+      });
+  }, []);
 
   // Filter changes - smooth updates without full loading state
   useEffect(() => {
@@ -299,6 +311,7 @@ export default function CategoryDetailScreen() {
     <View style={styles.productItem}>
       <ProductCard
         product={item}
+        offerPricing={getProductOfferPricing(item, activeOffers, { categoryId: Number(id) })}
         onPress={() => router.push(`/product/${item.barcode}`)}
       />
     </View>

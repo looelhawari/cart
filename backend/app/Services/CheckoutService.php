@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\Address;
+use App\Models\Cart;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\PromoCode;
 use App\Models\UserWallet;
 use App\Models\PaymobPayment;
+use App\Services\OrderService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -15,10 +17,12 @@ use Exception;
 class CheckoutService
 {
     private PaymobService $paymobService;
+    private CartService $cartService;
 
-    public function __construct(PaymobService $paymobService)
+    public function __construct(PaymobService $paymobService, CartService $cartService)
     {
         $this->paymobService = $paymobService;
+        $this->cartService = $cartService;
     }
 
     /**
@@ -84,6 +88,8 @@ class CheckoutService
                 'payment_status' => 'completed',
                 'status' => 'confirmed',
             ]);
+
+            app(OrderService::class)->finalizePromoUsage($order);
 
             Log::info('Order paid with wallet', [
                 'order_id' => $order->id,
@@ -286,52 +292,9 @@ class CheckoutService
      * @return PromoCode
      * @throws Exception
      */
-    public function validatePromoCode(string $code, float $orderTotal, int $userId): PromoCode
+    public function validatePromoCode(string $code, Cart $cart, int $userId): PromoCode
     {
-        $promo = PromoCode::where('code', $code)->first();
-
-        if (!$promo) {
-            throw new Exception('Invalid promo code');
-        }
-
-        if (!$promo->is_active) {
-            throw new Exception('Promo code is no longer active');
-        }
-
-        // Check date validity
-        $now = now();
-        if ($promo->valid_from && $now->lt($promo->valid_from)) {
-            throw new Exception('Promo code is not yet valid');
-        }
-
-        if ($promo->valid_until && $now->gt($promo->valid_until)) {
-            throw new Exception('Promo code has expired');
-        }
-
-        // Check minimum purchase
-        if ($promo->minimum_purchase && $orderTotal < $promo->minimum_purchase) {
-            throw new Exception("Minimum purchase of {$promo->minimum_purchase} EGP required for this promo code");
-        }
-
-        // Check usage limits
-        if ($promo->usage_limit && $promo->used_count >= $promo->usage_limit) {
-            throw new Exception('Promo code usage limit reached');
-        }
-
-        // Check per-user usage limit
-        if ($promo->usage_limit_per_user) {
-            $userUsageCount = DB::table('orders')
-                ->where('user_id', $userId)
-                ->where('promo_code_id', $promo->id)
-                ->whereNotIn('status', ['cancelled'])
-                ->count();
-
-            if ($userUsageCount >= $promo->usage_limit_per_user) {
-                throw new Exception('You have already used this promo code the maximum number of times');
-            }
-        }
-
-        return $promo;
+        return $this->cartService->validatePromoCode($code, $cart, $userId);
     }
     /**
      * Get available delivery slots
@@ -439,6 +402,12 @@ class CheckoutService
         ?string $promoCode = null,
         ?int $userId = null
     ): array {
+        if ($userId) {
+            $cart = $this->cartService->getCart($userId);
+            $baseTotals = $this->cartService->calculateTotals($cart);
+            $subtotal = $baseTotals['subtotal'];
+        }
+
         // Calculate delivery fee
         $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
         $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 20);
@@ -450,25 +419,21 @@ class CheckoutService
 
         if ($promoCode && $userId) {
             try {
-                $cartService = app(CartService::class);
-                $validatedPromo = $cartService->validatePromoCode($promoCode, $subtotal, $userId);
+                $cart = $this->cartService->getCart($userId);
+                $validatedPromo = $this->cartService->validatePromoCode($promoCode, $cart, $userId);
+                $totals = $this->cartService->calculateTotals($cart, $validatedPromo);
 
-                if ($validatedPromo->type === 'percentage') {
-                    $discount = $subtotal * ($validatedPromo->value / 100);
-                    if ($validatedPromo->maximum_discount && $discount > $validatedPromo->maximum_discount) {
-                        $discount = $validatedPromo->maximum_discount;
-                    }
-                } elseif ($validatedPromo->type === 'fixed_amount') {
-                    $discount = min($validatedPromo->value, $subtotal);
-                } elseif ($validatedPromo->type === 'free_delivery') {
-                    $deliveryFee = 0;
-                }
+                $discount = $totals['discount'];
+                $deliveryFee = $totals['delivery_fee'];
 
-                $promoCodeData = [
-                    'code' => $validatedPromo->code,
-                    'type' => $validatedPromo->type,
-                    'value' => $validatedPromo->value,
+                $promoCodeData = $totals['promo_summary'] ?? [
+                    'applied_code' => $validatedPromo->code,
+                    'promo_id' => $validatedPromo->id,
                     'discount_amount' => round($discount, 2),
+                    'discount_type' => $validatedPromo->type === 'bogo' ? 'bogo' : $validatedPromo->applies_to,
+                    'breakdown' => [],
+                    'validation_state' => 'valid',
+                    'invalid_reason' => null,
                 ];
             } catch (\Exception $e) {
                 // Promo code validation failed, continue without it

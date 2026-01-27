@@ -259,34 +259,57 @@ class CartController extends Controller
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
-            $cartTotals = $this->cartService->calculateTotals($cart);
+            $promoCode = PromoCode::where('code', $request->code)->first();
 
-            // Validate promo code
-            $promoCode = $this->cartService->validatePromoCode(
-                $request->code,
+            if (!$promoCode) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->cartService->promoReasonMessage('INVALID_CODE'),
+                    'data' => [
+                        'promo' => [
+                            'applied_code' => $request->code,
+                            'promo_id' => null,
+                            'promo_code' => $request->code,
+                            'type' => null,
+                            'applies_to' => null,
+                            'discount_amount' => 0.00,
+                            'discount_type' => null,
+                            'breakdown' => [],
+                            'validation_state' => 'invalid',
+                            'invalid_reason' => 'INVALID_CODE',
+                        ],
+                    ],
+                ], 422);
+            }
+
+            $cartTotals = $this->cartService->calculateTotals($cart);
+            $promoEvaluation = $this->cartService->evaluatePromoForCart(
+                $promoCode,
+                $cart,
+                $userId,
                 $cartTotals['subtotal'],
-                $userId
+                $cartTotals['delivery_fee']
             );
 
-            // Store promo code in session
-            // TODO: Store promo code in cart table or separate promo_cart table
+            if ($promoEvaluation['validation_state'] === 'invalid') {
+                return response()->json([
+                    'success' => false,
+                    'message' => $this->cartService->promoReasonMessage($promoEvaluation['invalid_reason']),
+                    'data' => [
+                        'promo' => $promoEvaluation,
+                    ],
+                ], 422);
+            }
 
-            // Get cart details with promo applied
             $cartDetails = $this->cartService->getCartDetails($cart, $promoCode);
-
-            // Calculate discount amount
-            $discount = $cartDetails['cart']['discount'];
 
             return response()->json([
                 'success' => true,
-                'message' => 'Promo code applied',
+                'message' => $promoEvaluation['validation_state'] === 'pending'
+                    ? $this->cartService->promoReasonMessage($promoEvaluation['invalid_reason'])
+                    : 'Promo code applied',
                 'data' => [
-                    'promo_code' => [
-                        'code' => $promoCode->code,
-                        'type' => $promoCode->type,
-                        'value' => $promoCode->value,
-                        'discount_amount' => $discount,
-                    ],
+                    'promo' => $promoEvaluation,
                     ...$cartDetails,
                 ],
             ], 200, [], JSON_UNESCAPED_UNICODE);
@@ -309,9 +332,6 @@ class CartController extends Controller
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
-
-            // Clear promo code from session
-            $request->session()->forget('promo_code_id');
 
             $cartDetails = $this->cartService->getCartDetails($cart);
 

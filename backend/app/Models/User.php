@@ -101,4 +101,28 @@ class User extends Authenticatable
     {
         return $this->hasOne(Address::class)->where('is_default', true);
     }
+
+    /**
+     * Get the user's favorites.
+     */
+    public function favorites()
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
+     * Get the user's complaints.
+     */
+    public function complaints()
+    {
+        return $this->hasMany(Complaint::class);
+    }
+
+    /**
+     * Get the user's complaint messages.
+     */
+    public function complaintMessages()
+    {
+        return $this->hasMany(ComplaintMessage::class);
+    }
 }

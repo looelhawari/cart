@@ -28,6 +28,8 @@ export default function CartScreen() {
     clearCart,
     applyPromoCodeToCart,
     removePromoCodeFromCart,
+    promoState,
+    promoMessage,
   } = useStore();
   const [promoInput, setPromoInput] = useState("");
   const [promoExpanded, setPromoExpanded] = useState(false);
@@ -38,7 +40,27 @@ export default function CartScreen() {
   const discount = cart?.discount || 0;
   const tax = cart?.tax || 0;
   const total = cart?.total || 0;
-  const promoCode = cart?.promo_code || null;
+  const promoCode = promoState ?? null;
+  const promoReasonText = (() => {
+    if (promoMessage) return promoMessage;
+    if (!promoCode?.invalid_reason) return null;
+    const reasonMap: Record<string, string> = {
+      INVALID_CODE: "Invalid promo code",
+      PROMO_INACTIVE: "This promo code is inactive",
+      NOT_STARTED: "This promo code is not yet valid",
+      EXPIRED: "This promo code has expired",
+      USAGE_LIMIT_REACHED: "Promo code usage limit reached",
+      USER_LIMIT_REACHED: "You have already used this promo code",
+      FIRST_ORDER_ONLY: "Promo code is only valid for your first paid order",
+      MINIMUM_NOT_MET: "Minimum order amount not met",
+      NOT_APPLICABLE_TO_CART: "Promo does not apply to items in your cart",
+      PROMO_MISCONFIGURED: "Promo code is not configured correctly",
+      BOGO_ADD_ELIGIBLE_ITEM: "Promo eligible — add your free item to cart",
+      BOGO_ADD_MORE_GET_ITEMS:
+        "Promo eligible — add more eligible items to claim full discount",
+    };
+    return reasonMap[promoCode.invalid_reason] || null;
+  })();
 
   const suggestedProducts = products
     .filter((p) => !cartItems.find((c) => c.product.id === Number(p.id)))
@@ -226,8 +248,22 @@ export default function CartScreen() {
         {promoCode && (
           <View style={styles.appliedPromo}>
             <Text style={styles.appliedPromoText}>
-              Promo &ldquo;{promoCode}&rdquo; applied!
+              Promo &ldquo;{promoCode.promo_code || promoCode.applied_code}
+              &rdquo; applied!
             </Text>
+            {promoCode.validation_state === "pending" && promoReasonText && (
+              <Text style={styles.promoPendingText}>{promoReasonText}</Text>
+            )}
+            {promoCode.validation_state === "pending" && (
+              <TouchableOpacity
+                style={styles.promoActionButton}
+                onPress={() => router.push("/(tabs)/categories")}
+              >
+                <Text style={styles.promoActionText}>
+                  Add eligible gift item
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={async () => {
                 try {
@@ -242,34 +278,40 @@ export default function CartScreen() {
           </View>
         )}
 
+        {!promoCode && promoReasonText && (
+          <View style={styles.promoMessageCard}>
+            <Text style={styles.promoMessageText}>{promoReasonText}</Text>
+          </View>
+        )}
+
         <View style={styles.priceBreakdown}>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Subtotal</Text>
-            <Text style={styles.priceValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.priceValue}>EGP {subtotal.toFixed(2)}</Text>
           </View>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Delivery Fee</Text>
             <Text
               style={[styles.priceValue, deliveryFee === 0 && styles.freeText]}
             >
-              {deliveryFee === 0 ? "FREE" : `$${deliveryFee.toFixed(2)}`}
+              {deliveryFee === 0 ? "FREE" : `EGP ${deliveryFee.toFixed(2)}`}
             </Text>
           </View>
           {discount > 0 && (
             <View style={styles.priceRow}>
               <Text style={styles.priceLabel}>Discount</Text>
               <Text style={[styles.priceValue, styles.discountText]}>
-                -${discount.toFixed(2)}
+                -EGP {discount.toFixed(2)}
               </Text>
             </View>
           )}
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Tax</Text>
-            <Text style={styles.priceValue}>${tax.toFixed(2)}</Text>
+            <Text style={styles.priceValue}>EGP {tax.toFixed(2)}</Text>
           </View>
           <View style={[styles.priceRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>EGP {total.toFixed(2)}</Text>
           </View>
         </View>
 
@@ -489,10 +531,40 @@ const styles = StyleSheet.create({
     color: Colors.primary900,
     fontWeight: Typography.semibold,
   },
+  promoPendingText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
+    marginTop: Spacing.xs,
+  },
+  promoActionButton: {
+    alignSelf: "flex-start",
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.accentOrange,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: 12,
+  },
+  promoActionText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralWhite,
+    fontWeight: Typography.semibold,
+  },
   removePromoText: {
     fontSize: Typography.bodyMedium,
     color: Colors.accentRed,
     fontWeight: Typography.semibold,
+  },
+  promoMessageCard: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.neutralLight,
+    borderRadius: 12,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
+  },
+  promoMessageText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
   },
   priceBreakdown: {
     marginTop: Spacing.md,

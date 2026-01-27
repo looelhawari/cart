@@ -13,6 +13,7 @@ import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { pollPaymentStatus } from "@/services/paymentMethodsApi";
+import { getOrder } from "@/services/api/orderApi";
 import { useStore } from "@/store";
 
 export default function OrderSuccessScreen() {
@@ -25,6 +26,8 @@ export default function OrderSuccessScreen() {
     orderNumber,
     deliveryDate,
     deliveryTime,
+    promoCode,
+    promoDiscount,
   } = useLocalSearchParams<{
     orderId?: string;
     paymentId?: string;
@@ -32,12 +35,18 @@ export default function OrderSuccessScreen() {
     orderNumber?: string;
     deliveryDate?: string;
     deliveryTime?: string;
+    promoCode?: string;
+    promoDiscount?: string;
   }>();
 
   const [paymentStatus, setPaymentStatus] = useState<
     "processing" | "confirmed" | "failed"
   >("processing");
   const [isPolling, setIsPolling] = useState(false);
+  const [promoInfo, setPromoInfo] = useState<{
+    code: string;
+    discount: string;
+  } | null>(null);
 
   /**
    * Refetch cart on mount to ensure it's cleared
@@ -54,6 +63,28 @@ export default function OrderSuccessScreen() {
 
     refetchCart();
   }, []);
+
+  useEffect(() => {
+    const fetchPromoFromOrder = async () => {
+      if (!orderId || promoCode) return;
+
+      try {
+        const response = await getOrder(parseInt(orderId));
+        const order = response.data?.order;
+        const snapshot = order?.promo_code_snapshot;
+        if (snapshot?.promo_code && snapshot?.discount_amount !== undefined) {
+          setPromoInfo({
+            code: snapshot.promo_code,
+            discount: Number(snapshot.discount_amount).toFixed(2),
+          });
+        }
+      } catch (error) {
+        console.error("[OrderSuccess] Failed to fetch order promo:", error);
+      }
+    };
+
+    fetchPromoFromOrder();
+  }, [orderId, promoCode]);
 
   /**
    * Poll payment status for MOTO instant payments
@@ -184,6 +215,15 @@ export default function OrderSuccessScreen() {
           <Text style={styles.orderLabel}>Order Number</Text>
           <Text style={styles.orderNumber}>{orderNumber || "N/A"}</Text>
 
+          {(promoCode && promoDiscount) || promoInfo ? (
+            <>
+              <Text style={styles.estimatedLabel}>Promo Applied</Text>
+              <Text style={styles.promoValue}>
+                {promoCode || promoInfo?.code} (-{promoDiscount || promoInfo?.discount} EGP)
+              </Text>
+            </>
+          ) : null}
+
           {deliveryDate && deliveryTime && (
             <>
               <Text style={styles.estimatedLabel}>Estimated Delivery</Text>
@@ -300,6 +340,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.semibold,
     color: Colors.neutralCharcoal,
+  },
+  promoValue: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: Typography.semibold,
+    color: Colors.primary900,
   },
   actions: {
     width: "100%",

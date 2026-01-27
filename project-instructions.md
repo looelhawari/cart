@@ -2223,7 +2223,7 @@ Documentation:
   - Tax settings
 - Delivery Settings
   - Delivery zones and fees
-  - Free delivery threshold
+  - Free delivery thresholdser
   - Delivery time slots
   - Express delivery settings
   - Minimum order amount
@@ -2818,3 +2818,38 @@ Documentation:
 **Document Version**: 1.0
 **Last Updated**: November 18, 2025
 **Maintained By**: ElBaraka Development Team
+
+---
+
+## Agent Update Log
+
+- 2026-01-25: Implemented complaints + favorites backend APIs with attachments, wired frontend screens/store to APIs, aligned schema/docs. Pending user testing/verification.
+- 2026-01-25: Added complaint/favorite seed data for user_id=2 and full feature documentation (FEATURES_COMPLAINTS_FAVORITES.md).
+- 2026-01-25: Improved complaint order selector UI (bottom sheet list) and ensured complaint list refetch behavior.
+- 2026-01-26: Upgraded promo code engine backend (CartService/OrderService/CheckoutService/CheckoutController) to support applies_to and BOGO logic, consistent cart-based totals, first-order eligibility, and cart-based promo validation totals.
+- 2026-01-26: Frontend cart flow now persists applied promo code in state for checkout, updates types for BOGO/applies_to, and clears promo state on cart mutations.
+- 2026-01-26: Ran promo upgrade migrations (promo_codes alter + promo_code_categories/products + promo_code_bogo_rules).
+- 2026-01-26: Seeded promo_codes for all test cases (order/category/product/free_delivery/first_order/bogo) and linked target tables.
+- 2026-01-26: Updated promo seeder to use deterministic targets (lowest category IDs + product barcodes) and re-seeded.
+- 2026-01-26: Completed promo-code audit across backend + frontend (no code changes); documented gaps vs hypermarket requirements.
+- 2026-01-26: Implemented promo finalization (card success, wallet success, COD delivery endpoint), promo snapshot on orders, reworked promo validation payloads, and added promo visibility + revalidation UI across cart/checkout/orders/success screens.
+- 2026-01-26: Fixed order-success promo rendering conditional syntax error.
+- 2026-01-26: Added safe migration `2026_01_26_211532_add_promo_code_snapshot_to_orders_table.php` and ran it to ensure `orders.promo_code_snapshot` exists; verified `frontend/app/(tabs)/orders.tsx` syntax.
+- 2026-01-26: Investigated FIRSTORDER promo rejection for user_id 7; DB shows 0 paid/completed orders and promo config valid, but carts are guest-only (no user_id), indicating auth/user not attached during cart/apply promo.
+- 2026-01-26: Investigated remove promo failure; CartController::removePromo uses `$request->session()->forget()` on API routes (no session middleware), likely throwing "Session store not set on request" and returning 500.
+- 2026-01-26: Fixed remove promo failure by removing session access from `CartController::removePromo` (stateless API); now returns cart details without 500.
+- 2026-01-26: Investigated SUPER30 per-user limit; promo_code_usage has a row for user_id 7, but latest cart is guest-only (user_id NULL), meaning apply-promo is likely unauthenticated and bypasses per-user limit.
+- 2026-01-26: Added public Offers APIs (`GET /offers`, `GET /offers/summary`) with OfferService to build promo-based offers, eligibility states, targets, filters, and sorting (backend only).
+- 2026-01-26: Replaced Offers tab UI with API-driven promo offers (search, filters, eligibility pills, CTAs) and added home offers banner using `/offers/summary`.
+- 2026-01-26: Enhanced Offers tab with Hot/Ending Soon sections and skeleton loading cards aligned to layout.md.
+- 2026-01-26: Added shimmer animation to offers skeletons and converted Hot/Ending Soon sections to horizontal carousels with compact cards.
+- 2026-01-26: Redesigned Offers tab UX with guest note, bottom-sheet filters, user-friendly card hierarchy, copy code, and updated home banner with active offer count + max savings.
+- 2026-01-26: Updated Offers cards (copy button feedback, clearer product deals, simplified CTAs, timing badge logic) and added Offer Items screen for full product lists with discounted prices.
+- 2026-01-26: Refined Offers UX per feedback (copy button inline, removed eligibility badges/messages, timing badge logic, clearer product deals) and added /offers/items screen to list all offer products with discounted prices.
+- 2026-01-27: Fixed offer items price formatting guards, prevented BOGO items screen from showing whole-cart state, made offer items cards link to product detail, and improved offer validity/badge visuals with distinct timing colors.
+- 2026-01-27: Switched category offer items to category cards with image grid and click-through to category products, and added offer-aware pricing on home/category/product screens via active offer lookup.
+- 2026-01-27: Added offer-aware pricing on favorites, surfaced category deal badges on Categories tab, standardized currency labels to EGP, and updated splash image to assets/images/splash.webp.
+- 2026-01-27: Updated app name to CART in app.json/app config and aligned sample env APP_NAME for splash/app label consistency.
+- 2026-01-27: Converted splash.webp to splash.png for Expo prebuild compatibility and updated app.json splash image path.
+- 2026-01-27: Added Gradle TLS protocol flags and plugin repositories to address Android build TLS handshake failures.
+- 2026-01-27: Added android/local.properties with sdk.dir pointing to the default Android SDK path to fix missing ANDROID_HOME during Expo Android build.

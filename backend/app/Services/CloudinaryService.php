@@ -6,6 +6,7 @@ use Cloudinary\Cloudinary;
 use Cloudinary\Api\Upload\UploadApi;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class CloudinaryService
 {
@@ -66,6 +67,60 @@ class CloudinaryService
                 'width' => $result['width'],
                 'height' => $result['height'],
                 'format' => $result['format'],
+            ];
+        } catch (\Exception $e) {
+            Log::error('Cloudinary upload failed: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Upload a file to Cloudinary (images or PDFs).
+     *
+     * @param UploadedFile $file
+     * @param string $folder
+     * @param string $resourceType
+     * @return array
+     */
+    public function uploadFile(UploadedFile $file, string $folder = 'complaints', string $resourceType = 'auto'): array
+    {
+        try {
+            $extension = strtolower($file->getClientOriginalExtension());
+            $resolvedResourceType = $resourceType;
+
+            if ($resourceType === 'auto') {
+                $resolvedResourceType = in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)
+                    ? 'image'
+                    : 'raw';
+            }
+
+            $publicId = (string) Str::uuid();
+
+            $uploadOptions = [
+                'folder' => config('cloudinary.folder') . '/' . $folder,
+                'resource_type' => $resolvedResourceType,
+                'public_id' => $publicId,
+                'use_filename' => false,
+                'unique_filename' => false,
+                'overwrite' => false,
+            ];
+
+            $result = $this->uploadApi->upload(
+                $file->getRealPath(),
+                $uploadOptions
+            );
+
+            return [
+                'success' => true,
+                'public_id' => $result['public_id'] ?? $publicId,
+                'url' => $result['secure_url'] ?? null,
+                'resource_type' => $result['resource_type'] ?? $resolvedResourceType,
+                'format' => $result['format'] ?? $extension,
+                'bytes' => $result['bytes'] ?? $file->getSize(),
             ];
         } catch (\Exception $e) {
             Log::error('Cloudinary upload failed: ' . $e->getMessage());

@@ -30,6 +30,8 @@ export default function PaymentWebViewScreen() {
     iframeUrl: string;
     orderId: string;
     paymentId: string;
+    promoCode?: string;
+    promoDiscount?: string;
   }>();
 
   const [loading, setLoading] = useState(true);
@@ -185,6 +187,8 @@ export default function PaymentWebViewScreen() {
         params: {
           orderId: params.orderId,
           paymentId: params.paymentId,
+          promoCode: params.promoCode,
+          promoDiscount: params.promoDiscount,
         },
       });
     } else {
