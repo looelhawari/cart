@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Admin\RefundController as AdminRefundController;
 use App\Http\Controllers\Api\Admin\SupportController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Admin\PromotionController as AdminPromotionController;
+use App\Http\Controllers\Api\Admin\PromoCodeController as AdminPromoCodeController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\PromoCodeApiController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -68,6 +70,22 @@ Route::prefix('v1')->group(function () {
         Route::delete('/clear', [CartController::class, 'clear']);
         Route::post('/apply-promo', [CartController::class, 'applyPromo']);
         Route::delete('/remove-promo', [CartController::class, 'removePromo']);
+    });
+
+    // Promo code routes (public and authenticated) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->prefix('promo-codes')->group(function () {
+        // Public routes
+        Route::get('/available', [PromoCodeApiController::class, 'available']);
+        Route::post('/validate', [PromoCodeApiController::class, 'validate']);
+        Route::post('/preview', [PromoCodeApiController::class, 'preview']);
+        Route::get('/details/{code}', [PromoCodeApiController::class, 'details']);
+        Route::get('/suggestions', [PromoCodeApiController::class, 'suggestions']);
+        
+        // Authenticated routes
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::post('/recommendations', [PromoCodeApiController::class, 'recommendations']);
+            Route::get('/my-usage', [PromoCodeApiController::class, 'myUsage']);
+        });
     });
 
     // Product routes (public) - throttled to 60 requests per minute
@@ -256,6 +274,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{id}', [AdminCategoryController::class, 'show']);
                 Route::put('/{id}', [AdminCategoryController::class, 'update']);
                 Route::delete('/{id}', [AdminCategoryController::class, 'destroy']);
+                Route::post('/{id}/upload-image', [AdminCategoryController::class, 'uploadImage']);
             });
 
             // Orders Management
@@ -334,6 +353,28 @@ Route::prefix('v1')->group(function () {
                 Route::post('/full', [AdminRefundController::class, 'fullRefund']);
                 Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
+            });
+
+            // Promo Code Analytics & Management
+            Route::prefix('promo-codes')->group(function () {
+                // CRUD operations
+                Route::get('/', [AdminPromoCodeController::class, 'index']);
+                Route::post('/', [AdminPromoCodeController::class, 'store']);
+                Route::get('/products', [AdminPromoCodeController::class, 'getProducts']);
+                Route::get('/categories', [AdminPromoCodeController::class, 'getCategories']);
+                Route::post('/compare', [AdminPromoCodeController::class, 'compare']);
+                Route::post('/bulk-status', [AdminPromoCodeController::class, 'bulkUpdateStatus']);
+                Route::get('/export', [AdminPromoCodeController::class, 'export']);
+                
+                // Single promo code operations
+                Route::get('/{id}', [AdminPromoCodeController::class, 'show']);
+                Route::put('/{id}', [AdminPromoCodeController::class, 'update']);
+                Route::delete('/{id}', [AdminPromoCodeController::class, 'destroy']);
+                Route::post('/{id}/duplicate', [AdminPromoCodeController::class, 'duplicate']);
+                Route::get('/{id}/analytics', [AdminPromoCodeController::class, 'analytics']);
+                Route::get('/{id}/usage-history', [AdminPromoCodeController::class, 'usageHistory']);
+                Route::get('/{id}/users', [AdminPromoCodeController::class, 'users']);
+                Route::get('/{id}/user/{userId}', [AdminPromoCodeController::class, 'userUsage']);
             });
         });
     });

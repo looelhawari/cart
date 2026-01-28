@@ -122,12 +122,53 @@ export interface PromotionAnalytics {
     } | null
 }
 // Promo Code Types
-export type PromoCodeType = 'percentage' | 'fixed_amount'
+export type PromoCodeType = 'percentage' | 'fixed_amount' | 'free_delivery' | 'bogo'
+export type PromoCodeAppliesTo = 'order' | 'product' | 'category'
+
+export interface PromoCodeBogoRule {
+    id: number
+    promo_code_id: number
+    buy_scope: 'any' | 'product' | 'category'
+    buy_product_id?: number
+    buy_category_id?: number
+    buy_include_subcategories?: boolean
+    buy_qty: number
+    get_scope: 'same' | 'product' | 'category'
+    get_product_id?: number
+    get_category_id?: number
+    get_include_subcategories?: boolean
+    get_qty: number
+    get_discount_type: 'free' | 'percentage' | 'fixed_amount'
+    get_discount_value?: number
+    max_applications_per_order?: number
+    is_active: boolean
+    created_at: string
+    updated_at: string
+}
+
+export interface PromoCodeUsage {
+    id: number
+    promo_code_id: number
+    user_id: number
+    order_id: number
+    discount_amount: number
+    order_total: number
+    order_number: string
+    used_at: string
+    created_at: string
+    user?: {
+        id: number
+        name: string
+        email: string
+    }
+}
 
 export interface PromoCode {
     id: number
     code: string
     type: PromoCodeType
+    applies_to: PromoCodeAppliesTo
+    first_order_only: boolean
     value: number
     minimum_order: number | null
     maximum_discount: number | null
@@ -139,6 +180,16 @@ export interface PromoCode {
     is_active: boolean
     created_at: string
     updated_at: string
+    // Relationships
+    products?: Product[]
+    categories?: Category[]
+    bogo_rules?: PromoCodeBogoRule[]
+    usages?: PromoCodeUsage[]
+    // Computed
+    status?: 'active' | 'expired' | 'scheduled' | 'inactive' | 'limit_reached'
+    remaining_uses?: number | null
+    is_expired?: boolean
+    discount_display?: string
 }
 // Category Types
 export interface Category {
@@ -292,23 +343,6 @@ export interface Transaction {
     order?: Order
 }
 
-export interface PromoCode {
-    id: number
-    code: string
-    description: string
-    discount_type: 'percentage' | 'fixed'
-    discount_value: number
-    max_discount_amount: number | null
-    min_order_amount: number
-    usage_limit: number | null
-    usage_count: number
-    start_date: string
-    end_date: string
-    is_active: boolean
-    created_at: string
-    updated_at: string
-}
-
 // Analytics Types
 export interface SalesAnalytics {
     total_revenue: number
@@ -340,9 +374,19 @@ export interface SalesAnalytics {
 // Pagination Types
 export interface PaginationMeta {
     current_page: number
+    from: number | null
+    to: number | null
     per_page: number
     total: number
     last_page: number
+    path?: string
+    prev_page_url?: string | null
+    next_page_url?: string | null
+    links?: Array<{
+        url: string | null
+        label: string
+        active: boolean
+    }>
 }
 
 export interface PaginatedResponse<T> {

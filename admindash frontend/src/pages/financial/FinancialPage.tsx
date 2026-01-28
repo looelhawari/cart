@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { financialService } from '@/services/financial.service'
 import { promoCodeService } from '@/services/promo-code.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +13,8 @@ import { exportFinancialDashboardPDF } from '@/lib/pdf-export'
 import { exportFinancialDashboardExcel } from '@/lib/excel-export'
 
 export default function FinancialPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
     const [dateFrom, setDateFrom] = useState('')
     const [dateTo, setDateTo] = useState('')
 
@@ -81,28 +84,28 @@ export default function FinancialPage() {
     // Calculate stats dynamically when data changes
     const stats = [
         {
-            title: 'Total Revenue',
+            title: t('financial.totalRevenue'),
             value: formatCurrency(financialData?.total_revenue || 0),
             icon: DollarSign,
             color: 'text-green-600',
             bgColor: 'bg-green-100',
         },
         {
-            title: 'Cash Revenue',
+            title: t('financial.cashRevenue'),
             value: formatCurrency(financialData?.cash_revenue || 0),
             icon: DollarSign,
             color: 'text-blue-600',
             bgColor: 'bg-blue-100',
         },
         {
-            title: 'Online Revenue',
+            title: t('financial.onlineRevenue'),
             value: formatCurrency(financialData?.online_revenue || 0),
             icon: CreditCard,
             color: 'text-purple-600',
             bgColor: 'bg-purple-100',
         },
         {
-            title: 'Pending Payments',
+            title: t('financial.pendingPayments'),
             value: formatCurrency(financialData?.pending_payments || 0),
             icon: TrendingUp,
             color: 'text-orange-600',
@@ -154,42 +157,42 @@ export default function FinancialPage() {
         <div className="space-y-6">
             {(dashboardError || transactionsError) && (
                 <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                    <p className="font-semibold">Error loading financial data</p>
+                    <p className="font-semibold">{t('financial.errorLoading')}</p>
                     <p className="text-sm">{String(dashboardError || transactionsError)}</p>
                 </div>
             )}
 
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-elbaraka-primary">Financial Dashboard</h1>
-                    <p className="text-muted-foreground mt-1">Revenue tracking and financial analytics</p>
+            <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <div className={isRTL ? 'text-right' : ''}>
+                    <h1 className="text-3xl font-bold text-elbaraka-primary">{t('financial.title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('financial.subtitle')}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     <Button onClick={handleExportPDF} variant="outline" className="border-elbaraka-primary text-elbaraka-primary hover:bg-elbaraka-primary hover:text-white">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export PDF
+                        <FileText className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                        {t('common.exportPDF')}
                     </Button>
                     <Button onClick={handleExportExcel} className="bg-elbaraka-primary hover:bg-elbaraka-secondary">
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Excel
+                        <Download className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                        {t('common.exportExcel')}
                     </Button>
                 </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label className="text-sm font-medium">From Date</label>
+                    <label className="text-sm font-medium">{t('financial.fromDate')}</label>
                     <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                 </div>
                 <div>
-                    <label className="text-sm font-medium">To Date</label>
+                    <label className="text-sm font-medium">{t('financial.toDate')}</label>
                     <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                 </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 {isLoadingDashboard ? (
-                    <div className="col-span-4 text-center py-8">Loading financial data...</div>
+                    <div className="col-span-4 text-center py-8">{t('financial.loadingData')}</div>
                 ) : (
                     stats.map((stat) => {
                         const Icon = stat.icon
@@ -213,7 +216,7 @@ export default function FinancialPage() {
             <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Revenue by Day</CardTitle>
+                        <CardTitle>{t('financial.revenueByDay')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -223,7 +226,7 @@ export default function FinancialPage() {
                                 <YAxis />
                                 <Tooltip />
                                 <Legend />
-                                <Bar dataKey="revenue" fill="#2D5A3D" name="Revenue" />
+                                <Bar dataKey="revenue" fill="#2D5A3D" name={t('financial.revenue')} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -231,7 +234,7 @@ export default function FinancialPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Revenue by Payment Method</CardTitle>
+                        <CardTitle>{t('financial.revenueByPaymentMethod')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
@@ -262,32 +265,32 @@ export default function FinancialPage() {
                 <>
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
+                            <CardTitle className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <Tag className="h-5 w-5" />
-                                Promo Codes Performance
+                                {t('financial.promoCodesPerformance')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="grid gap-4 md:grid-cols-4">
                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">Total Codes</p>
+                                    <p className="text-sm text-muted-foreground">{t('financial.totalCodes')}</p>
                                     <p className="text-2xl font-bold">{promoCodesData.total_codes || 0}</p>
-                                    <p className="text-xs text-green-600">{promoCodesData.active_codes || 0} active</p>
+                                    <p className="text-xs text-green-600">{promoCodesData.active_codes || 0} {t('financial.active')}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">Total Usage</p>
+                                    <p className="text-sm text-muted-foreground">{t('financial.totalUsage')}</p>
                                     <p className="text-2xl font-bold">{promoCodesData.total_usage || 0}</p>
-                                    <p className="text-xs text-muted-foreground">Times applied</p>
+                                    <p className="text-xs text-muted-foreground">{t('financial.timesApplied')}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">Total Discount Given</p>
+                                    <p className="text-sm text-muted-foreground">{t('financial.totalDiscountGiven')}</p>
                                     <p className="text-2xl font-bold text-red-600">{formatCurrency(promoCodesData.total_discount_given || 0)}</p>
-                                    <p className="text-xs text-muted-foreground">Customer savings</p>
+                                    <p className="text-xs text-muted-foreground">{t('financial.customerSavings')}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">Revenue with Promo</p>
+                                    <p className="text-sm text-muted-foreground">{t('financial.revenueWithPromo')}</p>
                                     <p className="text-2xl font-bold text-green-600">{formatCurrency(promoCodesData.revenue_with_promo || 0)}</p>
-                                    <p className="text-xs text-muted-foreground">{promoCodesData.orders_with_promo || 0} orders</p>
+                                    <p className="text-xs text-muted-foreground">{promoCodesData.orders_with_promo || 0} {t('financial.orders')}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -296,29 +299,29 @@ export default function FinancialPage() {
                     <div className="grid gap-6 lg:grid-cols-2">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Most Used Promo Codes</CardTitle>
+                                <CardTitle>{t('financial.mostUsedPromoCodes')}</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
                                     {promoCodesData.most_used_codes?.length > 0 ? (
                                         promoCodesData.most_used_codes.map((code: any) => (
-                                            <div key={code.id} className="flex items-center justify-between p-3 border rounded-lg">
-                                                <div>
+                                            <div key={code.id} className={`flex items-center justify-between p-3 border rounded-lg ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                <div className={isRTL ? 'text-right' : ''}>
                                                     <p className="font-semibold">{code.code}</p>
                                                     <p className="text-sm text-muted-foreground">
-                                                        {code.type === 'percentage' ? `${code.value}% off` : `${formatCurrency(code.value)} off`}
+                                                        {code.type === 'percentage' ? `${code.value}% ${t('financial.off')}` : `${formatCurrency(code.value)} ${t('financial.off')}`}
                                                     </p>
                                                 </div>
-                                                <div className="text-right">
+                                                <div className={isRTL ? 'text-left' : 'text-right'}>
                                                     <p className="font-bold text-green-600">{code.times_used}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {code.usage_limit ? `of ${code.usage_limit}` : 'uses'}
+                                                        {code.usage_limit ? `${t('financial.of')} ${code.usage_limit}` : t('financial.uses')}
                                                     </p>
                                                 </div>
                                             </div>
                                         ))
                                     ) : (
-                                        <p className="text-center text-muted-foreground py-8">No promo codes used yet</p>
+                                        <p className="text-center text-muted-foreground py-8">{t('financial.noPromoCodesUsed')}</p>
                                     )}
                                 </div>
                             </CardContent>
@@ -326,14 +329,14 @@ export default function FinancialPage() {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle>Promo Codes by Type</CardTitle>
+                                <CardTitle>{t('financial.promoCodesByType')}</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <ResponsiveContainer width="100%" height={300}>
                                     <PieChart>
                                         <Pie
                                             data={promoCodesData.codes_by_type?.map((item: any) => ({
-                                                name: item.type === 'percentage' ? 'Percentage' : 'Fixed Amount',
+                                                name: item.type === 'percentage' ? t('financial.percentage') : t('financial.fixedAmount'),
                                                 value: item.count
                                             })) || []}
                                             cx="50%"
@@ -360,24 +363,24 @@ export default function FinancialPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Recent Transactions</CardTitle>
+                    <CardTitle>{t('financial.recentTransactions')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b">
-                                    <th className="text-left p-3">Transaction ID</th>
-                                    <th className="text-left p-3">Amount</th>
-                                    <th className="text-left p-3">Payment Method</th>
-                                    <th className="text-left p-3">Status</th>
-                                    <th className="text-left p-3">Date</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('financial.transactionId')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('financial.amount')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('financial.paymentMethod')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
+                                    <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.date')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {isLoadingTransactions ? (
                                     <tr>
-                                        <td colSpan={5} className="p-3 text-center">Loading transactions...</td>
+                                        <td colSpan={5} className="p-3 text-center">{t('financial.loadingTransactions')}</td>
                                     </tr>
                                 ) : transactions?.data && transactions.data.length > 0 ? (
                                     transactions.data.map((transaction: any) => (
@@ -404,7 +407,7 @@ export default function FinancialPage() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="p-3 text-center text-gray-500">No transactions found</td>
+                                        <td colSpan={5} className="p-3 text-center text-gray-500">{t('financial.noTransactions')}</td>
                                     </tr>
                                 )}
                             </tbody>

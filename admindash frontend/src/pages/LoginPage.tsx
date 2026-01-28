@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
+import { useTranslation } from 'react-i18next'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
@@ -22,7 +24,9 @@ export default function LoginPage() {
     const navigate = useNavigate()
     const { setAuth } = useAuthStore()
     const { toast } = useToast()
+    const { t, i18n } = useTranslation()
     const [isLoading, setIsLoading] = useState(false)
+    const isRTL = i18n.language === 'ar'
 
     const {
         register,
@@ -55,14 +59,14 @@ export default function LoginPage() {
             }
             setAuth(user, response.data.access_token)
             toast({
-                title: 'Login successful',
-                description: `Welcome back, ${response.data.user.first_name}!`,
+                title: t('auth.loginSuccess'),
+                description: `${t('auth.welcomeBack')}, ${response.data.user.first_name}!`,
             })
             navigate('/dashboard')
         } catch (error: any) {
             toast({
-                title: 'Login failed',
-                description: error.response?.data?.message || 'Invalid credentials',
+                title: t('auth.loginFailed'),
+                description: error.response?.data?.message || t('auth.invalidCredentials'),
                 variant: 'destructive',
             })
         } finally {
@@ -71,7 +75,12 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-elbaraka-bg">
+        <div className="min-h-screen flex items-center justify-center bg-elbaraka-bg relative">
+            {/* Language Switcher in top corner */}
+            <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'}`}>
+                <LanguageSwitcher />
+            </div>
+
             <Card className="w-full max-w-md">
                 <CardHeader className="space-y-1 text-center">
                     <div className="flex justify-center mb-4">
@@ -79,35 +88,37 @@ export default function LoginPage() {
                             EB
                         </div>
                     </div>
-                    <CardTitle className="text-2xl font-bold text-elbaraka-primary">ElBaraka Admin</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-elbaraka-primary">{t('auth.adminLogin')}</CardTitle>
                     <CardDescription>
-                        Sign in to your admin account to manage the platform
+                        {t('auth.signInDescription')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
+                            <Label htmlFor="email">{t('auth.email')}</Label>
                             <Input
                                 id="email"
                                 type="email"
                                 placeholder="admin@elbaraka.com"
+                                className={isRTL ? 'text-right' : 'text-left'}
                                 {...register('email')}
                             />
                             {errors.email && (
-                                <p className="text-sm text-destructive">{errors.email.message}</p>
+                                <p className="text-sm text-destructive">{t('validation.invalidEmail')}</p>
                             )}
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password">Password</Label>
+                            <Label htmlFor="password">{t('auth.password')}</Label>
                             <Input
                                 id="password"
                                 type="password"
                                 placeholder="••••••••"
+                                className={isRTL ? 'text-right' : 'text-left'}
                                 {...register('password')}
                             />
                             {errors.password && (
-                                <p className="text-sm text-destructive">{errors.password.message}</p>
+                                <p className="text-sm text-destructive">{t('validation.minLength', { field: t('auth.password'), count: 6 })}</p>
                             )}
                         </div>
                         <Button
@@ -115,7 +126,7 @@ export default function LoginPage() {
                             className="w-full bg-elbaraka-primary hover:bg-elbaraka-secondary"
                             disabled={isLoading}
                         >
-                            {isLoading ? 'Signing in...' : 'Sign In'}
+                            {isLoading ? t('auth.signingIn') : t('auth.signIn')}
                         </Button>
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">

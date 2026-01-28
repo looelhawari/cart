@@ -14,9 +14,13 @@ import { useToast } from '@/components/ui/use-toast'
 import { Plus, Search, Edit, Trash2, Image as ImageIcon } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import type { Product } from '@/types'
 
 export default function ProductsPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
+
     const [filters, setFilters] = useState<ProductFilters>({ page: 1, per_page: 20 })
     const [searchTerm, setSearchTerm] = useState('')
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -47,8 +51,8 @@ export default function ProductsPage() {
             reset()
             setSelectedFile(null)
             toast({
-                title: 'Success',
-                description: 'Product created successfully',
+                title: t('common.success'),
+                description: t('products.createSuccess'),
                 variant: 'default'
             })
         },
@@ -57,9 +61,9 @@ export default function ProductsPage() {
             console.error('Error response:', error?.response?.data)
             const errorMessage = error?.response?.data?.message ||
                 JSON.stringify(error?.response?.data?.errors) ||
-                'Failed to create product'
+                t('products.createError')
             toast({
-                title: 'Error',
+                title: t('common.error'),
                 description: errorMessage,
                 variant: 'destructive'
             })
@@ -77,15 +81,15 @@ export default function ProductsPage() {
             setEditingProduct(null)
             setSelectedFile(null)
             toast({
-                title: 'Success',
-                description: 'Product updated successfully',
+                title: t('common.success'),
+                description: t('products.updateSuccess'),
                 variant: 'default'
             })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to update product',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('products.updateError'),
                 variant: 'destructive'
             })
         }
@@ -96,15 +100,15 @@ export default function ProductsPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] })
             toast({
-                title: 'Success',
-                description: 'Product deleted successfully',
+                title: t('common.success'),
+                description: t('products.deleteSuccess'),
                 variant: 'default'
             })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to delete product',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('products.deleteError'),
                 variant: 'destructive'
             })
         }
@@ -135,11 +139,11 @@ export default function ProductsPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                 <div>
-                    <h1 className="text-3xl font-bold text-elbaraka-primary">Products</h1>
+                    <h1 className="text-3xl font-bold text-elbaraka-primary">{t('products.title')}</h1>
                     <p className="text-muted-foreground mt-1">
-                        Manage your product catalog
+                        {t('products.subtitle')}
                     </p>
                 </div>
                 <Button
@@ -150,8 +154,8 @@ export default function ProductsPage() {
                     }}
                     className="bg-elbaraka-primary hover:bg-elbaraka-secondary"
                 >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Product
+                    <Plus className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {t('products.addProduct')}
                 </Button>
             </div>
 
@@ -160,12 +164,13 @@ export default function ProductsPage() {
                 <CardContent className="pt-6">
                     <div className="grid gap-4 md:grid-cols-4">
                         <div className="md:col-span-2">
-                            <div className="flex space-x-2">
+                            <div className={`flex ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                                 <Input
-                                    placeholder="Search by name or barcode..."
+                                    placeholder={t('products.searchPlaceholder')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    className={isRTL ? 'text-right' : 'text-left'}
                                 />
                                 <Button onClick={handleSearch}>
                                     <Search className="h-4 w-4" />
@@ -179,13 +184,13 @@ export default function ProductsPage() {
                             }
                         >
                             <SelectTrigger className="bg-white">
-                                <SelectValue placeholder="All Categories" />
+                                <SelectValue placeholder={t('products.allCategories')} />
                             </SelectTrigger>
                             <SelectContent className="bg-white">
-                                <SelectItem value="all">All Categories</SelectItem>
+                                <SelectItem value="all">{t('products.allCategories')}</SelectItem>
                                 {categories?.map((cat) => (
                                     <SelectItem key={cat.id} value={cat.id.toString()}>
-                                        {cat.name_en || cat.name_ar || 'Unnamed'}
+                                        {isRTL ? (cat.name_ar || cat.name_en || 'Unnamed') : (cat.name_en || cat.name_ar || 'Unnamed')}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -197,13 +202,13 @@ export default function ProductsPage() {
                             }
                         >
                             <SelectTrigger className="bg-white">
-                                <SelectValue placeholder="All Status" />
+                                <SelectValue placeholder={t('products.allStatus')} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="in_stock">In Stock</SelectItem>
-                                <SelectItem value="out_of_stock">Out of Stock</SelectItem>
-                                <SelectItem value="discontinued">Discontinued</SelectItem>
+                                <SelectItem value="all">{t('products.allStatus')}</SelectItem>
+                                <SelectItem value="in_stock">{t('products.inStock')}</SelectItem>
+                                <SelectItem value="out_of_stock">{t('products.outOfStock')}</SelectItem>
+                                <SelectItem value="discontinued">{t('products.discontinued')}</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -214,21 +219,21 @@ export default function ProductsPage() {
             <Card>
                 <CardContent className="pt-6">
                     {isLoading ? (
-                        <div className="text-center py-12">Loading...</div>
+                        <div className="text-center py-12">{t('common.loading')}</div>
                     ) : (
                         <>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b">
-                                            <th className="text-left p-3">Image</th>
-                                            <th className="text-left p-3">Barcode</th>
-                                            <th className="text-left p-3">Name</th>
-                                            <th className="text-left p-3">Category</th>
-                                            <th className="text-left p-3">Price</th>
-                                            <th className="text-left p-3">Stock</th>
-                                            <th className="text-left p-3">Status</th>
-                                            <th className="text-right p-3">Actions</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.image')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.barcode')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.name')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.category')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.price')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.stock')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
+                                            <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -286,7 +291,7 @@ export default function ProductsPage() {
                                                             size="sm"
                                                             variant="destructive"
                                                             onClick={() => {
-                                                                if (confirm('Are you sure you want to delete this product?')) {
+                                                                if (confirm(t('confirmations.deleteProduct'))) {
                                                                     deleteMutation.mutate(product.barcode)
                                                                 }
                                                             }}
@@ -302,26 +307,26 @@ export default function ProductsPage() {
                             </div>
 
                             {/* Pagination */}
-                            <div className="flex items-center justify-between mt-4">
+                            <div className={`flex items-center justify-between mt-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <p className="text-sm text-muted-foreground">
-                                    Showing {((filters.page || 1) - 1) * (filters.per_page || 20) + 1} to{' '}
-                                    {Math.min((filters.page || 1) * (filters.per_page || 20), productsData?.total || 0)} of{' '}
-                                    {productsData?.total || 0} products
+                                    {t('common.showing')} {((filters.page || 1) - 1) * (filters.per_page || 20) + 1} {t('common.to')}{' '}
+                                    {Math.min((filters.page || 1) * (filters.per_page || 20), productsData?.total || 0)} {t('common.of')}{' '}
+                                    {productsData?.total || 0} {t('products.productsCount')}
                                 </p>
-                                <div className="flex space-x-2">
+                                <div className={`flex ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                                     <Button
                                         variant="outline"
                                         disabled={filters.page === 1}
                                         onClick={() => setFilters({ ...filters, page: (filters.page || 1) - 1 })}
                                     >
-                                        Previous
+                                        {t('common.previous')}
                                     </Button>
                                     <Button
                                         variant="outline"
                                         disabled={filters.page === productsData?.last_page}
                                         onClick={() => setFilters({ ...filters, page: (filters.page || 1) + 1 })}
                                     >
-                                        Next
+                                        {t('common.next')}
                                     </Button>
                                 </div>
                             </div>
@@ -340,12 +345,12 @@ export default function ProductsPage() {
             }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{editingProduct ? 'Edit Product' : 'Create Product'}</DialogTitle>
+                        <DialogTitle>{editingProduct ? t('products.editProduct') : t('products.addProduct')}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="barcode">Barcode *</Label>
+                                <Label htmlFor="barcode">{t('products.barcode')} *</Label>
                                 <Input
                                     id="barcode"
                                     {...register('barcode', { required: true })}
@@ -354,13 +359,13 @@ export default function ProductsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="category_id">Category *</Label>
+                                <Label htmlFor="category_id">{t('products.category')} *</Label>
                                 <Select
                                     value={watch('category_id')?.toString() || ''}
                                     onValueChange={(value) => setValue('category_id', parseInt(value))}
                                 >
                                     <SelectTrigger className="bg-white">
-                                        <SelectValue placeholder="Select category" />
+                                        <SelectValue placeholder={t('products.selectCategory')} />
                                     </SelectTrigger>
                                     <SelectContent className="bg-white">
                                         {categories?.map((cat) => (
@@ -375,18 +380,18 @@ export default function ProductsPage() {
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="name_en">Name (English) *</Label>
+                                <Label htmlFor="name_en">{t('products.nameEn')} *</Label>
                                 <Input id="name_en" {...register('name_en', { required: true })} />
                             </div>
                             <div>
-                                <Label htmlFor="name_ar">Name (Arabic) *</Label>
+                                <Label htmlFor="name_ar">{t('products.nameAr')} *</Label>
                                 <Input id="name_ar" {...register('name_ar', { required: true })} />
                             </div>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="price">Price (EGP) *</Label>
+                                <Label htmlFor="price">{t('products.priceEgp')} *</Label>
                                 <Input
                                     id="price"
                                     type="number"
@@ -395,7 +400,7 @@ export default function ProductsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="cost_price">Cost Price (EGP) *</Label>
+                                <Label htmlFor="cost_price">{t('products.costPriceEgp')} *</Label>
                                 <Input
                                     id="cost_price"
                                     type="number"
@@ -407,7 +412,7 @@ export default function ProductsPage() {
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="stock_quantity">Stock Quantity *</Label>
+                                <Label htmlFor="stock_quantity">{t('products.stockQuantity')} *</Label>
                                 <Input
                                     id="stock_quantity"
                                     type="number"
@@ -415,7 +420,7 @@ export default function ProductsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="min_stock_level">Min Stock Level *</Label>
+                                <Label htmlFor="min_stock_level">{t('products.minStockLevel')} *</Label>
                                 <Input
                                     id="min_stock_level"
                                     type="number"
@@ -426,27 +431,27 @@ export default function ProductsPage() {
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="weight">Weight</Label>
+                                <Label htmlFor="weight">{t('products.weight')}</Label>
                                 <Input id="weight" type="number" step="0.01" {...register('weight', { valueAsNumber: true })} />
                             </div>
                             <div>
-                                <Label htmlFor="unit">Unit</Label>
-                                <Input id="unit" {...register('unit')} placeholder="kg, piece, etc." />
+                                <Label htmlFor="unit">{t('products.unit')}</Label>
+                                <Input id="unit" {...register('unit')} placeholder={t('products.unitPlaceholder')} />
                             </div>
                         </div>
 
                         <div>
-                            <Label htmlFor="description">Description (English)</Label>
+                            <Label htmlFor="description">{t('products.descriptionEn')}</Label>
                             <Textarea id="description" {...register('description')} rows={3} />
                         </div>
 
                         <div>
-                            <Label htmlFor="description_ar">Description (Arabic)</Label>
+                            <Label htmlFor="description_ar">{t('products.descriptionAr')}</Label>
                             <Textarea id="description_ar" {...register('description_ar')} rows={3} />
                         </div>
 
                         <div>
-                            <Label htmlFor="image">Product Image</Label>
+                            <Label htmlFor="image">{t('products.productImage')}</Label>
                             <Input
                                 id="image"
                                 type="file"
@@ -465,14 +470,14 @@ export default function ProductsPage() {
                                     setSelectedFile(null)
                                 }}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 type="submit"
                                 className="bg-elbaraka-primary hover:bg-elbaraka-secondary"
                                 disabled={createMutation.isPending || updateMutation.isPending}
                             >
-                                {editingProduct ? 'Update' : 'Create'}
+                                {editingProduct ? t('common.update') : t('common.create')}
                             </Button>
                         </DialogFooter>
                     </form>

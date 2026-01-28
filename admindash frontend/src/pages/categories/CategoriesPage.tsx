@@ -11,9 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast'
 import { Plus, Edit, Trash2, FolderTree } from 'lucide-react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import type { Category } from '@/types'
 
 export default function CategoriesPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
+
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<Category | null>(null)
     const [imageFile, setImageFile] = useState<File | null>(null)
@@ -44,12 +48,12 @@ export default function CategoriesPage() {
             setImageFile(null)
             setImagePreview(null)
             reset()
-            toast({ title: 'Category created successfully' })
+            toast({ title: t('categories.createSuccess') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to create category',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('categories.createError'),
                 variant: 'destructive'
             })
         }
@@ -74,12 +78,12 @@ export default function CategoriesPage() {
             setImageFile(null)
             setImagePreview(null)
             reset()
-            toast({ title: 'Category updated successfully' })
+            toast({ title: t('categories.updateSuccess') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to update category',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('categories.updateError'),
                 variant: 'destructive'
             })
         }
@@ -89,12 +93,12 @@ export default function CategoriesPage() {
         mutationFn: categoryService.deleteCategory,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['categories-tree'] })
-            toast({ title: 'Category deleted successfully' })
+            toast({ title: t('categories.deleteSuccess') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to delete category',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('categories.deleteError'),
                 variant: 'destructive'
             })
         }
@@ -197,38 +201,38 @@ export default function CategoriesPage() {
         return categories.map((category) => (
             <div key={category.id}>
                 <div
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors mb-2"
-                    style={{ marginLeft: `${level * 24}px` }}
+                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}
+                    style={{ marginLeft: isRTL ? '0' : `${level * 24}px`, marginRight: isRTL ? `${level * 24}px` : '0' }}
                 >
-                    <div className="flex items-center space-x-3 flex-1">
+                    <div className={`flex items-center flex-1 ${isRTL ? 'space-x-reverse space-x-3' : 'space-x-3'}`}>
                         {category.image && (
                             <img
                                 src={category.image}
-                                alt={category.name_en}
+                                alt={isRTL ? category.name_ar : category.name_en}
                                 className="h-10 w-10 rounded object-cover"
                             />
                         )}
                         <FolderTree className="h-5 w-5 text-elbaraka-primary" />
                         <div className="flex-1">
                             <div className="flex items-center gap-2">
-                                <p className="font-medium">{category.name_en}</p>
+                                <p className="font-medium">{isRTL ? category.name_ar : category.name_en}</p>
                                 {category.icon && <span className="text-sm">({category.icon})</span>}
                             </div>
-                            <p className="text-sm text-muted-foreground">{category.name_ar}</p>
+                            <p className="text-sm text-muted-foreground">{isRTL ? category.name_en : category.name_ar}</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                                Slug: {category.slug} | Order: {category.sort_order}
-                                {category.products_count !== undefined && ` | ${category.products_count} products`}
+                                {t('categories.slug')}: {category.slug} | {t('categories.sortOrder')}: {category.sort_order}
+                                {category.products_count !== undefined && ` | ${category.products_count} ${t('products.productsCount')}`}
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className={`flex items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                         <span
                             className={`px-2 py-1 text-xs rounded ${category.is_active
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
                                 }`}
                         >
-                            {category.is_active ? 'Active' : 'Inactive'}
+                            {category.is_active ? t('common.active') : t('common.inactive')}
                         </span>
                         <Button size="sm" variant="outline" onClick={() => handleEdit(category)}>
                             <Edit className="h-4 w-4" />
@@ -237,7 +241,7 @@ export default function CategoriesPage() {
                             size="sm"
                             variant="destructive"
                             onClick={() => {
-                                if (confirm('Are you sure? This will delete all subcategories and products.')) {
+                                if (confirm(t('confirmations.deleteCategory'))) {
                                     deleteMutation.mutate(category.id)
                                 }
                             }}
@@ -257,24 +261,24 @@ export default function CategoriesPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                 <div>
-                    <h1 className="text-3xl font-bold text-elbaraka-primary">Categories</h1>
-                    <p className="text-muted-foreground mt-1">Manage product categories and hierarchy</p>
+                    <h1 className="text-3xl font-bold text-elbaraka-primary">{t('categories.title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('categories.subtitle')}</p>
                 </div>
                 <Button
                     onClick={handleOpenDialog}
                     className="bg-elbaraka-primary hover:bg-elbaraka-secondary"
                 >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Category
+                    <Plus className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {t('categories.addCategory')}
                 </Button>
             </div>
 
             <Card>
                 <CardContent className="pt-6">
                     {isLoading ? (
-                        <div className="text-center py-12">Loading...</div>
+                        <div className="text-center py-12">{t('common.loading')}</div>
                     ) : (
                         <div className="space-y-0">{categoryTree && renderCategoryTree(categoryTree)}</div>
                     )}
@@ -284,48 +288,48 @@ export default function CategoriesPage() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{editingCategory ? 'Edit Category' : 'Create Category'}</DialogTitle>
+                        <DialogTitle>{editingCategory ? t('categories.editCategory') : t('categories.addCategory')}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="name_en">Name (English) *</Label>
-                                <Input id="name_en" {...register('name_en', { required: true })} placeholder="e.g., Fresh Fruits" />
+                                <Label htmlFor="name_en">{t('categories.nameEn')} *</Label>
+                                <Input id="name_en" {...register('name_en', { required: true })} placeholder={t('categories.nameEnPlaceholder')} />
                             </div>
                             <div>
-                                <Label htmlFor="name_ar">Name (Arabic) *</Label>
-                                <Input id="name_ar" {...register('name_ar', { required: true })} placeholder="e.g., فواكه طازجة" dir="rtl" />
+                                <Label htmlFor="name_ar">{t('categories.nameAr')} *</Label>
+                                <Input id="name_ar" {...register('name_ar', { required: true })} placeholder={t('categories.nameArPlaceholder')} dir="rtl" />
                             </div>
                         </div>
 
                         <div>
-                            <Label htmlFor="slug">Slug *</Label>
-                            <Input id="slug" {...register('slug', { required: true })} placeholder="e.g., fresh-fruits" />
-                            <p className="text-xs text-muted-foreground mt-1">URL-friendly identifier (lowercase, no spaces)</p>
+                            <Label htmlFor="slug">{t('categories.slug')} *</Label>
+                            <Input id="slug" {...register('slug', { required: true })} placeholder={t('categories.slugPlaceholder')} />
+                            <p className="text-xs text-muted-foreground mt-1">{t('categories.slugHint')}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="icon">Icon</Label>
-                                <Input id="icon" {...register('icon')} placeholder="e.g., apple, cookie" />
+                                <Label htmlFor="icon">{t('categories.icon')}</Label>
+                                <Input id="icon" {...register('icon')} placeholder={t('categories.iconPlaceholder')} />
                             </div>
                             <div>
-                                <Label htmlFor="sort_order">Sort Order</Label>
+                                <Label htmlFor="sort_order">{t('categories.sortOrder')}</Label>
                                 <Input id="sort_order" type="number" {...register('sort_order')} placeholder="0" />
                             </div>
                         </div>
 
                         <div>
-                            <Label htmlFor="parent_id">Parent Category</Label>
+                            <Label htmlFor="parent_id">{t('categories.parent')}</Label>
                             <Select
                                 value={watch('parent_id') === null || watch('parent_id') === undefined ? 'null' : watch('parent_id')?.toString()}
                                 onValueChange={(value) => setValue('parent_id', value === 'null' ? null : Number(value))}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="None (Root Category)" />
+                                    <SelectValue placeholder={t('categories.noParent')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="null">None (Root Category)</SelectItem>
+                                    <SelectItem value="null">{t('categories.noParent')}</SelectItem>
                                     {categoryTree && getAllCategories(categoryTree)
                                         .filter(cat => cat.id !== editingCategory?.id)
                                         .map(cat => (
@@ -339,17 +343,17 @@ export default function CategoriesPage() {
                         </div>
 
                         <div>
-                            <Label htmlFor="description_en">Description (English)</Label>
-                            <Textarea id="description_en" {...register('description_en')} rows={2} placeholder="English description..." />
+                            <Label htmlFor="description_en">{t('categories.descriptionEn')}</Label>
+                            <Textarea id="description_en" {...register('description_en')} rows={2} placeholder={t('categories.descriptionEnPlaceholder')} />
                         </div>
 
                         <div>
-                            <Label htmlFor="description_ar">Description (Arabic)</Label>
-                            <Textarea id="description_ar" {...register('description_ar')} rows={2} placeholder="الوصف بالعربية..." dir="rtl" />
+                            <Label htmlFor="description_ar">{t('categories.descriptionAr')}</Label>
+                            <Textarea id="description_ar" {...register('description_ar')} rows={2} placeholder={t('categories.descriptionArPlaceholder')} dir="rtl" />
                         </div>
 
                         <div>
-                            <Label htmlFor="image">Category Image</Label>
+                            <Label htmlFor="image">{t('categories.image')}</Label>
                             <Input
                                 id="image"
                                 type="file"
@@ -368,9 +372,9 @@ export default function CategoriesPage() {
                             )}
                         </div>
 
-                        <div className="flex items-center space-x-2">
+                        <div className={`flex items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                             <input type="checkbox" id="is_active" {...register('is_active')} className="h-4 w-4 rounded border-gray-300" />
-                            <Label htmlFor="is_active">Active</Label>
+                            <Label htmlFor="is_active">{t('common.active')}</Label>
                         </div>
 
                         <DialogFooter>
@@ -379,14 +383,14 @@ export default function CategoriesPage() {
                                 variant="outline"
                                 onClick={() => setIsDialogOpen(false)}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 type="submit"
                                 className="bg-elbaraka-primary hover:bg-elbaraka-secondary"
                                 disabled={createMutation.isPending || updateMutation.isPending}
                             >
-                                {editingCategory ? 'Update' : 'Create'}
+                                {editingCategory ? t('common.update') : t('common.create')}
                             </Button>
                         </DialogFooter>
                     </form>

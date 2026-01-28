@@ -89,6 +89,37 @@ class AdminCategoryController extends Controller
         return response()->json(['message' => 'Category deleted successfully']);
     }
 
+    public function uploadImage(Request $request, $id)
+    {
+        $category = Category::findOrFail($id);
+
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+        ]);
+
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($category->image && file_exists(public_path($category->image))) {
+                unlink(public_path($category->image));
+            }
+
+            $image = $request->file('image');
+            $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+            $path = 'uploads/categories';
+            
+            // Create directory if it doesn't exist
+            if (!file_exists(public_path($path))) {
+                mkdir(public_path($path), 0777, true);
+            }
+
+            $image->move(public_path($path), $filename);
+            $category->image = '/' . $path . '/' . $filename;
+            $category->save();
+        }
+
+        return response()->json($category->load('parent'));
+    }
+
     private function buildTree($categories)
     {
         return $categories->map(function ($category) {

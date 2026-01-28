@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { orderService } from '@/services/order.service'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +28,8 @@ export default function OrderDetailPage() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const { toast } = useToast()
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
     const [showCancelDialog, setShowCancelDialog] = useState(false)
     const [cancelReason, setCancelReason] = useState('')
 
@@ -42,10 +45,10 @@ export default function OrderDetailPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['order', id] })
             queryClient.invalidateQueries({ queryKey: ['orders'] })
-            toast({ title: 'Order status updated successfully', description: 'The order status has been updated.' })
+            toast({ title: t('orders.orderStatusUpdated'), description: t('orders.orderStatusUpdatedDesc') })
         },
         onError: () => {
-            toast({ title: 'Error', description: 'Failed to update order status', variant: 'destructive' })
+            toast({ title: t('common.error'), description: t('orders.failedToUpdateStatus'), variant: 'destructive' })
         }
     })
 
@@ -57,10 +60,10 @@ export default function OrderDetailPage() {
             queryClient.invalidateQueries({ queryKey: ['orders'] })
             setShowCancelDialog(false)
             setCancelReason('')
-            toast({ title: 'Order cancelled successfully', description: 'The order has been cancelled.' })
+            toast({ title: t('orders.orderCancelled'), description: t('orders.orderCancelledDesc') })
         },
         onError: () => {
-            toast({ title: 'Error', description: 'Failed to cancel order', variant: 'destructive' })
+            toast({ title: t('common.error'), description: t('orders.failedToCancelOrder'), variant: 'destructive' })
         }
     })
 
@@ -70,14 +73,14 @@ export default function OrderDetailPage() {
 
     const handleCancelOrder = () => {
         if (!cancelReason.trim()) {
-            toast({ title: 'Error', description: 'Please provide a cancellation reason', variant: 'destructive' })
+            toast({ title: t('common.error'), description: t('orders.provideCancellationReason'), variant: 'destructive' })
             return
         }
         cancelOrderMutation.mutate({ id: Number(id), reason: cancelReason })
     }
 
-    if (isLoading) return <div className="text-center py-12">Loading...</div>
-    if (!order) return <div className="text-center py-12">Order not found</div>
+    if (isLoading) return <div className="text-center py-12">{t('common.loading')}</div>
+    if (!order) return <div className="text-center py-12">{t('orders.orderNotFound')}</div>
 
     return (
         <div className="space-y-6">
@@ -87,7 +90,7 @@ export default function OrderDetailPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold text-elbaraka-primary">Order {order.order_number}</h1>
+                        <h1 className="text-3xl font-bold text-elbaraka-primary">{t('orders.orderNumber')} {order.order_number}</h1>
                         <p className="text-muted-foreground mt-1">{formatDate(order.created_at)}</p>
                     </div>
                 </div>
@@ -102,22 +105,22 @@ export default function OrderDetailPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center">
                             <User className="h-5 w-5 mr-2" />
-                            Customer Information
+                            {t('orders.customerInformation')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                         <div>
-                            <p className="text-sm text-muted-foreground">Name</p>
+                            <p className="text-sm text-muted-foreground">{t('orders.name')}</p>
                             <p className="font-medium">
                                 {order.user?.first_name} {order.user?.last_name}
                             </p>
                         </div>
                         <div>
-                            <p className="text-sm text-muted-foreground">Email</p>
+                            <p className="text-sm text-muted-foreground">{t('orders.email')}</p>
                             <p className="font-medium">{order.user?.email}</p>
                         </div>
                         <div>
-                            <p className="text-sm text-muted-foreground">Phone</p>
+                            <p className="text-sm text-muted-foreground">{t('orders.phone')}</p>
                             <p className="font-medium">{order.user?.phone}</p>
                         </div>
                     </CardContent>
@@ -127,7 +130,7 @@ export default function OrderDetailPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center">
                             <MapPin className="h-5 w-5 mr-2" />
-                            Delivery Information
+                            {t('orders.deliveryInformation')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -135,60 +138,60 @@ export default function OrderDetailPage() {
                             <div className="space-y-2">
                                 {order.delivery_address_details.recipient_name && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Recipient</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.recipient')}</p>
                                         <p className="font-medium">{order.delivery_address_details.recipient_name}</p>
                                     </div>
                                 )}
                                 <div>
-                                    <p className="text-sm text-muted-foreground">Street</p>
+                                    <p className="text-sm text-muted-foreground">{t('orders.street')}</p>
                                     <p className="font-medium">{order.delivery_address_details.street}</p>
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Building</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.building')}</p>
                                         <p className="font-medium">{order.delivery_address_details.building}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Floor</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.floor')}</p>
                                         <p className="font-medium">{order.delivery_address_details.floor}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Apartment</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.apartment')}</p>
                                         <p className="font-medium">{order.delivery_address_details.apartment}</p>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Area</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.area')}</p>
                                         <p className="font-medium">{order.delivery_address_details.area}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">City</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.city')}</p>
                                         <p className="font-medium">{order.delivery_address_details.city}</p>
                                     </div>
                                 </div>
                                 {order.delivery_address_details.landmark && (
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Landmark</p>
+                                        <p className="text-sm text-muted-foreground">{t('orders.landmark')}</p>
                                         <p className="font-medium">{order.delivery_address_details.landmark}</p>
                                     </div>
                                 )}
                             </div>
                         ) : (
                             <div>
-                                <p className="text-sm text-muted-foreground">Address</p>
+                                <p className="text-sm text-muted-foreground">{t('orders.address')}</p>
                                 <p className="font-medium">{order.delivery_address}</p>
                             </div>
                         )}
                         {order.delivery_notes && (
                             <div>
-                                <p className="text-sm text-muted-foreground">Notes</p>
+                                <p className="text-sm text-muted-foreground">{t('orders.deliveryNotes')}</p>
                                 <p className="font-medium">{order.delivery_notes}</p>
                             </div>
                         )}
                         {order.estimated_delivery_time && (
                             <div>
-                                <p className="text-sm text-muted-foreground">Estimated Delivery</p>
+                                <p className="text-sm text-muted-foreground">{t('orders.estimatedDelivery')}</p>
                                 <p className="font-medium">{new Date(order.estimated_delivery_time).toLocaleDateString()}</p>
                             </div>
                         )}
@@ -200,17 +203,17 @@ export default function OrderDetailPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <Package className="h-5 w-5 mr-2" />
-                        Order Items
+                        {t('orders.items')}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <table className="w-full">
                         <thead>
                             <tr className="border-b">
-                                <th className="text-left p-3">Product</th>
-                                <th className="text-right p-3">Price</th>
-                                <th className="text-right p-3">Quantity</th>
-                                <th className="text-right p-3">Subtotal</th>
+                                <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.product')}</th>
+                                <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('orders.price')}</th>
+                                <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('orders.quantity')}</th>
+                                <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('orders.subtotal')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -231,30 +234,30 @@ export default function OrderDetailPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center">
                         <DollarSign className="h-5 w-5 mr-2" />
-                        Payment Summary
+                        {t('orders.paymentSummary')}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                     <div className="flex justify-between">
-                        <span>Subtotal</span>
+                        <span>{t('orders.subtotal')}</span>
                         <span>{formatCurrency(order.total_amount)}</span>
                     </div>
                     {order.discount_amount > 0 && (
                         <div className="flex justify-between text-green-600">
-                            <span>Discount</span>
+                            <span>{t('orders.discount')}</span>
                             <span>-{formatCurrency(order.discount_amount)}</span>
                         </div>
                     )}
                     <div className="flex justify-between">
-                        <span>Delivery Fee</span>
+                        <span>{t('orders.deliveryFee')}</span>
                         <span>{formatCurrency(order.delivery_fee)}</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t font-bold text-lg">
-                        <span>Total</span>
+                        <span>{t('orders.total')}</span>
                         <span>{formatCurrency(order.final_amount)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Payment Method</span>
+                        <span>{t('orders.paymentMethod')}</span>
                         <span>{order.payment_method?.replace('_', ' ') || 'N/A'}</span>
                     </div>
                 </CardContent>
@@ -262,7 +265,7 @@ export default function OrderDetailPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Order Actions</CardTitle>
+                    <CardTitle>{t('orders.orderActions')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -275,7 +278,7 @@ export default function OrderDetailPage() {
                                     className="bg-blue-600 hover:bg-blue-700"
                                 >
                                     <CheckCircle className="h-4 w-4 mr-2" />
-                                    Confirm Order
+                                    {t('orders.confirmOrder')}
                                 </Button>
                             )}
 
@@ -286,7 +289,7 @@ export default function OrderDetailPage() {
                                     className="bg-orange-600 hover:bg-orange-700"
                                 >
                                     <Package className="h-4 w-4 mr-2" />
-                                    Start Preparing
+                                    {t('orders.startPreparing')}
                                 </Button>
                             )}
 
@@ -297,7 +300,7 @@ export default function OrderDetailPage() {
                                     className="bg-purple-600 hover:bg-purple-700"
                                 >
                                     <Truck className="h-4 w-4 mr-2" />
-                                    Out for Delivery
+                                    {t('orders.outForDelivery')}
                                 </Button>
                             )}
 
@@ -308,7 +311,7 @@ export default function OrderDetailPage() {
                                     className="bg-green-600 hover:bg-green-700"
                                 >
                                     <CheckCircle className="h-4 w-4 mr-2" />
-                                    Mark as Delivered
+                                    {t('orders.markAsDelivered')}
                                 </Button>
                             )}
 
@@ -319,14 +322,14 @@ export default function OrderDetailPage() {
                                     disabled={cancelOrderMutation.isPending}
                                 >
                                     <XCircle className="h-4 w-4 mr-2" />
-                                    Cancel Order
+                                    {t('orders.cancelOrder')}
                                 </Button>
                             )}
                         </div>
 
                         {/* Advanced Status Update Dropdown */}
                         <div className="pt-4 border-t">
-                            <p className="text-sm text-muted-foreground mb-2">Or manually update status:</p>
+                            <p className="text-sm text-muted-foreground mb-2">{t('orders.manuallyUpdateStatus')}</p>
                             <Select
                                 value={order.status}
                                 onValueChange={(value: OrderStatus) => handleStatusUpdate(value)}
@@ -339,31 +342,31 @@ export default function OrderDetailPage() {
                                     <SelectItem value="pending">
                                         <div className="flex items-center">
                                             <Clock className="h-4 w-4 mr-2 text-orange-500" />
-                                            Pending
+                                            {t('orders.status.pending')}
                                         </div>
                                     </SelectItem>
                                     <SelectItem value="confirmed">
                                         <div className="flex items-center">
                                             <CheckCircle className="h-4 w-4 mr-2 text-blue-500" />
-                                            Confirmed
+                                            {t('orders.status.confirmed')}
                                         </div>
                                     </SelectItem>
                                     <SelectItem value="preparing">
                                         <div className="flex items-center">
                                             <Package className="h-4 w-4 mr-2 text-orange-600" />
-                                            Preparing
+                                            {t('orders.status.preparing')}
                                         </div>
                                     </SelectItem>
                                     <SelectItem value="out_for_delivery">
                                         <div className="flex items-center">
                                             <Truck className="h-4 w-4 mr-2 text-purple-500" />
-                                            Out for Delivery
+                                            {t('orders.status.outForDelivery')}
                                         </div>
                                     </SelectItem>
                                     <SelectItem value="delivered">
                                         <div className="flex items-center">
                                             <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                                            Delivered
+                                            {t('orders.status.delivered')}
                                         </div>
                                     </SelectItem>
                                 </SelectContent>
@@ -374,7 +377,7 @@ export default function OrderDetailPage() {
                         {updateStatusMutation.isPending && (
                             <div className="flex items-center text-sm text-muted-foreground">
                                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                Updating order status...
+                                {t('orders.updatingOrderStatus')}
                             </div>
                         )}
                     </div>
@@ -385,14 +388,14 @@ export default function OrderDetailPage() {
             <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+                        <AlertDialogTitle>{t('orders.cancelOrderTitle')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Please provide a reason for cancelling this order. This action cannot be undone.
+                            {t('orders.cancelOrderDescription')}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="py-4">
                         <Textarea
-                            placeholder="Enter cancellation reason..."
+                            placeholder={t('orders.enterCancellationReason')}
                             value={cancelReason}
                             onChange={(e) => setCancelReason(e.target.value)}
                             rows={4}
@@ -403,14 +406,14 @@ export default function OrderDetailPage() {
                             setShowCancelDialog(false)
                             setCancelReason('')
                         }}>
-                            Keep Order
+                            {t('orders.keepOrder')}
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleCancelOrder}
                             className="bg-red-600 hover:bg-red-700"
                             disabled={!cancelReason.trim() || cancelOrderMutation.isPending}
                         >
-                            {cancelOrderMutation.isPending ? 'Cancelling...' : 'Cancel Order'}
+                            {cancelOrderMutation.isPending ? t('orders.cancelling') : t('orders.cancelOrder')}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth.store'
+import { useTranslation } from 'react-i18next'
 import {
     LayoutDashboard,
     Package,
@@ -21,13 +22,14 @@ import {
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 interface DashboardLayoutProps {
     children: ReactNode
 }
 
 interface NavItem {
-    title: string
+    titleKey: string
     href: string
     icon: React.ElementType
     roles?: string[]
@@ -35,71 +37,71 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        titleKey: 'navigation.dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
     },
     {
-        title: 'Products',
+        titleKey: 'navigation.products',
         href: '/products',
         icon: Package,
         roles: ['super_admin', 'admin', 'sales_manager'],
     },
     {
-        title: 'Categories',
+        titleKey: 'navigation.categories',
         href: '/categories',
         icon: FolderTree,
         roles: ['super_admin', 'admin', 'sales_manager'],
     },
     {
-        title: 'Promotions',
+        titleKey: 'navigation.promotions',
         href: '/promotions',
         icon: Tag,
         roles: ['super_admin', 'admin', 'sales_manager'],
     },
     {
-        title: 'Promo Codes',
+        titleKey: 'navigation.promoCodes',
         href: '/promo-codes',
         icon: Ticket,
         roles: ['super_admin', 'admin', 'sales_manager'],
     },
     {
-        title: 'Orders',
+        titleKey: 'navigation.orders',
         href: '/orders',
         icon: ShoppingCart,
     },
     {
-        title: 'Support Tickets',
+        titleKey: 'navigation.support',
         href: '/support',
         icon: MessageSquare,
         roles: ['super_admin', 'admin', 'customer_support'],
     },
     {
-        title: 'Financial',
+        titleKey: 'navigation.financial',
         href: '/financial',
         icon: DollarSign,
         roles: ['super_admin', 'admin', 'accountant'],
     },
     {
-        title: 'Users',
+        titleKey: 'navigation.users',
         href: '/users',
         icon: Users,
         roles: ['super_admin', 'admin'],
     },
     {
-        title: 'Analytics',
+        titleKey: 'navigation.analytics',
         href: '/analytics',
         icon: BarChart3,
         roles: ['super_admin', 'admin', 'sales_manager', 'accountant'],
     },
     {
-        title: 'Admin Logs',
+        titleKey: 'navigation.adminLogs',
         href: '/admin-logs',
         icon: Shield,
         roles: ['super_admin', 'admin'],
     },
     {
-        title: 'App Logs',
+        titleKey: 'navigation.appLogs',
         href: '/activity-logs',
         icon: Activity,
         roles: ['super_admin', 'admin'],
@@ -109,7 +111,9 @@ const navItems: NavItem[] = [
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const location = useLocation()
     const { user, logout } = useAuthStore()
+    const { t, i18n } = useTranslation()
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const isRTL = i18n.language === 'ar'
 
     const filteredNavItems = navItems.filter((item) => {
         if (!item.roles) return true
@@ -121,25 +125,41 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         window.location.href = '/login'
     }
 
+    // Format date based on language
+    const formatDate = () => {
+        const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-US'
+        return new Date().toLocaleDateString(locale, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        })
+    }
+
     return (
         <div className="min-h-screen bg-elbaraka-bg">
             {/* Sidebar */}
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-border transform transition-transform duration-200 ease-in-out',
-                    sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                    'sidebar fixed inset-y-0 z-50 w-64 bg-white transform transition-transform duration-200 ease-in-out',
+                    isRTL ? 'right-0' : 'left-0',
+                    sidebarOpen
+                        ? 'translate-x-0'
+                        : isRTL
+                            ? 'translate-x-full'
+                            : '-translate-x-full'
                 )}
             >
                 <div className="flex flex-col h-full">
                     {/* Logo */}
                     <div className="flex items-center justify-between p-6 border-b border-border">
-                        <div className="flex items-center space-x-3">
+                        <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-3" : "space-x-3")}>
                             <div className="h-10 w-10 rounded-lg bg-elbaraka-primary flex items-center justify-center text-white text-lg font-bold">
                                 EB
                             </div>
                             <div>
                                 <h1 className="text-lg font-bold text-elbaraka-primary">ElBaraka</h1>
-                                <p className="text-xs text-muted-foreground">Admin Dashboard</p>
+                                <p className="text-xs text-muted-foreground">{t('common.adminDashboard')}</p>
                             </div>
                         </div>
                         <Button
@@ -163,14 +183,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                                     key={item.href}
                                     to={item.href}
                                     className={cn(
-                                        'flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                                        'flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                                        isRTL ? "space-x-reverse space-x-3" : "space-x-3",
                                         isActive
                                             ? 'bg-elbaraka-primary text-white'
                                             : 'text-gray-700 hover:bg-gray-100'
                                     )}
                                 >
                                     <Icon className="h-5 w-5" />
-                                    <span>{item.title}</span>
+                                    <span>{t(item.titleKey)}</span>
                                 </Link>
                             )
                         })}
@@ -190,17 +211,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         <Button
                             onClick={handleLogout}
                             variant="outline"
-                            className="w-full justify-start"
+                            className={cn("w-full justify-start", isRTL && "flex-row-reverse")}
                         >
-                            <LogOut className="h-4 w-4 mr-2" />
-                            Logout
+                            <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                            {t('auth.logout')}
                         </Button>
                     </div>
                 </div>
             </aside>
 
             {/* Main Content */}
-            <div className={cn('transition-all duration-200', sidebarOpen ? 'lg:ml-64' : 'ml-0')}>
+            <div className={cn(
+                'transition-all duration-200',
+                sidebarOpen
+                    ? isRTL ? 'lg:mr-64' : 'lg:ml-64'
+                    : 'ml-0 mr-0'
+            )}>
                 {/* Header */}
                 <header className="sticky top-0 z-40 bg-white border-b border-border">
                     <div className="flex items-center justify-between px-6 py-4">
@@ -211,15 +237,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         >
                             <Menu className="h-5 w-5" />
                         </Button>
-                        <div className="flex items-center space-x-4">
+                        <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
                             <span className="text-sm text-muted-foreground">
-                                {new Date().toLocaleDateString('en-US', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric',
-                                })}
+                                {formatDate()}
                             </span>
+                            <LanguageSwitcher />
                         </div>
                     </div>
                 </header>

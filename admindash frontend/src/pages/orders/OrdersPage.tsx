@@ -9,8 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge'
 import { Search, Eye } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export default function OrdersPage() {
+    const { t, i18n } = useTranslation()
+    const isRTL = i18n.language === 'ar'
+
     const [filters, setFilters] = useState<OrderFilters>({ page: 1, per_page: 20, sort_by: 'created_at', sort_order: 'desc' })
     const [searchTerm, setSearchTerm] = useState('')
 
@@ -26,20 +30,21 @@ export default function OrdersPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-elbaraka-primary">Orders</h1>
-                <p className="text-muted-foreground mt-1">Manage customer orders and deliveries</p>
+                <h1 className="text-3xl font-bold text-elbaraka-primary">{t('orders.title')}</h1>
+                <p className="text-muted-foreground mt-1">{t('orders.subtitle')}</p>
             </div>
 
             <Card>
                 <CardContent className="pt-6">
                     <div className="grid gap-4 md:grid-cols-4 mb-6">
                         <div className="md:col-span-2">
-                            <div className="flex space-x-2">
+                            <div className={`flex ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                                 <Input
-                                    placeholder="Search by order number or customer..."
+                                    placeholder={t('orders.searchPlaceholder')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    className={isRTL ? 'text-right' : 'text-left'}
                                 />
                                 <Button onClick={handleSearch}>
                                     <Search className="h-4 w-4" />
@@ -53,17 +58,17 @@ export default function OrdersPage() {
                             }
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="All Status" />
+                                <SelectValue placeholder={t('orders.allStatus')} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="confirmed">Confirmed</SelectItem>
-                                <SelectItem value="preparing">Preparing</SelectItem>
-                                <SelectItem value="ready_for_delivery">Ready for Delivery</SelectItem>
-                                <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
-                                <SelectItem value="delivered">Delivered</SelectItem>
-                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                                <SelectItem value="all">{t('orders.allStatus')}</SelectItem>
+                                <SelectItem value="pending">{t('orders.status.pending')}</SelectItem>
+                                <SelectItem value="confirmed">{t('orders.status.confirmed')}</SelectItem>
+                                <SelectItem value="preparing">{t('orders.status.preparing')}</SelectItem>
+                                <SelectItem value="ready_for_delivery">{t('orders.status.readyForDelivery')}</SelectItem>
+                                <SelectItem value="out_for_delivery">{t('orders.status.outForDelivery')}</SelectItem>
+                                <SelectItem value="delivered">{t('orders.status.delivered')}</SelectItem>
+                                <SelectItem value="cancelled">{t('orders.status.cancelled')}</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select
@@ -73,36 +78,36 @@ export default function OrdersPage() {
                             }
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Payment Status" />
+                                <SelectValue placeholder={t('orders.paymentStatus.title')} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Payments</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="paid">Paid</SelectItem>
-                                <SelectItem value="failed">Failed</SelectItem>
-                                <SelectItem value="refunded">Refunded</SelectItem>
+                                <SelectItem value="all">{t('orders.allPayments')}</SelectItem>
+                                <SelectItem value="pending">{t('orders.paymentStatus.pending')}</SelectItem>
+                                <SelectItem value="paid">{t('orders.paymentStatus.paid')}</SelectItem>
+                                <SelectItem value="failed">{t('orders.paymentStatus.failed')}</SelectItem>
+                                <SelectItem value="refunded">{t('orders.paymentStatus.refunded')}</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
 
                     {isLoading ? (
-                        <div className="text-center py-12">Loading...</div>
+                        <div className="text-center py-12">{t('common.loading')}...</div>
                     ) : !ordersData?.data?.length ? (
-                        <div className="text-center py-12 text-muted-foreground">No orders found</div>
+                        <div className="text-center py-12 text-muted-foreground">{t('orders.noOrders')}</div>
                     ) : (
                         <>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b">
-                                            <th className="text-left p-3">Order Number</th>
-                                            <th className="text-left p-3">Customer</th>
-                                            <th className="text-left p-3">Total</th>
-                                            <th className="text-left p-3">Payment Method</th>
-                                            <th className="text-left p-3">Status</th>
-                                            <th className="text-left p-3">Payment</th>
-                                            <th className="text-left p-3">Date</th>
-                                            <th className="text-right p-3">Actions</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.orderNumber')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.customer')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.total')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.paymentMethod')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.payment')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.date')}</th>
+                                            <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -117,7 +122,7 @@ export default function OrdersPage() {
                                                         <p className="text-sm text-muted-foreground">{order.user?.phone}</p>
                                                     </div>
                                                 </td>
-                                                <td className="p-3 font-semibold">{formatCurrency(order.final_amount)}</td>
+                                                <td className="p-3 font-semibold">{formatCurrency(order.total)}</td>
                                                 <td className="p-3 text-sm">{order.payment_method.replace('_', ' ')}</td>
                                                 <td className="p-3">
                                                     <OrderStatusBadge status={order.status} />
@@ -127,11 +132,11 @@ export default function OrdersPage() {
                                                 </td>
                                                 <td className="p-3 text-sm">{formatDate(order.created_at)}</td>
                                                 <td className="p-3">
-                                                    <div className="flex items-center justify-end">
+                                                    <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'}`}>
                                                         <Link to={`/orders/${order.id}`}>
                                                             <Button size="sm" variant="outline">
-                                                                <Eye className="h-4 w-4 mr-1" />
-                                                                View
+                                                                <Eye className={`h-4 w-4 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                                                                {t('common.view')}
                                                             </Button>
                                                         </Link>
                                                     </div>
@@ -142,26 +147,26 @@ export default function OrdersPage() {
                                 </table>
                             </div>
 
-                            <div className="flex items-center justify-between mt-4">
+                            <div className={`flex items-center justify-between mt-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <p className="text-sm text-muted-foreground">
-                                    Showing {((filters.page || 1) - 1) * (filters.per_page || 20) + 1} to{' '}
-                                    {Math.min((filters.page || 1) * (filters.per_page || 20), ordersData?.meta?.total || 0)} of{' '}
-                                    {ordersData?.meta?.total || 0} orders
+                                    {t('common.showing')} {((filters.page || 1) - 1) * (filters.per_page || 20) + 1} {t('common.to')}{' '}
+                                    {Math.min((filters.page || 1) * (filters.per_page || 20), ordersData?.meta?.total || 0)} {t('common.of')}{' '}
+                                    {ordersData?.meta?.total || 0} {t('orders.ordersCount')}
                                 </p>
-                                <div className="flex space-x-2">
+                                <div className={`flex ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                                     <Button
                                         variant="outline"
                                         disabled={filters.page === 1}
                                         onClick={() => setFilters({ ...filters, page: (filters.page || 1) - 1 })}
                                     >
-                                        Previous
+                                        {t('common.previous')}
                                     </Button>
                                     <Button
                                         variant="outline"
                                         disabled={filters.page === ordersData?.meta?.last_page}
                                         onClick={() => setFilters({ ...filters, page: (filters.page || 1) + 1 })}
                                     >
-                                        Next
+                                        {t('common.next')}
                                     </Button>
                                 </div>
                             </div>
