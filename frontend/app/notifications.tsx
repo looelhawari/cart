@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,60 +6,70 @@ import {
   TouchableOpacity,
   FlatList,
   Platform,
-} from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ShoppingBag, Tag, User, CheckCircle } from 'lucide-react-native';
-import { formatDistanceToNow } from 'date-fns';
-import { useResponsive } from '@/hooks/useResponsive';
+} from "react-native";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  ArrowLeft,
+  ShoppingBag,
+  Tag,
+  User,
+  CheckCircle,
+} from "lucide-react-native";
+import { formatDistanceToNow } from "date-fns";
+import { useResponsive } from "@/hooks/useResponsive";
+import { useTranslation } from "@/i18n";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { notifications } from '@/data/notifications';
-import { Notification } from '@/types';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { notifications } from "@/data/notifications";
+import { Notification } from "@/types";
 
-type Tab = 'all' | 'orders' | 'offers' | 'account';
+type Tab = "all" | "orders" | "offers" | "account";
 
 export default function NotificationsScreen() {
   const { wp, hp, isSmallDevice } = useResponsive();
-  const [activeTab, setActiveTab] = useState<Tab>('all');
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<Tab>("all");
   const [notificationList, setNotificationList] = useState(notifications);
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'orders', label: 'Orders' },
-    { key: 'offers', label: 'Offers' },
-    { key: 'account', label: 'Account' },
+    { key: "all", label: t.notifications.all },
+    { key: "orders", label: t.notifications.orders },
+    { key: "offers", label: t.notifications.offers },
+    { key: "account", label: t.notifications.account },
   ];
 
   const filteredNotifications = notificationList.filter((notif) => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'orders') return notif.type === 'order';
-    if (activeTab === 'offers') return notif.type === 'offer';
-    if (activeTab === 'account') return notif.type === 'account';
+    if (activeTab === "all") return true;
+    if (activeTab === "orders") return notif.type === "order";
+    if (activeTab === "offers") return notif.type === "offer";
+    if (activeTab === "account") return notif.type === "account";
     return true;
   });
 
   const markAllAsRead = () => {
     setNotificationList((prev) =>
-      prev.map((notif) => ({ ...notif, isRead: true }))
+      prev.map((notif) => ({ ...notif, isRead: true })),
     );
   };
 
   const markAsRead = (id: string) => {
     setNotificationList((prev) =>
-      prev.map((notif) => (notif.id === id ? { ...notif, isRead: true } : notif))
+      prev.map((notif) =>
+        notif.id === id ? { ...notif, isRead: true } : notif,
+      ),
     );
   };
 
-  const getIcon = (type: Notification['type']) => {
+  const getIcon = (type: Notification["type"]) => {
     switch (type) {
-      case 'order':
+      case "order":
         return <ShoppingBag size={24} color={Colors.primary900} />;
-      case 'offer':
+      case "offer":
         return <Tag size={24} color={Colors.accentOrange} />;
-      case 'account':
+      case "account":
         return <User size={24} color={Colors.primary700} />;
       default:
         return <CheckCircle size={24} color={Colors.primary900} />;
@@ -94,9 +104,9 @@ export default function NotificationsScreen() {
       backgroundColor: Colors.neutralCloud,
     },
     header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
       paddingVertical: Spacing.md,
       backgroundColor: Colors.neutralWhite,
@@ -106,23 +116,23 @@ export default function NotificationsScreen() {
     backButton: {
       width: 40,
       height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     headerTitle: {
       fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
-      fontFamily: 'Poppins_700Bold',
+      fontFamily: "Poppins_700Bold",
       color: Colors.neutralCharcoal,
       flex: 1,
-      textAlign: 'center',
+      textAlign: "center",
     },
     markAllText: {
       fontSize: Typography.bodyMedium,
-      fontFamily: 'Poppins_600SemiBold',
+      fontFamily: "Poppins_600SemiBold",
       color: Colors.primary900,
     },
     tabsContainer: {
-      flexDirection: 'row',
+      flexDirection: "row",
       backgroundColor: Colors.neutralWhite,
       paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
       paddingVertical: Spacing.sm,
@@ -140,7 +150,7 @@ export default function NotificationsScreen() {
     },
     tabText: {
       fontSize: Typography.bodyMedium,
-      fontFamily: 'Poppins_600SemiBold',
+      fontFamily: "Poppins_600SemiBold",
       color: Colors.neutralMedium,
     },
     activeTabText: {
@@ -151,14 +161,14 @@ export default function NotificationsScreen() {
       gap: Spacing.sm,
     },
     notificationCard: {
-      flexDirection: 'row',
+      flexDirection: "row",
       backgroundColor: Colors.neutralWhite,
       borderRadius: 16,
       padding: isSmallDevice ? Spacing.sm : Spacing.md,
       gap: isSmallDevice ? Spacing.sm : Spacing.md,
       ...Platform.select({
         ios: {
-          shadowColor: '#000',
+          shadowColor: "#000",
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.05,
           shadowRadius: 4,
@@ -178,8 +188,8 @@ export default function NotificationsScreen() {
       height: isSmallDevice ? 40 : 48,
       borderRadius: isSmallDevice ? 20 : 24,
       backgroundColor: Colors.neutralLight,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     contentContainer: {
       flex: 1,
@@ -187,21 +197,21 @@ export default function NotificationsScreen() {
     },
     title: {
       fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
-      fontFamily: 'Poppins_600SemiBold',
+      fontFamily: "Poppins_600SemiBold",
       color: Colors.neutralCharcoal,
     },
     unreadTitle: {
-      fontFamily: 'Poppins_700Bold',
+      fontFamily: "Poppins_700Bold",
     },
     message: {
       fontSize: Typography.bodyMedium,
-      fontFamily: 'Poppins_400Regular',
+      fontFamily: "Poppins_400Regular",
       color: Colors.neutralMedium,
       lineHeight: 20,
     },
     timestamp: {
       fontSize: Typography.bodySmall,
-      fontFamily: 'Poppins_400Regular',
+      fontFamily: "Poppins_400Regular",
       color: Colors.neutralMedium,
     },
     unreadDot: {
@@ -209,30 +219,30 @@ export default function NotificationsScreen() {
       height: 8,
       borderRadius: 4,
       backgroundColor: Colors.primary900,
-      alignSelf: 'center',
+      alignSelf: "center",
     },
     emptyState: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       paddingHorizontal: Spacing.xxl,
     },
     emptyTitle: {
       fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
-      fontFamily: 'Poppins_700Bold',
+      fontFamily: "Poppins_700Bold",
       color: Colors.neutralCharcoal,
       marginBottom: Spacing.sm,
     },
     emptyText: {
       fontSize: Typography.bodyBase,
-      fontFamily: 'Poppins_400Regular',
+      fontFamily: "Poppins_400Regular",
       color: Colors.neutralMedium,
-      textAlign: 'center',
+      textAlign: "center",
     },
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -242,9 +252,9 @@ export default function NotificationsScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
+        <Text style={styles.headerTitle}>{t.notifications.title}</Text>
         <TouchableOpacity onPress={markAllAsRead}>
-          <Text style={styles.markAllText}>Mark all read</Text>
+          <Text style={styles.markAllText}>{t.notifications.markAllRead}</Text>
         </TouchableOpacity>
       </View>
 
@@ -280,13 +290,14 @@ export default function NotificationsScreen() {
         />
       ) : (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No notifications</Text>
+          <Text style={styles.emptyTitle}>
+            {t.notifications.noNotifications}
+          </Text>
           <Text style={styles.emptyText}>
-            You&apos;ll see notifications here when you have them
+            {t.notifications.noNotificationsMessage}
           </Text>
         </View>
       )}
     </SafeAreaView>
   );
 }
-

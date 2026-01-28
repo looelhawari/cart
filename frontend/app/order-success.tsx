@@ -15,9 +15,11 @@ import { Spacing } from "@/constants/Spacing";
 import { pollPaymentStatus } from "@/services/paymentMethodsApi";
 import { getOrder } from "@/services/api/orderApi";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 
 export default function OrderSuccessScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { fetchCart } = useStore();
   const {
     orderId,
@@ -137,15 +139,9 @@ export default function OrderSuccessScreen() {
       // Regular flow (from WebView or COD)
       return (
         <>
-          <Text style={styles.title}>Order Placed Successfully!</Text>
-          <Text style={styles.subtitle}>
-            Thank you for your purchase. Your order has been received and is
-            being processed.
-          </Text>
-          <Text style={styles.paymentNote}>
-            If you paid by card, your payment is being confirmed. You can check
-            your order status for updates.
-          </Text>
+          <Text style={styles.title}>{t.orderSuccess.orderPlaced}</Text>
+          <Text style={styles.subtitle}>{t.orderSuccess.thankYou}</Text>
+          <Text style={styles.paymentNote}>{t.orderSuccess.paymentNote}</Text>
         </>
       );
     }
@@ -157,21 +153,15 @@ export default function OrderSuccessScreen() {
           <View style={styles.processingIconContainer}>
             <ActivityIndicator size="large" color={Colors.primary900} />
           </View>
-          <Text style={styles.title}>Processing Payment...</Text>
-          <Text style={styles.subtitle}>
-            Please wait while we confirm your payment. This usually takes just a
-            few seconds.
-          </Text>
+          <Text style={styles.title}>{t.orderSuccess.processingPayment}</Text>
+          <Text style={styles.subtitle}>{t.orderSuccess.pleaseWait}</Text>
         </>
       );
     } else if (paymentStatus === "confirmed") {
       return (
         <>
-          <Text style={styles.title}>Payment Confirmed!</Text>
-          <Text style={styles.subtitle}>
-            Your payment has been successfully processed. Thank you for your
-            purchase!
-          </Text>
+          <Text style={styles.title}>{t.orderSuccess.paymentConfirmed}</Text>
+          <Text style={styles.subtitle}>{t.orderSuccess.paymentSuccess}</Text>
         </>
       );
     } else if (paymentStatus === "failed") {
@@ -185,11 +175,10 @@ export default function OrderSuccessScreen() {
             />
           </View>
           <Text style={[styles.title, { color: Colors.error }]}>
-            Payment Failed
+            {t.orderSuccess.paymentFailed}
           </Text>
           <Text style={styles.subtitle}>
-            Unfortunately, your payment could not be processed. Please try again
-            or contact support.
+            {t.orderSuccess.paymentFailedMessage}
           </Text>
         </>
       );
@@ -212,21 +201,26 @@ export default function OrderSuccessScreen() {
         {renderStatusMessage()}
 
         <View style={styles.orderCard}>
-          <Text style={styles.orderLabel}>Order Number</Text>
+          <Text style={styles.orderLabel}>{t.orderSuccess.orderNumber}</Text>
           <Text style={styles.orderNumber}>{orderNumber || "N/A"}</Text>
 
           {(promoCode && promoDiscount) || promoInfo ? (
             <>
-              <Text style={styles.estimatedLabel}>Promo Applied</Text>
+              <Text style={styles.estimatedLabel}>
+                {t.orderSuccess.promoApplied}
+              </Text>
               <Text style={styles.promoValue}>
-                {promoCode || promoInfo?.code} (-{promoDiscount || promoInfo?.discount} EGP)
+                {promoCode || promoInfo?.code} (-
+                {promoDiscount || promoInfo?.discount} EGP)
               </Text>
             </>
           ) : null}
 
           {deliveryDate && deliveryTime && (
             <>
-              <Text style={styles.estimatedLabel}>Estimated Delivery</Text>
+              <Text style={styles.estimatedLabel}>
+                {t.orderSuccess.estimatedDelivery}
+              </Text>
               <Text style={styles.estimatedTime}>
                 {new Date(deliveryDate).toLocaleDateString("en-US", {
                   weekday: "long",
@@ -246,7 +240,9 @@ export default function OrderSuccessScreen() {
               style={styles.trackButton}
               onPress={() => router.replace(`/orders/${orderId}` as any)}
             >
-              <Text style={styles.trackButtonText}>View Order Details</Text>
+              <Text style={styles.trackButtonText}>
+                {t.orderSuccess.viewOrderDetails}
+              </Text>
             </TouchableOpacity>
           )}
 
@@ -255,14 +251,18 @@ export default function OrderSuccessScreen() {
               style={styles.trackButton}
               onPress={() => router.replace("/checkout/payment")}
             >
-              <Text style={styles.trackButtonText}>Try Again</Text>
+              <Text style={styles.trackButtonText}>
+                {t.orderSuccess.tryAgain}
+              </Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={styles.continueButton}
               onPress={() => router.replace("/(tabs)")}
             >
-              <Text style={styles.continueButtonText}>Continue Shopping</Text>
+              <Text style={styles.continueButtonText}>
+                {t.orderSuccess.continueShopping}
+              </Text>
             </TouchableOpacity>
           )}
         </View>

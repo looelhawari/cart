@@ -30,8 +30,10 @@ import { Address } from "@/types";
 import { authApi } from "@/services/api";
 import { API_CONFIG } from "@/config/app.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from "@/i18n";
 
 export default function AddressesScreen() {
+  const { t } = useTranslation();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +60,7 @@ export default function AddressesScreen() {
         setAddresses(data.data);
       }
     } catch (error: any) {
-      Alert.alert("Error", "Failed to load addresses");
+      Alert.alert(t.common.error, t.addresses.failedToLoad);
     } finally {
       setLoading(false);
     }
@@ -76,12 +78,12 @@ export default function AddressesScreen() {
 
   const handleDelete = (address: Address) => {
     Alert.alert(
-      "Delete Address",
-      `Are you sure you want to delete this ${address.label} address?`,
+      t.addresses.deleteAddress,
+      t.addresses.confirmDelete.replace("{label}", address.label),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "Delete",
+          text: t.common.delete,
           style: "destructive",
           onPress: async () => {
             try {
@@ -101,7 +103,7 @@ export default function AddressesScreen() {
                 await loadAddresses();
               }
             } catch (error) {
-              Alert.alert("Error", "Failed to delete address");
+              Alert.alert(t.common.error, t.addresses.failedToDelete);
             }
           },
         },
@@ -127,7 +129,7 @@ export default function AddressesScreen() {
         await loadAddresses();
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to set default address");
+      Alert.alert(t.common.error, t.addresses.failedToSetDefault);
     }
   };
 
@@ -151,7 +153,7 @@ export default function AddressesScreen() {
           {address.is_default && (
             <View style={styles.defaultBadge}>
               <Check size={14} color={Colors.neutralWhite} />
-              <Text style={styles.defaultText}>Default</Text>
+              <Text style={styles.defaultText}>{t.addresses.default}</Text>
             </View>
           )}
         </View>
@@ -191,8 +193,8 @@ export default function AddressesScreen() {
               <Text style={styles.detailsText}>
                 {[
                   address.building,
-                  `Floor ${address.floor}`,
-                  `Apt ${address.apartment}`,
+                  `${t.addresses.floorNumber} ${address.floor}`,
+                  `${t.addresses.apartmentNumber} ${address.apartment}`,
                 ]
                   .filter(Boolean)
                   .join(", ")}
@@ -202,13 +204,17 @@ export default function AddressesScreen() {
               {[address.area, address.city].filter(Boolean).join(", ")}
             </Text>
             {address.landmark && (
-              <Text style={styles.landmarkText}>Near {address.landmark}</Text>
+              <Text style={styles.landmarkText}>
+                {t.addresses.near} {address.landmark}
+              </Text>
             )}
           </View>
         </View>
 
         {address.notes && (
-          <Text style={styles.notesText}>Note: {address.notes}</Text>
+          <Text style={styles.notesText}>
+            {t.addresses.note}: {address.notes}
+          </Text>
         )}
       </View>
 
@@ -218,7 +224,7 @@ export default function AddressesScreen() {
           onPress={() => handleSetDefault(address.id)}
           activeOpacity={0.9}
         >
-          <Text style={styles.setDefaultText}>Set as Default</Text>
+          <Text style={styles.setDefaultText}>{t.addresses.setAsDefault}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -227,6 +233,7 @@ export default function AddressesScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineIndicator />
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -235,12 +242,42 @@ export default function AddressesScreen() {
           >
             <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Addresses</Text>
+          <Text style={styles.headerTitle}>{t.addresses.title}</Text>
           <View style={styles.backButton} />
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary900} />
-        </View>
+        <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
+          {[1, 2, 3].map((i) => (
+            <View
+              key={i}
+              style={{
+                marginBottom: Spacing.lg,
+                backgroundColor: Colors.neutralWhite,
+                borderRadius: 12,
+                padding: Spacing.md,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: Spacing.sm,
+                }}
+              >
+                <SkeletonLoader width={100} height={20} borderRadius={6} />
+                <SkeletonLoader width={60} height={24} borderRadius={12} />
+              </View>
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width="80%" height={16} borderRadius={4} />
+              <View style={{ height: 6 }} />
+              <SkeletonLoader width="60%" height={16} borderRadius={4} />
+              <View style={{ height: 16 }} />
+              <View style={{ flexDirection: "row", gap: Spacing.sm }}>
+                <SkeletonLoader width={80} height={36} borderRadius={18} />
+                <SkeletonLoader width={80} height={36} borderRadius={18} />
+              </View>
+            </View>
+          ))}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -255,7 +292,7 @@ export default function AddressesScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Addresses</Text>
+        <Text style={styles.headerTitle}>{t.addresses.title}</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -270,9 +307,9 @@ export default function AddressesScreen() {
         {addresses.length === 0 ? (
           <View style={styles.emptyState}>
             <MapPin size={64} color={Colors.neutralMedium} />
-            <Text style={styles.emptyTitle}>No Addresses Yet</Text>
+            <Text style={styles.emptyTitle}>{t.addresses.noAddresses}</Text>
             <Text style={styles.emptyText}>
-              Add your delivery addresses to checkout faster
+              {t.addresses.addAddressToGetStarted}
             </Text>
           </View>
         ) : (
@@ -287,7 +324,7 @@ export default function AddressesScreen() {
           activeOpacity={0.9}
         >
           <Plus size={24} color={Colors.neutralWhite} />
-          <Text style={styles.addButtonText}>Add New Address</Text>
+          <Text style={styles.addButtonText}>{t.addresses.addAddress}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

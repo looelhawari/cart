@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,15 +8,16 @@ import {
   Image,
   TouchableOpacity,
   SafeAreaView,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useStore } from '@/store';
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { StatusBar } from 'expo-status-bar';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { StatusBar } from "expo-status-bar";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 interface OnboardingSlide {
   id: string;
@@ -25,32 +26,35 @@ interface OnboardingSlide {
   image: string;
 }
 
-const slides: OnboardingSlide[] = [
-  {
-    id: '1',
-    title: 'Fresh Groceries Delivered',
-    description: 'Get fresh groceries and daily essentials delivered right to your doorstep',
-    image: '🥬',
-  },
-  {
-    id: '2',
-    title: 'Easy Shopping Experience',
-    description: 'Browse thousands of products and add them to cart with a single tap',
-    image: '🛒',
-  },
-  {
-    id: '3',
-    title: 'Fast & Secure Checkout',
-    description: 'Multiple payment options with fast and secure checkout process',
-    image: '✨',
-  },
-];
-
 export default function OnboardingScreen() {
   const router = useRouter();
-  const setHasCompletedOnboarding = useStore((state) => state.setHasCompletedOnboarding);
+  const { t } = useTranslation();
+  const setHasCompletedOnboarding = useStore(
+    (state) => state.setHasCompletedOnboarding,
+  );
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  const slides: OnboardingSlide[] = [
+    {
+      id: "1",
+      title: t.onboarding.slide1Title,
+      description: t.onboarding.slide1Description,
+      image: "🥬",
+    },
+    {
+      id: "2",
+      title: t.onboarding.slide2Title,
+      description: t.onboarding.slide2Description,
+      image: "🛒",
+    },
+    {
+      id: "3",
+      title: t.onboarding.slide3Title,
+      description: t.onboarding.slide3Description,
+      image: "✨",
+    },
+  ];
 
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
@@ -69,7 +73,7 @@ export default function OnboardingScreen() {
 
   const completeOnboarding = () => {
     setHasCompletedOnboarding(true);
-    router.replace('/welcome');
+    router.replace("/welcome");
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -95,10 +99,10 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       {currentIndex < slides.length - 1 && (
         <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-          <Text style={styles.skipText}>Skip</Text>
+          <Text style={styles.skipText}>{t.onboarding.skip}</Text>
         </TouchableOpacity>
       )}
 
@@ -120,17 +124,16 @@ export default function OnboardingScreen() {
           {slides.map((_, index) => (
             <View
               key={index}
-              style={[
-                styles.dot,
-                index === currentIndex && styles.activeDot,
-              ]}
+              style={[styles.dot, index === currentIndex && styles.activeDot]}
             />
           ))}
         </View>
 
         <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
           <Text style={styles.nextText}>
-            {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+            {currentIndex === slides.length - 1
+              ? t.onboarding.getStarted
+              : t.onboarding.next}
           </Text>
         </TouchableOpacity>
       </View>
@@ -144,7 +147,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralWhite,
   },
   skipButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
     zIndex: 10,
@@ -153,20 +156,20 @@ const styles = StyleSheet.create({
   skipText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: "Poppins_500Medium",
   },
   slide: {
     width,
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: Spacing.xl,
   },
   imageContainer: {
     width: 200,
     height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: Spacing.xxl,
   },
   emoji: {
@@ -174,16 +177,16 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: Typography.h2,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.md,
   },
   description: {
     fontSize: Typography.bodyLarge,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 26,
   },
   footer: {
@@ -191,9 +194,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
   dot: {
@@ -211,13 +214,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 56,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   nextText: {
     color: Colors.neutralWhite,
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
   },
 });

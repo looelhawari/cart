@@ -528,7 +528,8 @@ export default {
   // Payment
   payment: {
     title: "Payment Methods",
-    securelyProcessed: "Payment is securely processed by Paymob. Choose your preferred payment method during checkout.",
+    securelyProcessed:
+      "Payment is securely processed by Paymob. Choose your preferred payment method during checkout.",
     availablePaymentMethods: "Available Payment Methods",
     cardPayment: "Card Payment",
     payWithCard: "Pay with credit or debit card",
@@ -540,7 +541,8 @@ export default {
     payWithCash: "Pay with cash when your order arrives",
     availableAllAreas: "Available in all delivery areas",
     secureAndSafe: "Secure & Safe",
-    allPaymentsSecure: "All payments are processed securely through Paymob with bank-level encryption and 3D Secure authentication.",
+    allPaymentsSecure:
+      "All payments are processed securely through Paymob with bank-level encryption and 3D Secure authentication.",
   },
 
   // Orders
@@ -647,13 +649,149 @@ export default {
   addresses: {
     title: "My Addresses",
     addAddress: "Add New Address",
+    addAddressButton: "Add Address",
     editAddress: "Edit Address",
     deleteAddress: "Delete Address",
+    confirmDelete: "Are you sure you want to delete this {label} address?",
     setDefault: "Set as Default",
     default: "Default",
     home: "Home",
     work: "Work",
     other: "Other",
+    noAddresses: "No Addresses Yet",
+    noAddressesYet: "No Addresses Yet",
+    addAddressToGetStarted: "Add your delivery addresses to checkout faster",
+    floor: "Floor",
+    apt: "Apt",
+    near: "Near",
+    note: "Note",
+    setAsDefault: "Set as Default",
+    failedToLoad: "Failed to load addresses",
+    failedToDelete: "Failed to delete address",
+    failedToSetDefault: "Failed to set default address",
+    // Add/Edit Address
+    addressType: "Address Type",
+    contactInformation: "Contact Information",
+    recipientName: "Recipient Name",
+    enterRecipientName: "Enter recipient name",
+    phoneNumber: "Phone Number",
+    enterPhoneNumber: "Enter phone number",
+    addressDetails: "Address Details",
+    street: "Street Address",
+    enterStreet: "Enter street address",
+    building: "Building",
+    enterBuilding: "Building",
+    floorNumber: "Floor",
+    enterFloor: "Enter floor number",
+    apartmentNumber: "Apartment / Unit",
+    enterApartment: "Enter apartment or unit number",
+    city: "City",
+    enterCity: "Enter city",
+    area: "Area / District",
+    enterArea: "Enter area or district",
+    landmark: "Landmark (Optional)",
+    enterLandmark: "Nearby landmark for easy location",
+    deliveryNotes: "Delivery Notes (Optional)",
+    enterNotes: "E.g., Ring the doorbell, Call on arrival...",
+    saveAddress: "Save Address",
+    pleaseEnterRecipientName: "Please enter recipient name",
+    pleaseEnterPhone: "Please enter phone number",
+    pleaseEnterStreet: "Please enter street address",
+    pleaseEnterCity: "Please enter city",
+    pleaseEnterArea: "Please enter area",
+    addressSavedSuccessfully: "Address {action} successfully",
+    updated: "updated",
+    added: "added",
+    failedToSave: "Failed to save address",
+  },
+
+  // Welcome
+  welcome: {
+    tagline: "Your daily groceries delivered fresh",
+    signIn: "Sign In",
+    createAccount: "Create Account",
+    continueAsGuest: "Continue as Guest",
+    resetAppStorage: "Reset App Storage",
+    resetConfirmMessage:
+      "This will clear all persisted data (cart, favorites, etc). Continue?",
+    reset: "Reset",
+    storageCleared: "App storage cleared!",
+    clearStorageDev: "🔧 Clear Storage (Dev)",
+  },
+
+  // Onboarding
+  onboarding: {
+    slide1Title: "Fresh Groceries Delivered",
+    slide1Description:
+      "Get fresh groceries and daily essentials delivered right to your doorstep",
+    slide2Title: "Easy Shopping Experience",
+    slide2Description:
+      "Browse thousands of products and add them to cart with a single tap",
+    slide3Title: "Fast & Secure Checkout",
+    slide3Description:
+      "Multiple payment options with fast and secure checkout process",
+    skip: "Skip",
+    next: "Next",
+    getStarted: "Get Started",
+  },
+
+  // Order Success
+  orderSuccess: {
+    orderPlaced: "Order Placed Successfully!",
+    thankYou:
+      "Thank you for your purchase. Your order has been received and is being processed.",
+    paymentNote:
+      "If you paid by card, your payment is being confirmed. You can check your order status for updates.",
+    processingPayment: "Processing Payment...",
+    pleaseWait:
+      "Please wait while we confirm your payment. This usually takes just a few seconds.",
+    paymentConfirmed: "Payment Confirmed!",
+    paymentSuccess:
+      "Your payment has been successfully processed. Thank you for your purchase!",
+    paymentFailed: "Payment Failed",
+    paymentFailedMessage:
+      "Unfortunately, your payment could not be processed. Please try again or contact support.",
+    orderNumber: "Order Number",
+    promoApplied: "Promo Applied",
+    estimatedDelivery: "Estimated Delivery",
+    viewOrderDetails: "View Order Details",
+    tryAgain: "Try Again",
+    continueShopping: "Continue Shopping",
+  },
+
+  // Phone Verification
+  phoneVerification: {
+    verifyPhone: "Verify Your Phone",
+    enterCode: "Enter Verification Code",
+    needPhoneForDelivery: "We need your phone number for delivery updates 🚚",
+    sentCodeTo: "We sent a 6-digit code to {phone}",
+    phoneNumber: "Phone Number",
+    sendCode: "Send Code",
+    verificationCode: "Verification Code",
+    verify: "Verify",
+    didntReceiveCode: "Didn't receive the code?",
+    resendIn: "Resend in {seconds}s",
+    resend: "Resend",
+    changePhone: "Change Phone Number",
+    enterValidPhone: "Please enter a valid phone number",
+    otpSent: "OTP sent to your phone number",
+    failedToSendOtp: "Failed to send OTP",
+    enterSixDigitCode: "Please enter the 6-digit code",
+    successTitle: "Success! 🎉",
+    phoneVerified: "Your phone number has been verified. Welcome to ElBaraka!",
+    invalidOtp: "Invalid OTP",
+  },
+
+  // Notifications
+  notifications: {
+    title: "Notifications",
+    markAllRead: "Mark all read",
+    all: "All",
+    orders: "Orders",
+    offers: "Offers",
+    account: "Account",
+    noNotifications: "No notifications",
+    noNotificationsMessage: "You'll see notifications here when you have them",
   },
 
   // Alerts

@@ -35,6 +35,8 @@ import {
 } from "@/utils/offerPricing";
 import type { Offer } from "@/services/api/types";
 import { useTranslation, useLocalizedValue } from "@/i18n";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 const { width } = Dimensions.get("window");
 
@@ -93,8 +95,40 @@ export default function ProductDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={Colors.primary900} />
+      <SafeAreaView style={[styles.container]}>
+        <OfflineIndicator />
+
+        {/* Header Skeleton */}
+        <View style={styles.headerSkeleton}>
+          <SkeletonLoader width={40} height={40} borderRadius={20} />
+          <View style={{ flex: 1 }} />
+          <SkeletonLoader width={40} height={40} borderRadius={20} />
+          <SkeletonLoader width={40} height={40} borderRadius={20} />
+        </View>
+
+        <ScrollView>
+          {/* Image Skeleton */}
+          <SkeletonLoader width={width} height={width} />
+
+          <View style={{ padding: Spacing.lg }}>
+            {/* Title Skeleton */}
+            <SkeletonLoader width="80%" height={24} borderRadius={8} />
+            <View style={{ height: 8 }} />
+            <SkeletonLoader width="60%" height={20} borderRadius={8} />
+
+            {/* Price Skeleton */}
+            <View style={{ height: 16 }} />
+            <SkeletonLoader width="40%" height={32} borderRadius={8} />
+
+            {/* Description Skeleton */}
+            <View style={{ height: 24 }} />
+            <SkeletonLoader width="100%" height={16} borderRadius={8} />
+            <View style={{ height: 8 }} />
+            <SkeletonLoader width="90%" height={16} borderRadius={8} />
+            <View style={{ height: 8 }} />
+            <SkeletonLoader width="95%" height={16} borderRadius={8} />
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -198,10 +232,43 @@ export default function ProductDetailScreen() {
       <Image
         source={{ uri: images[selectedImageIndex] }}
         style={styles.mainImage}
+        resizeMode="contain"
       />
       {discount > 0 && (
         <View style={styles.discountBadge}>
           <Text style={styles.discountText}>-{discount}%</Text>
+        </View>
+      )}
+      {offerPricing && offerPricing.discountedPrice < basePrice && (
+        <View
+          style={[
+            styles.discountBadge,
+            { top: 60, backgroundColor: Colors.accentOrange },
+          ]}
+        >
+          <Text style={styles.discountText}>🎁 PROMO</Text>
+        </View>
+      )}
+      {product.is_featured && (
+        <View
+          style={[
+            styles.discountBadge,
+            {
+              top:
+                discount > 0 ||
+                (offerPricing && offerPricing.discountedPrice < basePrice)
+                  ? 100
+                  : 60,
+              backgroundColor: Colors.accentYellow,
+              paddingHorizontal: 16,
+            },
+          ]}
+        >
+          <Text
+            style={[styles.discountText, { color: Colors.neutralCharcoal }]}
+          >
+            ⭐ FEATURED
+          </Text>
         </View>
       )}
       {images.length > 1 && (
@@ -230,8 +297,10 @@ export default function ProductDetailScreen() {
 
   const renderProductInfo = () => (
     <View style={styles.productInfo}>
+      {/* Product Name */}
       <Text style={styles.productName}>{getName(product)}</Text>
 
+      {/* Rating and Reviews */}
       <TouchableOpacity
         onPress={() => router.push(`/product/reviews/${product.barcode}`)}
         style={styles.ratingRow}
@@ -240,7 +309,7 @@ export default function ProductDetailScreen() {
           {[1, 2, 3, 4, 5].map((star) => (
             <Star
               key={star}
-              size={16}
+              size={18}
               fill={
                 star <= (product.rating || 0) ? Colors.accentYellow : "none"
               }
@@ -253,68 +322,93 @@ export default function ProductDetailScreen() {
           ))}
         </View>
         <Text style={styles.ratingText}>
-          {product.rating || 0} ({product.review_count || 0}{" "}
+          {(product.rating || 0).toFixed(1)} ({product.review_count || 0}{" "}
           {t.products.reviews})
         </Text>
+        <ChevronDown
+          size={16}
+          color={Colors.primary900}
+          style={{ transform: [{ rotate: "-90deg" }] }}
+        />
       </TouchableOpacity>
 
-      <View style={styles.priceRow}>
-        <Text style={styles.currentPrice}>
-          EGP{" "}
-          {promoPrice !== null
-            ? promoPrice.toFixed(2)
-            : salePrice > 0 && salePrice < price
-              ? salePrice.toFixed(2)
-              : price.toFixed(2)}
-          <Text style={styles.unit}>/{product.unit || "piece"}</Text>
-        </Text>
-        {promoPrice !== null ? (
-          <>
+      {/* Price Section with Enhanced UI */}
+      <View style={styles.priceContainer}>
+        <View style={styles.priceRow}>
+          <View>
+            <Text style={styles.priceLabel}>{t.products.price}</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}
+            >
+              <Text style={styles.currentPrice}>
+                {t.common.currency}{" "}
+                {promoPrice !== null
+                  ? promoPrice.toFixed(2)
+                  : salePrice > 0 && salePrice < price
+                    ? salePrice.toFixed(2)
+                    : price.toFixed(2)}
+              </Text>
+              <Text style={styles.unit}>/{product.unit || "pc"}</Text>
+            </View>
+          </View>
+          {(discount > 0 || promoPrice !== null) && (
+            <View style={styles.savingsBadge}>
+              <Text style={styles.savingsText}>
+                {t.products.save} {t.common.currency}{" "}
+                {promoPrice !== null
+                  ? (basePrice - promoPrice).toFixed(2)
+                  : (price - salePrice).toFixed(2)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {(promoPrice !== null || (salePrice > 0 && salePrice < price)) && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
             <Text style={styles.oldPrice}>
-              {t.common.currency} {basePrice.toFixed(2)}
-            </Text>
-            <Text style={styles.saveText}>
-              {t.products.save} {t.common.currency}{" "}
-              {(basePrice - promoPrice).toFixed(2)}
+              {t.common.currency}{" "}
+              {promoPrice !== null ? basePrice.toFixed(2) : price.toFixed(2)}
             </Text>
             {offerPricing?.code && (
-              <Text style={styles.offerNote}>
-                {t.products.offerPriceWithCode} {offerPricing.code}
-              </Text>
+              <View style={styles.codeBadge}>
+                <Text style={styles.codeText}>{offerPricing.code}</Text>
+              </View>
             )}
-          </>
-        ) : (
-          salePrice > 0 &&
-          salePrice < price && (
-            <>
-              <Text style={styles.oldPrice}>
-                {t.common.currency} {price.toFixed(2)}
-              </Text>
-              <Text style={styles.saveText}>
-                {t.products.save} {t.common.currency}{" "}
-                {(price - salePrice).toFixed(2)}
-              </Text>
-            </>
-          )
+          </View>
         )}
       </View>
 
-      <View style={styles.stockRow}>
+      {/* Stock Status with Better UI */}
+      <View style={styles.stockSection}>
         {(product.stock_quantity || 0) > 0 ? (
           <>
-            <View style={styles.stockDot} />
-            <Text style={styles.stockText}>{t.products.inStock}</Text>
+            <View style={[styles.stockIndicator, styles.inStockIndicator]}>
+              <View style={styles.stockDot} />
+              <Text style={styles.stockText}>{t.products.inStock}</Text>
+            </View>
             {product.stock_quantity && product.stock_quantity < 10 && (
-              <Text style={styles.limitedStock}>
-                {t.products.onlyLeft.replace(
-                  "{count}",
-                  product.stock_quantity.toString(),
-                )}
-              </Text>
+              <View style={styles.limitedStockBadge}>
+                <Text style={styles.limitedStockText}>
+                  ⚠️{" "}
+                  {t.products.onlyLeft.replace(
+                    "{count}",
+                    product.stock_quantity.toString(),
+                  )}
+                </Text>
+              </View>
             )}
           </>
         ) : (
-          <Text style={styles.outOfStock}>{t.products.outOfStock}</Text>
+          <View style={[styles.stockIndicator, styles.outOfStockIndicator]}>
+            <Text style={styles.outOfStockText}>{t.products.outOfStock}</Text>
+          </View>
         )}
       </View>
     </View>
@@ -601,6 +695,7 @@ export default function ProductDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <OfflineIndicator />
       {renderHeader()}
       <ScrollView
         style={styles.scrollView}
@@ -637,6 +732,16 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: "center",
     alignItems: "center",
+  },
+  headerSkeleton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.neutralWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutralLight,
   },
   header: {
     flexDirection: "row",
@@ -1080,5 +1185,87 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  // Enhanced UI Styles
+  priceContainer: {
+    backgroundColor: Colors.primary900 + "08",
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.md,
+  },
+  priceLabel: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  savingsBadge: {
+    backgroundColor: Colors.accentLime + "20",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.accentLime,
+  },
+  savingsText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentLime,
+    fontWeight: "700",
+  },
+  codeBadge: {
+    backgroundColor: Colors.accentOrange + "20",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.accentOrange,
+  },
+  codeText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
+    fontWeight: "700",
+  },
+  stockSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  stockIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  inStockIndicator: {
+    backgroundColor: Colors.primary700 + "15",
+  },
+  outOfStockIndicator: {
+    backgroundColor: Colors.accentRed + "15",
+    paddingHorizontal: Spacing.md,
+  },
+  outOfStockText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.accentRed,
+    fontWeight: "700",
+  },
+  limitedStockBadge: {
+    backgroundColor: Colors.accentOrange + "15",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.accentOrange + "40",
+  },
+  limitedStockText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.accentOrange,
+    fontWeight: "600",
   },
 });

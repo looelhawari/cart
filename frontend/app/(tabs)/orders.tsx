@@ -29,6 +29,8 @@ import Spacing from "@/constants/Spacing";
 import { getOrders, reorder, Order } from "@/services/api/orderApi";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 type TabType = "all" | "active" | "delivered" | "cancelled";
 
@@ -409,8 +411,45 @@ export default function OrdersScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary900} />
+        <View style={styles.content}>
+          <OfflineIndicator />
+          {[1, 2, 3, 4].map((i) => (
+            <View
+              key={i}
+              style={[styles.orderCard, { marginBottom: Spacing.md }]}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: Spacing.sm,
+                }}
+              >
+                <SkeletonLoader width={120} height={20} borderRadius={6} />
+                <SkeletonLoader width={80} height={24} borderRadius={12} />
+              </View>
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width="60%" height={16} borderRadius={4} />
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width="40%" height={16} borderRadius={4} />
+              <View style={{ height: 16 }} />
+              <View style={{ flexDirection: "row", gap: Spacing.md }}>
+                <SkeletonLoader width={60} height={60} borderRadius={8} />
+                <SkeletonLoader width={60} height={60} borderRadius={8} />
+                <SkeletonLoader width={60} height={60} borderRadius={8} />
+              </View>
+              <View style={{ height: 16 }} />
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <SkeletonLoader width={100} height={20} borderRadius={6} />
+                <SkeletonLoader width={80} height={36} borderRadius={18} />
+              </View>
+            </View>
+          ))}
         </View>
       ) : orders.length === 0 ? (
         <View style={styles.emptyContainer}>

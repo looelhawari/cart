@@ -31,6 +31,8 @@ import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { useTranslation, useLocalizedValue } from "@/i18n";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 type FilterType = "all" | "category" | "products";
 
@@ -345,23 +347,78 @@ export default function OffersScreen() {
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.loadingContainer}>
-          <View style={styles.loadingIconContainer}>
-            <Tag size={40} color={Colors.primary900} />
+        <OfflineIndicator />
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Header Gradient Skeleton */}
+          <View style={styles.headerGradient}>
+            <View style={styles.headerContent}>
+              <SkeletonLoader width={50} height={50} borderRadius={25} />
+              <View style={{ height: 12 }} />
+              <SkeletonLoader width={200} height={32} borderRadius={8} />
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width={250} height={16} borderRadius={4} />
+            </View>
           </View>
-          <ActivityIndicator
-            size="large"
-            color={Colors.primary900}
-            style={{ marginTop: Spacing.lg }}
-          />
-          <Text style={styles.loadingText}>{t.offers.findingDeals}</Text>
-        </View>
+
+          {/* Stats Cards Skeleton */}
+          <View style={styles.statsRow}>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={[dynamicStyles.statsCard, styles.statCard]}>
+                <SkeletonLoader width={36} height={36} borderRadius={18} />
+                <View style={{ height: 8 }} />
+                <SkeletonLoader width={40} height={24} borderRadius={6} />
+                <View style={{ height: 4 }} />
+                <SkeletonLoader width={60} height={14} borderRadius={4} />
+              </View>
+            ))}
+          </View>
+
+          {/* Filter Chips Skeleton */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersScrollContent}
+          >
+            {[1, 2, 3, 4].map((i) => (
+              <SkeletonLoader
+                key={i}
+                width={100}
+                height={36}
+                borderRadius={18}
+              />
+            ))}
+          </ScrollView>
+
+          {/* Hero Promotion Skeleton */}
+          <View style={dynamicStyles.heroCard}>
+            <SkeletonLoader width="100%" height={hp(28)} borderRadius={16} />
+          </View>
+
+          {/* Grid Items Skeleton */}
+          <View style={dynamicStyles.gridContainer}>
+            {[1, 2, 3, 4].map((i) => (
+              <View key={i} style={dynamicStyles.gridItem}>
+                <View style={dynamicStyles.promotionCard}>
+                  <SkeletonLoader width="100%" height={140} borderRadius={12} />
+                  <View style={{ padding: Spacing.md }}>
+                    <SkeletonLoader width="80%" height={18} borderRadius={4} />
+                    <View style={{ height: 8 }} />
+                    <SkeletonLoader width="100%" height={14} borderRadius={4} />
+                    <View style={{ height: 4 }} />
+                    <SkeletonLoader width="60%" height={14} borderRadius={4} />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <OfflineIndicator />
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}

@@ -441,13 +441,18 @@ export default function OrderDetailsScreen() {
 
       // Check if status changed
       if (order && newOrder.status !== order.status) {
-        console.log("📦 [ORDER] Status changed:", order.status, "->", newOrder.status);
+        console.log(
+          "📦 [ORDER] Status changed:",
+          order.status,
+          "->",
+          newOrder.status,
+        );
 
         // Show alert for status change
         Alert.alert(
           "Order Status Updated",
           `Your order status has been updated to: ${newOrder.status_label}`,
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
 
         setPreviousStatus(order.status);
@@ -490,17 +495,13 @@ export default function OrderDetailsScreen() {
     if (!order) return;
 
     // Check if order is in a state that can be reordered
-    const canReorderStatus = [
-      "delivered",
-      "cancelled",
-      "failed",
-    ];
+    const canReorderStatus = ["delivered", "cancelled", "failed"];
 
     if (!canReorderStatus.includes(order.status)) {
       Alert.alert(
         "Cannot Reorder",
         "You can only reorder completed, cancelled, or failed orders. This order is still active.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
       return;
     }
@@ -509,7 +510,10 @@ export default function OrderDetailsScreen() {
     try {
       console.log("🛒 [REORDER] Starting reorder for order ID:", id);
       const response = await reorder(Number(id));
-      console.log("🛒 [REORDER] API Response:", JSON.stringify(response.data?.summary, null, 2));
+      console.log(
+        "🛒 [REORDER] API Response:",
+        JSON.stringify(response.data?.summary, null, 2),
+      );
 
       // Force fetch cart from backend to ensure sync
       console.log("🔄 [REORDER] Refreshing cart from backend...");
@@ -526,9 +530,9 @@ export default function OrderDetailsScreen() {
             text: "View Cart",
             onPress: async () => {
               // Give store a moment to update before navigating
-              await new Promise(resolve => setTimeout(resolve, 200));
+              await new Promise((resolve) => setTimeout(resolve, 200));
               router.push("/(tabs)/cart");
-            }
+            },
           },
         ]);
         return;
@@ -538,7 +542,8 @@ export default function OrderDetailsScreen() {
 
       if (items_added === 0) {
         // Build message with unavailable items details
-        let message = "Sorry, none of the items from this order are currently available.\n\n";
+        let message =
+          "Sorry, none of the items from this order are currently available.\n\n";
         if (unavailableItems.length > 0) {
           message += "Unavailable items:\n";
           unavailableItems.forEach((item: any) => {
@@ -572,9 +577,9 @@ export default function OrderDetailsScreen() {
           {
             text: "View Cart",
             onPress: async () => {
-              await new Promise(resolve => setTimeout(resolve, 200));
+              await new Promise((resolve) => setTimeout(resolve, 200));
               router.push("/(tabs)/cart");
-            }
+            },
           },
         ]);
       } else {
@@ -587,11 +592,11 @@ export default function OrderDetailsScreen() {
             {
               text: "View Cart",
               onPress: async () => {
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise((resolve) => setTimeout(resolve, 200));
                 router.push("/(tabs)/cart");
-              }
+              },
             },
-          ]
+          ],
         );
       }
     } catch (error: any) {
@@ -668,9 +673,77 @@ export default function OrderDetailsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading order details...</Text>
+        <OfflineIndicator />
+        <View style={{ padding: Spacing.lg }}>
+          {/* Header Skeleton */}
+          <View style={{ marginBottom: Spacing.lg }}>
+            <SkeletonLoader width={150} height={28} borderRadius={8} />
+            <View style={{ height: 8 }} />
+            <SkeletonLoader width={200} height={20} borderRadius={6} />
+          </View>
+
+          {/* Status Card Skeleton */}
+          <View
+            style={{
+              backgroundColor: Colors.neutralWhite,
+              borderRadius: 12,
+              padding: Spacing.md,
+              marginBottom: Spacing.lg,
+            }}
+          >
+            <SkeletonLoader width={120} height={24} borderRadius={6} />
+            <View style={{ height: 12 }} />
+            <SkeletonLoader width="80%" height={16} borderRadius={4} />
+          </View>
+
+          {/* Items Skeleton */}
+          {[1, 2, 3].map((i) => (
+            <View
+              key={i}
+              style={{
+                flexDirection: "row",
+                marginBottom: Spacing.md,
+                backgroundColor: Colors.neutralWhite,
+                borderRadius: 12,
+                padding: Spacing.md,
+              }}
+            >
+              <SkeletonLoader width={80} height={80} borderRadius={8} />
+              <View style={{ marginLeft: Spacing.md, flex: 1 }}>
+                <SkeletonLoader width="70%" height={18} borderRadius={4} />
+                <View style={{ height: 8 }} />
+                <SkeletonLoader width="40%" height={16} borderRadius={4} />
+                <View style={{ height: 8 }} />
+                <SkeletonLoader width="30%" height={20} borderRadius={6} />
+              </View>
+            </View>
+          ))}
+
+          {/* Summary Skeleton */}
+          <View
+            style={{
+              backgroundColor: Colors.neutralWhite,
+              borderRadius: 12,
+              padding: Spacing.md,
+            }}
+          >
+            <SkeletonLoader width={100} height={20} borderRadius={6} />
+            <View style={{ height: 12 }} />
+            {[1, 2, 3, 4].map((i) => (
+              <View key={i}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
+                  <SkeletonLoader width={100} height={16} borderRadius={4} />
+                  <SkeletonLoader width={60} height={16} borderRadius={4} />
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -748,7 +821,8 @@ export default function OrderDetailsScreen() {
                 marginTop: 4,
               }}
             >
-              Last updated: {lastUpdated.toLocaleTimeString("en-US", {
+              Last updated:{" "}
+              {lastUpdated.toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
@@ -892,7 +966,8 @@ export default function OrderDetailsScreen() {
                       fontStyle: "italic",
                     }}
                   >
-                    Your payment has been refunded to your original payment method
+                    Your payment has been refunded to your original payment
+                    method
                   </Text>
                 )}
               </View>

@@ -29,6 +29,7 @@ import {
 } from "@/services/cache/imageCache";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { useLocalizedValue, useTranslation } from "@/i18n";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - Spacing.lg * 3) / 2;
@@ -173,9 +174,47 @@ export default function CategoriesScreen() {
 
   if (loading && categories.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, styles.centered]}>
+      <SafeAreaView style={[styles.container]}>
         <OfflineIndicator />
-        <ActivityIndicator size="large" color={Colors.primary900} />
+        {/* Header Skeleton */}
+        <View style={styles.header}>
+          <SkeletonLoader width={150} height={28} borderRadius={8} />
+          <View style={styles.headerRight}>
+            <SkeletonLoader width={40} height={40} borderRadius={20} />
+            <SkeletonLoader width={40} height={40} borderRadius={20} />
+          </View>
+        </View>
+
+        {/* List Header Skeleton */}
+        <View style={styles.listHeader}>
+          <SkeletonLoader width={200} height={24} borderRadius={6} />
+          <View style={{ height: 8 }} />
+          <SkeletonLoader width={140} height={16} borderRadius={4} />
+        </View>
+
+        {/* Grid Skeleton */}
+        <View
+          style={{
+            padding: Spacing.lg,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: Spacing.md,
+          }}
+        >
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <View key={i} style={{ width: CARD_WIDTH }}>
+              <SkeletonLoader
+                width="100%"
+                height={CARD_WIDTH}
+                borderRadius={16}
+              />
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width="70%" height={16} borderRadius={4} />
+              <View style={{ height: 4 }} />
+              <SkeletonLoader width="40%" height={14} borderRadius={4} />
+            </View>
+          ))}
+        </View>
       </SafeAreaView>
     );
   }

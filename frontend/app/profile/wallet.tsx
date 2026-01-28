@@ -211,7 +211,7 @@ export default function WalletScreen() {
           >
             <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t.wallet.title}</Text>
+          <Text style={styles.headerTitle}>{t.wallet.title}</Text>
           <View style={styles.headerButton} />
         </View>
         <View style={styles.loadingContainer}>
@@ -324,14 +324,17 @@ export default function WalletScreen() {
                     {parseFloat(transaction.amount).toFixed(2)} EGP
                   </Text>
                   <Text style={styles.transactionBalance}>
-                    {t.wallet.bal}: {parseFloat(transaction.balance_after).toFixed(2)} EGP
+                    {t.wallet.bal}:{" "}
+                    {parseFloat(transaction.balance_after).toFixed(2)} EGP
                   </Text>
                 </View>
               </View>
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateTitle}>{t.wallet.noTransactionsYet}</Text>
+              <Text style={styles.emptyStateTitle}>
+                {t.wallet.noTransactionsYet}
+              </Text>
               <Text style={styles.emptyStateText}>
                 {t.wallet.addMoneyToGetStarted}
               </Text>
@@ -394,13 +397,13 @@ export default function WalletScreen() {
                 />
                 <Text style={styles.currencyText}>EGP</Text>
               </View>
-              <Text style={styles.inputHint}>
-                {t.wallet.minMaxAmount}
-              </Text>
+              <Text style={styles.inputHint}>{t.wallet.minMaxAmount}</Text>
             </View>
 
             <View style={styles.paymentMethodSection}>
-              <Text style={styles.paymentMethodLabel}>{t.wallet.paymentMethod}</Text>
+              <Text style={styles.paymentMethodLabel}>
+                {t.wallet.paymentMethod}
+              </Text>
 
               <TouchableOpacity
                 style={[
@@ -439,7 +442,9 @@ export default function WalletScreen() {
                 <View style={styles.paymentMethodLeft}>
                   <Smartphone size={24} color={Colors.accentOrange} />
                   <View>
-                    <Text style={styles.paymentMethodTitle}>{t.wallet.mobileWallet}</Text>
+                    <Text style={styles.paymentMethodTitle}>
+                      {t.wallet.mobileWallet}
+                    </Text>
                     <Text style={styles.paymentMethodSubtitle}>
                       {t.wallet.vodafoneOrangeEtisalat}
                     </Text>
@@ -474,7 +479,9 @@ export default function WalletScreen() {
                 {recharging ? (
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.modalAddText}>{t.wallet.continueToPayment}</Text>
+                  <Text style={styles.modalAddText}>
+                    {t.wallet.continueToPayment}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>

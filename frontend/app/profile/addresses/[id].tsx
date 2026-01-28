@@ -25,11 +25,13 @@ import Spacing from "@/constants/Spacing";
 import { API_CONFIG } from "@/config/app.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 
 type AddressLabel = "Home" | "Work" | "Other";
 
 export default function AddEditAddressScreen() {
   const params = useLocalSearchParams();
+  const { t } = useTranslation();
   const addressId = params.id && params.id !== "new" ? params.id : null;
   const isEdit = !!addressId;
   const { user } = useStore();
@@ -149,21 +151,22 @@ export default function AddEditAddressScreen() {
       const data = await response.json();
 
       if (response.ok) {
+        const actionText = isEdit ? t.addresses.updated : t.addresses.added;
         Alert.alert(
-          "Success",
-          `Address ${isEdit ? "updated" : "added"} successfully`,
+          t.common.success,
+          t.addresses.addressSavedSuccessfully.replace("{action}", actionText),
           [
             {
-              text: "OK",
+              text: t.common.ok,
               onPress: () => router.back(),
             },
           ],
         );
       } else {
-        Alert.alert("Error", data.message || "Failed to save address");
+        Alert.alert(t.common.error, data.message || t.addresses.failedToSave);
       }
     } catch (error: any) {
-      Alert.alert("Error", "Failed to save address");
+      Alert.alert(t.common.error, t.addresses.failedToSave);
     } finally {
       setLoading(false);
     }
@@ -203,7 +206,7 @@ export default function AddEditAddressScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isEdit ? "Edit" : "Add"} Address
+          {isEdit ? t.addresses.editAddress : t.addresses.addAddressButton}
         </Text>
         <TouchableOpacity
           style={styles.saveHeaderButton}
@@ -227,7 +230,7 @@ export default function AddEditAddressScreen() {
       >
         {/* Address Type */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Address Type</Text>
+          <Text style={styles.sectionTitle}>{t.addresses.addressType}</Text>
           <View style={styles.labelRow}>
             <TouchableOpacity
               style={[
@@ -249,7 +252,7 @@ export default function AddEditAddressScreen() {
                   label === "Home" && styles.labelButtonTextActive,
                 ]}
               >
-                Home
+                {t.addresses.home}
               </Text>
             </TouchableOpacity>
 
@@ -273,7 +276,7 @@ export default function AddEditAddressScreen() {
                   label === "Work" && styles.labelButtonTextActive,
                 ]}
               >
-                Work
+                {t.addresses.work}
               </Text>
             </TouchableOpacity>
 
@@ -297,7 +300,7 @@ export default function AddEditAddressScreen() {
                   label === "Other" && styles.labelButtonTextActive,
                 ]}
               >
-                Other
+                {t.addresses.other}
               </Text>
             </TouchableOpacity>
           </View>
@@ -305,15 +308,15 @@ export default function AddEditAddressScreen() {
 
         {/* Address Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Address Details</Text>
+          <Text style={styles.sectionTitle}>{t.addresses.addressDetails}</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              Street Address <Text style={styles.required}>*</Text>
+              {t.addresses.street} <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Enter street address"
+              placeholder={t.addresses.enterStreet}
               placeholderTextColor={Colors.neutralMedium}
               value={street}
               onChangeText={setStreet}
@@ -324,10 +327,10 @@ export default function AddEditAddressScreen() {
 
           <View style={styles.row}>
             <View style={[styles.inputGroup, styles.halfWidth]}>
-              <Text style={styles.label}>Building</Text>
+              <Text style={styles.label}>{t.addresses.building}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Building"
+                placeholder={t.addresses.enterBuilding}
                 placeholderTextColor={Colors.neutralMedium}
                 value={building}
                 onChangeText={setBuilding}
@@ -335,10 +338,10 @@ export default function AddEditAddressScreen() {
             </View>
 
             <View style={[styles.inputGroup, styles.halfWidth]}>
-              <Text style={styles.label}>Floor</Text>
+              <Text style={styles.label}>{t.addresses.floorNumber}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Floor"
+                placeholder={t.addresses.enterFloor}
                 placeholderTextColor={Colors.neutralMedium}
                 value={floor}
                 onChangeText={setFloor}
@@ -347,10 +350,10 @@ export default function AddEditAddressScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Apartment / Unit</Text>
+            <Text style={styles.label}>{t.addresses.apartmentNumber}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Apartment or unit number"
+              placeholder={t.addresses.enterApartment}
               placeholderTextColor={Colors.neutralMedium}
               value={apartment}
               onChangeText={setApartment}
@@ -359,11 +362,11 @@ export default function AddEditAddressScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              City <Text style={styles.required}>*</Text>
+              {t.addresses.city} <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter city"
+              placeholder={t.addresses.enterCity}
               placeholderTextColor={Colors.neutralMedium}
               value={city}
               onChangeText={setCity}
@@ -371,10 +374,10 @@ export default function AddEditAddressScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Area</Text>
+            <Text style={styles.label}>{t.addresses.area}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Area or district"
+              placeholder={t.addresses.enterArea}
               placeholderTextColor={Colors.neutralMedium}
               value={area}
               onChangeText={setArea}
@@ -384,13 +387,15 @@ export default function AddEditAddressScreen() {
 
         {/* Additional Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Additional Information</Text>
+          <Text style={styles.sectionTitle}>
+            {t.addresses.contactInformation}
+          </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Landmark (Optional)</Text>
+            <Text style={styles.label}>{t.addresses.landmark}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Nearby landmark for easy location"
+              placeholder={t.addresses.enterLandmark}
               placeholderTextColor={Colors.neutralMedium}
               value={landmark}
               onChangeText={setLandmark}
@@ -398,10 +403,10 @@ export default function AddEditAddressScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Delivery Notes (Optional)</Text>
+            <Text style={styles.label}>{t.addresses.deliveryNotes}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="E.g., Ring the doorbell, Call on arrival..."
+              placeholder={t.addresses.enterNotes}
               placeholderTextColor={Colors.neutralMedium}
               value={notes}
               onChangeText={setNotes}
@@ -420,7 +425,7 @@ export default function AddEditAddressScreen() {
           <View style={[styles.checkbox, isDefault && styles.checkboxActive]}>
             {isDefault && <View style={styles.checkboxInner} />}
           </View>
-          <Text style={styles.checkboxLabel}>Set as default address</Text>
+          <Text style={styles.checkboxLabel}>{t.addresses.setAsDefault}</Text>
         </TouchableOpacity>
 
         {/* Save Button */}
@@ -433,9 +438,7 @@ export default function AddEditAddressScreen() {
           {loading ? (
             <ActivityIndicator size="small" color={Colors.neutralWhite} />
           ) : (
-            <Text style={styles.saveButtonText}>
-              {isEdit ? "Update" : "Save"} Address
-            </Text>
+            <Text style={styles.saveButtonText}>{t.addresses.saveAddress}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>

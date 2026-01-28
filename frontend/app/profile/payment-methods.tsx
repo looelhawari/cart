@@ -33,9 +33,13 @@ import { PaymentMethod } from "@/types";
 import { Colors } from "@/constants/Colors";
 import { Spacing } from "@/constants/Spacing";
 import { Toast } from "@/components/Toast";
+import { useTranslation } from "@/i18n";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +64,9 @@ export default function PaymentMethodsScreen() {
     } catch (error: any) {
       console.error("[PaymentMethods] Error fetching:", error);
       setToastType("error");
-      setToastMessage(error.message || "Failed to load payment methods");
+      setToastMessage(
+        error.message || t.paymentMethods.failedToLoadPaymentMethods,
+      );
       setShowToast(true);
     } finally {
       setLoading(false);
@@ -83,18 +89,18 @@ export default function PaymentMethodsScreen() {
     // Validate card is eligible
     if (method.is_expired) {
       Alert.alert(
-        "Cannot Set Default",
+        t.common.error,
         "This card has expired. Please add a new card.",
-        [{ text: "OK" }],
+        [{ text: t.common.ok }],
       );
       return;
     }
 
     if (!method.is_verified) {
       Alert.alert(
-        "Cannot Set Default",
+        t.common.error,
         "This card has not been verified yet. Please use it for a payment first.",
-        [{ text: "OK" }],
+        [{ text: t.common.ok }],
       );
       return;
     }
@@ -104,7 +110,7 @@ export default function PaymentMethodsScreen() {
       await setDefaultPaymentMethod(method.id);
 
       setToastType("success");
-      setToastMessage(`${formatCardDisplay(method)} is now your default card`);
+      setToastMessage(t.paymentMethods.cardSetAsDefault);
       setShowToast(true);
 
       // Refresh list to show updated default
@@ -112,7 +118,7 @@ export default function PaymentMethodsScreen() {
     } catch (error: any) {
       console.error("[PaymentMethods] Error setting default:", error);
       setToastType("error");
-      setToastMessage(error.message || "Failed to set default card");
+      setToastMessage(error.message || t.paymentMethods.failedToSetDefault);
       setShowToast(true);
     } finally {
       setActionLoading(null);
@@ -124,22 +130,22 @@ export default function PaymentMethodsScreen() {
    */
   const handleDelete = (method: PaymentMethod) => {
     Alert.alert(
-      "Delete Card",
-      `Are you sure you want to delete ${formatCardDisplay(method)}?`,
+      t.paymentMethods.deleteCard,
+      `${t.paymentMethods.confirmDeleteCard}`,
       [
         {
-          text: "Cancel",
+          text: t.common.cancel,
           style: "cancel",
         },
         {
-          text: "Delete",
+          text: t.common.delete,
           style: "destructive",
           onPress: async () => {
             try {
               setActionLoading(method.id);
               const response = await deletePaymentMethod(method.id);
 
-              let message = "Card deleted successfully";
+              let message = t.paymentMethods.cardDeleted;
               if (response.data.new_default) {
                 message += `\nYour new default card is •••• ${response.data.new_default.card_last_four}`;
               }
@@ -153,7 +159,9 @@ export default function PaymentMethodsScreen() {
             } catch (error: any) {
               console.error("[PaymentMethods] Error deleting:", error);
               setToastType("error");
-              setToastMessage(error.message || "Failed to delete card");
+              setToastMessage(
+                error.message || t.paymentMethods.failedToDeleteCard,
+              );
               setShowToast(true);
             } finally {
               setActionLoading(null);
@@ -278,9 +286,58 @@ export default function PaymentMethodsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading payment methods...</Text>
+      <View style={styles.container}>
+        <OfflineIndicator />
+        {/* Header Skeleton */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Payment Methods</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        <View style={{ padding: Spacing.lg }}>
+          {[1, 2, 3].map((i) => (
+            <View
+              key={i}
+              style={{
+                marginBottom: Spacing.md,
+                backgroundColor: Colors.neutralWhite,
+                borderRadius: 12,
+                padding: Spacing.md,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: Spacing.sm,
+                }}
+              >
+                <SkeletonLoader width={50} height={32} borderRadius={8} />
+                <View style={{ marginLeft: Spacing.md, flex: 1 }}>
+                  <SkeletonLoader width="60%" height={18} borderRadius={4} />
+                  <View style={{ height: 6 }} />
+                  <SkeletonLoader width="40%" height={14} borderRadius={4} />
+                </View>
+              </View>
+              <View style={{ height: 12 }} />
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <SkeletonLoader width={100} height={32} borderRadius={16} />
+                <SkeletonLoader width={80} height={32} borderRadius={16} />
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   }

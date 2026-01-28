@@ -15,10 +15,12 @@ import Spacing from "@/constants/Spacing";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { resetApp } = useStore();
+  const { t } = useTranslation();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -30,9 +32,7 @@ export default function WelcomeScreen() {
             <Text style={styles.logoEmoji}>🛒</Text>
           </View>
           <Text style={styles.brandName}>ELBARAKA</Text>
-          <Text style={styles.tagline}>
-            Your daily groceries delivered fresh
-          </Text>
+          <Text style={styles.tagline}>{t.welcome.tagline}</Text>
         </View>
 
         <View style={styles.buttonContainer}>
@@ -41,7 +41,7 @@ export default function WelcomeScreen() {
             onPress={() => router.push("/login")}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>Sign In</Text>
+            <Text style={styles.primaryButtonText}>{t.welcome.signIn}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -49,38 +49,44 @@ export default function WelcomeScreen() {
             onPress={() => router.push("/signup")}
             activeOpacity={0.8}
           >
-            <Text style={styles.secondaryButtonText}>Create Account</Text>
+            <Text style={styles.secondaryButtonText}>
+              {t.welcome.createAccount}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => router.replace("/(tabs)")}
             style={styles.guestButton}
           >
-            <Text style={styles.guestButtonText}>Continue as Guest</Text>
+            <Text style={styles.guestButtonText}>
+              {t.welcome.continueAsGuest}
+            </Text>
           </TouchableOpacity>
 
           {/* DEV ONLY: Reset Button */}
           <TouchableOpacity
             onPress={() => {
               Alert.alert(
-                "Reset App Storage",
-                "This will clear all persisted data (cart, favorites, etc). Continue?",
+                t.welcome.resetAppStorage,
+                t.welcome.resetConfirmMessage,
                 [
-                  { text: "Cancel", style: "cancel" },
+                  { text: t.common.cancel, style: "cancel" },
                   {
-                    text: "Reset",
+                    text: t.welcome.reset,
                     style: "destructive",
                     onPress: () => {
                       resetApp();
-                      Alert.alert("Success", "App storage cleared!");
+                      Alert.alert(t.common.success, t.welcome.storageCleared);
                     },
                   },
-                ]
+                ],
               );
             }}
             style={styles.devButton}
           >
-            <Text style={styles.devButtonText}>🔧 Clear Storage (Dev)</Text>
+            <Text style={styles.devButtonText}>
+              {t.welcome.clearStorageDev}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

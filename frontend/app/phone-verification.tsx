@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
@@ -21,6 +22,7 @@ import { Phone, Shield } from "lucide-react-native";
 
 export default function PhoneVerificationScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { sendPhoneOtp, verifyPhoneOtp, user } = useStore();
 
   const [phone, setPhone] = useState("");
@@ -38,7 +40,7 @@ export default function PhoneVerificationScreen() {
 
   const handleSendOtp = async () => {
     if (!phone || phone.length < 10) {
-      Alert.alert("Error", "Please enter a valid phone number");
+      Alert.alert(t.common.error, t.phoneVerification.enterValidPhone);
       return;
     }
 
@@ -50,9 +52,12 @@ export default function PhoneVerificationScreen() {
       await sendPhoneOtp(formattedPhone);
       setStep(2);
       setCountdown(60);
-      Alert.alert("Success", "OTP sent to your phone number");
+      Alert.alert(t.common.success, t.phoneVerification.otpSent);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to send OTP");
+      Alert.alert(
+        t.common.error,
+        error.message || t.phoneVerification.failedToSendOtp,
+      );
     } finally {
       setLoading(false);
     }
@@ -60,7 +65,7 @@ export default function PhoneVerificationScreen() {
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert("Error", "Please enter the 6-digit code");
+      Alert.alert(t.common.error, t.phoneVerification.enterSixDigitCode);
       return;
     }
 
@@ -70,17 +75,20 @@ export default function PhoneVerificationScreen() {
       setLoading(true);
       await verifyPhoneOtp(formattedPhone, otp);
       Alert.alert(
-        "Success! 🎉",
-        "Your phone number has been verified. Welcome to ElBaraka!",
+        t.phoneVerification.successTitle,
+        t.phoneVerification.phoneVerified,
         [
           {
-            text: "Continue",
+            text: t.common.continue,
             onPress: () => router.replace("/(tabs)"),
           },
-        ]
+        ],
       );
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Invalid OTP");
+      Alert.alert(
+        t.common.error,
+        error.message || t.phoneVerification.invalidOtp,
+      );
     } finally {
       setLoading(false);
     }
@@ -108,18 +116,22 @@ export default function PhoneVerificationScreen() {
               )}
             </View>
             <Text style={styles.title}>
-              {step === 1 ? "Verify Your Phone" : "Enter Verification Code"}
+              {step === 1
+                ? t.phoneVerification.verifyPhone
+                : t.phoneVerification.enterCode}
             </Text>
             <Text style={styles.subtitle}>
               {step === 1
-                ? "We need your phone number for delivery updates 🚚"
-                : `We sent a 6-digit code to ${phone}`}
+                ? t.phoneVerification.needPhoneForDelivery
+                : t.phoneVerification.sentCodeTo.replace("{phone}", phone)}
             </Text>
           </View>
 
           {step === 1 ? (
             <View style={styles.form}>
-              <Text style={styles.label}>Phone Number</Text>
+              <Text style={styles.label}>
+                {t.phoneVerification.phoneNumber}
+              </Text>
               <View style={styles.phoneInputWrapper}>
                 <View style={styles.flagContainer}>
                   <Text style={styles.flag}>🇪🇬</Text>
@@ -146,13 +158,17 @@ export default function PhoneVerificationScreen() {
                 {loading ? (
                   <ActivityIndicator color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.buttonText}>Send Code</Text>
+                  <Text style={styles.buttonText}>
+                    {t.phoneVerification.sendCode}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.form}>
-              <Text style={styles.label}>Verification Code</Text>
+              <Text style={styles.label}>
+                {t.phoneVerification.verificationCode}
+              </Text>
               <TextInput
                 style={styles.otpInput}
                 placeholder="000000"
@@ -173,19 +189,28 @@ export default function PhoneVerificationScreen() {
                 {loading ? (
                   <ActivityIndicator color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.buttonText}>Verify</Text>
+                  <Text style={styles.buttonText}>
+                    {t.phoneVerification.verify}
+                  </Text>
                 )}
               </TouchableOpacity>
 
               <View style={styles.resendContainer}>
-                <Text style={styles.resendText}>Didn't receive the code? </Text>
+                <Text style={styles.resendText}>
+                  {t.phoneVerification.didntReceiveCode}{" "}
+                </Text>
                 {countdown > 0 ? (
                   <Text style={styles.countdownText}>
-                    Resend in {countdown}s
+                    {t.phoneVerification.resendIn.replace(
+                      "{seconds}",
+                      countdown.toString(),
+                    )}
                   </Text>
                 ) : (
                   <TouchableOpacity onPress={handleResendOtp}>
-                    <Text style={styles.resendLink}>Resend</Text>
+                    <Text style={styles.resendLink}>
+                      {t.phoneVerification.resend}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -197,7 +222,9 @@ export default function PhoneVerificationScreen() {
                   setOtp("");
                 }}
               >
-                <Text style={styles.changeNumberText}>Change Phone Number</Text>
+                <Text style={styles.changeNumberText}>
+                  {t.phoneVerification.changePhone}
+                </Text>
               </TouchableOpacity>
             </View>
           )}

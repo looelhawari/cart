@@ -41,6 +41,8 @@ import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
 import type { Product } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { useLocalizedValue, useTranslation } from "@/i18n";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 export default function HomeScreen() {
   const { wp, hp, isSmallDevice, width } = useResponsive();
@@ -323,9 +325,94 @@ export default function HomeScreen() {
 
   if (!fontsLoaded || loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary900} />
-      </View>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineIndicator />
+        {/* Header Skeleton */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <SkeletonLoader width={100} height={14} borderRadius={4} />
+              <View style={{ height: 4 }} />
+              <SkeletonLoader width={140} height={20} borderRadius={4} />
+            </View>
+            <View style={styles.headerActions}>
+              <SkeletonLoader width={44} height={44} borderRadius={22} />
+              <SkeletonLoader width={44} height={44} borderRadius={22} />
+            </View>
+          </View>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Search Bar Skeleton */}
+          <View style={styles.searchContainer}>
+            <SkeletonLoader width="100%" height={50} borderRadius={12} />
+          </View>
+
+          {/* Hero Banner Skeleton */}
+          <View style={{ paddingHorizontal: wp(4), marginBottom: Spacing.md }}>
+            <SkeletonLoader width="100%" height={hp(20)} borderRadius={16} />
+          </View>
+
+          {/* Feature Cards Skeleton */}
+          <View style={styles.featuresContainer}>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={styles.featureCard}>
+                <SkeletonLoader width={40} height={40} borderRadius={20} />
+                <View style={{ height: 4 }} />
+                <SkeletonLoader width={60} height={14} borderRadius={4} />
+              </View>
+            ))}
+          </View>
+
+          {/* Categories Skeleton */}
+          <View style={styles.categoriesSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScroll}
+            >
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <View key={i} style={styles.categoryCard}>
+                  <SkeletonLoader width={60} height={60} borderRadius={30} />
+                  <View style={{ height: 4 }} />
+                  <SkeletonLoader width={50} height={12} borderRadius={4} />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Section Skeleton (Products) */}
+          {[1, 2, 3].map((section) => (
+            <View key={section} style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <SkeletonLoader width={150} height={24} borderRadius={6} />
+                <SkeletonLoader width={80} height={20} borderRadius={6} />
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dealsScroll}
+              >
+                {[1, 2, 3, 4].map((i) => (
+                  <View key={i} style={styles.dealCard}>
+                    <SkeletonLoader
+                      width="100%"
+                      height={140}
+                      borderRadius={12}
+                    />
+                    <View style={{ height: 8 }} />
+                    <SkeletonLoader width="80%" height={16} borderRadius={4} />
+                    <View style={{ height: 4 }} />
+                    <SkeletonLoader width="60%" height={14} borderRadius={4} />
+                    <View style={{ height: 8 }} />
+                    <SkeletonLoader width="50%" height={20} borderRadius={6} />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -340,6 +427,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <OfflineIndicator />
       {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.headerTop}>

@@ -196,7 +196,8 @@ export default {
     loginFailed: "فشل تسجيل الدخول",
     biometricFailed: "فشل التحقق البيومتري",
     enableBiometric: "تفعيل {type}؟",
-    wouldYouLikeBiometric: "هل تريد استخدام {type} لتسجيل الدخول في المرة القادمة؟",
+    wouldYouLikeBiometric:
+      "هل تريد استخدام {type} لتسجيل الدخول في المرة القادمة؟",
     enable: "تفعيل",
     notNow: "ليس الآن",
     biometricEnabled: "تم تفعيل تسجيل الدخول بـ {type}",
@@ -246,7 +247,8 @@ export default {
     profileUpdated: "تم تحديث الملف الشخصي بنجاح",
     failedToUpdate: "فشل تحديث الملف الشخصي. يرجى المحاولة مرة أخرى.",
     permissionRequired: "إذن مطلوب",
-    grantCameraRollPermission: "يرجى منح إذن الوصول للصور لتغيير صورة ملفك الشخصي.",
+    grantCameraRollPermission:
+      "يرجى منح إذن الوصول للصور لتغيير صورة ملفك الشخصي.",
     grantCameraPermission: "يرجى منح إذن الكاميرا لالتقاط صورة.",
     pictureUpdated: "تم تحديث صورة الملف الشخصي بنجاح",
     failedToUpload: "فشل رفع الصورة",
@@ -280,12 +282,6 @@ export default {
     clearAll: "مسح الكل",
     failedToClear: "فشل مسح بعض المفضلات",
   },
-    help: "المساعدة والدعم",
-    logout: "تسجيل الخروج",
-    notifications: "الإشعارات",
-    spent: "المصروف",
-    favorites: "المفضلة",
-  },
 
   // Settings
   settings: {
@@ -311,9 +307,11 @@ export default {
     disable: "تعطيل",
     biometricDisabled: "تم تعطيل تسجيل الدخول البيومتري",
     failedToDisableBiometric: "فشل تعطيل تسجيل الدخول البيومتري",
-    failedToEnableBiometric: "فشل تفعيل تسجيل الدخول البيومتري. الرجاء التحقق من كلمة المرور.",
+    failedToEnableBiometric:
+      "فشل تفعيل تسجيل الدخول البيومتري. الرجاء التحقق من كلمة المرور.",
     enterPassword: "الرجاء إدخال كلمة المرور",
-    enterPasswordToEnableBiometric: "الرجاء إدخال كلمة المرور لتفعيل تسجيل الدخول البيومتري",
+    enterPasswordToEnableBiometric:
+      "الرجاء إدخال كلمة المرور لتفعيل تسجيل الدخول البيومتري",
     setupBiometricInDevice: "الرجاء إعداد التحقق البيومتري في إعدادات جهازك",
     biometricNotAvailable: "التحقق البيومتري غير متاح على هذا الجهاز",
     changePassword: "تغيير كلمة المرور",
@@ -321,7 +319,8 @@ export default {
     language: "اللغة",
     languageDesc: "اختر لغتك المفضلة",
     languageChanged: "تم تغيير اللغة",
-    languageChangedMessage: "تم تغيير اللغة إلى {lang}. قد تتطلب بعض التغييرات إعادة تشغيل التطبيق.",
+    languageChangedMessage:
+      "تم تغيير اللغة إلى {lang}. قد تتطلب بعض التغييرات إعادة تشغيل التطبيق.",
     darkMode: "الوضع الداكن",
     darkModeDesc: "استخدم المظهر الداكن (قريباً)",
     about: "حول التطبيق",
@@ -525,7 +524,8 @@ export default {
   // Payment
   payment: {
     title: "طرق الدفع",
-    securelyProcessed: "تتم معالجة الدفع بشكل آمن من خلال باي موب. اختر طريقة الدفع المفضلة أثناء إتمام الطلب.",
+    securelyProcessed:
+      "تتم معالجة الدفع بشكل آمن من خلال باي موب. اختر طريقة الدفع المفضلة أثناء إتمام الطلب.",
     availablePaymentMethods: "طرق الدفع المتاحة",
     cardPayment: "الدفع بالبطاقة",
     payWithCard: "ادفع ببطاقة الائتمان أو الخصم",
@@ -537,7 +537,8 @@ export default {
     payWithCash: "ادفع نقداً عند وصول طلبك",
     availableAllAreas: "متاح في جميع مناطق التوصيل",
     secureAndSafe: "آمن ومحمي",
-    allPaymentsSecure: "جميع المدفوعات تتم معالجتها بشكل آمن من خلال باي موب مع تشفير على مستوى البنوك ومصادقة 3D Secure.",
+    allPaymentsSecure:
+      "جميع المدفوعات تتم معالجتها بشكل آمن من خلال باي موب مع تشفير على مستوى البنوك ومصادقة 3D Secure.",
   },
 
   // Orders
@@ -644,13 +645,146 @@ export default {
   addresses: {
     title: "عناويني",
     addAddress: "إضافة عنوان جديد",
+    addAddressButton: "إضافة عنوان",
     editAddress: "تعديل العنوان",
     deleteAddress: "حذف العنوان",
+    confirmDelete: "هل أنت متأكد من حذف عنوان {label}؟",
     setDefault: "تعيين كافتراضي",
     default: "افتراضي",
     home: "المنزل",
     work: "العمل",
-    other: "أخرى",
+    other: "آخر",
+    noAddresses: "لا توجد عناوين بعد",
+    noAddressesYet: "لا توجد عناوين بعد",
+    addAddressToGetStarted:
+      "أضف عناوين التوصيل الخاصة بك لإتمام الطلب بشكل أسرع",
+    floor: "الطابق",
+    apt: "شقة",
+    near: "بالقرب من",
+    note: "ملاحظة",
+    failedToLoad: "فشل تحميل العناوين",
+    failedToDelete: "فشل حذف العنوان",
+    failedToSetDefault: "فشل تعيين العنوان الافتراضي",
+    // Add/Edit Address
+    addressType: "نوع العنوان",
+    contactInformation: "معلومات الاتصال",
+    recipientName: "اسم المستلم",
+    enterRecipientName: "أدخل اسم المستلم",
+    phoneNumber: "رقم الهاتف",
+    enterPhoneNumber: "أدخل رقم الهاتف",
+    addressDetails: "تفاصيل العنوان",
+    street: "عنوان الشارع",
+    enterStreet: "أدخل عنوان الشارع",
+    building: "المبنى",
+    enterBuilding: "المبنى",
+    floorNumber: "الطابق",
+    enterFloor: "أدخل رقم الطابق",
+    apartmentNumber: "الشقة / الوحدة",
+    enterApartment: "أدخل رقم الشقة أو الوحدة",
+    city: "المدينة",
+    enterCity: "أدخل المدينة",
+    area: "المنطقة / الحي",
+    enterArea: "أدخل المنطقة أو الحي",
+    landmark: "معلم مميز (اختياري)",
+    enterLandmark: "معلم قريب لسهولة الوصول",
+    deliveryNotes: "ملاحظات التوصيل (اختياري)",
+    enterNotes: "مثال: اضغط على الجرس، اتصل عند الوصول...",
+    setAsDefault: "تعيين كعنوان افتراضي",
+    saveAddress: "حفظ العنوان",
+    pleaseEnterRecipientName: "الرجاء إدخال اسم المستلم",
+    pleaseEnterPhone: "الرجاء إدخال رقم الهاتف",
+    pleaseEnterStreet: "الرجاء إدخال عنوان الشارع",
+    pleaseEnterCity: "الرجاء إدخال المدينة",
+    pleaseEnterArea: "الرجاء إدخال المنطقة",
+    addressSavedSuccessfully: "تم {action} العنوان بنجاح",
+    updated: "تحديث",
+    added: "إضافة",
+    failedToSave: "فشل حفظ العنوان",
+  },
+
+  // Welcome
+  welcome: {
+    tagline: "بقالتك اليومية توصلك طازجة",
+    signIn: "تسجيل الدخول",
+    createAccount: "إنشاء حساب",
+    continueAsGuest: "المتابعة كزائر",
+    resetAppStorage: "إعادة تعيين التطبيق",
+    resetConfirmMessage:
+      "سيؤدي هذا إلى مسح جميع البيانات المحفوظة (السلة، المفضلة، إلخ). هل تريد المتابعة؟",
+    reset: "إعادة تعيين",
+    storageCleared: "تم مسح بيانات التطبيق!",
+    clearStorageDev: "🔧 مسح البيانات (تطوير)",
+  },
+
+  // Onboarding
+  onboarding: {
+    slide1Title: "بقالة طازجة توصلك للبيت",
+    slide1Description:
+      "احصل على البقالة الطازجة والأساسيات اليومية توصل لباب بيتك",
+    slide2Title: "تجربة تسوق سهلة",
+    slide2Description: "تصفح آلاف المنتجات وأضفها للسلة بضغطة واحدة",
+    slide3Title: "دفع سريع وآمن",
+    slide3Description: "خيارات دفع متعددة مع عملية دفع سريعة وآمنة",
+    skip: "تخطي",
+    next: "التالي",
+    getStarted: "ابدأ الآن",
+  },
+
+  // Order Success
+  orderSuccess: {
+    orderPlaced: "تم تقديم الطلب بنجاح!",
+    thankYou: "شكراً لشرائك. تم استلام طلبك وجاري معالجته.",
+    paymentNote:
+      "إذا دفعت بالبطاقة، جاري تأكيد الدفع. يمكنك التحقق من حالة طلبك للحصول على التحديثات.",
+    processingPayment: "جاري معالجة الدفع...",
+    pleaseWait:
+      "يرجى الانتظار بينما نؤكد دفعتك. عادة ما يستغرق هذا بضع ثوانٍ فقط.",
+    paymentConfirmed: "تم تأكيد الدفع!",
+    paymentSuccess: "تمت معالجة دفعتك بنجاح. شكراً لشرائك!",
+    paymentFailed: "فشل الدفع",
+    paymentFailedMessage:
+      "للأسف، لم يتم معالجة دفعتك. يرجى المحاولة مرة أخرى أو الاتصال بالدعم.",
+    orderNumber: "رقم الطلب",
+    promoApplied: "تم تطبيق الرمز الترويجي",
+    estimatedDelivery: "التوصيل المتوقع",
+    viewOrderDetails: "عرض تفاصيل الطلب",
+    tryAgain: "حاول مرة أخرى",
+    continueShopping: "متابعة التسوق",
+  },
+
+  // Phone Verification
+  phoneVerification: {
+    verifyPhone: "تحقق من هاتفك",
+    enterCode: "أدخل رمز التحقق",
+    needPhoneForDelivery: "نحتاج رقم هاتفك لتحديثات التوصيل 🚚",
+    sentCodeTo: "أرسلنا رمزاً مكوناً من 6 أرقام إلى {phone}",
+    phoneNumber: "رقم الهاتف",
+    sendCode: "إرسال الرمز",
+    verificationCode: "رمز التحقق",
+    verify: "تحقق",
+    didntReceiveCode: "لم تستلم الرمز؟",
+    resendIn: "إعادة الإرسال في {seconds} ث",
+    resend: "إعادة الإرسال",
+    changePhone: "تغيير رقم الهاتف",
+    enterValidPhone: "الرجاء إدخال رقم هاتف صحيح",
+    otpSent: "تم إرسال رمز التحقق إلى رقم هاتفك",
+    failedToSendOtp: "فشل إرسال رمز التحقق",
+    enterSixDigitCode: "الرجاء إدخال الرمز المكون من 6 أرقام",
+    successTitle: "نجح! 🎉",
+    phoneVerified: "تم التحقق من رقم هاتفك. مرحباً بك في البركة!",
+    invalidOtp: "رمز تحقق غير صحيح",
+  },
+
+  // Notifications
+  notifications: {
+    title: "الإشعارات",
+    markAllRead: "تحديد الكل كمقروء",
+    all: "الكل",
+    orders: "الطلبات",
+    offers: "العروض",
+    account: "الحساب",
+    noNotifications: "لا توجد إشعارات",
+    noNotificationsMessage: "ستظهر الإشعارات هنا عندما يكون لديك",
   },
 
   // Alerts
@@ -757,7 +891,8 @@ export default {
     addNewCardOrOther: "يرجى إضافة بطاقة جديدة أو استخدام طريقة دفع أخرى",
     addPaymentMethod: "إضافة طريقة دفع",
     secureCardPayment: "دفع آمن بالبطاقة",
-    redirectToPayment: "سيتم توجيهك إلى بوابة الدفع الآمنة لإدخال بيانات بطاقتك.",
+    redirectToPayment:
+      "سيتم توجيهك إلى بوابة الدفع الآمنة لإدخال بيانات بطاقتك.",
     saveCardForFuture: "حفظ هذه البطاقة للمشتريات المستقبلية",
     payOnArrival: "ادفع عند وصول طلبك.",
     failedToLoadCards: "فشل تحميل البطاقات المحفوظة. يرجى المحاولة مرة أخرى.",

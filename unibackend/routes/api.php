@@ -100,6 +100,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/summary', [OffersController::class, 'summary']);
     });
 
+    // Reviews routes (public - for viewing reviews) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->prefix('reviews')->group(function () {
+        Route::get('/product/{productId}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'getProductReviews']);
+        Route::get('/{id}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'show']);
+    });
+
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -196,6 +202,15 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [ComplaintController::class, 'store']);
             Route::get('/{id}', [ComplaintController::class, 'show']);
             Route::post('/{id}/messages', [ComplaintController::class, 'addMessage']);
+        });
+
+        // Reviews endpoints (protected)
+        Route::prefix('reviews')->group(function () {
+            Route::post('/', [\App\Http\Controllers\Api\V1\ReviewController::class, 'store']);
+            Route::get('/my-reviews', [\App\Http\Controllers\Api\V1\ReviewController::class, 'getUserReviews']);
+            Route::put('/{id}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'update']);
+            Route::delete('/{id}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'destroy']);
+            Route::post('/{id}/helpful', [\App\Http\Controllers\Api\V1\ReviewController::class, 'markHelpful']);
         });
 
         // Admin routes (requires admin role)
@@ -300,7 +315,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/dashboard', [AnalyticsController::class, 'dashboard']);
                 Route::get('/products', [AnalyticsController::class, 'productPerformance']);
                 Route::get('/customers', [AnalyticsController::class, 'customerInsights']);
-                
+
                 // Comprehensive Analytics
                 Route::get('/overview', [ComprehensiveAnalyticsController::class, 'overview']);
                 Route::get('/sales', [ComprehensiveAnalyticsController::class, 'salesAnalytics']);

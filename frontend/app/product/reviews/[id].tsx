@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,21 +8,28 @@ import {
   TextInput,
   Image,
   Modal,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
-import {
-  ArrowLeft,
-  Star,
-  ThumbsUp,
-  Camera,
-  X,
-} from 'lucide-react-native';
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams, router } from "expo-router";
+import { ArrowLeft, Star, ThumbsUp, Camera, X } from "lucide-react-native";
 
-import { products } from '@/data/products';
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
+import { products } from "@/data/products";
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import {
+  getProductReviews,
+  createReview,
+  markReviewHelpful,
+} from "@/services/api/reviewsApi";
+import { getProductReviewsCached } from "@/services/cache/reviewsCache";
+import { useIsOnline } from "@/services/cache/networkDetector";
+import type { Review } from "@/types";
+import OfflineIndicator from "@/components/OfflineIndicator";
+import { useStore } from "@/store";
+import { Toast } from "@/components/Toast";
 
 interface Review {
   id: string;
@@ -38,34 +45,38 @@ interface Review {
 
 const mockReviews: Review[] = [
   {
-    id: '1',
-    userName: 'Sarah Ahmed',
-    userAvatar: 'https://i.pravatar.cc/300?img=5',
+    id: "1",
+    userName: "Sarah Ahmed",
+    userAvatar: "https://i.pravatar.cc/300?img=5",
     rating: 5,
-    date: '2025-01-10',
-    comment: 'Excellent quality! Fresh and delivered on time. Will definitely order again.',
-    photos: ['https://picsum.photos/300/300?random=1', 'https://picsum.photos/300/300?random=2'],
+    date: "2025-01-10",
+    comment:
+      "Excellent quality! Fresh and delivered on time. Will definitely order again.",
+    photos: [
+      "https://picsum.photos/300/300?random=1",
+      "https://picsum.photos/300/300?random=2",
+    ],
     helpful: 12,
     verified: true,
   },
   {
-    id: '2',
-    userName: 'Mohamed Ali',
-    userAvatar: 'https://i.pravatar.cc/300?img=8',
+    id: "2",
+    userName: "Mohamed Ali",
+    userAvatar: "https://i.pravatar.cc/300?img=8",
     rating: 4,
-    date: '2025-01-08',
-    comment: 'Good product but packaging could be better.',
+    date: "2025-01-08",
+    comment: "Good product but packaging could be better.",
     helpful: 7,
     verified: true,
   },
   {
-    id: '3',
-    userName: 'Fatima Hassan',
-    userAvatar: 'https://i.pravatar.cc/300?img=9',
+    id: "3",
+    userName: "Fatima Hassan",
+    userAvatar: "https://i.pravatar.cc/300?img=9",
     rating: 5,
-    date: '2025-01-05',
-    comment: 'Best quality I\'ve found! Highly recommend.',
-    photos: ['https://picsum.photos/300/300?random=3'],
+    date: "2025-01-05",
+    comment: "Best quality I've found! Highly recommend.",
+    photos: ["https://picsum.photos/300/300?random=3"],
     helpful: 15,
     verified: false,
   },
@@ -74,17 +85,166 @@ const mockReviews: Review[] = [
 export default function ProductReviewsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const product = products.find((p) => p.id === id);
-  
-  const [reviews] = useState<Review[]>(mockReviews);
-  const [sortBy, setSortBy] = useState<'recent' | 'highest' | 'lowest' | 'helpful'>('recent');
+  const { user } = useStore();
+  const isOnline = useIsOnline();
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sortBy, setSortBy] = useState<
+    "recent" | "highest" | "lowest" | "helpful"
+  >("recent");
   const [filterVerified, setFilterVerified] = useState(false);
   const [filterWithPhotos, setFilterWithPhotos] = useState(false);
   const [showWriteReview, setShowWriteReview] = useState(false);
   const [newRating, setNewRating] = useState(0);
-  const [newComment, setNewComment] = useState('');
+  const [newComment, setNewComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+
+  useEffect(() => {
+    if (product) {
+      loadReviews();
+    }
+  }, [product]);
+
+  const loadReviews = async () => {
+    try {
+      setLoading(true);
+      // Use cached version that works offline
+      const cachedReviews = await getProductReviewsCached(id, isOnline);
+      setReviews(cachedReviews);
+
+      if (!isOnline && cachedReviews.length === 0) {
+        setToastMessage("No cached reviews available offline");
+        setToastType("error");
+        setShowToast(true);
+      }
+    } catch (error) {
+      console.error("Failed to load reviews:", error);
+      setToastMessage("Failed to load reviews");
+      setToastType("error");
+      setShowToast(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!isOnline) {
+      setToastMessage("Cannot refresh while offline");
+      setToastType("error");
+      setShowToast(true);
+      return;
+    }
+
+    setRefreshing(true);
+    await loadReviews();
+    setRefreshing(false);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!isOnline) {
+      setToastMessage("Cannot submit review while offline");
+      setToastType("error");
+      setShowToast(true);
+      return;
+    }
+
+    if (!user) {
+      setToastMessage("Please login to submit a review");
+      setToastType("error");
+      setShowToast(true);
+      return;
+    }
+
+    if (!newRating || !newComment) {
+      setToastMessage("Please provide rating and comment");
+      setToastType("error");
+      setShowToast(true);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      // Note: You'll need to pass the actual order_id from a completed order
+      await createReview({
+        product_id: parseInt(id),
+        order_id: 1, // TODO: Get actual order ID from order history
+        rating: newRating,
+        comment: newComment,
+      });
+
+      setToastMessage("Review submitted successfully!");
+      setToastType("success");
+      setShowToast(true);
+      setShowWriteReview(false);
+      setNewRating(0);
+      setNewComment("");
+      loadReviews(); // Reload reviews
+    } catch (error: any) {
+      setToastMessage(
+        error.response?.data?.message || "Failed to submit review",
+      );
+      setToastType("error");
+      setShowToast(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleMarkHelpful = async (reviewId: string) => {
+    if (!isOnline) {
+      setToastMessage("Cannot mark as helpful while offline");
+      setToastType("error");
+      setShowToast(true);
+      return;
+    }
+
+    if (!user) {
+      setToastMessage("Please login to mark as helpful");
+      setToastType("error");
+      setShowToast(true);
+      return;
+    }
+
+    try {
+      await markReviewHelpful(reviewId);
+      setToastMessage("Marked as helpful");
+      setToastType("success");
+      setShowToast(true);
+      // TODO: Update review helpful count in state
+    } catch (error) {
+      console.error("Failed to mark as helpful:", error);
+    }
+  };
 
   if (!product) {
-    return null;
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <Text style={{ textAlign: "center", marginTop: 50 }}>
+          Product not found
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineIndicator />
+        <View
+          style={[
+            styles.container,
+            { justifyContent: "center", alignItems: "center" },
+          ]}
+        >
+          <ActivityIndicator size="large" color={Colors.primary900} />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   const averageRating = 4.5;
@@ -103,13 +263,13 @@ export default function ProductReviewsScreen() {
 
   const sortedReviews = [...filteredReviews].sort((a, b) => {
     switch (sortBy) {
-      case 'highest':
+      case "highest":
         return b.rating - a.rating;
-      case 'lowest':
+      case "lowest":
         return a.rating - b.rating;
-      case 'helpful':
+      case "helpful":
         return b.helpful - a.helpful;
-      case 'recent':
+      case "recent":
       default:
         return new Date(b.date).getTime() - new Date(a.date).getTime();
     }
@@ -121,7 +281,7 @@ export default function ProductReviewsScreen() {
         <Star
           key={star}
           size={size}
-          fill={star <= rating ? Colors.accentOrange : 'none'}
+          fill={star <= rating ? Colors.accentOrange : "none"}
           color={star <= rating ? Colors.accentOrange : Colors.neutralGray}
         />
       ))}
@@ -129,7 +289,8 @@ export default function ProductReviewsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <OfflineIndicator />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -139,9 +300,9 @@ export default function ProductReviewsScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        
+
         <Text style={styles.headerTitle}>Reviews</Text>
-        
+
         <TouchableOpacity
           style={styles.writeButton}
           onPress={() => setShowWriteReview(true)}
@@ -151,7 +312,17 @@ export default function ProductReviewsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[Colors.primary900]}
+            tintColor={Colors.primary900}
+          />
+        }
+      >
         {/* Summary */}
         <View style={styles.summarySection}>
           <View style={styles.summaryLeft}>
@@ -159,12 +330,16 @@ export default function ProductReviewsScreen() {
             {renderStars(Math.round(averageRating), 20)}
             <Text style={styles.totalReviews}>{totalReviews} reviews</Text>
           </View>
-          
+
           <View style={styles.summaryRight}>
             {ratingDistribution.map((dist) => (
               <View key={dist.stars} style={styles.distributionRow}>
                 <Text style={styles.distributionStars}>{dist.stars}</Text>
-                <Star size={12} fill={Colors.accentOrange} color={Colors.accentOrange} />
+                <Star
+                  size={12}
+                  fill={Colors.accentOrange}
+                  color={Colors.accentOrange}
+                />
                 <View style={styles.distributionBar}>
                   <View
                     style={[
@@ -187,52 +362,97 @@ export default function ProductReviewsScreen() {
             contentContainerStyle={styles.filtersScroll}
           >
             <TouchableOpacity
-              style={[styles.filterChip, sortBy === 'recent' && styles.filterChipActive]}
-              onPress={() => setSortBy('recent')}
+              style={[
+                styles.filterChip,
+                sortBy === "recent" && styles.filterChipActive,
+              ]}
+              onPress={() => setSortBy("recent")}
               activeOpacity={0.7}
             >
-              <Text style={[styles.filterText, sortBy === 'recent' && styles.filterTextActive]}>
+              <Text
+                style={[
+                  styles.filterText,
+                  sortBy === "recent" && styles.filterTextActive,
+                ]}
+              >
                 Most Recent
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.filterChip, sortBy === 'highest' && styles.filterChipActive]}
-              onPress={() => setSortBy('highest')}
+              style={[
+                styles.filterChip,
+                sortBy === "highest" && styles.filterChipActive,
+              ]}
+              onPress={() => setSortBy("highest")}
               activeOpacity={0.7}
             >
-              <Text style={[styles.filterText, sortBy === 'highest' && styles.filterTextActive]}>
+              <Text
+                style={[
+                  styles.filterText,
+                  sortBy === "highest" && styles.filterTextActive,
+                ]}
+              >
                 Highest Rated
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.filterChip, sortBy === 'helpful' && styles.filterChipActive]}
-              onPress={() => setSortBy('helpful')}
+              style={[
+                styles.filterChip,
+                sortBy === "helpful" && styles.filterChipActive,
+              ]}
+              onPress={() => setSortBy("helpful")}
               activeOpacity={0.7}
             >
-              <Text style={[styles.filterText, sortBy === 'helpful' && styles.filterTextActive]}>
+              <Text
+                style={[
+                  styles.filterText,
+                  sortBy === "helpful" && styles.filterTextActive,
+                ]}
+              >
                 Most Helpful
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.filterChip, filterWithPhotos && styles.filterChipActive]}
+              style={[
+                styles.filterChip,
+                filterWithPhotos && styles.filterChipActive,
+              ]}
               onPress={() => setFilterWithPhotos(!filterWithPhotos)}
               activeOpacity={0.7}
             >
-              <Camera size={14} color={filterWithPhotos ? Colors.neutralWhite : Colors.neutralMedium} />
-              <Text style={[styles.filterText, filterWithPhotos && styles.filterTextActive]}>
+              <Camera
+                size={14}
+                color={
+                  filterWithPhotos ? Colors.neutralWhite : Colors.neutralMedium
+                }
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  filterWithPhotos && styles.filterTextActive,
+                ]}
+              >
                 With Photos
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.filterChip, filterVerified && styles.filterChipActive]}
+              style={[
+                styles.filterChip,
+                filterVerified && styles.filterChipActive,
+              ]}
               onPress={() => setFilterVerified(!filterVerified)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.filterText, filterVerified && styles.filterTextActive]}>
+              <Text
+                style={[
+                  styles.filterText,
+                  filterVerified && styles.filterTextActive,
+                ]}
+              >
                 Verified
               </Text>
             </TouchableOpacity>
@@ -263,9 +483,9 @@ export default function ProductReviewsScreen() {
                   </View>
                 </View>
               </View>
-              
+
               <Text style={styles.reviewComment}>{review.comment}</Text>
-              
+
               {review.photos && review.photos.length > 0 && (
                 <ScrollView
                   horizontal
@@ -281,10 +501,16 @@ export default function ProductReviewsScreen() {
                   ))}
                 </ScrollView>
               )}
-              
-              <TouchableOpacity style={styles.helpfulButton} activeOpacity={0.7}>
+
+              <TouchableOpacity
+                style={styles.helpfulButton}
+                activeOpacity={0.7}
+                onPress={() => handleMarkHelpful(review.id)}
+              >
                 <ThumbsUp size={16} color={Colors.neutralMedium} />
-                <Text style={styles.helpfulText}>Helpful ({review.helpful})</Text>
+                <Text style={styles.helpfulText}>
+                  Helpful ({review.helpful})
+                </Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -309,7 +535,7 @@ export default function ProductReviewsScreen() {
                 <X size={24} color={Colors.neutralCharcoal} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.ratingSelector}>
               <Text style={styles.ratingSelectorLabel}>Your Rating</Text>
               <View style={styles.ratingStars}>
@@ -321,14 +547,18 @@ export default function ProductReviewsScreen() {
                   >
                     <Star
                       size={40}
-                      fill={star <= newRating ? Colors.accentOrange : 'none'}
-                      color={star <= newRating ? Colors.accentOrange : Colors.neutralGray}
+                      fill={star <= newRating ? Colors.accentOrange : "none"}
+                      color={
+                        star <= newRating
+                          ? Colors.accentOrange
+                          : Colors.neutralGray
+                      }
                     />
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-            
+
             <View style={styles.commentInput}>
               <Text style={styles.commentLabel}>Your Review</Text>
               <TextInput
@@ -342,20 +572,33 @@ export default function ProductReviewsScreen() {
                 textAlignVertical="top"
               />
             </View>
-            
+
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (!newRating || !newComment) && styles.submitButtonDisabled,
+                (!newRating || !newComment || submitting) &&
+                  styles.submitButtonDisabled,
               ]}
-              disabled={!newRating || !newComment}
+              disabled={!newRating || !newComment || submitting}
               activeOpacity={0.9}
+              onPress={handleSubmitReview}
             >
-              <Text style={styles.submitButtonText}>Submit Review</Text>
+              {submitting ? (
+                <ActivityIndicator color={Colors.neutralWhite} />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit Review</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -366,9 +609,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -378,8 +621,8 @@ const styles = StyleSheet.create({
   headerButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h3,
@@ -398,14 +641,14 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
   },
   summarySection: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: Colors.neutralWhite,
     padding: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutralLight,
   },
   summaryLeft: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingRight: Spacing.lg,
     borderRightWidth: 1,
     borderRightColor: Colors.neutralLight,
@@ -417,7 +660,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   starsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 2,
     marginBottom: Spacing.xs,
   },
@@ -428,11 +671,11 @@ const styles = StyleSheet.create({
   summaryRight: {
     flex: 1,
     paddingLeft: Spacing.lg,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   distributionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     marginBottom: 4,
   },
@@ -446,17 +689,17 @@ const styles = StyleSheet.create({
     height: 6,
     backgroundColor: Colors.neutralLight,
     borderRadius: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   distributionFill: {
-    height: '100%',
+    height: "100%",
     backgroundColor: Colors.accentOrange,
   },
   distributionCount: {
     fontSize: Typography.bodySmall,
     color: Colors.neutralMedium,
     width: 24,
-    textAlign: 'right',
+    textAlign: "right",
   },
   filtersSection: {
     backgroundColor: Colors.neutralWhite,
@@ -469,8 +712,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -497,14 +740,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: Spacing.md,
     marginBottom: Spacing.md,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
   },
   reviewHeader: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: Spacing.sm,
   },
   reviewAvatar: {
@@ -517,8 +760,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reviewNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
     marginBottom: 4,
   },
@@ -539,8 +782,8 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
   },
   reviewMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   reviewDate: {
@@ -563,10 +806,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   helpfulButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   helpfulText: {
     fontSize: Typography.bodySmall,
@@ -574,8 +817,8 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: Colors.neutralWhite,
@@ -584,9 +827,9 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: Spacing.lg,
   },
   modalTitle: {
@@ -597,8 +840,8 @@ const styles = StyleSheet.create({
   modalClose: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   ratingSelector: {
     marginBottom: Spacing.lg,
@@ -610,9 +853,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   ratingStars: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.xs,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   commentInput: {
     marginBottom: Spacing.lg,
@@ -635,7 +878,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   submitButtonDisabled: {
     backgroundColor: Colors.neutralGray,
