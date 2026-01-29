@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Search, Edit, Trash2, Star, StarOff, TrendingUp, Calendar, Tag, X, Package } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Star, StarOff, X, Package } from 'lucide-react'
 import { format } from 'date-fns'
 import { useForm, Controller } from 'react-hook-form'
 import type { Promotion } from '@/types'
@@ -38,7 +38,7 @@ export default function PromotionsPage() {
     const queryClient = useQueryClient()
     const { toast } = useToast()
 
-    const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm()
+    const { register, handleSubmit, reset, watch, control } = useForm()
 
     const appliesTo = watch('applies_to', 'all')
 
@@ -52,7 +52,7 @@ export default function PromotionsPage() {
         queryFn: () => categoryService.getCategoryTree(),
     })
 
-    const { data: products, isLoading: isLoadingProducts, error: productsError } = useQuery({
+    const { data: products, isLoading: isLoadingProducts, error: _productsError } = useQuery({
         queryKey: ['products-all'],
         queryFn: async () => {
             try {
@@ -349,7 +349,7 @@ export default function PromotionsPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {(Array.isArray(promotionsData?.data) ? promotionsData?.data : promotionsData?.data?.data)?.map((promotion: Promotion) => (
+                                    {((promotionsData?.data as Promotion[] | undefined) || ((promotionsData as any)?.data?.data as Promotion[] | undefined))?.map((promotion: Promotion) => (
                                         <tr key={promotion.id} className="hover:bg-gray-50">
                                             <td className="p-3">
                                                 <div className="flex items-center gap-3">
@@ -586,7 +586,7 @@ export default function PromotionsPage() {
                                     className="w-full border rounded-md p-3 bg-white focus:ring-2 focus:ring-elbaraka-primary focus:border-transparent"
                                     style={{ minHeight: '200px' }}
                                 >
-                                    {categories?.data?.map((cat: any) => (
+                                    {((categories as any)?.data || categories)?.map((cat: any) => (
                                         <optgroup key={cat.id} label={`${cat.name_en} (${cat.name_ar})`}>
                                             <option value={cat.id} className="font-semibold">
                                                 ✓ {t('promotions.form.mainCategory')}: {cat.name_en}
@@ -600,7 +600,7 @@ export default function PromotionsPage() {
                                     ))}
                                 </select>
                                 <p className="text-xs text-gray-400 mt-2">
-                                    {categories?.data?.length || 0} {t('promotions.form.categoriesAvailable')}
+                                    {((categories as any)?.data?.length || (categories as any)?.length || 0)} {t('promotions.form.categoriesAvailable')}
                                 </p>
                             </div>
                         )}

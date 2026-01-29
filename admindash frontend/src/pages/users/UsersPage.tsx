@@ -124,7 +124,7 @@ export default function UsersPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {usersData?.data?.map((user) => (
+                                    {(usersData?.data as User[] | undefined)?.map((user) => (
                                         <tr key={user.id} className="border-b hover:bg-gray-50">
                                             <td className="p-3">
                                                 <div className="flex items-center space-x-3">

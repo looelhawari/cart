@@ -46,6 +46,7 @@ export type ProductAvailability = 'in_stock' | 'out_of_stock' | 'discontinued'
 export interface Product {
     barcode: string
     name: string
+    name_en?: string
     name_ar: string
     description: string | null
     description_ar: string | null
@@ -57,9 +58,11 @@ export interface Product {
     min_stock_level: number
     category_id: number
     category?: Category
+    categories?: Category[]
     image_url: string | null
     availability_status: ProductAvailability
     is_featured: boolean
+    is_active?: boolean
     weight: number | null
     unit: string | null
     active_promotion_id: number | null
@@ -195,6 +198,7 @@ export interface PromoCode {
 export interface Category {
     id: number
     parent_id: number | null
+    name?: string
     name_en: string
     name_ar: string
     slug: string
@@ -227,6 +231,7 @@ export interface Order {
         phone: string
     }
     total_amount: number
+    total?: number  // Alias for total_amount
     discount_amount: number
     delivery_fee: number
     final_amount: number
@@ -392,6 +397,11 @@ export interface PaginationMeta {
 export interface PaginatedResponse<T> {
     data: T[]
     meta: PaginationMeta
+    // Top-level pagination fields (some APIs return these at top level)
+    total?: number
+    last_page?: number
+    current_page?: number
+    per_page?: number
 }
 
 // API Error Types

@@ -1106,7 +1106,7 @@ function MarketingTabContent({ data, loading, error, t, isRTL }: { data?: Market
 }
 
 // Financial Tab Component
-function FinancialTabContent({ data, loading, error, t, isRTL }: { data?: FinancialAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
+function FinancialTabContent({ data, loading, error, t, isRTL: _isRTL }: { data?: FinancialAnalyticsResponse; loading: boolean; error?: Error | null; t: any; isRTL: boolean }) {
     if (loading) return <LoadingState />
     if (error) return <ErrorState message={`${t('analytics.failedToLoadData')}: ${error.message}`} />
     if (!data) return <EmptyState message={t('analytics.noDataAvailable')} />

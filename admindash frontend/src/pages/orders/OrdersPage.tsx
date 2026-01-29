@@ -111,7 +111,7 @@ export default function OrdersPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {ordersData?.data?.map((order) => (
+                                        {(ordersData?.data as any[] | undefined)?.map((order) => (
                                             <tr key={order.id} className="border-b hover:bg-gray-50">
                                                 <td className="p-3 font-mono text-sm font-medium">{order.order_number}</td>
                                                 <td className="p-3">

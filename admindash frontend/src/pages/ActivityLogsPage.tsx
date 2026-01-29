@@ -466,7 +466,7 @@ const ActivityLogsPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                logsData?.data?.map((log) => (
+                                (logsData?.data as any[] | undefined)?.map((log) => (
                                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">

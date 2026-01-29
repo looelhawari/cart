@@ -758,7 +758,7 @@ const AdminLogsPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                logsData?.data?.map((log) => (
+                                (logsData?.data as any[] | undefined)?.map((log) => (
                                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             <div className="flex items-center gap-2">

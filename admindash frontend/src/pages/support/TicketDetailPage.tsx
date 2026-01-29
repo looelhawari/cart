@@ -18,8 +18,7 @@ export default function TicketDetailPage() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const { toast } = useToast()
-    const { t, i18n } = useTranslation()
-    const isRTL = i18n.language === 'ar'
+    const { t } = useTranslation()
     const [replyMessage, setReplyMessage] = useState('')
     const [isInternalNote, setIsInternalNote] = useState(false)
 

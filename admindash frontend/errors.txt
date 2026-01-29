@@ -1,0 +1,31 @@
+﻿src/components/DashboardLayout.tsx(4,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/components/LanguageSwitcher.tsx(1,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/components/ui/badge.tsx(3,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/hooks/useAppTranslation.ts(1,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/i18n/index.ts(1,18): error TS2307: Cannot find module 'i18next' or its corresponding type declarations.
+src/i18n/index.ts(2,34): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/i18n/index.ts(3,30): error TS2307: Cannot find module 'i18next-browser-languagedetector' or its corresponding type declarations.
+src/pages/ActivityLogsPage.tsx(2,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/AdminLogsPage.tsx(2,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/analytics/AnalyticsPage.tsx(2,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/analytics/ComprehensiveAnalyticsPage.tsx(3,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/analytics/ComprehensiveAnalyticsPage.tsx(1109,57): error TS6133: 'isRTL' is declared but its value is never read.
+src/pages/categories/CategoriesPage.tsx(14,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/content/ContentManagementPage.tsx(2,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/DashboardPage.tsx(18,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/financial/FinancialPage.tsx(3,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/LoginPage.tsx(13,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/orders/OrderDetailPage.tsx(3,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/orders/OrdersPage.tsx(12,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/orders/OrdersPage.tsx(125,99): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/pages/products/ProductsPage.tsx(17,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/promo-codes/PromoCodesPage.tsx(24,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/promotions/PromotionsPage.tsx(2,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/promotions/PromotionsPage.tsx(352,122): error TS2339: Property 'data' does not exist on type 'never'.
+src/pages/promotions/PromotionsPage.tsx(589,50): error TS2339: Property 'data' does not exist on type 'Category[]'.
+src/pages/promotions/PromotionsPage.tsx(603,50): error TS2339: Property 'data' does not exist on type 'Category[]'.
+src/pages/support/SupportPage.tsx(4,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/support/TicketDetailPage.tsx(4,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
+src/pages/support/TicketDetailPage.tsx(22,11): error TS6133: '_isRTL' is declared but its value is never read.
+src/pages/users/UsersPage.tsx(2,32): error TS2307: Cannot find module 'react-i18next' or its corresponding type declarations.
