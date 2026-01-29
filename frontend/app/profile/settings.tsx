@@ -471,13 +471,21 @@ export default function SettingsScreen() {
             </View>
 
             <View style={styles.linksCard}>
-              <TouchableOpacity style={styles.linkItem} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.linkItem}
+                activeOpacity={0.7}
+                onPress={() => router.push("/about/terms")}
+              >
                 <Ionicons name="document-text-outline" size={20} color="#666" />
                 <Text style={styles.linkText}>{t.settings.termsOfService}</Text>
                 <Ionicons name="chevron-forward" size={18} color="#ccc" />
               </TouchableOpacity>
               <View style={styles.linkDivider} />
-              <TouchableOpacity style={styles.linkItem} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.linkItem}
+                activeOpacity={0.7}
+                onPress={() => router.push("/about/privacy")}
+              >
                 <Ionicons
                   name="shield-checkmark-outline"
                   size={20}
@@ -487,7 +495,11 @@ export default function SettingsScreen() {
                 <Ionicons name="chevron-forward" size={18} color="#ccc" />
               </TouchableOpacity>
               <View style={styles.linkDivider} />
-              <TouchableOpacity style={styles.linkItem} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.linkItem}
+                activeOpacity={0.7}
+                onPress={() => router.push("/about/about")}
+              >
                 <Ionicons
                   name="information-circle-outline"
                   size={20}

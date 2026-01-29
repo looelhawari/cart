@@ -31,7 +31,9 @@ use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\PromoCodeApiController;
 use App\Http\Controllers\Api\PromotionController;
+use App\Http\Controllers\Api\StaticPageController;
 use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -123,6 +125,12 @@ Route::prefix('v1')->group(function () {
     Route::middleware('throttle:60,1')->prefix('reviews')->group(function () {
         Route::get('/product/{productId}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'getProductReviews']);
         Route::get('/{id}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'show']);
+    });
+
+    // Static pages routes (public - Terms, Privacy, About for mobile app) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->prefix('pages')->group(function () {
+        Route::get('/', [StaticPageController::class, 'index']);
+        Route::get('/{slug}', [StaticPageController::class, 'show']);
     });
 
     // Protected routes
@@ -339,6 +347,15 @@ Route::prefix('v1')->group(function () {
                 Route::post('/broadcast', [AdminNotificationController::class, 'sendBroadcast']);
                 Route::post('/send-to-users', [AdminNotificationController::class, 'sendToUsers']);
                 Route::post('/send-promotion', [AdminNotificationController::class, 'sendPromotion']);
+            });
+
+            // Static Pages Management (Terms, Privacy, About)
+            Route::prefix('pages')->group(function () {
+                Route::get('/', [AdminStaticPageController::class, 'index']);
+                Route::get('/{slug}', [AdminStaticPageController::class, 'show']);
+                Route::put('/{slug}', [AdminStaticPageController::class, 'update']);
+                Route::post('/{slug}/toggle-status', [AdminStaticPageController::class, 'toggleStatus']);
+                Route::get('/{slug}/history', [AdminStaticPageController::class, 'history']);
             });
 
             // User Management

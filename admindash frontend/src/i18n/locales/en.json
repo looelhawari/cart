@@ -77,7 +77,8 @@
         "analytics": "Analytics",
         "adminLogs": "Admin Logs",
         "appLogs": "App Logs",
-        "settings": "Settings"
+        "settings": "Settings",
+        "contentManagement": "Content Management"
     },
     "auth": {
         "login": "Login",
@@ -954,5 +955,42 @@
         "deletePromotion": "Are you sure you want to delete this promotion?",
         "deleteOrder": "Are you sure you want to delete this order?",
         "deleteUser": "Are you sure you want to delete this user?"
+    },
+    "contentManagement": {
+        "title": "Content Management",
+        "subtitle": "Manage Terms, Privacy Policy, and About Us pages for the mobile app",
+        "termsAndConditions": "Terms and Conditions",
+        "privacyPolicy": "Privacy Policy",
+        "aboutUs": "About Us",
+        "editPage": "Edit Page",
+        "editDescription": "Update page content in both English and Arabic. Optionally notify all users about the changes.",
+        "lastUpdated": "Last Updated",
+        "neverUpdated": "Never updated",
+        "by": "by",
+        "preview": "Preview",
+        "history": "History",
+        "contentTab": "Content",
+        "notificationTab": "Notification",
+        "pageStatus": "Page Status",
+        "pageStatusDescription": "When disabled, this page will not be visible to users",
+        "englishContent": "English Content",
+        "arabicContent": "Arabic Content",
+        "content": "Content",
+        "htmlSupported": "HTML formatting is supported (e.g., <h1>, <p>, <ul>, <strong>)",
+        "sendNotification": "Send Broadcast Notification",
+        "sendNotificationDescription": "Notify all users about this update via push notification",
+        "notificationEnglish": "English Notification",
+        "notificationArabic": "Arabic Notification",
+        "notificationTitle": "Notification Title",
+        "notificationMessage": "Notification Message",
+        "notificationInfo": "This notification will be sent to all users with push notifications enabled",
+        "saveAndNotify": "Save & Send Notification",
+        "updateSuccess": "Page updated successfully",
+        "updateSuccessWithNotification": "Page updated and notification sent to all users",
+        "updateError": "Failed to update page",
+        "statusUpdated": "Page status updated successfully",
+        "statusUpdateError": "Failed to update page status",
+        "notificationHistory": "Notification History",
+        "noNotifications": "No notifications have been sent for this page yet"
     }
 }

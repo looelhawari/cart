@@ -1,278 +1,50 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
+import React from "react";
+import { Info } from "lucide-react-native";
+import Colors from "@/constants/Colors";
+import StaticPageScreen from "@/components/StaticPageScreen";
 
-  Linking,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import {
-  ArrowLeft,
-  Mail,
-  Phone,
-  MapPin,
-  Facebook,
-  Twitter,
-  Instagram,
-  Globe,
-} from 'lucide-react-native';
+// Fallback content in case API is unavailable
+const FALLBACK_CONTENT = `
+<h1>Welcome to ElBaraka</h1>
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
+<h2>Who We Are</h2>
+<p>ElBaraka is your trusted online hypermarket, bringing fresh groceries and daily essentials directly to your doorstep. Since our founding, we've been committed to making grocery shopping effortless and enjoyable for families across Egypt.</p>
+
+<h2>Our Mission</h2>
+<p>To revolutionize the way people shop for groceries by delivering fresh, quality products with speed and convenience, while building lasting relationships with our customers through exceptional service.</p>
+
+<h2>Our Values</h2>
+<ul>
+<li><strong>Quality:</strong> We source only the finest products from trusted suppliers</li>
+<li><strong>Freshness:</strong> Our cold chain ensures products arrive fresh</li>
+<li><strong>Convenience:</strong> Easy ordering and fast delivery to your door</li>
+<li><strong>Trust:</strong> Transparent pricing with no hidden fees</li>
+<li><strong>Service:</strong> Customer satisfaction is our top priority</li>
+</ul>
+
+<h2>Why Choose Us</h2>
+<p>With thousands of products, competitive prices, and delivery in as fast as 1 hour, ElBaraka makes grocery shopping simple. Our dedicated team works around the clock to ensure you receive the best shopping experience.</p>
+
+<h2>Contact Information</h2>
+<ul>
+<li><strong>Email:</strong> support@elbaraka.com</li>
+<li><strong>Phone:</strong> +20 123 456 7890</li>
+<li><strong>Address:</strong> 123 Main Street, Cairo, Egypt</li>
+</ul>
+
+<h2>Follow Us</h2>
+<p>Stay connected with us on social media for the latest updates, offers, and more!</p>
+
+<p>© 2025 ElBaraka Hypermarket. All rights reserved.</p>
+`;
 
 export default function AboutScreen() {
-  const handlePress = (url: string) => {
-    Linking.openURL(url);
-  };
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <ArrowLeft size={24} color={Colors.neutralCharcoal} />
-        </TouchableOpacity>
-        
-        <Text style={styles.headerTitle}>About ElBaraka</Text>
-        
-        <View style={styles.headerButton} />
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Logo Section */}
-        <View style={styles.logoSection}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>🛒 ElBaraka</Text>
-          </View>
-          <Text style={styles.appVersion}>Version 1.0.0</Text>
-        </View>
-
-        {/* About Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About Us</Text>
-          <Text style={styles.sectionText}>
-            ElBaraka is your trusted online hypermarket, bringing fresh groceries
-            and daily essentials directly to your doorstep. We're committed to
-            providing quality products, competitive prices, and exceptional
-            customer service.
-          </Text>
-        </View>
-
-        {/* Mission Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Our Mission</Text>
-          <Text style={styles.sectionText}>
-            To make grocery shopping effortless and enjoyable by delivering fresh,
-            quality products with speed and convenience, while building lasting
-            relationships with our customers.
-          </Text>
-        </View>
-
-        {/* Contact Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Information</Text>
-          
-          <TouchableOpacity
-            style={styles.contactItem}
-            onPress={() => handlePress('mailto:support@elbaraka.com')}
-            activeOpacity={0.7}
-          >
-            <Mail size={20} color={Colors.primary900} />
-            <Text style={styles.contactText}>support@elbaraka.com</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.contactItem}
-            onPress={() => handlePress('tel:+201234567890')}
-            activeOpacity={0.7}
-          >
-            <Phone size={20} color={Colors.primary900} />
-            <Text style={styles.contactText}>+20 123 456 7890</Text>
-          </TouchableOpacity>
-          
-          <View style={styles.contactItem}>
-            <MapPin size={20} color={Colors.primary900} />
-            <Text style={styles.contactText}>
-              123 Main Street, Cairo, Egypt
-            </Text>
-          </View>
-        </View>
-
-        {/* Social Media */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Follow Us</Text>
-          <View style={styles.socialRow}>
-            <TouchableOpacity
-              style={styles.socialButton}
-              onPress={() => handlePress('https://facebook.com')}
-              activeOpacity={0.7}
-            >
-              <Facebook size={24} color={Colors.neutralWhite} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.socialButton}
-              onPress={() => handlePress('https://twitter.com')}
-              activeOpacity={0.7}
-            >
-              <Twitter size={24} color={Colors.neutralWhite} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.socialButton}
-              onPress={() => handlePress('https://instagram.com')}
-              activeOpacity={0.7}
-            >
-              <Instagram size={24} color={Colors.neutralWhite} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Website */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.websiteButton}
-            onPress={() => handlePress('https://elbaraka.com')}
-            activeOpacity={0.9}
-          >
-            <Globe size={20} color={Colors.neutralWhite} />
-            <Text style={styles.websiteButtonText}>Visit Our Website</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            © 2025 ElBaraka Hypermarket{'\n'}
-            All rights reserved
-          </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <StaticPageScreen
+      slug="about"
+      fallbackTitle="About ElBaraka"
+      fallbackContent={FALLBACK_CONTENT}
+      icon={<Info size={24} color={Colors.neutralWhite} />}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralLight,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  logoSection: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-    backgroundColor: Colors.neutralWhite,
-    marginBottom: Spacing.md,
-  },
-  logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.primary900,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  logoText: {
-    fontSize: 40,
-  },
-  appVersion: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  section: {
-    backgroundColor: Colors.neutralWhite,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: Typography.h4,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: Spacing.sm,
-  },
-  sectionText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-    lineHeight: 24,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralLight,
-  },
-  contactText: {
-    flex: 1,
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-  },
-  socialRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  socialButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary900,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  websiteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.primary900,
-    paddingVertical: Spacing.md,
-    borderRadius: 16,
-  },
-  websiteButtonText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xl,
-  },
-  footerText: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});

@@ -10,31 +10,38 @@ use Carbon\Carbon;
 
 class Promotion extends Model
 {
-    // Database schema uses: name, description, type, discount_type, discount_value,
-    // min_purchase, max_discount, starts_at, ends_at, is_active, priority, banner_image
+    // Database schema uses: title, title_ar, description, description_ar, image_url, banner_image_url,
+    // discount_type, discount_value, start_date, end_date, is_active, is_featured, applies_to,
+    // min_purchase, max_discount, terms_conditions, terms_conditions_ar
     protected $fillable = [
-        'name',
+        'title',
+        'title_ar',
         'description',
-        'type',           // flash_sale, deal, seasonal, clearance
+        'description_ar',
+        'image_url',
+        'banner_image_url',
         'discount_type',  // percentage, fixed
         'discount_value',
+        'start_date',
+        'end_date',
+        'is_active',
+        'is_featured',
+        'applies_to',     // all, category, products
         'min_purchase',
         'max_discount',
-        'starts_at',
-        'ends_at',
-        'is_active',
-        'priority',
-        'banner_image',
+        'terms_conditions',
+        'terms_conditions_ar',
+        'created_by',
     ];
 
     protected $casts = [
         'discount_value' => 'decimal:2',
         'min_purchase' => 'decimal:2',
         'max_discount' => 'decimal:2',
-        'starts_at' => 'datetime',
-        'ends_at' => 'datetime',
+        'start_date' => 'datetime',
+        'end_date' => 'datetime',
         'is_active' => 'boolean',
-        'priority' => 'integer',
+        'is_featured' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -42,24 +49,24 @@ class Promotion extends Model
     protected $appends = ['is_currently_active', 'time_remaining'];
 
     // Accessors to map database columns to expected API fields
-    public function getTitleAttribute()
+    public function getTitleAttribute($value)
     {
-        return $this->name;
+        return $value ?? $this->attributes['title'] ?? '';
     }
 
-    public function getStartDateAttribute()
+    public function getStartsAtAttribute()
     {
-        return $this->starts_at;
+        return $this->start_date;
     }
 
-    public function getEndDateAttribute()
+    public function getEndsAtAttribute()
     {
-        return $this->ends_at;
+        return $this->end_date;
     }
 
-    public function getBannerImageUrlAttribute()
+    public function getBannerImageAttribute()
     {
-        return $this->banner_image;
+        return $this->banner_image_url;
     }
 
     /**
@@ -95,8 +102,13 @@ class Promotion extends Model
             return false;
         }
 
+        // Handle null dates - if dates are null, consider it not active
+        if (!$this->start_date || !$this->end_date) {
+            return false;
+        }
+
         $now = Carbon::now();
-        return $now->between($this->starts_at, $this->ends_at);
+        return $now->between($this->start_date, $this->end_date);
     }
 
     /**
@@ -108,8 +120,12 @@ class Promotion extends Model
             return null;
         }
 
+        if (!$this->end_date) {
+            return null;
+        }
+
         $now = Carbon::now();
-        $diff = $now->diff($this->ends_at);
+        $diff = $now->diff($this->end_date);
 
         return [
             'days' => $diff->days,
@@ -149,16 +165,16 @@ class Promotion extends Model
     {
         $now = Carbon::now();
         return $query->where('is_active', true)
-            ->where('starts_at', '<=', $now)
-            ->where('ends_at', '>=', $now);
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now);
     }
 
     /**
-     * Scope: Get featured promotion (highest priority)
+     * Scope: Get featured promotion (highest priority or is_featured flag)
      */
     public function scopeFeatured($query)
     {
-        return $query->active()->orderBy('priority', 'desc');
+        return $query->active()->where('is_featured', true)->orderBy('created_at', 'desc');
     }
 
     /**

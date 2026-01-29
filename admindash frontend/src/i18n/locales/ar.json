@@ -82,7 +82,8 @@
         "analytics": "التحليلات",
         "adminLogs": "سجلات المشرفين",
         "appLogs": "سجلات التطبيق",
-        "settings": "الإعدادات"
+        "settings": "الإعدادات",
+        "contentManagement": "إدارة المحتوى"
     },
     "auth": {
         "login": "تسجيل الدخول",
@@ -1014,5 +1015,42 @@
         "deletePromotion": "هل أنت متأكد من حذف هذا العرض؟",
         "deleteOrder": "هل أنت متأكد من حذف هذا الطلب؟",
         "deleteUser": "هل أنت متأكد من حذف هذا المستخدم؟"
+    },
+    "contentManagement": {
+        "title": "إدارة المحتوى",
+        "subtitle": "إدارة صفحات الشروط والأحكام وسياسة الخصوصية ومن نحن للتطبيق",
+        "termsAndConditions": "الشروط والأحكام",
+        "privacyPolicy": "سياسة الخصوصية",
+        "aboutUs": "من نحن",
+        "editPage": "تعديل الصفحة",
+        "editDescription": "تحديث محتوى الصفحة بالإنجليزية والعربية. يمكنك إخطار جميع المستخدمين بالتغييرات.",
+        "lastUpdated": "آخر تحديث",
+        "neverUpdated": "لم يتم التحديث بعد",
+        "by": "بواسطة",
+        "preview": "معاينة",
+        "history": "السجل",
+        "contentTab": "المحتوى",
+        "notificationTab": "الإشعار",
+        "pageStatus": "حالة الصفحة",
+        "pageStatusDescription": "عند التعطيل، لن تكون هذه الصفحة مرئية للمستخدمين",
+        "englishContent": "المحتوى بالإنجليزية",
+        "arabicContent": "المحتوى بالعربية",
+        "content": "المحتوى",
+        "htmlSupported": "يدعم تنسيق HTML (مثل <h1>، <p>، <ul>، <strong>)",
+        "sendNotification": "إرسال إشعار للجميع",
+        "sendNotificationDescription": "إخطار جميع المستخدمين بهذا التحديث عبر إشعار فوري",
+        "notificationEnglish": "الإشعار بالإنجليزية",
+        "notificationArabic": "الإشعار بالعربية",
+        "notificationTitle": "عنوان الإشعار",
+        "notificationMessage": "نص الإشعار",
+        "notificationInfo": "سيتم إرسال هذا الإشعار لجميع المستخدمين الذين فعّلوا الإشعارات",
+        "saveAndNotify": "حفظ وإرسال الإشعار",
+        "updateSuccess": "تم تحديث الصفحة بنجاح",
+        "updateSuccessWithNotification": "تم تحديث الصفحة وإرسال الإشعار لجميع المستخدمين",
+        "updateError": "فشل تحديث الصفحة",
+        "statusUpdated": "تم تحديث حالة الصفحة بنجاح",
+        "statusUpdateError": "فشل تحديث حالة الصفحة",
+        "notificationHistory": "سجل الإشعارات",
+        "noNotifications": "لم يتم إرسال أي إشعارات لهذه الصفحة بعد"
     }
 }

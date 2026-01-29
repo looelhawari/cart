@@ -1,120 +1,56 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, Stack } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import React from "react";
+import { FileText } from "lucide-react-native";
+import Colors from "@/constants/Colors";
+import StaticPageScreen from "@/components/StaticPageScreen";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
+// Fallback content in case API is unavailable
+const FALLBACK_CONTENT = `
+<h1>Terms and Conditions</h1>
+
+<h2>1. Acceptance of Terms</h2>
+<p>By accessing and using the ElBaraka mobile application ("App"), you accept and agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you may not use our services.</p>
+
+<h2>2. Use of Service</h2>
+<p>ElBaraka grants you a limited, non-exclusive, non-transferable license to use the App for personal, non-commercial purposes. You agree to use the App only for lawful purposes and in accordance with these Terms.</p>
+
+<h2>3. Account Registration</h2>
+<p>To access certain features, you must register for an account. You agree to:</p>
+<ul>
+<li>Provide accurate and complete registration information</li>
+<li>Maintain the security of your account credentials</li>
+<li>Notify us immediately of any unauthorized access</li>
+<li>Accept responsibility for all activities under your account</li>
+</ul>
+
+<h2>4. Orders and Payments</h2>
+<p>All orders are subject to product availability and acceptance. We reserve the right to refuse or cancel any order. Payment must be made at the time of order placement through our secure payment system.</p>
+
+<h2>5. Delivery Policy</h2>
+<p>We strive to deliver your orders within the estimated timeframe. However, delivery times may vary based on location, traffic, and other factors. Standard delivery is typically completed within 1-2 hours in our service area.</p>
+
+<h2>6. Returns and Refunds</h2>
+<p>We accept returns for damaged or incorrect items within 24 hours of delivery. To initiate a return, please contact our customer support team with your order details and photos of the issue.</p>
+
+<h2>7. Privacy</h2>
+<p>Your privacy is important to us. Please review our Privacy Policy to understand how we collect, use, and protect your personal information.</p>
+
+<h2>8. Limitation of Liability</h2>
+<p>ElBaraka shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the service.</p>
+
+<h2>9. Changes to Terms</h2>
+<p>We reserve the right to modify these terms at any time. Continued use of the App after changes constitutes acceptance of the new terms. We will notify you of significant changes through the App or email.</p>
+
+<h2>10. Contact Us</h2>
+<p>For questions about these Terms and Conditions, please contact us at <strong>support@elbaraka.com</strong></p>
+`;
 
 export default function TermsScreen() {
   return (
-    <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Terms & Conditions',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: -8 }}>
-              <ArrowLeft size={24} color={Colors.neutralCharcoal} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
-      <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.content}>
-            <Text style={styles.sectionTitle}>1. Acceptance of Terms</Text>
-            <Text style={styles.text}>
-              By accessing and using ElBaraka mobile application, you accept and agree to be bound by the terms and provision of this agreement.
-            </Text>
-
-            <Text style={styles.sectionTitle}>2. Use License</Text>
-            <Text style={styles.text}>
-              Permission is granted to temporarily use ElBaraka for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title.
-            </Text>
-
-            <Text style={styles.sectionTitle}>3. Account Registration</Text>
-            <Text style={styles.text}>
-              You must register an account to use certain features of the service. You are responsible for maintaining the confidentiality of your account credentials.
-            </Text>
-
-            <Text style={styles.sectionTitle}>4. Orders and Payments</Text>
-            <Text style={styles.text}>
-              All orders placed through the app are subject to product availability. We reserve the right to refuse or cancel any order at any time.
-            </Text>
-
-            <Text style={styles.sectionTitle}>5. Delivery Policy</Text>
-            <Text style={styles.text}>
-              Delivery times are estimates and we cannot guarantee exact delivery times. Standard delivery takes 1-2 hours within our service area.
-            </Text>
-
-            <Text style={styles.sectionTitle}>6. Returns and Refunds</Text>
-            <Text style={styles.text}>
-              Returns are accepted within 24 hours of delivery for damaged or incorrect items. Contact customer support to initiate a return.
-            </Text>
-
-            <Text style={styles.sectionTitle}>7. User Conduct</Text>
-            <Text style={styles.text}>
-              You agree not to use the service for any unlawful purpose or in any way that interrupts, damages, or impairs the service.
-            </Text>
-
-            <Text style={styles.sectionTitle}>8. Limitation of Liability</Text>
-            <Text style={styles.text}>
-              ElBaraka shall not be liable for any indirect, incidental, special, consequential or punitive damages resulting from your use of the service.
-            </Text>
-
-            <Text style={styles.sectionTitle}>9. Changes to Terms</Text>
-            <Text style={styles.text}>
-              We reserve the right to modify these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms.
-            </Text>
-
-            <Text style={styles.sectionTitle}>10. Contact Information</Text>
-            <Text style={styles.text}>
-              For questions about these Terms and Conditions, please contact us at support@elbaraka.com
-            </Text>
-
-            <Text style={styles.lastUpdated}>Last updated: January 20, 2024</Text>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+    <StaticPageScreen
+      slug="terms"
+      fallbackTitle="Terms & Conditions"
+      fallbackContent={FALLBACK_CONTENT}
+      icon={<FileText size={24} color={Colors.neutralWhite} />}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  content: {
-    padding: Spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: Typography.h4,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  text: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-    lineHeight: 24,
-    marginBottom: Spacing.md,
-  },
-  lastUpdated: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-    fontStyle: 'italic',
-    marginTop: Spacing.xl,
-    marginBottom: Spacing.xl,
-  },
-});

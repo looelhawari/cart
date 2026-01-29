@@ -18,6 +18,7 @@ import {
     Ticket,
     Activity,
     Shield,
+    FileText,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -104,6 +105,12 @@ const navItems: NavItem[] = [
         titleKey: 'navigation.appLogs',
         href: '/activity-logs',
         icon: Activity,
+        roles: ['super_admin', 'admin'],
+    },
+    {
+        titleKey: 'navigation.contentManagement',
+        href: '/content',
+        icon: FileText,
         roles: ['super_admin', 'admin'],
     },
 ]
