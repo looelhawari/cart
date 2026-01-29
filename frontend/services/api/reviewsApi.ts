@@ -39,7 +39,7 @@ export const getProductReviews = async (
   page: number = 1,
 ): Promise<ReviewsResponse> => {
   return await httpClient.get<ReviewsResponse>(
-    `/api/v1/reviews/product/${productId}?page=${page}`,
+    `/reviews/product/${productId}?page=${page}`,
   );
 };
 
@@ -49,9 +49,7 @@ export const getProductReviews = async (
 export const getReview = async (
   reviewId: string | number,
 ): Promise<SingleReviewResponse> => {
-  return await httpClient.get<SingleReviewResponse>(
-    `/api/v1/reviews/${reviewId}`,
-  );
+  return await httpClient.get<SingleReviewResponse>(`/reviews/${reviewId}`);
 };
 
 /**
@@ -60,10 +58,7 @@ export const getReview = async (
 export const createReview = async (
   payload: CreateReviewPayload,
 ): Promise<SingleReviewResponse> => {
-  return await httpClient.post<SingleReviewResponse>(
-    "/api/v1/reviews",
-    payload,
-  );
+  return await httpClient.post<SingleReviewResponse>("/reviews", payload);
 };
 
 /**
@@ -74,7 +69,7 @@ export const updateReview = async (
   payload: UpdateReviewPayload,
 ): Promise<SingleReviewResponse> => {
   return await httpClient.put<SingleReviewResponse>(
-    `/api/v1/reviews/${reviewId}`,
+    `/reviews/${reviewId}`,
     payload,
   );
 };
@@ -86,7 +81,7 @@ export const deleteReview = async (
   reviewId: string | number,
 ): Promise<{ success: boolean; message: string }> => {
   return await httpClient.delete<{ success: boolean; message: string }>(
-    `/api/v1/reviews/${reviewId}`,
+    `/reviews/${reviewId}`,
   );
 };
 
@@ -97,7 +92,7 @@ export const markReviewHelpful = async (
   reviewId: string | number,
 ): Promise<{ success: boolean; message: string }> => {
   return await httpClient.post<{ success: boolean; message: string }>(
-    `/api/v1/reviews/${reviewId}/helpful`,
+    `/reviews/${reviewId}/helpful`,
   );
 };
 
@@ -108,6 +103,31 @@ export const getUserReviews = async (
   page: number = 1,
 ): Promise<ReviewsResponse> => {
   return await httpClient.get<ReviewsResponse>(
-    `/api/v1/reviews/my-reviews?page=${page}`,
+    `/reviews/my-reviews?page=${page}`,
+  );
+};
+
+/**
+ * Check if user can review a product (has purchased and delivered, and hasn't reviewed yet)
+ */
+export interface CanReviewResponse {
+  success: boolean;
+  data: {
+    can_review: boolean;
+    has_purchased: boolean;
+    already_reviewed: boolean;
+    eligible_orders: {
+      order_id: number;
+      order_number: string;
+      delivered_at: string;
+    }[];
+  };
+}
+
+export const canReviewProduct = async (
+  productId: string | number,
+): Promise<CanReviewResponse> => {
+  return await httpClient.get<CanReviewResponse>(
+    `/reviews/can-review/${productId}`,
   );
 };

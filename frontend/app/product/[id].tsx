@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  TextInput,
+  Modal,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,6 +24,13 @@ import {
   Star,
   ChevronDown,
   ChevronUp,
+  MessageCircle,
+  Send,
+  X,
+  ThumbsUp,
+  Award,
+  Check,
+  User,
 } from "lucide-react-native";
 import { useStore } from "@/store";
 import { Colors } from "@/constants/Colors";
@@ -28,7 +38,15 @@ import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { Toast } from "@/components/Toast";
 import { getProduct, getProducts } from "@/services/api/productsApi";
-import type { Product } from "@/types";
+import {
+  getProductReviews,
+  canReviewProduct,
+  createReview,
+  markReviewHelpful,
+  type CreateReviewPayload,
+  type CanReviewResponse,
+} from "@/services/api/reviewsApi";
+import type { Product, Review } from "@/types";
 import {
   fetchActiveOffersCached,
   getProductOfferPricing,
@@ -50,10 +68,31 @@ export default function ProductDetailScreen() {
   const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
 
-  const { cart, addToCart, updateQuantity, favorites, toggleFavorite } =
-    useStore();
+  // Reviews state
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [canReview, setCanReview] = useState<CanReviewResponse["data"] | null>(
+    null,
+  );
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [favoriteAnimValue] = useState(new Animated.Value(1));
+
+  const {
+    cart,
+    addToCart,
+    updateQuantity,
+    favorites,
+    toggleFavorite,
+    isAuthenticated,
+    fetchFavorites,
+  } = useStore();
   const cartItem = cart?.items?.find(
-    (item) => item.product.barcode === Number(id),
+    (item: { product: { barcode: number } }) =>
+      item.product.barcode === Number(id),
   );
 
   const [quantity, setQuantity] = useState(1);
@@ -70,8 +109,19 @@ export default function ProductDetailScreen() {
   useEffect(() => {
     if (id) {
       loadProduct();
+      loadReviews();
+      checkCanReview();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Fetch favorites on mount if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchFavorites();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const loadProduct = async () => {
     try {
@@ -114,6 +164,100 @@ export default function ProductDetailScreen() {
       console.error("Failed to load product:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      const response = await getProductReviews(id);
+      if (response.success) {
+        setReviews(response.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to load reviews:", error);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const checkCanReview = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const response = await canReviewProduct(id);
+      if (response.success) {
+        setCanReview(response.data);
+        // Auto-select first eligible order
+        if (response.data.eligible_orders?.length > 0) {
+          setSelectedOrderId(response.data.eligible_orders[0].order_id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check review eligibility:", error);
+    }
+  };
+
+  const handleToggleFavorite = useCallback(async () => {
+    if (!product) return;
+
+    // Animate heart
+    Animated.sequence([
+      Animated.timing(favoriteAnimValue, {
+        toValue: 1.3,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(favoriteAnimValue, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Use barcode as the consistent ID for favorites
+    const favId = product.barcode || product.id || 0;
+    await toggleFavorite(favId);
+  }, [product, toggleFavorite, favoriteAnimValue]);
+
+  const handleSubmitReview = async () => {
+    if (!selectedOrderId || !reviewComment.trim()) return;
+
+    try {
+      setSubmittingReview(true);
+      const payload: CreateReviewPayload = {
+        product_id: Number(id),
+        order_id: selectedOrderId,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      };
+
+      await createReview(payload);
+      setShowReviewModal(false);
+      setReviewComment("");
+      setReviewRating(5);
+      setToastMessage("Review submitted successfully!");
+      setShowToast(true);
+
+      // Reload reviews and eligibility
+      loadReviews();
+      checkCanReview();
+    } catch (error: any) {
+      console.error("Failed to submit review:", error);
+      setToastMessage(error.message || "Failed to submit review");
+      setShowToast(true);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const handleMarkHelpful = async (reviewId: number) => {
+    try {
+      await markReviewHelpful(reviewId);
+      setToastMessage("Marked as helpful!");
+      setShowToast(true);
+      loadReviews();
+    } catch (error) {
+      console.error("Failed to mark helpful:", error);
     }
   };
 
@@ -165,8 +309,9 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const productId = product.barcode || product.id || 0;
-  const isFavorite = favorites.includes(productId.toString());
+  // Use barcode as primary ID for consistency with favorites
+  const favId = String(product.barcode || product.id);
+  const isFavorite = favorites.includes(favId);
   const images = [product.image];
   const price = parseFloat(product.price?.toString() || "0");
   const salePrice = parseFloat(
@@ -221,14 +366,17 @@ export default function ProductDetailScreen() {
       </TouchableOpacity>
       <View style={styles.headerActions}>
         <TouchableOpacity
-          onPress={() => toggleFavorite(productId)}
-          style={styles.headerButton}
+          onPress={handleToggleFavorite}
+          style={[styles.headerButton, isFavorite && styles.favoriteActive]}
+          activeOpacity={0.7}
         >
-          <Heart
-            size={24}
-            color={isFavorite ? Colors.primary900 : Colors.neutralCharcoal}
-            fill={isFavorite ? Colors.primary900 : "none"}
-          />
+          <Animated.View style={{ transform: [{ scale: favoriteAnimValue }] }}>
+            <Heart
+              size={24}
+              color={isFavorite ? Colors.neutralWhite : Colors.neutralCharcoal}
+              fill={isFavorite ? Colors.neutralWhite : "none"}
+            />
+          </Animated.View>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => {}} style={styles.headerButton}>
           <Share2 size={24} color={Colors.neutralCharcoal} />
@@ -643,6 +791,406 @@ export default function ProductDetailScreen() {
     );
   };
 
+  const renderReviewsSection = () => {
+    const averageRating = product?.rating || 0;
+    const reviewCount = reviews.length;
+
+    // Calculate rating distribution
+    const ratingCounts = [0, 0, 0, 0, 0];
+    reviews.forEach((review) => {
+      const rating = Math.floor(review.rating);
+      if (rating >= 1 && rating <= 5) {
+        ratingCounts[rating - 1]++;
+      }
+    });
+
+    return (
+      <View style={styles.reviewsSection}>
+        {/* Reviews Header */}
+        <View style={styles.reviewsHeader}>
+          <View style={styles.reviewsTitleRow}>
+            <MessageCircle size={22} color={Colors.primary900} />
+            <Text style={styles.reviewsSectionTitle}>Customer Reviews</Text>
+          </View>
+          {canReview?.can_review && (
+            <TouchableOpacity
+              style={styles.writeReviewButton}
+              onPress={() => setShowReviewModal(true)}
+            >
+              <Award size={16} color={Colors.neutralWhite} />
+              <Text style={styles.writeReviewText}>Write Review</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Rating Summary */}
+        <View style={styles.ratingSummaryCard}>
+          <View style={styles.ratingSummaryLeft}>
+            <Text style={styles.bigRating}>{averageRating.toFixed(1)}</Text>
+            <View style={styles.starsRowLarge}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  size={20}
+                  fill={
+                    star <= Math.round(averageRating)
+                      ? Colors.accentYellow
+                      : Colors.neutralLight
+                  }
+                  color={
+                    star <= Math.round(averageRating)
+                      ? Colors.accentYellow
+                      : Colors.neutralLight
+                  }
+                />
+              ))}
+            </View>
+            <Text style={styles.totalReviews}>
+              Based on {reviewCount} reviews
+            </Text>
+          </View>
+
+          <View style={styles.ratingBarsContainer}>
+            {[5, 4, 3, 2, 1].map((rating) => {
+              const count = ratingCounts[rating - 1];
+              const percentage =
+                reviewCount > 0 ? (count / reviewCount) * 100 : 0;
+              return (
+                <View key={rating} style={styles.ratingBarRow}>
+                  <Text style={styles.ratingBarLabel}>{rating}</Text>
+                  <Star
+                    size={12}
+                    color={Colors.accentYellow}
+                    fill={Colors.accentYellow}
+                  />
+                  <View style={styles.ratingBarBg}>
+                    <View
+                      style={[
+                        styles.ratingBarFill,
+                        { width: `${percentage}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.ratingBarCount}>{count}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Purchase Required Notice */}
+        {isAuthenticated &&
+          canReview &&
+          !canReview.can_review &&
+          !canReview.has_purchased && (
+            <View style={styles.purchaseNotice}>
+              <View style={styles.purchaseNoticeIcon}>
+                <ShoppingCart size={20} color={Colors.primary900} />
+              </View>
+              <View style={styles.purchaseNoticeText}>
+                <Text style={styles.purchaseNoticeTitle}>
+                  Purchase to Review
+                </Text>
+                <Text style={styles.purchaseNoticeDesc}>
+                  Only customers who have purchased this product can leave a
+                  review
+                </Text>
+              </View>
+            </View>
+          )}
+
+        {/* Already Reviewed Notice */}
+        {canReview?.already_reviewed && (
+          <View
+            style={[
+              styles.purchaseNotice,
+              { backgroundColor: Colors.primary900 + "10" },
+            ]}
+          >
+            <View
+              style={[
+                styles.purchaseNoticeIcon,
+                { backgroundColor: Colors.primary900 },
+              ]}
+            >
+              <Check size={20} color={Colors.neutralWhite} />
+            </View>
+            <View style={styles.purchaseNoticeText}>
+              <Text style={styles.purchaseNoticeTitle}>
+                You&apos;ve Already Reviewed
+              </Text>
+              <Text style={styles.purchaseNoticeDesc}>
+                Thank you for sharing your feedback!
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Reviews List */}
+        {reviewsLoading ? (
+          <View style={styles.reviewsLoading}>
+            <ActivityIndicator size="small" color={Colors.primary900} />
+            <Text style={styles.loadingText}>Loading reviews...</Text>
+          </View>
+        ) : reviews.length > 0 ? (
+          <View style={styles.reviewsList}>
+            {reviews.slice(0, 3).map((review, index) => (
+              <View key={review.id || index} style={styles.reviewCard}>
+                <View style={styles.reviewCardHeader}>
+                  <View style={styles.reviewerInfo}>
+                    <View style={styles.reviewerAvatar}>
+                      {review.user?.avatar ? (
+                        <Image
+                          source={{ uri: review.user.avatar }}
+                          style={styles.avatarImage}
+                        />
+                      ) : (
+                        <User size={20} color={Colors.neutralMedium} />
+                      )}
+                    </View>
+                    <View>
+                      <Text style={styles.reviewerName}>
+                        {review.user?.full_name ||
+                          review.user?.first_name ||
+                          "Customer"}
+                      </Text>
+                      <View style={styles.reviewMeta}>
+                        <View style={styles.verifiedBadge}>
+                          <Check size={10} color={Colors.primary700} />
+                          <Text style={styles.verifiedText}>
+                            Verified Purchase
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.reviewRating}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={14}
+                        fill={
+                          star <= review.rating
+                            ? Colors.accentYellow
+                            : Colors.neutralLight
+                        }
+                        color={
+                          star <= review.rating
+                            ? Colors.accentYellow
+                            : Colors.neutralLight
+                        }
+                      />
+                    ))}
+                  </View>
+                </View>
+
+                <Text style={styles.reviewComment}>{review.comment}</Text>
+
+                <View style={styles.reviewFooter}>
+                  <Text style={styles.reviewDate}>
+                    {new Date(review.created_at).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.helpfulButton}
+                    onPress={() => handleMarkHelpful(review.id)}
+                  >
+                    <ThumbsUp size={14} color={Colors.neutralMedium} />
+                    <Text style={styles.helpfulText}>
+                      Helpful{" "}
+                      {review.helpful_count ? `(${review.helpful_count})` : ""}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+
+            {reviews.length > 3 && (
+              <TouchableOpacity
+                style={styles.viewAllReviews}
+                onPress={() =>
+                  router.push(`/product/reviews/${product?.barcode}`)
+                }
+              >
+                <Text style={styles.viewAllReviewsText}>
+                  View All {reviews.length} Reviews
+                </Text>
+                <ChevronDown
+                  size={18}
+                  color={Colors.primary900}
+                  style={{ transform: [{ rotate: "-90deg" }] }}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.noReviews}>
+            <MessageCircle size={48} color={Colors.neutralLight} />
+            <Text style={styles.noReviewsTitle}>No Reviews Yet</Text>
+            <Text style={styles.noReviewsText}>
+              Be the first to share your experience with this product
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderReviewModal = () => (
+    <Modal
+      visible={showReviewModal}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowReviewModal(false)}
+    >
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={() => setShowReviewModal(false)}>
+            <X size={24} color={Colors.neutralCharcoal} />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Write a Review</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <ScrollView
+          style={styles.modalContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Product Info */}
+          <View style={styles.modalProductInfo}>
+            <Image
+              source={{ uri: product?.image }}
+              style={styles.modalProductImage}
+            />
+            <Text style={styles.modalProductName} numberOfLines={2}>
+              {getName(product)}
+            </Text>
+          </View>
+
+          {/* Order Selection */}
+          {canReview?.eligible_orders &&
+            canReview.eligible_orders.length > 1 && (
+              <View style={styles.orderSelection}>
+                <Text style={styles.orderSelectionLabel}>Select Order</Text>
+                {canReview.eligible_orders.map((order) => (
+                  <TouchableOpacity
+                    key={order.order_id}
+                    style={[
+                      styles.orderOption,
+                      selectedOrderId === order.order_id &&
+                        styles.orderOptionSelected,
+                    ]}
+                    onPress={() => setSelectedOrderId(order.order_id)}
+                  >
+                    <View style={styles.orderOptionRadio}>
+                      {selectedOrderId === order.order_id && (
+                        <View style={styles.orderOptionRadioInner} />
+                      )}
+                    </View>
+                    <View>
+                      <Text style={styles.orderOptionNumber}>
+                        Order #{order.order_number}
+                      </Text>
+                      <Text style={styles.orderOptionDate}>
+                        Delivered{" "}
+                        {new Date(order.delivered_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+          {/* Rating Selection */}
+          <View style={styles.ratingSelection}>
+            <Text style={styles.ratingLabel}>Your Rating</Text>
+            <View style={styles.ratingStars}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setReviewRating(star)}
+                  style={styles.ratingStar}
+                >
+                  <Star
+                    size={36}
+                    fill={
+                      star <= reviewRating
+                        ? Colors.accentYellow
+                        : Colors.neutralLight
+                    }
+                    color={
+                      star <= reviewRating
+                        ? Colors.accentYellow
+                        : Colors.neutralLight
+                    }
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.ratingDescription}>
+              {reviewRating === 5
+                ? "Excellent!"
+                : reviewRating === 4
+                  ? "Very Good"
+                  : reviewRating === 3
+                    ? "Good"
+                    : reviewRating === 2
+                      ? "Fair"
+                      : "Poor"}
+            </Text>
+          </View>
+
+          {/* Comment Input */}
+          <View style={styles.commentSection}>
+            <Text style={styles.commentLabel}>Your Review</Text>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Share your experience with this product..."
+              placeholderTextColor={Colors.neutralMedium}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              value={reviewComment}
+              onChangeText={setReviewComment}
+            />
+            <Text style={styles.commentHint}>
+              Min. 10 characters ({reviewComment.length}/500)
+            </Text>
+          </View>
+        </ScrollView>
+
+        {/* Submit Button */}
+        <View style={styles.modalFooter}>
+          <TouchableOpacity
+            style={[
+              styles.submitReviewButton,
+              (!reviewComment.trim() || reviewComment.length < 10) &&
+                styles.submitReviewDisabled,
+            ]}
+            onPress={handleSubmitReview}
+            disabled={
+              submittingReview ||
+              !reviewComment.trim() ||
+              reviewComment.length < 10
+            }
+          >
+            {submittingReview ? (
+              <ActivityIndicator size="small" color={Colors.neutralWhite} />
+            ) : (
+              <>
+                <Send size={20} color={Colors.neutralWhite} />
+                <Text style={styles.submitReviewText}>Submit Review</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+
   const renderRelatedProducts = () => {
     if (relatedProducts.length === 0) return null;
     return (
@@ -757,10 +1305,12 @@ export default function ProductDetailScreen() {
         {renderNutrition()}
         {renderIngredients()}
         {renderSpecs()}
+        {renderReviewsSection()}
         {renderRelatedProducts()}
         <View style={{ height: 120 }} />
       </ScrollView>
       {renderBottomBar()}
+      {renderReviewModal()}
       <Toast
         visible={showToast}
         message={toastMessage}
@@ -807,6 +1357,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralLight,
     alignItems: "center",
     justifyContent: "center",
+  },
+  favoriteActive: {
+    backgroundColor: Colors.accentRed,
   },
   headerActions: {
     flexDirection: "row",
@@ -1263,9 +1816,6 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  scrollView: {
-    flex: 1,
-  },
   // Enhanced UI Styles
   priceContainer: {
     backgroundColor: Colors.primary900 + "08",
@@ -1344,5 +1894,430 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySmall,
     color: Colors.accentOrange,
     fontWeight: "600",
+  },
+
+  // Reviews Section Styles
+  reviewsSection: {
+    backgroundColor: Colors.neutralWhite,
+    marginTop: Spacing.sm,
+    padding: Spacing.md,
+  },
+  reviewsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  reviewsTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  reviewsSectionTitle: {
+    fontSize: Typography.h4,
+    fontWeight: "bold",
+    color: Colors.neutralCharcoal,
+  },
+  writeReviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.primary900,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+  },
+  writeReviewText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: "600",
+    color: Colors.neutralWhite,
+  },
+  ratingSummaryCard: {
+    flexDirection: "row",
+    backgroundColor: Colors.neutralCloud,
+    borderRadius: 16,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  ratingSummaryLeft: {
+    alignItems: "center",
+    paddingRight: Spacing.md,
+    borderRightWidth: 1,
+    borderRightColor: Colors.neutralLight,
+    minWidth: 100,
+  },
+  bigRating: {
+    fontSize: 40,
+    fontWeight: "bold",
+    color: Colors.neutralCharcoal,
+  },
+  starsRowLarge: {
+    flexDirection: "row",
+    gap: 2,
+    marginVertical: Spacing.xs,
+  },
+  totalReviews: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+  },
+  ratingBarsContainer: {
+    flex: 1,
+    paddingLeft: Spacing.md,
+    justifyContent: "center",
+    gap: 4,
+  },
+  ratingBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  ratingBarLabel: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralCharcoal,
+    width: 12,
+    textAlign: "right",
+  },
+  ratingBarBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: Colors.neutralLight,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  ratingBarFill: {
+    height: "100%",
+    backgroundColor: Colors.accentYellow,
+    borderRadius: 3,
+  },
+  ratingBarCount: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    width: 24,
+  },
+  purchaseNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.accentYellow + "15",
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.md,
+  },
+  purchaseNoticeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.accentYellow,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  purchaseNoticeText: {
+    flex: 1,
+  },
+  purchaseNoticeTitle: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
+  purchaseNoticeDesc: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginTop: 2,
+  },
+  reviewsLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    padding: Spacing.lg,
+  },
+  loadingText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+  },
+  reviewsList: {
+    gap: Spacing.md,
+  },
+  reviewCard: {
+    backgroundColor: Colors.neutralCloud,
+    borderRadius: 12,
+    padding: Spacing.md,
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: Spacing.sm,
+  },
+  reviewerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  reviewerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.neutralLight,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  reviewerName: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
+  reviewMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: 2,
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.primary700 + "20",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedText: {
+    fontSize: 10,
+    color: Colors.primary700,
+    fontWeight: "600",
+  },
+  reviewRating: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  reviewComment: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
+  },
+  reviewFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralLight,
+    paddingTop: Spacing.sm,
+  },
+  reviewDate: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+  },
+  helpfulButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  helpfulText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+  },
+  viewAllReviews: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralLight,
+    marginTop: Spacing.sm,
+  },
+  viewAllReviewsText: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.primary900,
+  },
+  noReviews: {
+    alignItems: "center",
+    padding: Spacing.xl,
+  },
+  noReviewsTitle: {
+    fontSize: Typography.bodyLarge,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+    marginTop: Spacing.md,
+  },
+  noReviewsText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+  },
+
+  // Review Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.neutralWhite,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutralLight,
+  },
+  modalTitle: {
+    fontSize: Typography.h4,
+    fontWeight: "bold",
+    color: Colors.neutralCharcoal,
+  },
+  modalContent: {
+    flex: 1,
+    padding: Spacing.md,
+  },
+  modalProductInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    backgroundColor: Colors.neutralCloud,
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.lg,
+  },
+  modalProductImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: Colors.neutralLight,
+  },
+  modalProductName: {
+    flex: 1,
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
+  orderSelection: {
+    marginBottom: Spacing.lg,
+  },
+  orderSelectionLabel: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.sm,
+  },
+  orderOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: Colors.neutralCloud,
+    borderRadius: 12,
+    marginBottom: Spacing.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  orderOptionSelected: {
+    borderColor: Colors.primary900,
+    backgroundColor: Colors.primary900 + "10",
+  },
+  orderOptionRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.primary900,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  orderOptionRadioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.primary900,
+  },
+  orderOptionNumber: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
+  orderOptionDate: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+  },
+  ratingSelection: {
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  ratingLabel: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.md,
+  },
+  ratingStars: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  ratingStar: {
+    padding: 4,
+  },
+  ratingDescription: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.primary900,
+    fontWeight: "600",
+    marginTop: Spacing.sm,
+  },
+  commentSection: {
+    marginBottom: Spacing.lg,
+  },
+  commentLabel: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.sm,
+  },
+  commentInput: {
+    backgroundColor: Colors.neutralCloud,
+    borderRadius: 12,
+    padding: Spacing.md,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+  commentHint: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginTop: Spacing.xs,
+    textAlign: "right",
+  },
+  modalFooter: {
+    padding: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralLight,
+  },
+  submitReviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary900,
+    paddingVertical: Spacing.md,
+    borderRadius: 16,
+  },
+  submitReviewDisabled: {
+    opacity: 0.5,
+  },
+  submitReviewText: {
+    fontSize: Typography.bodyLarge,
+    fontWeight: "bold",
+    color: Colors.neutralWhite,
   },
 });

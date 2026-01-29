@@ -65,12 +65,12 @@ export interface Order {
   orderNumber: string;
   date: string;
   status:
-  | "processing"
-  | "confirmed"
-  | "preparing"
-  | "out_for_delivery"
-  | "delivered"
-  | "cancelled";
+    | "processing"
+    | "confirmed"
+    | "preparing"
+    | "out_for_delivery"
+    | "delivered"
+    | "cancelled";
   subtotal: number;
   deliveryFee: number;
   discount: number;
@@ -158,17 +158,32 @@ export interface Address {
 }
 
 export interface Review {
-  id: string;
-  productId: string;
-  userId: string;
-  userName: string;
+  id: number;
+  productId?: string;
+  product_id: number;
+  userId?: string;
+  user_id: number;
+  order_id: number;
+  userName?: string;
   userAvatar?: string;
   rating: number;
   comment: string;
-  date: string;
-  verified: boolean;
+  date?: string;
+  created_at: string;
+  updated_at?: string;
+  verified?: boolean;
+  is_verified?: boolean;
   images?: string[];
-  helpful: number;
+  helpful?: number;
+  helpful_count?: number;
+  user?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    avatar?: string;
+  };
+  product?: Product;
 }
 
 export interface Banner {

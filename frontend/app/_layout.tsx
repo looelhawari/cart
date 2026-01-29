@@ -84,25 +84,30 @@ function RootLayoutNav() {
       return;
     }
 
-    // Handle notifications received while app is foregrounded
-    notificationListener.current = addNotificationReceivedListener(
-      (notification) => {
-        console.log("Notification received in foreground:", notification);
-        // Update badge count
-        getUnreadCount().then((count) => {
-          setBadgeCount(count);
-        });
-      },
-    );
+    // Setup listeners asynchronously
+    (async () => {
+      // Handle notifications received while app is foregrounded
+      notificationListener.current = await addNotificationReceivedListener(
+        (notification) => {
+          console.log("Notification received in foreground:", notification);
+          // Update badge count
+          getUnreadCount().then((count) => {
+            setBadgeCount(count);
+          });
+        },
+      );
 
-    // Handle notification taps (user clicks on notification)
-    responseListener.current = addNotificationResponseListener((response) => {
-      console.log("Notification tapped:", response);
-      const data = response.notification.request.content.data;
-      if (data) {
-        handleNotificationAction(data as Record<string, unknown>, router);
-      }
-    });
+      // Handle notification taps (user clicks on notification)
+      responseListener.current = await addNotificationResponseListener(
+        (response) => {
+          console.log("Notification tapped:", response);
+          const data = response.notification.request.content.data;
+          if (data) {
+            handleNotificationAction(data as Record<string, unknown>, router);
+          }
+        },
+      );
+    })();
 
     return () => {
       if (notificationListener.current) {

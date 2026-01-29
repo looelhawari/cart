@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   ArrowLeft,
   MapPin,
@@ -20,36 +21,32 @@ import {
   Truck,
   CheckCircle,
   XCircle,
-  RotateCcw,
   CreditCard,
   Wallet,
+  Calendar,
+  ShoppingCart,
 } from "lucide-react-native";
 import { useResponsive } from "@/hooks/useResponsive";
 
-import Colors from "@/constants/Colors";
-import Typography from "@/constants/Typography";
-import Spacing from "@/constants/Spacing";
+import { Colors } from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
+import { Spacing } from "@/constants/Spacing";
 import {
   getOrder,
   cancelOrder as cancelOrderApi,
-  reorder,
   Order,
 } from "@/services/api/orderApi";
-import { useStore } from "@/store";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
 export default function OrderDetailsScreen() {
-  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
+  const { isSmallDevice } = useResponsive();
   const { id } = useLocalSearchParams();
-  const { fetchCart } = useStore();
 
   const [order, setOrder] = useState<Order | null>(null);
-  const [previousStatus, setPreviousStatus] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
-  const [reordering, setReordering] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
@@ -107,6 +104,8 @@ export default function OrderDetailsScreen() {
       height: 40,
       alignItems: "center",
       justifyContent: "center",
+      borderRadius: 20,
+      backgroundColor: Colors.neutralCloud,
     },
     headerTitle: {
       fontSize: isSmallDevice ? Typography.bodyLarge : Typography.h3,
@@ -118,16 +117,29 @@ export default function OrderDetailsScreen() {
     },
     orderHeader: {
       backgroundColor: Colors.neutralWhite,
+      marginHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+      marginTop: Spacing.md,
+      borderRadius: 20,
       padding: isSmallDevice ? Spacing.md : Spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: Colors.neutralGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 4,
     },
-    orderNumberRow: {
-      flexDirection: isSmallDevice ? "column" : "row",
+    orderHeaderTop: {
+      flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: isSmallDevice ? "flex-start" : "center",
-      marginBottom: Spacing.xs,
-      gap: isSmallDevice ? Spacing.xs : 0,
+      alignItems: "flex-start",
+      marginBottom: Spacing.md,
+    },
+    orderNumberContainer: {
+      flex: 1,
+    },
+    orderNumberLabel: {
+      fontSize: Typography.bodySmall,
+      color: Colors.neutralMedium,
+      marginBottom: 4,
     },
     orderNumber: {
       fontSize: isSmallDevice ? Typography.bodyLarge : Typography.h3,
@@ -149,6 +161,62 @@ export default function OrderDetailsScreen() {
     orderDate: {
       fontSize: isSmallDevice ? 11 : Typography.bodySmall,
       color: Colors.neutralMedium,
+    },
+    orderMetaRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: Spacing.md,
+      marginBottom: Spacing.md,
+    },
+    orderMetaItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    orderMetaText: {
+      fontSize: Typography.bodySmall,
+      color: Colors.neutralMedium,
+    },
+    progressSection: {
+      marginTop: Spacing.sm,
+      paddingTop: Spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: Colors.neutralLight,
+    },
+    progressBarBg: {
+      height: 6,
+      backgroundColor: Colors.neutralLight,
+      borderRadius: 3,
+      overflow: "hidden",
+    },
+    progressBarFill: {
+      height: "100%",
+      backgroundColor: Colors.primary700,
+      borderRadius: 3,
+    },
+    progressSteps: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: Spacing.sm,
+    },
+    progressStep: {
+      alignItems: "center",
+      gap: 4,
+    },
+    progressDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    progressStepText: {
+      fontSize: 10,
+      color: Colors.neutralMedium,
+    },
+    lastUpdatedText: {
+      fontSize: 10,
+      color: Colors.neutralGray,
+      marginTop: Spacing.sm,
+      textAlign: "center",
     },
     section: {
       paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
@@ -433,48 +501,50 @@ export default function OrderDetailsScreen() {
     },
   });
 
-  const fetchOrderDetails = async (silent: boolean = false) => {
-    try {
-      if (!silent) {
-        setLoading(true);
-      }
-      const response = await getOrder(Number(id));
-      const newOrder = response.data.order;
+  const fetchOrderDetails = useCallback(
+    async (silent: boolean = false) => {
+      try {
+        if (!silent) {
+          setLoading(true);
+        }
+        const response = await getOrder(Number(id));
+        const newOrder = response.data.order;
 
-      // Check if status changed
-      if (order && newOrder.status !== order.status) {
-        console.log(
-          "📦 [ORDER] Status changed:",
-          order.status,
-          "->",
-          newOrder.status,
-        );
+        // Check if status changed
+        setOrder((prevOrder) => {
+          if (prevOrder && newOrder.status !== prevOrder.status) {
+            console.log(
+              "📦 [ORDER] Status changed:",
+              prevOrder.status,
+              "->",
+              newOrder.status,
+            );
 
-        // Show alert for status change
-        Alert.alert(
-          "Order Status Updated",
-          `Your order status has been updated to: ${newOrder.status_label}`,
-          [{ text: "OK" }],
-        );
-
-        setPreviousStatus(order.status);
+            // Show alert for status change
+            Alert.alert(
+              "Order Status Updated",
+              `Your order status has been updated to: ${newOrder.status_label}`,
+              [{ text: "OK" }],
+            );
+          }
+          return newOrder;
+        });
+        setLastUpdated(new Date());
+      } catch (error: any) {
+        if (!silent) {
+          Alert.alert("Error", error.message || "Failed to load order details");
+          router.back();
+        } else {
+          console.error("Failed to refresh order:", error);
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
       }
-
-      setOrder(newOrder);
-      setLastUpdated(new Date());
-    } catch (error: any) {
-      if (!silent) {
-        Alert.alert("Error", error.message || "Failed to load order details");
-        router.back();
-      } else {
-        console.error("Failed to refresh order:", error);
-      }
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  };
+    },
+    [id],
+  );
 
   const handleCancelOrder = async () => {
     setCancelling(true);
@@ -491,125 +561,6 @@ export default function OrderDetailsScreen() {
     } finally {
       setCancelling(false);
     }
-  };
-
-  const handleReorder = async () => {
-    if (!order) return;
-
-    // Check if order is in a state that can be reordered
-    const canReorderStatus = ["delivered", "cancelled", "failed"];
-
-    if (!canReorderStatus.includes(order.status)) {
-      Alert.alert(
-        "Cannot Reorder",
-        "You can only reorder completed, cancelled, or failed orders. This order is still active.",
-        [{ text: "OK" }],
-      );
-      return;
-    }
-
-    setReordering(true);
-    try {
-      console.log("🛒 [REORDER] Starting reorder for order ID:", id);
-      const response = await reorder(Number(id));
-      console.log(
-        "🛒 [REORDER] API Response:",
-        JSON.stringify(response.data?.summary, null, 2),
-      );
-
-      // Force fetch cart from backend to ensure sync
-      console.log("🔄 [REORDER] Refreshing cart from backend...");
-      await fetchCart();
-      console.log("✅ [REORDER] Cart refreshed successfully");
-
-      const summary = response.data?.summary;
-      const unavailableItems = response.data?.unavailable_items || [];
-
-      if (!summary) {
-        Alert.alert("Success", "Items have been added to your cart!", [
-          { text: "OK", style: "cancel" },
-          {
-            text: "View Cart",
-            onPress: async () => {
-              // Give store a moment to update before navigating
-              await new Promise((resolve) => setTimeout(resolve, 200));
-              router.push("/(tabs)/cart");
-            },
-          },
-        ]);
-        return;
-      }
-
-      const { items_added, items_unavailable, total_items_requested } = summary;
-
-      if (items_added === 0) {
-        // Build message with unavailable items details
-        let message =
-          "Sorry, none of the items from this order are currently available.\n\n";
-        if (unavailableItems.length > 0) {
-          message += "Unavailable items:\n";
-          unavailableItems.forEach((item: any) => {
-            const reason =
-              item.reason === "discontinued"
-                ? "discontinued"
-                : item.reason === "inactive"
-                  ? "no longer available"
-                  : "out of stock";
-            message += `• ${item.product_name} (${reason})\n`;
-          });
-        }
-
-        Alert.alert("Items Unavailable", message, [{ text: "OK" }]);
-      } else if (items_unavailable > 0) {
-        // Partial reorder
-        let message = `${items_added} of ${total_items_requested} items were added to your cart.\n\n`;
-        message += "Unavailable items:\n";
-        unavailableItems.forEach((item: any) => {
-          const reason =
-            item.reason === "discontinued"
-              ? "discontinued"
-              : item.reason === "inactive"
-                ? "no longer available"
-                : "out of stock";
-          message += `• ${item.product_name} (${reason})\n`;
-        });
-
-        Alert.alert("Partial Reorder", message, [
-          { text: "OK", style: "cancel" },
-          {
-            text: "View Cart",
-            onPress: async () => {
-              await new Promise((resolve) => setTimeout(resolve, 200));
-              router.push("/(tabs)/cart");
-            },
-          },
-        ]);
-      } else {
-        // All items added successfully
-        Alert.alert(
-          "Success",
-          `All ${items_added} item${items_added > 1 ? "s" : ""} have been added to your cart!`,
-          [
-            { text: "OK", style: "cancel" },
-            {
-              text: "View Cart",
-              onPress: async () => {
-                await new Promise((resolve) => setTimeout(resolve, 200));
-                router.push("/(tabs)/cart");
-              },
-            },
-          ],
-        );
-      }
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to reorder");
-    } finally {
-      setReordering(false);
-    }
-  };
-
-  const canReorderOrder = (status: string) => {
-    return ["delivered", "cancelled", "failed"].includes(status);
   };
 
   const getStatusIcon = (status: string) => {
@@ -654,6 +605,26 @@ export default function OrderDetailsScreen() {
     }
   };
 
+  const getProgressPercentage = (status: string) => {
+    switch (status) {
+      case "pending":
+        return 15;
+      case "processing":
+        return 30;
+      case "confirmed":
+        return 45;
+      case "preparing":
+        return 55;
+      case "shipped":
+      case "out_for_delivery":
+        return 75;
+      case "delivered":
+        return 100;
+      default:
+        return 0;
+    }
+  };
+
   const canCancelOrder = (status: string) => {
     return ["pending", "processing", "confirmed"].includes(status);
   };
@@ -670,7 +641,7 @@ export default function OrderDetailsScreen() {
       // Cleanup interval on unmount
       return () => clearInterval(pollInterval);
     }
-  }, [id]);
+  }, [id, fetchOrderDetails]);
 
   if (loading) {
     return (
@@ -784,15 +755,21 @@ export default function OrderDetailsScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Order Header */}
+        {/* Order Header Card */}
         <View style={styles.orderHeader}>
-          <View style={styles.orderNumberRow}>
-            <Text style={styles.orderNumber}>{order.order_number}</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: getStatusColor(order.status) + "20" },
+          <View style={styles.orderHeaderTop}>
+            <View style={styles.orderNumberContainer}>
+              <Text style={styles.orderNumberLabel}>Order Number</Text>
+              <Text style={styles.orderNumber}>{order.order_number}</Text>
+            </View>
+            <LinearGradient
+              colors={[
+                getStatusColor(order.status) + "30",
+                getStatusColor(order.status) + "10",
               ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.statusBadge]}
             >
               <StatusIcon size={16} color={getStatusColor(order.status)} />
               <Text
@@ -803,26 +780,107 @@ export default function OrderDetailsScreen() {
               >
                 {order.status_label}
               </Text>
+            </LinearGradient>
+          </View>
+
+          {/* Order Meta Info */}
+          <View style={styles.orderMetaRow}>
+            <View style={styles.orderMetaItem}>
+              <Calendar size={14} color={Colors.neutralMedium} />
+              <Text style={styles.orderMetaText}>
+                {new Date(order.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
+            </View>
+            <View style={styles.orderMetaItem}>
+              <Clock size={14} color={Colors.neutralMedium} />
+              <Text style={styles.orderMetaText}>
+                {new Date(order.created_at).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            </View>
+            <View style={styles.orderMetaItem}>
+              <ShoppingCart size={14} color={Colors.neutralMedium} />
+              <Text style={styles.orderMetaText}>
+                {order.items?.length || 0} items
+              </Text>
             </View>
           </View>
-          <Text style={styles.orderDate}>
-            Placed on{" "}
-            {new Date(order.created_at).toLocaleDateString("en-US", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
+
+          {/* Progress Bar for Active Orders */}
+          {!["cancelled", "failed", "delivered"].includes(order.status) && (
+            <View style={styles.progressSection}>
+              <View style={styles.progressBarBg}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${getProgressPercentage(order.status)}%` },
+                  ]}
+                />
+              </View>
+              <View style={styles.progressSteps}>
+                <View style={styles.progressStep}>
+                  <View
+                    style={[
+                      styles.progressDot,
+                      { backgroundColor: Colors.primary700 },
+                    ]}
+                  />
+                  <Text style={styles.progressStepText}>Ordered</Text>
+                </View>
+                <View style={styles.progressStep}>
+                  <View
+                    style={[
+                      styles.progressDot,
+                      {
+                        backgroundColor:
+                          getProgressPercentage(order.status) >= 40
+                            ? Colors.primary700
+                            : Colors.neutralLight,
+                      },
+                    ]}
+                  />
+                  <Text style={styles.progressStepText}>Processing</Text>
+                </View>
+                <View style={styles.progressStep}>
+                  <View
+                    style={[
+                      styles.progressDot,
+                      {
+                        backgroundColor:
+                          getProgressPercentage(order.status) >= 70
+                            ? Colors.primary700
+                            : Colors.neutralLight,
+                      },
+                    ]}
+                  />
+                  <Text style={styles.progressStepText}>Shipping</Text>
+                </View>
+                <View style={styles.progressStep}>
+                  <View
+                    style={[
+                      styles.progressDot,
+                      {
+                        backgroundColor:
+                          getProgressPercentage(order.status) >= 100
+                            ? Colors.primary700
+                            : Colors.neutralLight,
+                      },
+                    ]}
+                  />
+                  <Text style={styles.progressStepText}>Delivered</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {lastUpdated && (
-            <Text
-              style={{
-                fontSize: 10,
-                color: Colors.neutralGray,
-                marginTop: 4,
-              }}
-            >
+            <Text style={styles.lastUpdatedText}>
               Last updated:{" "}
               {lastUpdated.toLocaleTimeString("en-US", {
                 hour: "2-digit",

@@ -12,6 +12,7 @@ import {
   ResetPasswordData,
   User as ApiUser,
 } from "@/services/api";
+import { favoritesApi } from "@/services/api";
 
 interface User {
   id: number;
@@ -74,7 +75,9 @@ interface StoreState {
 
   // Favorites
   favorites: string[];
-  toggleFavorite: (productId: string) => void;
+  favoritesLoading: boolean;
+  toggleFavorite: (productId: number | string) => Promise<void>;
+  fetchFavorites: () => Promise<void>;
 
   // Addresses
   addresses: Address[];
@@ -123,6 +126,7 @@ export const useStore = create<StoreState>()(
           cartLoading: false,
           cartError: null,
           favorites: [],
+          favoritesLoading: false,
           selectedAddress: null,
           selectedPaymentMethod: null,
           promoCode: null,
@@ -290,18 +294,16 @@ export const useStore = create<StoreState>()(
       fetchCart: async () => {
         set({ cartLoading: true, cartError: null });
         try {
-          const { getCart, getSessionId } = await import("@/services/api/cartApi");
+          const { getCart, getSessionId } =
+            await import("@/services/api/cartApi");
           const sessionId = await getSessionId();
           console.log("🛒 [STORE] Fetching cart with session ID:", sessionId);
           const response = await getCart();
-          console.log(
-            "🛒 [STORE] Cart fetched successfully:",
-            {
-              items_count: response.data.cart?.items?.length || 0,
-              subtotal: response.data.cart?.subtotal || 0,
-              session_id: sessionId
-            }
-          );
+          console.log("🛒 [STORE] Cart fetched successfully:", {
+            items_count: response.data.cart?.items?.length || 0,
+            subtotal: response.data.cart?.subtotal || 0,
+            session_id: sessionId,
+          });
           set({ cart: response.data.cart, cartLoading: false });
         } catch (error: any) {
           set({
@@ -402,18 +404,60 @@ export const useStore = create<StoreState>()(
 
       // Favorites
       favorites: [],
+      favoritesLoading: false,
 
-      toggleFavorite: (productId) =>
-        set((state) => {
-          if (state.favorites.includes(productId)) {
-            return {
-              favorites: state.favorites.filter((id) => id !== productId),
-            };
+      fetchFavorites: async () => {
+        const { isAuthenticated } = get();
+        if (!isAuthenticated) return;
+
+        try {
+          set({ favoritesLoading: true });
+          const response = await favoritesApi.listFavorites();
+          // Response structure: { data: { favorites: [...] } }
+          const favoritesData = response.data?.favorites || [];
+          const favoriteIds = favoritesData.map((fav: any) =>
+            String(fav.product?.barcode || fav.product?.id || fav.product_id),
+          );
+          set({ favorites: favoriteIds, favoritesLoading: false });
+        } catch (error) {
+          console.error("Failed to fetch favorites:", error);
+          set({ favoritesLoading: false });
+        }
+      },
+
+      toggleFavorite: async (productId) => {
+        const { isAuthenticated, favorites } = get();
+        const productIdStr = String(productId);
+        const isFavorite = favorites.includes(productIdStr);
+
+        // Optimistic update
+        if (isFavorite) {
+          set({ favorites: favorites.filter((id) => id !== productIdStr) });
+        } else {
+          set({ favorites: [...favorites, productIdStr] });
+        }
+
+        // Only sync with backend if authenticated
+        if (isAuthenticated) {
+          try {
+            if (isFavorite) {
+              await favoritesApi.removeFavorite(Number(productId));
+            } else {
+              await favoritesApi.addFavorite(Number(productId));
+            }
+          } catch (error) {
+            console.error("Failed to sync favorite:", error);
+            // Revert optimistic update on error
+            if (isFavorite) {
+              set({ favorites: [...get().favorites, productIdStr] });
+            } else {
+              set({
+                favorites: get().favorites.filter((id) => id !== productIdStr),
+              });
+            }
           }
-          return {
-            favorites: [...state.favorites, productId],
-          };
-        }),
+        }
+      },
 
       // Addresses
       addresses: [

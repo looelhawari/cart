@@ -214,6 +214,58 @@ class ReviewController extends Controller
     }
 
     /**
+     * Check if user can review a specific product
+     */
+    public function canReview($productId)
+    {
+        $user = Auth::user();
+
+        // Check if product exists
+        $product = Product::find($productId);
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        // Check if user already reviewed this product
+        $alreadyReviewed = Review::where('user_id', $user->id)
+            ->where('product_id', $productId)
+            ->exists();
+
+        // Get eligible orders (delivered orders containing this product that haven't been reviewed)
+        $eligibleOrders = Order::where('user_id', $user->id)
+            ->where('status', 'delivered')
+            ->whereHas('items', function($query) use ($productId) {
+                $query->where('product_id', $productId);
+            })
+            ->select('id', 'order_number', 'delivered_at', 'updated_at')
+            ->orderBy('delivered_at', 'desc')
+            ->get()
+            ->map(function($order) {
+                return [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'delivered_at' => $order->delivered_at ?? $order->updated_at,
+                ];
+            });
+
+        $hasPurchased = $eligibleOrders->isNotEmpty();
+        $canReview = $hasPurchased && !$alreadyReviewed;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'can_review' => $canReview,
+                'has_purchased' => $hasPurchased,
+                'already_reviewed' => $alreadyReviewed,
+                'eligible_orders' => $eligibleOrders,
+            ]
+        ]);
+    }
+
+    /**
      * Update product rating and review count
      */
     private function updateProductRating($productId)

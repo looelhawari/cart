@@ -1,8 +1,10 @@
-import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { api } from "./api";
+
+// Type imports only (no runtime code)
+import type * as NotificationsType from "expo-notifications";
 
 /**
  * Check if running in Expo Go (where push notifications are not supported since SDK 53)
@@ -26,14 +28,29 @@ export function isPushNotificationsSupported(): boolean {
   return true;
 }
 
+// Lazy load expo-notifications only when supported
+let Notifications: typeof NotificationsType | null = null;
+
+async function loadNotificationsModule(): Promise<typeof NotificationsType> {
+  if (!Notifications && !isExpoGo()) {
+    Notifications = await import("expo-notifications");
+  }
+  if (!Notifications) {
+    throw new Error("Push notifications not available in Expo Go");
+  }
+  return Notifications;
+}
+
 // Configure notification behavior (only if not in Expo Go)
 if (!isExpoGo()) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+  loadNotificationsModule().then((Notifications) => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
   });
 }
 
@@ -84,6 +101,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
     return null;
   }
+
+  const Notifications = await loadNotificationsModule();
 
   // Set up Android notification channel
   if (Platform.OS === "android") {
@@ -402,26 +421,28 @@ export async function cancelOrderNotifications(orderId: string) {
 /**
  * Get notification listener for when app is in foreground
  */
-export function addNotificationReceivedListener(
-  callback: (notification: Notifications.Notification) => void,
+export async function addNotificationReceivedListener(
+  callback: (notification: NotificationsType.Notification) => void,
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
     return { remove: () => {} };
   }
+  const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationReceivedListener(callback);
 }
 
 /**
  * Get notification response listener for when user taps on notification
  */
-export function addNotificationResponseListener(
-  callback: (response: Notifications.NotificationResponse) => void,
+export async function addNotificationResponseListener(
+  callback: (response: NotificationsType.NotificationResponse) => void,
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
     return { remove: () => {} };
   }
+  const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationResponseReceivedListener(callback);
 }
 
@@ -430,6 +451,7 @@ export function addNotificationResponseListener(
  */
 export async function clearAllNotifications() {
   if (isExpoGo()) return;
+  const Notifications = await loadNotificationsModule();
   await Notifications.dismissAllNotificationsAsync();
 }
 
@@ -438,6 +460,7 @@ export async function clearAllNotifications() {
  */
 export async function setBadgeCount(count: number) {
   if (isExpoGo()) return;
+  const Notifications = await loadNotificationsModule();
   await Notifications.setBadgeCountAsync(count);
 }
 

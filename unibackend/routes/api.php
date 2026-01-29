@@ -234,6 +234,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('reviews')->group(function () {
             Route::post('/', [\App\Http\Controllers\Api\V1\ReviewController::class, 'store']);
             Route::get('/my-reviews', [\App\Http\Controllers\Api\V1\ReviewController::class, 'getUserReviews']);
+            Route::get('/can-review/{productId}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'canReview']);
             Route::put('/{id}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'update']);
             Route::delete('/{id}', [\App\Http\Controllers\Api\V1\ReviewController::class, 'destroy']);
             Route::post('/{id}/helpful', [\App\Http\Controllers\Api\V1\ReviewController::class, 'markHelpful']);
