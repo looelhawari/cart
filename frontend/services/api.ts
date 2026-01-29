@@ -155,6 +155,57 @@ const apiRequest = async <T>(
   }
 };
 
+// Generic API client for use in other services (axios-style interface)
+export const api = {
+  async get<T = any>(
+    endpoint: string,
+    config?: { params?: Record<string, unknown> },
+  ): Promise<{ data: T }> {
+    let url = endpoint;
+    if (config?.params) {
+      const queryString = Object.entries(config.params)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
+        )
+        .join("&");
+      if (queryString) {
+        url += (url.includes("?") ? "&" : "?") + queryString;
+      }
+    }
+    const result = await apiRequest<T>(url, { method: "GET" });
+    return { data: result };
+  },
+
+  async post<T = any>(endpoint: string, data?: any): Promise<{ data: T }> {
+    const result = await apiRequest<T>(endpoint, {
+      method: "POST",
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return { data: result };
+  },
+
+  async put<T = any>(endpoint: string, data?: any): Promise<{ data: T }> {
+    const result = await apiRequest<T>(endpoint, {
+      method: "PUT",
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return { data: result };
+  },
+
+  async delete<T = any>(
+    endpoint: string,
+    config?: { data?: any },
+  ): Promise<{ data: T }> {
+    const result = await apiRequest<T>(endpoint, {
+      method: "DELETE",
+      body: config?.data ? JSON.stringify(config.data) : undefined,
+    });
+    return { data: result };
+  },
+};
+
 // AUTH API SERVICE
 export const authApi = {
   // Register

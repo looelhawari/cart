@@ -36,6 +36,8 @@ import {
   Order,
 } from "@/services/api/orderApi";
 import { useStore } from "@/store";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 export default function OrderDetailsScreen() {
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();

@@ -27,7 +27,7 @@ import { Colors } from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { Toast } from "@/components/Toast";
-import { getProduct } from "@/services/api/productsApi";
+import { getProduct, getProducts } from "@/services/api/productsApi";
 import type { Product } from "@/types";
 import {
   fetchActiveOffersCached,
@@ -48,6 +48,7 @@ export default function ProductDetailScreen() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
 
   const { cart, addToCart, updateQuantity, favorites, toggleFavorite } =
     useStore();
@@ -78,6 +79,29 @@ export default function ProductDetailScreen() {
       const response = await getProduct(id);
       if (response.success) {
         setProduct(response.data.product);
+
+        // Load related products from the same category
+        if (
+          response.data.product.categories &&
+          response.data.product.categories.length > 0
+        ) {
+          const categoryId = response.data.product.categories[0].id;
+          try {
+            const relatedResponse = await getProducts({
+              category_id: categoryId,
+              per_page: 10,
+            });
+            if (relatedResponse.success) {
+              // Filter out current product and limit to 5
+              const filtered = relatedResponse.data.products
+                .filter((p) => p.barcode !== response.data.product.barcode)
+                .slice(0, 5);
+              setRelatedProducts(filtered);
+            }
+          } catch (error) {
+            console.error("Failed to load related products:", error);
+          }
+        }
       }
       try {
         const offers = await fetchActiveOffersCached();
@@ -158,9 +182,6 @@ export default function ProductDetailScreen() {
     offerPricing && offerPricing.discountedPrice < basePrice
       ? offerPricing.discountedPrice
       : null;
-
-  // Related products would need a separate API call - skipping for now
-  const relatedProducts: Product[] = [];
 
   const handleAddToCart = async () => {
     try {
@@ -585,14 +606,6 @@ export default function ProductDetailScreen() {
       "specs",
       "Product Details & Specifications",
       <View style={styles.specsTable}>
-        {product.name_ar && (
-          <View style={styles.specRow}>
-            <Text style={styles.specLabel}>Arabic Name</Text>
-            <Text style={[styles.specValue, styles.arabicText]}>
-              {product.name_ar}
-            </Text>
-          </View>
-        )}
         {product.weight && (
           <View style={styles.specRow}>
             <Text style={styles.specLabel}>Weight</Text>
@@ -634,27 +647,61 @@ export default function ProductDetailScreen() {
     if (relatedProducts.length === 0) return null;
     return (
       <View style={styles.relatedSection}>
-        <Text style={styles.sectionTitle}>You may also like</Text>
+        <Text style={styles.sectionTitle}>{t.products.youMightLike}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.relatedScroll}
         >
-          {relatedProducts.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.relatedCard}
-              onPress={() => router.push(`/product/${item.id}`)}
-            >
-              <Image source={{ uri: item.image }} style={styles.relatedImage} />
-              <Text style={styles.relatedName} numberOfLines={2}>
-                {item.name}
-              </Text>
-              <Text style={styles.relatedPrice}>
-                EGP {item.salePrice || item.price}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {relatedProducts.map((item) => {
+            const itemPrice = parseFloat(item.price?.toString() || "0");
+            const itemSalePrice = parseFloat(
+              (item.sale_price || item.salePrice)?.toString() || "0",
+            );
+            const finalPrice =
+              itemSalePrice > 0 && itemSalePrice < itemPrice
+                ? itemSalePrice
+                : itemPrice;
+            const itemDiscount =
+              itemSalePrice > 0 && itemSalePrice < itemPrice
+                ? Math.round(((itemPrice - itemSalePrice) / itemPrice) * 100)
+                : 0;
+
+            return (
+              <TouchableOpacity
+                key={item.barcode || item.id}
+                style={styles.relatedCard}
+                onPress={() => router.push(`/product/${item.barcode}`)}
+              >
+                {itemDiscount > 0 && (
+                  <View style={styles.relatedDiscountBadge}>
+                    <Text style={styles.relatedDiscountText}>
+                      -{itemDiscount}%
+                    </Text>
+                  </View>
+                )}
+                <Image
+                  source={{ uri: item.image }}
+                  style={styles.relatedImage}
+                />
+                <View style={styles.relatedInfo}>
+                  <Text style={styles.relatedName} numberOfLines={2}>
+                    {getName(item)}
+                  </Text>
+                  <View style={styles.relatedPriceRow}>
+                    <Text style={styles.relatedPrice}>
+                      {t.common.currency} {finalPrice.toFixed(2)}
+                    </Text>
+                    {itemDiscount > 0 && (
+                      <Text style={styles.relatedOldPrice}>
+                        {t.common.currency} {itemPrice.toFixed(2)}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
     );
@@ -1105,28 +1152,58 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   relatedCard: {
-    width: 140,
-    backgroundColor: Colors.neutralLight,
+    width: 160,
+    backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+    marginRight: Spacing.sm,
   },
   relatedImage: {
     width: "100%",
-    height: 140,
-    resizeMode: "cover",
+    height: 160,
+    resizeMode: "contain",
+    backgroundColor: Colors.neutralLight,
+  },
+  relatedInfo: {
+    padding: Spacing.sm,
   },
   relatedName: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralCharcoal,
-    padding: Spacing.sm,
-    paddingBottom: 4,
+    marginBottom: Spacing.xs,
+    minHeight: 40,
+  },
+  relatedPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
   },
   relatedPrice: {
     fontSize: Typography.bodyLarge,
     fontWeight: "bold",
     color: Colors.primary900,
-    paddingHorizontal: Spacing.sm,
-    paddingBottom: Spacing.sm,
+  },
+  relatedOldPrice: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    textDecorationLine: "line-through",
+  },
+  relatedDiscountBadge: {
+    position: "absolute",
+    top: Spacing.xs,
+    right: Spacing.xs,
+    backgroundColor: Colors.accentOrange,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 4,
+    borderRadius: 8,
+    zIndex: 1,
+  },
+  relatedDiscountText: {
+    color: Colors.neutralWhite,
+    fontSize: Typography.bodySmall,
+    fontWeight: "bold",
   },
   bottomBar: {
     position: "absolute",

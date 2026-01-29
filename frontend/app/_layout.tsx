@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppState, AppStateStatus } from "react-native";
 import { useStore } from "@/store";
@@ -10,6 +10,15 @@ import {
   hasPendingPayment,
   isActivePaymentFlow,
 } from "@/services/payment/paymentRecovery";
+import {
+  initializePushNotifications,
+  addNotificationReceivedListener,
+  addNotificationResponseListener,
+  handleNotificationAction,
+  setBadgeCount,
+  getUnreadCount,
+  isPushNotificationsSupported,
+} from "@/services/notificationService";
 import {
   useFonts,
   Poppins_400Regular,
@@ -32,11 +41,77 @@ function RootLayoutNav() {
   const checkAuthStatus = useStore((state) => state.checkAuthStatus);
   const fetchCart = useStore((state) => state.fetchCart);
 
+  const notificationListener =
+    useRef<ReturnType<typeof addNotificationReceivedListener>>();
+  const responseListener =
+    useRef<ReturnType<typeof addNotificationResponseListener>>();
+
   // Check authentication status on app startup
   useEffect(() => {
     checkAuthStatus().catch((error) => {
       console.log("Auth check failed on startup:", error);
     });
+  }, []);
+
+  // Initialize push notifications when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Only initialize if push notifications are supported (not in Expo Go)
+      if (isPushNotificationsSupported()) {
+        // Initialize push notifications and register token
+        initializePushNotifications().then((token) => {
+          if (token) {
+            console.log("Push notifications initialized with token:", token);
+          }
+        });
+
+        // Update badge count on app start
+        getUnreadCount().then((count) => {
+          setBadgeCount(count);
+        });
+      } else {
+        console.log(
+          "Push notifications not supported in this environment (Expo Go or simulator)",
+        );
+      }
+    }
+  }, [isAuthenticated]);
+
+  // Set up notification listeners (only if push notifications are supported)
+  useEffect(() => {
+    // Skip if push notifications are not supported (Expo Go or simulator)
+    if (!isPushNotificationsSupported()) {
+      return;
+    }
+
+    // Handle notifications received while app is foregrounded
+    notificationListener.current = addNotificationReceivedListener(
+      (notification) => {
+        console.log("Notification received in foreground:", notification);
+        // Update badge count
+        getUnreadCount().then((count) => {
+          setBadgeCount(count);
+        });
+      },
+    );
+
+    // Handle notification taps (user clicks on notification)
+    responseListener.current = addNotificationResponseListener((response) => {
+      console.log("Notification tapped:", response);
+      const data = response.notification.request.content.data;
+      if (data) {
+        handleNotificationAction(data as Record<string, unknown>, router);
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
   }, []);
 
   // Fetch cart on app start (if authenticated)

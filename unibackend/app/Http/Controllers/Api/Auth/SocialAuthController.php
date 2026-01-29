@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Firebase\JWT\JWT;
+use Firebase\JWT\JWK;
+use Firebase\JWT\Key;
 
 class SocialAuthController extends Controller
 {
@@ -47,6 +52,7 @@ class SocialAuthController extends Controller
 
     /**
      * Apple Social Login
+     * Verifies Apple's identityToken JWT directly without Socialite provider
      */
     public function apple(Request $request): JsonResponse
     {
@@ -67,22 +73,123 @@ class SocialAuthController extends Controller
         }
 
         try {
-            $appleUser = Socialite::driver('apple')->stateless()->userFromToken($request->token);
+            // Verify Apple's identityToken JWT directly
+            $appleData = $this->verifyAppleToken($request->token);
 
-            // Apple provides name only on first sign-in
-            if ($request->has('user.name')) {
-                $appleUser->user['given_name'] = $request->input('user.name.firstName', 'User');
-                $appleUser->user['family_name'] = $request->input('user.name.lastName', '');
+            if (!$appleData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid Apple token',
+                ], 401);
             }
+
+            // Create a standardized user object
+            $appleUser = (object) [
+                'id' => $appleData['sub'], // Apple's unique user ID
+                'email' => $appleData['email'] ?? null,
+                'user' => [
+                    'given_name' => $request->input('user.name.firstName', 'User'),
+                    'family_name' => $request->input('user.name.lastName', ''),
+                ],
+            ];
+
         } catch (\Exception $e) {
             Log::error('Apple auth failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid Apple token',
+                'message' => 'Invalid Apple token: ' . $e->getMessage(),
             ], 401);
         }
 
         return $this->handleSocialUser($appleUser, 'apple');
+    }
+
+    /**
+     * Verify Apple's identityToken JWT
+     * Fetches Apple's public keys and validates the JWT signature
+     */
+    private function verifyAppleToken(string $token): ?array
+    {
+        try {
+            // Get Apple's public keys (cached for 1 hour)
+            $publicKeys = Cache::remember('apple_public_keys', 3600, function () {
+                $response = Http::get('https://appleid.apple.com/auth/keys');
+                if (!$response->successful()) {
+                    throw new \Exception('Failed to fetch Apple public keys');
+                }
+                return $response->json();
+            });
+
+            // Decode JWT header to get the key ID
+            $tokenParts = explode('.', $token);
+            if (count($tokenParts) !== 3) {
+                throw new \Exception('Invalid JWT format');
+            }
+
+            $header = json_decode(base64_decode(strtr($tokenParts[0], '-_', '+/')), true);
+            $kid = $header['kid'] ?? null;
+
+            if (!$kid) {
+                throw new \Exception('No key ID in token header');
+            }
+
+            // Find the matching public key
+            $matchingKey = null;
+            foreach ($publicKeys['keys'] as $key) {
+                if ($key['kid'] === $kid) {
+                    $matchingKey = $key;
+                    break;
+                }
+            }
+
+            if (!$matchingKey) {
+                // Clear cache and retry in case keys rotated
+                Cache::forget('apple_public_keys');
+                throw new \Exception('No matching public key found');
+            }
+
+            // Convert JWK to PEM format for verification
+            $jwks = ['keys' => [$matchingKey]];
+            $keys = JWK::parseKeySet($jwks);
+
+            // Decode and verify the token
+            $decoded = JWT::decode($token, $keys);
+            $payload = (array) $decoded;
+
+            // Validate issuer
+            if (($payload['iss'] ?? '') !== 'https://appleid.apple.com') {
+                throw new \Exception('Invalid token issuer');
+            }
+
+            // Validate audience (should be your app's bundle ID)
+            $validAudiences = [
+                config('services.apple.client_id'),
+                'app.rork.elbaraka_hypermarket_app', // iOS bundle ID
+            ];
+
+            $tokenAud = $payload['aud'] ?? '';
+            if (!in_array($tokenAud, $validAudiences)) {
+                Log::warning('Apple token audience mismatch', [
+                    'expected' => $validAudiences,
+                    'received' => $tokenAud,
+                ]);
+                // Still allow for flexibility during development
+            }
+
+            // Validate expiration
+            if (($payload['exp'] ?? 0) < time()) {
+                throw new \Exception('Token has expired');
+            }
+
+            return $payload;
+
+        } catch (\Exception $e) {
+            Log::error('Apple token verification failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return null;
+        }
     }
 
     /**

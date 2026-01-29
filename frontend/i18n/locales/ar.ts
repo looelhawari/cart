@@ -623,6 +623,7 @@ export default {
     flashDeals: "عروض سريعة",
     featured: "منتجات مميزة",
     relatedProducts: "منتجات ذات صلة",
+    youMightLike: "قد يعجبك أيضاً",
     productDetails: "تفاصيل المنتج",
     description: "الوصف",
     reviews: "تقييمات",

@@ -12,7 +12,7 @@ export const API_CONFIG = {
   // Development URLs
   // For physical device testing on same WiFi, use local IP
   BASE_URL: __DEV__
-    ? "https://5d403a95cb06.ngrok-free.app/api/v1" // Local network IP for physical device
+    ? "https://e2c60c066bb0.ngrok-free.app/api/v1" // Local network IP for physical device
     : "https://api.elbaraka.com/api/v1", // Production URL
 
   TIMEOUT: 30000, // 30 seconds

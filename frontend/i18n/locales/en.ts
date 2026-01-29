@@ -627,6 +627,7 @@ export default {
     flashDeals: "Flash Deals",
     featured: "Featured Products",
     relatedProducts: "Related Products",
+    youMightLike: "You might like",
     productDetails: "Product Details",
     description: "Description",
     reviews: "reviews",

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Admin\RefundController as AdminRefundController;
 use App\Http\Controllers\Api\Admin\SupportController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Admin\PromotionController as AdminPromotionController;
+use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\PromoCodeController as AdminPromoCodeController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
@@ -80,7 +81,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/preview', [PromoCodeApiController::class, 'preview']);
         Route::get('/details/{code}', [PromoCodeApiController::class, 'details']);
         Route::get('/suggestions', [PromoCodeApiController::class, 'suggestions']);
-        
+
         // Authenticated routes
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('/recommendations', [PromoCodeApiController::class, 'recommendations']);
@@ -173,8 +174,15 @@ Route::prefix('v1')->group(function () {
 
         // Notification endpoints
         Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+            Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+            Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+            Route::delete('/{id}', [NotificationController::class, 'destroy']);
             Route::post('/token', [NotificationController::class, 'saveToken']);
             Route::delete('/token', [NotificationController::class, 'removeToken']);
+            Route::get('/preferences', [NotificationController::class, 'getPreferences']);
+            Route::put('/preferences', [NotificationController::class, 'updatePreferences']);
         });
 
         // Payment endpoints (protected) - password required for payment initiation
@@ -320,6 +328,18 @@ Route::prefix('v1')->group(function () {
                 Route::post('/sync-status', [AdminPromotionController::class, 'syncStatus']);
             });
 
+            // Notification Management
+            Route::prefix('notifications')->group(function () {
+                Route::get('/', [AdminNotificationController::class, 'index']);
+                Route::get('/analytics', [AdminNotificationController::class, 'analytics']);
+                Route::get('/{id}', [AdminNotificationController::class, 'show']);
+                Route::delete('/{id}', [AdminNotificationController::class, 'destroy']);
+                Route::post('/{id}/resend', [AdminNotificationController::class, 'resend']);
+                Route::post('/broadcast', [AdminNotificationController::class, 'sendBroadcast']);
+                Route::post('/send-to-users', [AdminNotificationController::class, 'sendToUsers']);
+                Route::post('/send-promotion', [AdminNotificationController::class, 'sendPromotion']);
+            });
+
             // User Management
             Route::prefix('users')->group(function () {
                 Route::get('/', [UserController::class, 'index']);
@@ -365,7 +385,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/compare', [AdminPromoCodeController::class, 'compare']);
                 Route::post('/bulk-status', [AdminPromoCodeController::class, 'bulkUpdateStatus']);
                 Route::get('/export', [AdminPromoCodeController::class, 'export']);
-                
+
                 // Single promo code operations
                 Route::get('/{id}', [AdminPromoCodeController::class, 'show']);
                 Route::put('/{id}', [AdminPromoCodeController::class, 'update']);
