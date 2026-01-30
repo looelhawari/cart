@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
-import { ArrowLeft, FileText, Send, Paperclip, ChevronDown, Package } from 'lucide-react-native';
+import { ArrowLeft, FileText, Send, Paperclip, ChevronDown, Package, X, Check, Image as ImageIcon, File, AlertCircle } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
 import Colors from '@/constants/Colors';
@@ -24,14 +24,13 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { orderApi, type Order } from '@/services/api/orderApi';
 
 const categories = [
-  { label: 'Order Issue', value: 'order_issue' },
-  { label: 'Product Quality', value: 'product_quality' },
-  { label: 'Delivery Problem', value: 'delivery_problem' },
-  { label: 'Payment Issue', value: 'payment_issue' },
-  { label: 'Technical Issue', value: 'technical_issue' },
-  { label: 'General Inquiry', value: 'general_inquiry' },
-  { label: 'Suggestion', value: 'suggestion' },
-  { label: 'Other', value: 'other' },
+  { label: 'Order Issue', value: 'order_issue', icon: '📦' },
+  { label: 'Product Quality', value: 'product_quality', icon: '⭐' },
+  { label: 'Delivery', value: 'delivery_problem', icon: '🚚' },
+  { label: 'Payment', value: 'payment_issue', icon: '💳' },
+  { label: 'Technical', value: 'technical_issue', icon: '🔧' },
+  { label: 'Suggestion', value: 'suggestion', icon: '💡' },
+  { label: 'Other', value: 'other', icon: '❓' },
 ];
 
 export default function NewComplaintScreen() {
@@ -50,6 +49,7 @@ export default function NewComplaintScreen() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrdersSheet, setShowOrdersSheet] = useState(false);
 
+  // Load orders only when needed or in background
   const loadOrders = async () => {
     try {
       setOrdersLoading(true);
@@ -84,7 +84,16 @@ export default function NewComplaintScreen() {
     setAttachments((prev) => [...prev, ...files]);
   };
 
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
+    if (!formData.subject || !formData.category || !formData.description) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
@@ -114,12 +123,15 @@ export default function NewComplaintScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Submit Complaint',
+          title: 'New Request',
+          headerTitleStyle: { fontFamily: 'Poppins-SemiBold', fontSize: 18 },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: -8 }}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <ArrowLeft size={24} color={Colors.neutralCharcoal} />
             </TouchableOpacity>
           ),
+          headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.neutralCloud }} />,
+          headerShadowVisible: false,
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -127,201 +139,222 @@ export default function NewComplaintScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.content}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Subject</Text>
-                <View style={styles.inputWrapper}>
-                  <FileText size={20} color={Colors.neutralMedium} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Brief description of your issue"
-                    placeholderTextColor={Colors.neutralMedium}
-                    value={formData.subject}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, subject: text })
-                    }
-                  />
-                </View>
-              </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Category</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.categoriesRow}
-                >
-                  {categories.map((category) => (
-                    <TouchableOpacity
-                      key={category.value}
-                      style={[
-                        styles.categoryChip,
-                        formData.category === category.value &&
-                          styles.categoryChipActive,
-                      ]}
-                      onPress={() =>
-                        setFormData({ ...formData, category: category.value })
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.categoryText,
-                          formData.category === category.value &&
-                            styles.categoryTextActive,
-                        ]}
-                      >
-                        {category.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+            {/* Category Selection */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>What can we help you with? *</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesRow}
+              >
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.value}
+                    style={[
+                      styles.categoryCard,
+                      formData.category === cat.value && styles.categoryCardActive
+                    ]}
+                    onPress={() => setFormData({ ...formData, category: cat.value })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                    <Text style={[
+                      styles.categoryLabel,
+                      formData.category === cat.value && styles.categoryLabelActive
+                    ]}>
+                      {cat.label}
+                    </Text>
+                    {formData.category === cat.value && (
+                      <View style={styles.checkBadge}>
+                        <Check size={10} color={Colors.neutralWhite} strokeWidth={4} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Order (Optional)</Text>
-                <TouchableOpacity
-                  style={styles.selectOrderButton}
-                  onPress={() => setShowOrdersSheet(true)}
-                  activeOpacity={0.9}
-                >
-                  <View style={styles.selectOrderLeft}>
-                    <View style={styles.selectOrderIcon}>
-                      <Package size={18} color={Colors.primary900} />
-                    </View>
-                    <View>
-                      <Text style={styles.selectOrderText}>
-                        {selectedOrder
-                          ? selectedOrder.order_number
-                          : ordersLoading
-                            ? 'Loading orders...'
-                            : 'Select your order'}
-                      </Text>
-                      <Text style={styles.selectOrderSubtext}>
-                        {selectedOrder
-                          ? `${new Date(
-                              selectedOrder.created_at,
-                            ).toLocaleDateString()} • ${selectedOrder.status_label || selectedOrder.status}`
-                          : 'Choose from your latest 5 orders'}
-                      </Text>
-                    </View>
+            {/* Subject */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Subject *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Briefly describe the issue"
+                placeholderTextColor={Colors.neutralMedium}
+                value={formData.subject}
+                onChangeText={(text) => setFormData({ ...formData, subject: text })}
+              />
+            </View>
+
+            {/* Order Selection */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Related Order (Optional)</Text>
+              <TouchableOpacity
+                style={styles.orderSelector}
+                onPress={() => setShowOrdersSheet(true)}
+              >
+                <View style={styles.orderSelectorContent}>
+                  <View style={styles.iconBox}>
+                    <Package size={20} color={Colors.primary900} />
                   </View>
-                  <ChevronDown size={18} color={Colors.neutralMedium} />
+                  {selectedOrder ? (
+                    <View>
+                      <Text style={styles.selectedOrderText}>Order #{selectedOrder.order_number}</Text>
+                      <Text style={styles.selectedOrderSub}>
+                        {new Date(selectedOrder.created_at).toLocaleDateString()} • {selectedOrder.status_label || selectedOrder.status}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View>
+                      <Text style={styles.placeholderText}>Select an order</Text>
+                      <Text style={styles.subText}>Link this request to a recent purchase</Text>
+                    </View>
+                  )}
+                </View>
+                <ChevronDown size={20} color={Colors.neutralMedium} />
+              </TouchableOpacity>
+              {selectedOrder && (
+                <TouchableOpacity
+                  style={styles.clearOrderBtn}
+                  onPress={() => setSelectedOrder(null)}
+                >
+                  <Text style={styles.clearOrderText}>Clear selection</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Description */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Details *</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Please provide as much detail as possible..."
+                placeholderTextColor={Colors.neutralMedium}
+                value={formData.description}
+                onChangeText={(text) => setFormData({ ...formData, description: text })}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Attachments */}
+            <View style={styles.section}>
+              <View style={styles.attachmentHeader}>
+                <Text style={styles.label}>Attachments</Text>
+                <TouchableOpacity onPress={handlePickAttachments}>
+                  <Text style={styles.addText}>+ Add Files</Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Description</Text>
-                <TextInput
-                  style={styles.textArea}
-                  placeholder="Provide detailed information about your complaint..."
-                  placeholderTextColor={Colors.neutralMedium}
-                  value={formData.description}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, description: text })
-                  }
-                  multiline
-                  numberOfLines={6}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.attachButton}
-                onPress={handlePickAttachments}
-              >
-                <Paperclip size={20} color={Colors.primary900} />
-                <Text style={styles.attachText}>
-                  Attach Files (PDF, JPG, PNG, WEBP)
-                </Text>
-              </TouchableOpacity>
-
-              {attachments.length > 0 && (
-                <View style={styles.attachmentList}>
-                  <Text style={styles.attachmentCount}>
-                    {attachments.length} attachment
-                    {attachments.length === 1 ? '' : 's'} selected
-                  </Text>
+              {attachments.length === 0 ? (
+                <TouchableOpacity
+                  style={styles.uploadArea}
+                  onPress={handlePickAttachments}
+                >
+                  <Paperclip size={24} color={Colors.neutralMedium} />
+                  <Text style={styles.uploadText}>Tap to upload photos or documents</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.attachmentGrid}>
+                  {attachments.map((file, index) => {
+                    const isImage = file.mimeType?.startsWith('image/');
+                    return (
+                      <View key={index} style={styles.attachmentItem}>
+                        <View style={styles.attachmentIcon}>
+                          {isImage ? (
+                            <ImageIcon size={20} color={Colors.primary900} />
+                          ) : (
+                            <File size={20} color={Colors.primary900} />
+                          )}
+                        </View>
+                        <View style={styles.attachmentInfo}>
+                          <Text style={styles.attachmentName} numberOfLines={1}>{file.name}</Text>
+                          <Text style={styles.attachmentSize}>
+                            {isImage ? 'Image' : 'Document'}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.removeBtn}
+                          onPress={() => removeAttachment(index)}
+                        >
+                          <X size={16} color={Colors.neutralMedium} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={styles.addMoreBtn}
+                    onPress={handlePickAttachments}
+                  >
+                    <Text style={styles.addMoreText}>+ Add another</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-
-              {error && <Text style={styles.errorText}>{error}</Text>}
-
-              <Button
-                title={submitting ? 'Submitting...' : 'Submit Complaint'}
-                onPress={handleSubmit}
-                icon={<Send size={20} color={Colors.neutralWhite} />}
-                variant="primary"
-                disabled={submitting}
-              />
             </View>
+
+            {error && (
+              <View style={styles.errorBox}>
+                <AlertCircle size={16} color={Colors.accentRed} />
+                <Text style={styles.errorMsg}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.footerSpacing} />
           </ScrollView>
+
+          <View style={styles.footer}>
+            <Button
+              title={submitting ? 'Submitting...' : 'Submit Request'}
+              onPress={handleSubmit}
+              icon={<Send size={20} color={Colors.neutralWhite} />}
+              variant="primary"
+              disabled={submitting}
+              style={styles.submitBtn}
+            />
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
       <BottomSheet
         visible={showOrdersSheet}
         onClose={() => setShowOrdersSheet(false)}
-        title="Select an Order"
+        title="Select Related Order"
         snapPoints={[0.6]}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <TouchableOpacity
-            style={styles.orderOption}
-            onPress={() => {
-              setSelectedOrder(null);
-              setShowOrdersSheet(false);
-            }}
-          >
-            <Text style={styles.orderOptionTitle}>No Order</Text>
-            <Text style={styles.orderOptionMeta}>Submit without linking an order</Text>
-          </TouchableOpacity>
-
-          {ordersLoading && (
-            <View style={styles.ordersLoadingRow}>
-              <ActivityIndicator size="small" color={Colors.primary900} />
-              <Text style={styles.ordersLoadingText}>Loading orders...</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+          {ordersLoading ? (
+            <ActivityIndicator color={Colors.primary900} style={{ marginTop: 20 }} />
+          ) : orders.length === 0 ? (
+            <View style={{ alignItems: 'center', padding: 20 }}>
+              <Text style={{ color: Colors.neutralMedium }}>No recent orders found</Text>
             </View>
-          )}
-
-          {!ordersLoading && orders.length === 0 && (
-            <View style={styles.ordersEmpty}>
-              <Text style={styles.ordersEmptyTitle}>No recent orders</Text>
-              <Text style={styles.ordersEmptyText}>
-                You can still submit a complaint without linking an order.
-              </Text>
-            </View>
-          )}
-
-          {!ordersLoading &&
+          ) : (
             orders.map((order) => (
               <TouchableOpacity
                 key={order.id}
-                style={styles.orderOption}
+                style={styles.sheetOption}
                 onPress={() => {
                   setSelectedOrder(order);
                   setShowOrdersSheet(false);
                 }}
               >
-                <View style={styles.orderOptionRow}>
-                  <View style={styles.orderOptionBadge}>
-                    <Package size={16} color={Colors.primary900} />
-                  </View>
-                  <View style={styles.orderOptionInfo}>
-                    <Text style={styles.orderOptionTitle}>{order.order_number}</Text>
-                    <Text style={styles.orderOptionMeta}>
-                      {new Date(order.created_at).toLocaleDateString()} •{' '}
-                      {order.status_label || order.status}
-                    </Text>
-                  </View>
-                  <Text style={styles.orderOptionTotal}>
-                    {order.total !== undefined && order.total !== null
-                      ? `${Number(order.total).toFixed(2)} EGP`
-                      : ''}
+                <View style={styles.sheetIcon}>
+                  <Package size={20} color={Colors.primary900} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sheetTitle}>Order #{order.order_number}</Text>
+                  <Text style={styles.sheetSub}>
+                    {new Date(order.created_at).toLocaleDateString()} • {Number(order.total).toFixed(2)} EGP
                   </Text>
                 </View>
+                {selectedOrder?.id === order.id && (
+                  <Check size={20} color={Colors.primary900} />
+                )}
               </TouchableOpacity>
-            ))}
+            ))
+          )}
         </ScrollView>
       </BottomSheet>
     </>
@@ -336,193 +369,269 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
+  scrollContent: {
     padding: Spacing.lg,
   },
-  inputContainer: {
-    marginBottom: Spacing.lg,
+  backButton: {
+    marginLeft: Platform.OS === 'ios' ? -8 : 0,
+    padding: 8,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.neutralCharcoal,
+    marginBottom: 12,
   },
   label: {
-    fontSize: Typography.bodyMedium,
-    fontWeight: Typography.semibold,
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.neutralCharcoal,
-    marginBottom: Spacing.xs,
+    marginBottom: 8,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.neutralWhite,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    borderRadius: 16,
-    paddingHorizontal: Spacing.md,
-    height: 56,
-    gap: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-    height: '100%',
-  },
-  textArea: {
-    backgroundColor: Colors.neutralWhite,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    borderRadius: 16,
-    padding: Spacing.md,
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-    minHeight: 120,
-  },
+  // Categories
   categoriesRow: {
-    gap: Spacing.sm,
+    paddingRight: 16,
+    paddingBottom: 4,
   },
-  categoryChip: {
+  categoryCard: {
     backgroundColor: Colors.neutralWhite,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
     borderRadius: 12,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    padding: 12,
+    marginRight: 12,
+    minWidth: 100,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  categoryChipActive: {
+  categoryCardActive: {
     backgroundColor: Colors.primary900,
     borderColor: Colors.primary900,
   },
-  categoryText: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralCharcoal,
-    fontWeight: Typography.semibold,
+  categoryIcon: {
+    fontSize: 24,
+    marginBottom: 8,
   },
-  categoryTextActive: {
+  categoryLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.neutralCharcoal,
+  },
+  categoryLabelActive: {
     color: Colors.neutralWhite,
   },
-  attachButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.neutralWhite,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    borderRadius: 16,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.lg,
+  checkBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    padding: 2,
   },
-  attachText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.primary900,
-  },
-  selectOrderButton: {
+  // Inputs
+  input: {
     backgroundColor: Colors.neutralWhite,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.neutralGray,
-    borderRadius: 16,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: Colors.neutralCharcoal,
+  },
+  textArea: {
+    height: 120,
+    paddingTop: 14,
+  },
+  // Order Selector
+  orderSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  selectOrderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  selectOrderIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: `${Colors.primary900}15`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectOrderText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-    fontWeight: Typography.semibold,
-  },
-  selectOrderSubtext: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    marginTop: 2,
-  },
-  orderOption: {
     backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.neutralLight,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    borderColor: Colors.neutralGray,
+    borderRadius: 12,
+    padding: 12,
   },
-  orderOptionRow: {
+  orderSelectorContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 12,
   },
-  orderOptionBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: `${Colors.primary900}15`,
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${Colors.primary900}10`,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  orderOptionInfo: {
-    flex: 1,
-  },
-  orderOptionTitle: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
+  selectedOrderText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.neutralCharcoal,
   },
-  orderOptionMeta: {
-    fontSize: Typography.bodySmall,
+  selectedOrderSub: {
+    fontSize: 12,
     color: Colors.neutralMedium,
-    marginTop: 4,
   },
-  orderOptionTotal: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.bold,
+  placeholderText: {
+    fontSize: 14,
+    color: Colors.neutralCharcoal,
+  },
+  subText: {
+    fontSize: 12,
+    color: Colors.neutralMedium,
+  },
+  clearOrderBtn: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+  },
+  clearOrderText: {
+    fontSize: 12,
+    color: Colors.accentRed,
+  },
+  // Attachments
+  attachmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.primary900,
   },
-  ordersLoadingRow: {
+  uploadArea: {
+    borderWidth: 2,
+    borderColor: Colors.neutralGray,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${Colors.neutralGray}20`,
+  },
+  uploadText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: Colors.neutralMedium,
+  },
+  attachmentGrid: {
+    gap: 8,
+  },
+  attachmentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.neutralWhite,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
   },
-  ordersLoadingText: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  ordersEmpty: {
-    paddingVertical: Spacing.lg,
+  attachmentIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: `${Colors.primary900}10`,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  ordersEmptyTitle: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
+  attachmentInfo: {
+    flex: 1,
+  },
+  attachmentName: {
+    fontSize: 13,
+    fontWeight: '500',
     color: Colors.neutralCharcoal,
   },
-  ordersEmptyText: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    textAlign: 'center',
-    marginTop: Spacing.xs,
-  },
-  attachmentList: {
-    marginBottom: Spacing.md,
-  },
-  attachmentCount: {
-    fontSize: Typography.bodyMedium,
+  attachmentSize: {
+    fontSize: 11,
     color: Colors.neutralMedium,
   },
-  errorText: {
-    fontSize: Typography.bodyMedium,
+  removeBtn: {
+    padding: 8,
+  },
+  addMoreBtn: {
+    alignItems: 'center',
+    padding: 8,
+  },
+  addMoreText: {
+    fontSize: 13,
+    color: Colors.primary900,
+    fontWeight: '500',
+  },
+  // Error & Footer
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 16,
+  },
+  errorMsg: {
     color: Colors.accentRed,
-    marginBottom: Spacing.md,
+    fontSize: 13,
+  },
+  footerSpacing: {
+    height: 80,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.neutralWhite,
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralGray,
+  },
+  submitBtn: {
+    borderRadius: 14,
+    height: 52,
+  },
+  // Sheet
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
+  },
+  sheetIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${Colors.primary900}10`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sheetTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.neutralCharcoal,
+  },
+  sheetSub: {
+    fontSize: 13,
+    color: Colors.neutralMedium,
+    marginTop: 2,
   },
 });

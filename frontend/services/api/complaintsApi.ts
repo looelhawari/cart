@@ -1,4 +1,4 @@
-import { API_BASE_URL, getAuthToken, safeResponseJson } from "./base";
+import { API_BASE_URL, getAuthToken, safeResponseJson, apiRequest } from "./base";
 
 export interface ComplaintSummary {
   id: number;
@@ -141,44 +141,29 @@ export const createComplaint = async (
     });
   }
 
-  const response = await fetch(`${API_BASE_URL}/complaints`, {
+  return await apiRequest<ComplaintResponse>("/complaints", {
     method: "POST",
-    headers: await authHeaders(),
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
     body: formData,
   });
-
-  return await safeResponseJson(response);
 };
 
 export const replyToComplaint = async (
   complaintId: number,
   message: string,
 ): Promise<ReplyResponse> => {
-  const response = await fetch(
-    `${API_BASE_URL}/complaints/${complaintId}/reply`,
-    {
-      method: "POST",
-      headers: {
-        ...(await authHeaders()),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message }),
-    },
-  );
-
-  return await safeResponseJson(response);
+  return await apiRequest<ReplyResponse>(`/complaints/${complaintId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
 };
 
 export const closeComplaint = async (
-  complaintId: number,
-): Promise<ReplyResponse> => {
-  const response = await fetch(
-    `${API_BASE_URL}/complaints/${complaintId}/close`,
-    {
-      method: "POST",
-      headers: await authHeaders(),
-    },
-  );
-
-  return await safeResponseJson(response);
+  id: number,
+): Promise<{ success: boolean }> => {
+  return await apiRequest<{ success: boolean }>(`/complaints/${id}/close`, {
+    method: "POST",
+  });
 };

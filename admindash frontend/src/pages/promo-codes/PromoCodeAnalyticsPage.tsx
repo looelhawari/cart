@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Users, TrendingUp, DollarSign, Calendar, User } from 'lucide-react'
 import { format } from 'date-fns'
+import { useTranslation } from 'react-i18next'
 
 export default function PromoCodeAnalyticsPage() {
+    const { t } = useTranslation()
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
     const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days')
@@ -304,9 +306,9 @@ export default function PromoCodeAnalyticsPage() {
                     <Card>
                         <CardHeader>
                             <div className="flex items-center justify-between">
-                                <CardTitle>All Users ({usersData.length})</CardTitle>
+                                <CardTitle>{t('promoCodes.analytics')}: {t('users.allUsers')} ({usersData.length})</CardTitle>
                                 <Input
-                                    placeholder="Search users..."
+                                    placeholder={t('promoCodes.searchUsersPlaceholder')}
                                     className="max-w-xs"
                                     value={userSearchTerm}
                                     onChange={(e) => setUserSearchTerm(e.target.value)}

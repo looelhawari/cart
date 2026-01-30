@@ -7,6 +7,7 @@ export interface User {
     last_name: string
     email: string
     phone: string
+    avatar?: string | null
     role: AdminRole
     is_active: boolean
     email_verified_at: string | null
@@ -15,6 +16,30 @@ export interface User {
     last_login_ip: string | null
     created_at: string
     updated_at: string
+    // Customer specific
+    orders_count?: number
+    orders_sum_total?: number
+    orders?: any[]
+    complaints?: any[]
+    addresses?: any[]
+    default_address?: any
+
+    // Enhanced fields
+    is_cod_restricted?: boolean
+    max_order_value?: number
+    registration_source?: string
+    loyalty_points?: number
+    is_vip?: boolean
+
+    // Loaded relationships
+    notes?: any[]
+    analytics?: {
+        ltv: number
+        avg_order_value: number
+        cancel_rate: number
+        total_orders: number
+        total_spent?: number
+    }
 }
 
 export interface AuthResponse {
@@ -177,7 +202,20 @@ export interface PromoCode {
     maximum_discount: number | null
     usage_limit: number | null
     usage_per_user: number | null
+
     used_count: number
+    // Targeting
+    target_audience?: 'all_users' | 'new_users' | 'high_spenders' | 'active_users' | 'delivery_lovers' | 'high_rated' | 'inactive_users' | 'offline_users' | 'custom'
+    promotional_message?: string | null
+    promotional_message_ar?: string | null
+    minimum_spend_30days?: number | null
+    minimum_orders_30days?: number | null
+    last_order_date_from?: string | null
+    last_order_date_to?: string | null
+    registration_date_from?: string | null
+    registration_date_to?: string | null
+    location?: string | null
+    specific_user_ids?: number[] | null
     valid_from: string
     valid_until: string
     is_active: boolean
@@ -286,19 +324,26 @@ export interface Ticket {
     priority: TicketPriority
     status: TicketStatus
     description: string
-    resolution_notes: string | null
-    customer_rating: number | null
+    resolved_at: string | null
+    resolved_by: number | null
     created_at: string
     updated_at: string
-    first_response_at: string | null
-    resolved_at: string | null
-    closed_at: string | null
+    // Relationships
     customer?: {
         id: number
         first_name: string
         last_name: string
         email: string
         phone: string
+        avatar?: string | null
+    }
+    user?: { // Alias for customer to match some contexts
+        id: number
+        first_name: string
+        last_name: string
+        email: string
+        phone: string
+        avatar?: string | null
     }
     order?: {
         id: number
@@ -310,6 +355,13 @@ export interface Ticket {
         last_name: string
         role: AdminRole
     }
+    assignedTo?: { // Alias
+        id: number
+        first_name: string
+        last_name: string
+    }
+    messages?: TicketMessage[]
+    attachments?: any[]
     messages_count?: number
     unread_messages_count?: number
 }
@@ -319,7 +371,6 @@ export interface TicketMessage {
     complaint_id: number
     user_id: number
     message: string
-    is_internal_note: boolean
     is_admin_reply: boolean
     created_at: string
     updated_at: string
@@ -328,6 +379,7 @@ export interface TicketMessage {
         first_name: string
         last_name: string
         role?: AdminRole
+        avatar?: string | null
     }
 }
 

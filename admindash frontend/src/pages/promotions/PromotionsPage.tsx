@@ -334,95 +334,111 @@ export default function PromotionsPage() {
 
                     {isLoading ? (
                         <div className="text-center py-8">{t('common.loading')}</div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.promotion')}</th>
-                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.discount')}</th>
-                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.appliesTo')}</th>
-                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.duration')}</th>
-                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
-                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.featured')}</th>
-                                        <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {((promotionsData?.data as Promotion[] | undefined) || ((promotionsData as any)?.data?.data as Promotion[] | undefined))?.map((promotion: Promotion) => (
-                                        <tr key={promotion.id} className="hover:bg-gray-50">
-                                            <td className="p-3">
-                                                <div className="flex items-center gap-3">
-                                                    {promotion.image_url && (
-                                                        <img
-                                                            src={promotion.image_url}
-                                                            alt={promotion.title}
-                                                            className="w-12 h-12 object-cover rounded"
-                                                        />
-                                                    )}
-                                                    <div>
-                                                        <div className="font-medium">{promotion.title}</div>
-                                                        <div className="text-sm text-gray-500">{promotion.title_ar}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-3">
-                                                <div className="font-semibold text-green-600">
-                                                    {promotion.discount_type === 'percentage'
-                                                        ? `${promotion.discount_value}%`
-                                                        : formatCurrency(promotion.discount_value)
-                                                    }
-                                                </div>
-                                            </td>
-                                            <td className="p-3">
-                                                <span className="capitalize">{promotion.applies_to}</span>
-                                            </td>
-                                            <td className="p-3 text-sm">
-                                                <div>{format(new Date(promotion.start_date), 'MMM dd, yyyy')}</div>
-                                                <div className="text-gray-500">
-                                                    to {format(new Date(promotion.end_date), 'MMM dd, yyyy')}
-                                                </div>
-                                            </td>
-                                            <td className="p-3">
-                                                {getStatusBadge(promotion)}
-                                            </td>
-                                            <td className="p-3">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleToggleFeatured(promotion.id)}
-                                                >
-                                                    {promotion.is_featured ? (
-                                                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                                    ) : (
-                                                        <StarOff className="w-4 h-4 text-gray-400" />
-                                                    )}
-                                                </Button>
-                                            </td>
-                                            <td className="p-3 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleEdit(promotion)}
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleDelete(promotion.id)}
-                                                    >
-                                                        <Trash2 className="w-4 h-4 text-red-500" />
-                                                    </Button>
-                                                </div>
-                                            </td>
+                    ) : (() => {
+                        // Safely extract promotions array from nested response
+                        const promotions: Promotion[] = (() => {
+                            if (!promotionsData) return []
+                            if (Array.isArray(promotionsData.data)) return promotionsData.data
+                            if (promotionsData.data && Array.isArray((promotionsData.data as any).data)) {
+                                return (promotionsData.data as any).data
+                            }
+                            return []
+                        })()
+
+                        if (promotions.length === 0) {
+                            return <div className="text-center py-8 text-gray-500">{t('promotions.noPromotions')}</div>
+                        }
+
+                        return (
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.promotion')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.discount')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.appliesTo')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.duration')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.featured')}</th>
+                                            <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {promotions.map((promotion: Promotion) => (
+                                            <tr key={promotion.id} className="hover:bg-gray-50">
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {promotion.image_url && (
+                                                            <img
+                                                                src={promotion.image_url}
+                                                                alt={promotion.title}
+                                                                className="w-12 h-12 object-cover rounded"
+                                                            />
+                                                        )}
+                                                        <div>
+                                                            <div className="font-medium">{promotion.title}</div>
+                                                            <div className="text-sm text-gray-500">{promotion.title_ar}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                    <div className="font-semibold text-green-600">
+                                                        {promotion.discount_type === 'percentage'
+                                                            ? `${promotion.discount_value}%`
+                                                            : formatCurrency(promotion.discount_value)
+                                                        }
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                    <span className="capitalize">{promotion.applies_to}</span>
+                                                </td>
+                                                <td className="p-3 text-sm">
+                                                    <div>{format(new Date(promotion.start_date), 'MMM dd, yyyy')}</div>
+                                                    <div className="text-gray-500">
+                                                        {t('common.to')} {format(new Date(promotion.end_date), 'MMM dd, yyyy')}
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                    {getStatusBadge(promotion)}
+                                                </td>
+                                                <td className="p-3">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleToggleFeatured(promotion.id)}
+                                                    >
+                                                        {promotion.is_featured ? (
+                                                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                                        ) : (
+                                                            <StarOff className="w-4 h-4 text-gray-400" />
+                                                        )}
+                                                    </Button>
+                                                </td>
+                                                <td className="p-3 text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleEdit(promotion)}
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleDelete(promotion.id)}
+                                                        >
+                                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )
+                    })()}
                 </CardContent>
             </Card>
 

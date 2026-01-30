@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { supportService } from '@/services/support.service'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,8 @@ import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { ArrowLeft, Send, User, Package } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import type { TicketStatus, TicketPriority } from '@/types'
+import type { Ticket, TicketMessage, TicketStatus, TicketPriority } from '@/types'
+import echo from '@/lib/echo'
 
 export default function TicketDetailPage() {
     const { id } = useParams()
@@ -26,6 +27,39 @@ export default function TicketDetailPage() {
         queryKey: ['support-ticket', id],
         queryFn: () => supportService.getTicket(Number(id)),
     })
+
+    useEffect(() => {
+        if (!id) return;
+
+        console.log(`Listening to complaints.${id}`);
+        const channel = echo.private(`complaints.${id}`)
+            .listen('message.sent', (e: { message: TicketMessage }) => {
+                console.log('New message received:', e.message);
+
+                // Update the ticket messages in cache
+                queryClient.setQueryData(['support-ticket', id], (oldData: Ticket | undefined) => {
+                    if (!oldData) return oldData;
+
+                    // Avoid duplicates if any
+                    if (oldData.messages?.some(m => m.id === e.message.id)) return oldData;
+
+                    return {
+                        ...oldData,
+                        messages: [e.message, ...(oldData.messages || [])],
+                    };
+                });
+
+                toast({
+                    title: t('support.newMessage'),
+                    description: `${e.message.user?.first_name}: ${e.message.message.substring(0, 50)}...`
+                });
+            });
+
+        return () => {
+            console.log(`Leaving complaints.${id}`);
+            echo.leave(`complaints.${id}`);
+        };
+    }, [id, queryClient, t, toast]);
 
     const replyMutation = useMutation({
         mutationFn: ({ id, message, isInternal }: { id: number; message: string; isInternal: boolean }) =>
@@ -89,12 +123,12 @@ export default function TicketDetailPage() {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
                                     <div className="h-10 w-10 rounded-full bg-elbaraka-primary flex items-center justify-center text-white font-semibold">
-                                        {ticket.customer?.first_name?.charAt(0)}
-                                        {ticket.customer?.last_name?.charAt(0)}
+                                        {(ticket.user?.first_name || ticket.customer?.first_name)?.charAt(0)}
+                                        {(ticket.user?.last_name || ticket.customer?.last_name)?.charAt(0)}
                                     </div>
                                     <div>
                                         <p className="font-semibold">
-                                            {ticket.customer?.first_name} {ticket.customer?.last_name}
+                                            {ticket.user?.first_name || ticket.customer?.first_name} {ticket.user?.last_name || ticket.customer?.last_name}
                                         </p>
                                         <p className="text-sm text-muted-foreground">{formatDate(ticket.created_at)}</p>
                                     </div>
@@ -118,18 +152,18 @@ export default function TicketDetailPage() {
                                     className={`p-4 rounded-lg ${message.is_admin_reply
                                         ? 'bg-blue-50 border-l-4 border-blue-500'
                                         : 'bg-gray-50'
-                                        } ${message.is_internal_note ? 'bg-yellow-50 border-l-4 border-yellow-500' : ''}`}
+                                        } ${/* message.is_internal_note ? 'bg-yellow-50 border-l-4 border-yellow-500' : */ ''}`}
                                 >
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center space-x-2">
                                             <p className="font-semibold text-sm">
                                                 {message.user?.first_name} {message.user?.last_name}
                                             </p>
-                                            {message.is_internal_note && (
+                                            {/* message.is_internal_note && (
                                                 <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs">
                                                     {t('support.internalNote')}
                                                 </span>
-                                            )}
+                                            ) */}
                                         </div>
                                         <p className="text-xs text-muted-foreground">{formatDate(message.created_at)}</p>
                                     </div>
@@ -154,6 +188,7 @@ export default function TicketDetailPage() {
                                 />
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-2">
+                                        {/* Internal note support removed for now as backend doesn't support it yet
                                         <input
                                             type="checkbox"
                                             id="internal-note"
@@ -164,6 +199,7 @@ export default function TicketDetailPage() {
                                         <label htmlFor="internal-note" className="text-sm">
                                             {t('support.internalNoteHint')}
                                         </label>
+                                        */}
                                     </div>
                                     <Button
                                         onClick={handleSendReply}
@@ -244,16 +280,16 @@ export default function TicketDetailPage() {
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('orders.name')}</p>
                                 <p className="font-medium">
-                                    {ticket.customer?.first_name} {ticket.customer?.last_name}
+                                    {ticket.user?.first_name || ticket.customer?.first_name} {ticket.user?.last_name || ticket.customer?.last_name}
                                 </p>
                             </div>
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('orders.email')}</p>
-                                <p className="font-medium">{ticket.customer?.email}</p>
+                                <p className="font-medium">{ticket.user?.email || ticket.customer?.email}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('orders.phone')}</p>
-                                <p className="font-medium">{ticket.customer?.phone}</p>
+                                <p className="font-medium">{ticket.user?.phone || ticket.customer?.phone}</p>
                             </div>
                         </CardContent>
                     </Card>

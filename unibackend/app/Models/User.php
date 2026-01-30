@@ -33,6 +33,11 @@ class User extends Authenticatable
         'apple_id',
         'is_social_only',
         'two_factor_enabled',
+        'is_cod_restricted',
+        'max_order_value',
+        'registration_source',
+        'loyalty_points',
+        'is_vip',
     ];
 
     /**
@@ -61,7 +66,26 @@ class User extends Authenticatable
             'is_social_only' => 'boolean',
             'two_factor_enabled' => 'boolean',
             'push_tokens' => 'array',
+            'is_cod_restricted' => 'boolean',
+            'max_order_value' => 'decimal:2',
+            'is_vip' => 'boolean',
         ];
+    }
+
+    /**
+     * Get the notes for this customer.
+     */
+    public function notes()
+    {
+        return $this->hasMany(CustomerNote::class, 'user_id');
+    }
+
+    /**
+     * Get the notes authored by this user (staff).
+     */
+    public function authoredNotes()
+    {
+        return $this->hasMany(CustomerNote::class, 'author_id');
     }
 
     /**

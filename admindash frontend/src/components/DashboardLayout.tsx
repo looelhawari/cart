@@ -86,8 +86,13 @@ const navItems: NavItem[] = [
     {
         titleKey: 'navigation.users',
         href: '/users',
-        icon: Users,
+        icon: Users, // Using default Users icon for Staff/Users
         roles: ['super_admin', 'admin'],
+    },
+    {
+        titleKey: 'customers.title',
+        href: '/customers',
+        icon: Users, // Using same icon for now, or change if preferred
     },
     {
         titleKey: 'navigation.analytics',

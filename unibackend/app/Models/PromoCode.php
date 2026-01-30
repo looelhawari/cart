@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
+use App\Models\Order;
 
 class PromoCode extends Model
 {
@@ -23,6 +24,17 @@ class PromoCode extends Model
         'valid_from',
         'valid_until',
         'is_active',
+        'target_audience',
+        'promotional_message',
+        'promotional_message_ar',
+        'minimum_spend_30days',
+        'minimum_orders_30days',
+        'last_order_date_from',
+        'last_order_date_to',
+        'registration_date_from',
+        'registration_date_to',
+        'location',
+        'specific_user_ids',
     ];
 
     protected $casts = [
@@ -39,6 +51,12 @@ class PromoCode extends Model
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'specific_user_ids' => 'array',
+        'last_order_date_from' => 'date',
+        'last_order_date_to' => 'date',
+        'registration_date_from' => 'date',
+        'registration_date_to' => 'date',
+        'minimum_spend_30days' => 'decimal:2',
     ];
 
     protected $appends = ['status', 'remaining_uses', 'is_expired', 'discount_display'];
@@ -240,6 +258,95 @@ class PromoCode extends Model
         if ($this->minimum_order && $orderTotal < $this->minimum_order) {
             $needed = $this->minimum_order - $orderTotal;
             $errors[] = "Add EGP {$needed} more to use this code (minimum order: EGP {$this->minimum_order})";
+        }
+
+        // Offline Users Check (Inactive for 30+ days)
+        if ($this->target_audience === 'offline_users') {
+            $lastOrder = Order::where('user_id', $userId)
+                ->whereNotIn('status', ['cancelled', 'failed'])
+                ->latest()
+                ->first();
+
+            if ($lastOrder && $lastOrder->created_at->gt(now()->subDays(30))) {
+                $errors[] = 'This offer is exclusively for customers who haven\'t ordered in the last 30 days.';
+            }
+        }
+
+        // 1. Specific User IDs
+        if (!empty($this->specific_user_ids)) {
+             if (!in_array($userId, $this->specific_user_ids)) {
+                 $errors[] = 'This promo code is not applicable to your account.';
+             }
+        }
+        
+        // 2. Registration Date Range
+        if ($this->registration_date_from || $this->registration_date_to) {
+             $user = \App\Models\User::find($userId);
+             if ($user) {
+                 if ($this->registration_date_from && $user->created_at->lt($this->registration_date_from)) {
+                     $errors[] = 'Account registered too early for this offer.';
+                 }
+                 if ($this->registration_date_to && $user->created_at->gt($this->registration_date_to)) {
+                     $errors[] = 'Account registered too late for this offer.';
+                 }
+             }
+        }
+        
+        // 3. Last Order Date Range
+        if ($this->last_order_date_from || $this->last_order_date_to) {
+             $lastOrder = Order::where('user_id', $userId)
+                ->whereNotIn('status', ['cancelled', 'failed'])
+                ->latest()
+                ->first();
+             
+             if (!$lastOrder) {
+                  $errors[] = 'Order history requirement not met.';
+             } else {
+                  if ($this->last_order_date_from && $lastOrder->created_at->lt($this->last_order_date_from)) {
+                      $errors[] = 'Last order was too long ago for this offer.';
+                  }
+                   if ($this->last_order_date_to && $lastOrder->created_at->gt($this->last_order_date_to)) {
+                      $errors[] = 'Last order was too recent for this offer.';
+                  }
+             }
+        }
+        
+        // 4. Minimum Spend 30 Days
+        if ($this->minimum_spend_30days) {
+             $spend30 = Order::where('user_id', $userId)
+                 ->whereNotIn('status', ['cancelled', 'failed'])
+                 ->where('created_at', '>=', now()->subDays(30))
+                 ->sum('total');
+             
+             if ($spend30 < $this->minimum_spend_30days) {
+                 $errors[] = "You must have spent at least EGP {$this->minimum_spend_30days} in the last 30 days.";
+             }
+        }
+        
+        // 5. Minimum Orders 30 Days
+        if ($this->minimum_orders_30days) {
+             $orders30 = Order::where('user_id', $userId)
+                 ->whereNotIn('status', ['cancelled', 'failed'])
+                 ->where('created_at', '>=', now()->subDays(30))
+                 ->count();
+             
+             if ($orders30 < $this->minimum_orders_30days) {
+                 $errors[] = "You must have at least {$this->minimum_orders_30days} orders in the last 30 days.";
+             }
+        }
+        
+        // 6. Location
+        if ($this->location) {
+             $hasLocation = \App\Models\Address::where('user_id', $userId)
+                 ->where(function($q) {
+                      $q->where('city', 'like', "%{$this->location}%")
+                        ->orWhere('area', 'like', "%{$this->location}%");
+                 })
+                 ->exists();
+                 
+             if (!$hasLocation) {
+                 $errors[] = "This offer is only valid in {$this->location}.";
+             }
         }
 
         return [

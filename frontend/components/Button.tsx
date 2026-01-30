@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View, ViewStyle, StyleProp } from 'react-native';
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
@@ -12,6 +12,7 @@ interface ButtonProps {
   disabled?: boolean;
   fullWidth?: boolean;
   icon?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Button({
@@ -22,6 +23,7 @@ export function Button({
   disabled = false,
   fullWidth = true,
   icon,
+  style,
 }: ButtonProps) {
   const buttonStyles = [
     styles.button,
@@ -30,6 +32,7 @@ export function Button({
     variant === 'accent' && styles.accentButton,
     fullWidth && styles.fullWidth,
     disabled && styles.disabled,
+    style,
   ];
 
   const textStyles = [

@@ -51,6 +51,18 @@ export interface CreatePromoCodeData {
     // Product/Category targeting
     product_ids?: number[]
     category_ids?: { id: number; include_subcategories?: boolean }[]
+    // User targeting
+    target_audience?: 'all_users' | 'new_users' | 'high_spenders' | 'active_users' | 'delivery_lovers' | 'high_rated' | 'inactive_users' | 'offline_users' | 'custom'
+    promotional_message?: string
+    promotional_message_ar?: string
+    minimum_spend_30days?: number
+    minimum_orders_30days?: number
+    last_order_date_from?: string
+    last_order_date_to?: string
+    registration_date_from?: string
+    registration_date_to?: string
+    location?: string
+    specific_user_ids?: number[]
     // BOGO rules
     bogo_rules?: BogoRule[]
 }

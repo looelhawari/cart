@@ -19,6 +19,7 @@ class Complaint extends Model
         'description',
         'resolved_at',
         'resolved_by',
+        'assigned_to',
     ];
 
     protected $casts = [
@@ -41,6 +42,14 @@ class Complaint extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    /**
+     * The admin assigned to the complaint.
+     */
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     /**

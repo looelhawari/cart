@@ -30,7 +30,7 @@ export const supportService = {
     },
 
     replyToTicket: async (id: number, data: CreateTicketReplyData): Promise<TicketMessage> => {
-        return apiClient.post(`/admin/support/tickets/${id}/reply`, data)
+        return apiClient.post(`/admin/support/tickets/${id}/messages`, data)
     },
 
     assignTicket: async (id: number, userId: number): Promise<Ticket> => {

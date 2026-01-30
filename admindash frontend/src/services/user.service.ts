@@ -1,61 +1,23 @@
 import { apiClient } from '@/lib/api-client'
-import type { User, AdminRole, PaginatedResponse } from '@/types'
-
-export interface UserFilters {
-    page?: number
-    per_page?: number
-    search?: string
-    role?: AdminRole | AdminRole[]
-    status?: 'active' | 'inactive'
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-}
-
-export interface CreateUserData {
-    first_name: string
-    last_name: string
-    email: string
-    phone: string
-    password: string
-    password_confirmation: string
-    role: AdminRole
-    is_active?: boolean
-}
-
-export interface UpdateUserData {
-    first_name?: string
-    last_name?: string
-    email?: string
-    phone?: string
-    role?: AdminRole
-    is_active?: boolean
-}
-
-export interface ActivityLog {
-    id: number
-    description: string
-    subject_type: string | null
-    subject_id: number | null
-    causer_type: string | null
-    causer_id: number | null
-    properties: any
-    created_at: string
-}
+import type {
+    User,
+    PaginatedResponse
+} from '@/types'
 
 export const userService = {
-    getUsers: async (filters?: UserFilters): Promise<PaginatedResponse<User>> => {
-        return apiClient.get('/admin/users', filters)
+    getUsers: async (params?: any): Promise<PaginatedResponse<User>> => {
+        return apiClient.get('/admin/users', { params })
     },
 
     getUser: async (id: number): Promise<User> => {
         return apiClient.get(`/admin/users/${id}`)
     },
 
-    createUser: async (data: CreateUserData): Promise<User> => {
+    createUser: async (data: any): Promise<User> => {
         return apiClient.post('/admin/users', data)
     },
 
-    updateUser: async (id: number, data: UpdateUserData): Promise<User> => {
+    updateUser: async (id: number, data: any): Promise<User> => {
         return apiClient.put(`/admin/users/${id}`, data)
     },
 
@@ -63,19 +25,32 @@ export const userService = {
         return apiClient.delete(`/admin/users/${id}`)
     },
 
-    resetPassword: async (id: number, newPassword: string): Promise<void> => {
-        return apiClient.post(`/admin/users/${id}/reset-password`, { password: newPassword })
+    // Customer specific methods
+    getCustomers: async (filters?: any): Promise<PaginatedResponse<User>> => {
+        return apiClient.get('/admin/customers', { params: filters })
     },
 
-    enable2FA: async (id: number): Promise<{ secret: string; qr_code: string }> => {
-        return apiClient.post(`/admin/users/${id}/enable-2fa`)
+    getCustomer: async (id: number): Promise<User> => {
+        return apiClient.get(`/admin/customers/${id}`)
     },
 
-    disable2FA: async (id: number): Promise<void> => {
-        return apiClient.post(`/admin/users/${id}/disable-2fa`)
+    updateCustomer: async (id: number, data: any): Promise<User> => {
+        return apiClient.put(`/admin/customers/${id}`, data)
     },
 
-    getActivityLog: async (userId?: number, page = 1, perPage = 50): Promise<PaginatedResponse<ActivityLog>> => {
-        return apiClient.get('/admin/activity-log', { user_id: userId, page, per_page: perPage })
+    getCustomerStats: async (): Promise<any> => {
+        return apiClient.get('/admin/customers/stats')
     },
+
+    getActivityLog: async (id: number): Promise<PaginatedResponse<any>> => {
+        return apiClient.get(`/admin/customers/${id}/activity`)
+    },
+
+    addCustomerNote: async (id: number, data: { note: string, is_visible_to_customer: boolean }): Promise<any> => {
+        return apiClient.post(`/admin/customers/${id}/notes`, data)
+    },
+
+    resetCustomerPassword: async (id: number, data: { password: string, password_confirmation: string }): Promise<any> => {
+        return apiClient.post(`/admin/customers/${id}/reset-password`, data)
+    }
 }

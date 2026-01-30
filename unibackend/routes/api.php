@@ -35,6 +35,8 @@ use App\Http\Controllers\Api\StaticPageController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -137,6 +139,24 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('auth/confirm-password', [AuthController::class, 'confirmPassword']);
+
+        // Broadcasting auth (Universal for Admin & Customer)
+        Route::post('/broadcasting/auth', function (Request $request) {
+            \Log::info('Broadcasting Auth Request:', [
+                'user_id' => $request->user()->id,
+                'channel' => $request->channel_name,
+                'socket_id' => $request->socket_id
+            ]);
+            try {
+                return Broadcast::auth($request);
+            } catch (\Exception $e) {
+                \Log::error('Broadcasting Auth Error:', [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                return response()->json(['error' => 'Broadcasting auth failed'], 500);
+            }
+        });
 
         // User profile endpoints - password required for sensitive changes
         Route::get('profile', [AuthController::class, 'getProfile']);
@@ -356,6 +376,17 @@ Route::prefix('v1')->group(function () {
                 Route::put('/{slug}', [AdminStaticPageController::class, 'update']);
                 Route::post('/{slug}/toggle-status', [AdminStaticPageController::class, 'toggleStatus']);
                 Route::get('/{slug}/history', [AdminStaticPageController::class, 'history']);
+            });
+
+            // Customer Management
+            Route::prefix('customers')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'index']);
+                Route::get('/stats', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'stats']);
+                Route::get('/{id}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'show']);
+                Route::get('/{id}/activity', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'activity']);
+                Route::put('/{id}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'update']);
+                Route::post('/{id}/notes', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'storeNote']);
+                Route::post('/{id}/reset-password', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'resetPassword']);
             });
 
             // User Management

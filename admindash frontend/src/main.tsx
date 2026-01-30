@@ -20,6 +20,8 @@ import SupportPage from '@/pages/support/SupportPage'
 import TicketDetailPage from '@/pages/support/TicketDetailPage'
 import FinancialPage from '@/pages/financial/FinancialPage'
 import UsersPage from '@/pages/users/UsersPage'
+import CustomersPage from '@/pages/customers/CustomersPage'
+import CustomerDetailsPage from '@/pages/customers/CustomerDetailsPage'
 import ComprehensiveAnalyticsPage from '@/pages/analytics/ComprehensiveAnalyticsPage'
 import PromotionsPage from '@/pages/promotions/PromotionsPage'
 import PromoCodesPage from '@/pages/promo-codes/PromoCodesPage'
@@ -67,6 +69,9 @@ function App() {
                             <Route element={<DashboardLayout><FinancialPage /></DashboardLayout>} path="/financial" />
 
                             <Route element={<DashboardLayout><UsersPage /></DashboardLayout>} path="/users" />
+
+                            <Route element={<DashboardLayout><CustomersPage /></DashboardLayout>} path="/customers" />
+                            <Route element={<DashboardLayout><CustomerDetailsPage /></DashboardLayout>} path="/customers/:id" />
 
                             <Route element={<DashboardLayout><ComprehensiveAnalyticsPage /></DashboardLayout>} path="/analytics" />
 

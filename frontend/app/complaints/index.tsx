@@ -5,12 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
+  Animated,
+  RefreshControl,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, Stack } from 'expo-router';
-import { ArrowLeft, Plus, AlertCircle } from 'lucide-react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { router, Stack, useFocusEffect } from 'expo-router';
+import { ArrowLeft, Plus, AlertCircle, ChevronRight, MessageSquare } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import Colors from '@/constants/Colors';
 import Typography from '@/constants/Typography';
@@ -18,14 +20,56 @@ import Spacing from '@/constants/Spacing';
 import { Button } from '@/components/Button';
 import { listComplaints, type ComplaintSummary } from '@/services/api/complaintsApi';
 
+// Skeleton Component
+const ComplaintSkeleton = () => {
+  const animatedValue = new Animated.Value(0);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const opacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.7],
+  });
+
+  return (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonHeader}>
+        <Animated.View style={[styles.skeletonText, { width: 80, height: 16, opacity }]} />
+        <Animated.View style={[styles.skeletonBadge, { opacity }]} />
+      </View>
+      <Animated.View style={[styles.skeletonText, { width: '80%', height: 20, marginBottom: 8, opacity }]} />
+      <Animated.View style={[styles.skeletonText, { width: 100, height: 14, opacity }]} />
+      <View style={styles.skeletonFooter}>
+        <Animated.View style={[styles.skeletonBadge, { width: 80, opacity }]} />
+        <Animated.View style={[styles.skeletonText, { width: 60, height: 12, opacity }]} />
+      </View>
+    </View>
+  );
+};
+
 export default function ComplaintsScreen() {
   const [complaints, setComplaints] = useState<ComplaintSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadComplaints = async () => {
     try {
-      setLoading(true);
       setError(null);
       const response = await listComplaints(undefined, 50);
       if (!response.success) {
@@ -36,6 +80,7 @@ export default function ComplaintsScreen() {
       setError(err.message || 'Failed to load complaints');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -49,127 +94,172 @@ export default function ComplaintsScreen() {
     }, []),
   );
 
-  const getStatusColor = (status: string) => {
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadComplaints();
+  }, []);
+
+  const getStatusConfig = (status: string) => {
     switch (status) {
       case 'open':
-        return Colors.accentOrange;
+        return { color: Colors.accentOrange, label: 'Open', bg: '#FFF7ED' };
       case 'in_progress':
-        return Colors.primary700;
+        return { color: Colors.primary700, label: 'In Progress', bg: '#F0FDF4' };
       case 'resolved':
-        return Colors.primary900;
+        return { color: Colors.primary900, label: 'Resolved', bg: '#DCFCE7' };
       case 'closed':
-        return Colors.neutralMedium;
+        return { color: Colors.neutralMedium, label: 'Closed', bg: '#F1F5F9' };
       default:
-        return Colors.neutralMedium;
+        return { color: Colors.neutralMedium, label: status, bg: '#F1F5F9' };
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityConfig = (priority: string) => {
     switch (priority) {
       case 'urgent':
-        return Colors.accentRed;
+        return { color: Colors.accentRed, label: 'Urgent' };
       case 'high':
-        return Colors.accentOrange;
+        return { color: Colors.accentOrange, label: 'High' };
       case 'medium':
-        return Colors.accentYellow;
+        return { color: Colors.accentYellow, label: 'Medium' };
       case 'low':
-        return Colors.neutralMedium;
+        return { color: Colors.neutralMedium, label: 'Low' };
       default:
-        return Colors.neutralMedium;
+        return { color: Colors.neutralMedium, label: priority };
     }
   };
 
-  const renderComplaint = ({ item }: { item: ComplaintSummary }) => (
-    <TouchableOpacity
-      style={styles.complaintCard}
-      onPress={() => router.push(`/complaints/${item.id}` as any)}
-    >
-      <View style={styles.complaintHeader}>
-        <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
-        <View
-          style={[
-            styles.priorityBadge,
-            { backgroundColor: `${getPriorityColor(item.priority)}20` },
-          ]}
-        >
-          <Text
-            style={[
-              styles.priorityText,
-              { color: getPriorityColor(item.priority) },
-            ]}
-          >
-            {item.priority.toUpperCase()}
-          </Text>
+  const renderComplaint = ({ item }: { item: ComplaintSummary }) => {
+    const status = getStatusConfig(item.status);
+    const priority = getPriorityConfig(item.priority);
+
+    return (
+      <TouchableOpacity
+        style={styles.complaintCard}
+        onPress={() => router.push(`/complaints/${item.id}` as any)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.ticketBadge}>
+            <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
+          </View>
+          <View style={[styles.priorityPill, { borderColor: priority.color }]}>
+            <View style={[styles.priorityDot, { backgroundColor: priority.color }]} />
+            <Text style={[styles.priorityText, { color: priority.color }]}>
+              {priority.label}
+            </Text>
+          </View>
         </View>
-      </View>
-      <Text style={styles.subject} numberOfLines={1}>
-        {item.subject}
-      </Text>
-      <Text style={styles.category}>{item.category.replace('_', ' ')}</Text>
-      <View style={styles.complaintFooter}>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: `${getStatusColor(item.status)}20` },
-          ]}
-        >
-          <Text
-            style={[styles.statusText, { color: getStatusColor(item.status) }]}
-          >
-            {item.status.replace('_', ' ').toUpperCase()}
-          </Text>
-        </View>
-        <Text style={styles.date}>
-          {new Date(item.created_at).toLocaleDateString()}
+
+        <Text style={styles.subject} numberOfLines={2}>
+          {item.subject}
         </Text>
-      </View>
-    </TouchableOpacity>
-  );
+
+        <View style={styles.metaRow}>
+          <View style={styles.categoryContainer}>
+            <Text style={styles.category}>{item.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</Text>
+          </View>
+          {item.messages_count !== undefined && item.messages_count > 0 && (
+            <View style={styles.messageCount}>
+              <MessageSquare size={12} color={Colors.neutralMedium} />
+              <Text style={styles.messageCountText}>{item.messages_count}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.cardFooter}>
+          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+            <Text style={[styles.statusText, { color: status.color }]}>
+              {status.label}
+            </Text>
+          </View>
+          <View style={styles.dateContainer}>
+            <Text style={styles.date}>
+              {new Date(item.created_at).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+            <ChevronRight size={16} color={Colors.neutralMedium} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <>
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'My Complaints',
+          title: 'Support Tickets',
+          headerTitleStyle: {
+            fontFamily: 'Poppins-SemiBold',
+            fontSize: 18,
+          },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: -8 }}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <ArrowLeft size={24} color={Colors.neutralCharcoal} />
             </TouchableOpacity>
           ),
+          headerBackground: () => (
+            <View style={{ flex: 1, backgroundColor: Colors.neutralCloud }} />
+          ),
+          headerShadowVisible: false,
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.content}>
-          {loading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={Colors.primary900} />
-              <Text style={styles.loadingText}>Loading complaints...</Text>
-            </View>
+          {loading ? (
+            <FlatList
+              data={[1, 2, 3, 4, 5]}
+              keyExtractor={(item) => item.toString()}
+              renderItem={() => <ComplaintSkeleton />}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          ) : (
+            <FlatList
+              data={complaints}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderComplaint}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary900]} />
+              }
+              ListEmptyComponent={() => (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconContainer}>
+                    <LinearGradient
+                      colors={[Colors.primary100, '#ffffff']}
+                      style={styles.emptyIconBg}
+                    >
+                      <AlertCircle size={48} color={Colors.primary900} />
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.emptyTitle}>No Complaints Found</Text>
+                  <Text style={styles.emptyText}>
+                    You haven&apos;t submitted any complaints yet. We're here to help if you need anything!
+                  </Text>
+                </View>
+              )}
+            />
           )}
-          {error && <Text style={styles.errorText}>{error}</Text>}
-          <FlatList
-            data={complaints}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderComplaint}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyState}>
-                <AlertCircle size={64} color={Colors.neutralMedium} />
-                <Text style={styles.emptyTitle}>No Complaints Yet</Text>
-                <Text style={styles.emptyText}>
-                  You haven&apos;t submitted any complaints
-                </Text>
-              </View>
-            )}
-          />
-          <Button
-            title="Submit New Complaint"
-            onPress={() => router.push('/complaints/new' as any)}
-            icon={<Plus size={20} color={Colors.neutralWhite} />}
-            variant="primary"
-          />
+
+          <View style={styles.footer}>
+            <Button
+              title="Create New Ticket"
+              onPress={() => router.push('/complaints/new' as any)}
+              icon={<Plus size={20} color={Colors.neutralWhite} />}
+              variant="primary"
+              style={styles.createButton}
+            />
+          </View>
         </View>
       </SafeAreaView>
     </>
@@ -183,103 +273,211 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: Spacing.lg,
   },
   listContent: {
-    flexGrow: 1,
-    paddingBottom: Spacing.md,
+    padding: Spacing.lg,
+    paddingBottom: 100, // Space for floating button
   },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+  backButton: {
+    marginLeft: Platform.OS === 'ios' ? -8 : 0,
+    padding: 8,
   },
-  loadingText: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  errorText: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.accentRed,
-    marginBottom: Spacing.sm,
-  },
-  complaintCard: {
+  // Skeleton Styles
+  skeletonCard: {
     backgroundColor: Colors.neutralWhite,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: Spacing.md,
     marginBottom: Spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
   },
-  complaintHeader: {
+  skeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  skeletonText: {
+    backgroundColor: Colors.neutralGray,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  skeletonBadge: {
+    height: 24,
+    width: 80,
+    backgroundColor: Colors.neutralGray,
+    borderRadius: 12,
+  },
+  skeletonFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  // Card Styles
+  complaintCard: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    shadowColor: Colors.neutralCharcoal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  ticketNumber: {
-    fontSize: Typography.bodyMedium,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-  },
-  priorityBadge: {
-    paddingHorizontal: Spacing.sm,
+  ticketBadge: {
+    backgroundColor: Colors.neutralLight,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 6,
+  },
+  ticketNumber: {
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: '700',
+    color: Colors.neutralMedium,
+  },
+  priorityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    gap: 4,
+  },
+  priorityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   priorityText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.semibold,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   subject: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.neutralCharcoal,
-    marginBottom: 4,
+    marginBottom: 8,
+    lineHeight: 24,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  categoryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   category: {
-    fontSize: Typography.bodyMedium,
+    fontSize: 13,
     color: Colors.neutralMedium,
-    marginBottom: Spacing.sm,
+    fontWeight: '500',
   },
-  complaintFooter: {
+  messageCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.neutralLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  messageCountText: {
+    fontSize: 11,
+    color: Colors.neutralMedium,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.neutralLight,
+    marginBottom: 12,
+  },
+  cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   statusBadge: {
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 20,
   },
   statusText: {
-    fontSize: Typography.bodySmall,
-    fontWeight: Typography.semibold,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   date: {
-    fontSize: Typography.bodySmall,
+    fontSize: 12,
     color: Colors.neutralMedium,
   },
+  // Empty State
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: Spacing.xxl * 2,
+    paddingVertical: Spacing.xxl,
+    marginTop: Spacing.xl,
+  },
+  emptyIconContainer: {
+    marginBottom: Spacing.lg,
+  },
+  emptyIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.primary500,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
   },
   emptyTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
+    fontSize: Typography.h4,
+    fontWeight: '700',
     color: Colors.neutralCharcoal,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   emptyText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
     textAlign: 'center',
+    maxWidth: '80%',
+    lineHeight: 22,
+  },
+  // Footer Button
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: Spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? 0 : Spacing.lg,
+    backgroundColor: 'transparent',
+  },
+  createButton: {
+    shadowColor: Colors.primary900,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });

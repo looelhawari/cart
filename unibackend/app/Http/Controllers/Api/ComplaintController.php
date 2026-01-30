@@ -153,10 +153,10 @@ class ComplaintController extends Controller
     }
 
     /**
-     * Reply to a complaint
-     * POST /api/v1/complaints/{id}/reply
+     * Add a message to a complaint
+     * POST /api/v1/complaints/{id}/messages
      */
-    public function reply(StoreComplaintReplyRequest $request, int $id): JsonResponse
+    public function addMessage(StoreComplaintReplyRequest $request, int $id): JsonResponse
     {
         $userId = $request->user()->id;
 
@@ -178,12 +178,14 @@ class ComplaintController extends Controller
             ], 422, [], JSON_UNESCAPED_UNICODE);
         }
 
-        ComplaintMessage::create([
+        $message = ComplaintMessage::create([
             'complaint_id' => $complaint->id,
             'user_id' => $userId,
             'message' => $request->message,
             'is_admin_reply' => false,
         ]);
+
+        broadcast(new \App\Events\ComplaintMessageSent($message))->toOthers();
 
         return response()->json([
             'success' => true,

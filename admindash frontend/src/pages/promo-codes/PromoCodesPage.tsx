@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { promoCodeService, type PromoCodeFilters, type CreatePromoCodeData } from '@/services/promo-code.service'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,8 @@ import {
     Download, RefreshCw, TrendingUp, Users, DollarSign,
     Gift, Percent, Truck, ShoppingBag, Tag,
     CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronUp,
-    Layers, Target, Sparkles
+    Layers, Target, Sparkles, Star, UserPlus, Settings, MessageSquare,
+    ShoppingCart, Package
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
@@ -32,13 +33,13 @@ const TYPE_ICONS = {
     bogo: Gift,
 }
 
-// Status colors and icons
+// Status colors and icons - labels are translation keys
 const STATUS_CONFIG = {
-    active: { color: 'bg-green-100 text-green-700 border-green-300', icon: CheckCircle, label: 'Active' },
-    expired: { color: 'bg-red-100 text-red-700 border-red-300', icon: XCircle, label: 'Expired' },
-    scheduled: { color: 'bg-blue-100 text-blue-700 border-blue-300', icon: Clock, label: 'Scheduled' },
-    inactive: { color: 'bg-gray-100 text-gray-700 border-gray-300', icon: XCircle, label: 'Inactive' },
-    limit_reached: { color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle, label: 'Limit Reached' },
+    active: { color: 'bg-green-100 text-green-700 border-green-300', icon: CheckCircle, labelKey: 'common.active' },
+    expired: { color: 'bg-red-100 text-red-700 border-red-300', icon: XCircle, labelKey: 'promoCodes.expired' },
+    scheduled: { color: 'bg-blue-100 text-blue-700 border-blue-300', icon: Clock, labelKey: 'promoCodes.scheduled' },
+    inactive: { color: 'bg-gray-100 text-gray-700 border-gray-300', icon: XCircle, labelKey: 'common.inactive' },
+    limit_reached: { color: 'bg-orange-100 text-orange-700 border-orange-300', icon: AlertCircle, labelKey: 'promoCodes.limitReached' },
 }
 
 export default function PromoCodesPage() {
@@ -53,11 +54,21 @@ export default function PromoCodesPage() {
     const [selectedIds, setSelectedIds] = useState<number[]>([])
     const [expandedRow, setExpandedRow] = useState<number | null>(null)
     const [activeTab, setActiveTab] = useState('basic')
+    const [productSearch, setProductSearch] = useState('')
+    const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedProductSearch(productSearch)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [productSearch])
 
     const queryClient = useQueryClient()
     const { toast } = useToast()
 
-    const { register, handleSubmit, reset, control, watch, formState: { errors } } = useForm<CreatePromoCodeData>({
+    const { state } = useLocation()
+    const { register, handleSubmit, reset, control, watch, formState: { errors }, setValue } = useForm<CreatePromoCodeData>({
         defaultValues: {
             type: 'percentage',
             applies_to: 'order',
@@ -66,8 +77,27 @@ export default function PromoCodesPage() {
             bogo_rules: [],
             product_ids: [],
             category_ids: [],
+            target_audience: state?.user_id ? 'custom' : 'all_users',
+            promotional_message: '',
+            promotional_message_ar: '',
+            minimum_spend_30days: undefined,
+            minimum_orders_30days: undefined,
+            last_order_date_from: undefined,
+            last_order_date_to: undefined,
+            registration_date_from: undefined,
+            registration_date_to: undefined,
+            location: '',
+            specific_user_ids: state?.user_id ? String(state.user_id) : '',
         }
     })
+
+    useEffect(() => {
+        if (state?.user_id) {
+            setIsCreateDialogOpen(true)
+            setValue('specific_user_ids', String(state.user_id))
+            setValue('target_audience', 'custom')
+        }
+    }, [state, setValue])
 
     const { fields: bogoFields, append: appendBogo, remove: removeBogo } = useFieldArray({
         control,
@@ -76,6 +106,7 @@ export default function PromoCodesPage() {
 
     const watchType = watch('type')
     const watchAppliesTo = watch('applies_to')
+    const watchTargetAudience = watch('target_audience' as any)
 
     // Queries
     const { data: promoCodesData, isLoading, refetch } = useQuery({
@@ -84,8 +115,8 @@ export default function PromoCodesPage() {
     })
 
     const { data: productsData, isLoading: productsLoading } = useQuery({
-        queryKey: ['promo-products'],
-        queryFn: () => promoCodeService.getProducts(),
+        queryKey: ['promo-products', debouncedProductSearch],
+        queryFn: () => promoCodeService.getProducts(debouncedProductSearch),
         enabled: isCreateDialogOpen,
     })
 
@@ -108,12 +139,12 @@ export default function PromoCodesPage() {
             queryClient.invalidateQueries({ queryKey: ['promo-analytics'] })
             setIsCreateDialogOpen(false)
             reset()
-            toast({ title: 'Success', description: 'Promo code created successfully' })
+            toast({ title: t('common.success'), description: t('promoCodes.promoCreated') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to create promo code',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promoCodes.createError'),
                 variant: 'destructive',
             })
         },
@@ -127,12 +158,12 @@ export default function PromoCodesPage() {
             setEditingPromoCode(null)
             setIsCreateDialogOpen(false)
             reset()
-            toast({ title: 'Success', description: 'Promo code updated successfully' })
+            toast({ title: t('common.success'), description: t('promoCodes.promoUpdated') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to update promo code',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promoCodes.updateError'),
                 variant: 'destructive',
             })
         },
@@ -143,12 +174,12 @@ export default function PromoCodesPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['promo-codes'] })
             queryClient.invalidateQueries({ queryKey: ['promo-analytics'] })
-            toast({ title: 'Success', description: 'Promo code deleted successfully' })
+            toast({ title: t('common.success'), description: t('promoCodes.promoDeleted') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to delete promo code',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promoCodes.deleteError'),
                 variant: 'destructive',
             })
         },
@@ -158,12 +189,12 @@ export default function PromoCodesPage() {
         mutationFn: (id: number) => promoCodeService.duplicatePromoCode(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['promo-codes'] })
-            toast({ title: 'Success', description: 'Promo code duplicated successfully' })
+            toast({ title: t('common.success'), description: t('promoCodes.promoDuplicated') })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to duplicate promo code',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promoCodes.duplicateError'),
                 variant: 'destructive',
             })
         },
@@ -175,12 +206,12 @@ export default function PromoCodesPage() {
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['promo-codes'] })
             setSelectedIds([])
-            toast({ title: 'Success', description: `${data.updated} promo codes updated` })
+            toast({ title: t('common.success'), description: t('promoCodes.bulkUpdated', { count: data.updated }) })
         },
         onError: (error: any) => {
             toast({
-                title: 'Error',
-                description: error?.response?.data?.message || 'Failed to update promo codes',
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('promoCodes.bulkUpdateError'),
                 variant: 'destructive',
             })
         },
@@ -196,6 +227,11 @@ export default function PromoCodesPage() {
             maximum_discount: data.maximum_discount ? Number(data.maximum_discount) : undefined,
             usage_limit: data.usage_limit ? Number(data.usage_limit) : undefined,
             usage_per_user: data.usage_per_user ? Number(data.usage_per_user) : undefined,
+            minimum_spend_30days: (data as any).minimum_spend_30days ? Number((data as any).minimum_spend_30days) : undefined,
+            minimum_orders_30days: (data as any).minimum_orders_30days ? Number((data as any).minimum_orders_30days) : undefined,
+            specific_user_ids: (data.specific_user_ids && typeof data.specific_user_ids === 'string')
+                ? (data.specific_user_ids as string).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n) && n > 0)
+                : data.specific_user_ids,
         }
 
         if (editingPromoCode) {
@@ -226,13 +262,25 @@ export default function PromoCodesPage() {
                 include_subcategories: c.pivot?.include_subcategories
             })) || [],
             bogo_rules: (promoCode as any).bogo_rules || [],
+            target_audience: (promoCode as any).target_audience || 'all_users',
+            promotional_message: (promoCode as any).promotional_message || '',
+            promotional_message_ar: (promoCode as any).promotional_message_ar || '',
+            minimum_spend_30days: (promoCode as any).minimum_spend_30days || undefined,
+            minimum_orders_30days: (promoCode as any).minimum_orders_30days || undefined,
+            last_order_date_from: (promoCode as any).last_order_date_from || undefined,
+            last_order_date_to: (promoCode as any).last_order_date_to || undefined,
+            registration_date_from: (promoCode as any).registration_date_from || undefined,
+            registration_date_to: (promoCode as any).registration_date_to || undefined,
+            location: (promoCode as any).location || '',
+            specific_user_ids: (promoCode as any).specific_user_ids?.join(',') || '',
+
         })
         setActiveTab('basic')
         setIsCreateDialogOpen(true)
     }
 
     const handleDelete = (id: number) => {
-        if (confirm('Are you sure you want to delete this promo code? This action cannot be undone.')) {
+        if (confirm(t('promoCodes.confirmDelete'))) {
             deleteMutation.mutate(id)
         }
     }
@@ -247,7 +295,7 @@ export default function PromoCodesPage() {
 
     const copyToClipboard = (code: string) => {
         navigator.clipboard.writeText(code)
-        toast({ title: 'Copied!', description: `Code "${code}" copied to clipboard` })
+        toast({ title: t('common.copied'), description: t('promoCodes.codeClipboard', { code }) })
     }
 
     const handleExport = async () => {
@@ -259,9 +307,9 @@ export default function PromoCodesPage() {
             a.download = `promo-codes-${format(new Date(), 'yyyy-MM-dd')}.csv`
             a.click()
             window.URL.revokeObjectURL(url)
-            toast({ title: 'Success', description: 'Export downloaded successfully' })
+            toast({ title: t('common.success'), description: t('promoCodes.exportSuccess') })
         } catch {
-            toast({ title: 'Error', description: 'Failed to export promo codes', variant: 'destructive' })
+            toast({ title: t('common.error'), description: t('promoCodes.exportError'), variant: 'destructive' })
         }
     }
 
@@ -303,11 +351,11 @@ export default function PromoCodesPage() {
             case 'percentage':
                 return `${promoCode.value}%`
             case 'fixed_amount':
-                return `EGP ${promoCode.value}`
+                return `${t('common.egp')} ${promoCode.value}`
             case 'free_delivery':
-                return 'Free Delivery'
+                return t('promoCodes.freeDelivery')
             case 'bogo':
-                return 'BOGO'
+                return t('promoCodes.types.bogo')
             default:
                 return String(promoCode.value)
         }
@@ -541,8 +589,8 @@ export default function PromoCodesPage() {
                                         const StatusIcon = statusConfig.icon
 
                                         return (
-                                            <>
-                                                <tr key={promoCode.id} className="hover:bg-gray-50">
+                                            <React.Fragment key={promoCode.id}>
+                                                <tr className="hover:bg-gray-50">
                                                     <td className="p-3">
                                                         <input
                                                             type="checkbox"
@@ -559,7 +607,7 @@ export default function PromoCodesPage() {
                                                             <button
                                                                 onClick={() => copyToClipboard(promoCode.code)}
                                                                 className="p-1 hover:bg-gray-200 rounded"
-                                                                title="Copy code"
+                                                                title={t('promoCodes.copyCode')}
                                                             >
                                                                 <Copy className="w-4 h-4 text-gray-500" />
                                                             </button>
@@ -620,13 +668,13 @@ export default function PromoCodesPage() {
                                                     <td className="p-3 text-sm">
                                                         <div>{format(new Date(promoCode.valid_from), 'MMM dd, yyyy')}</div>
                                                         <div className="text-gray-500">
-                                                            to {format(new Date(promoCode.valid_until), 'MMM dd, yyyy')}
+                                                            {t('common.to')} {format(new Date(promoCode.valid_until), 'MMM dd, yyyy')}
                                                         </div>
                                                     </td>
                                                     <td className="p-3">
                                                         <Badge className={`${statusConfig.color} border`}>
                                                             <StatusIcon className="w-3 h-3 mr-1" />
-                                                            {statusConfig.label}
+                                                            {t(statusConfig.labelKey)}
                                                         </Badge>
                                                     </td>
                                                     <td className="p-3">
@@ -635,7 +683,7 @@ export default function PromoCodesPage() {
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 onClick={() => setExpandedRow(expandedRow === promoCode.id ? null : promoCode.id)}
-                                                                title="Expand"
+                                                                title={expandedRow === promoCode.id ? t('common.collapse') : t('common.expand')}
                                                             >
                                                                 {expandedRow === promoCode.id ?
                                                                     <ChevronUp className="w-4 h-4" /> :
@@ -646,7 +694,7 @@ export default function PromoCodesPage() {
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 onClick={() => navigate(`/promo-codes/${promoCode.id}/analytics`)}
-                                                                title="Analytics"
+                                                                title={t('promoCodes.analytics')}
                                                             >
                                                                 <BarChart3 className="w-4 h-4" />
                                                             </Button>
@@ -654,7 +702,7 @@ export default function PromoCodesPage() {
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 onClick={() => handleDuplicate(promoCode.id)}
-                                                                title="Duplicate"
+                                                                title={t('promoCodes.duplicate')}
                                                             >
                                                                 <Layers className="w-4 h-4" />
                                                             </Button>
@@ -662,7 +710,7 @@ export default function PromoCodesPage() {
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 onClick={() => handleEdit(promoCode)}
-                                                                title="Edit"
+                                                                title={t('common.edit')}
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Button>
@@ -671,7 +719,7 @@ export default function PromoCodesPage() {
                                                                 size="sm"
                                                                 onClick={() => handleDelete(promoCode.id)}
                                                                 className="text-red-600 hover:text-red-700"
-                                                                title="Delete"
+                                                                title={t('common.delete')}
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>
@@ -742,7 +790,7 @@ export default function PromoCodesPage() {
                                                         </td>
                                                     </tr>
                                                 )}
-                                            </>
+                                            </React.Fragment>
                                         )
                                     })}
                                 </tbody>
@@ -800,7 +848,7 @@ export default function PromoCodesPage() {
                                         {t('promoCodes.basicInfo')}
                                     </TabsTrigger>
                                     <TabsTrigger value="targeting">
-                                        {t('promoCodes.targeting')}
+                                        {t('promoCodes.targeting.title')}
                                     </TabsTrigger>
                                     <TabsTrigger value="limits">
                                         {t('promoCodes.limits')}
@@ -868,27 +916,7 @@ export default function PromoCodesPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="applies_to">{t('promoCodes.appliesTo')} *</Label>
-                                            <Controller
-                                                name="applies_to"
-                                                control={control}
-                                                render={({ field }) => (
-                                                    <Select value={field.value} onValueChange={field.onChange}>
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="order">{t('promoCodes.entireOrder')}</SelectItem>
-                                                            <SelectItem value="product">{t('promoCodes.specificProducts')}</SelectItem>
-                                                            <SelectItem value="category">{t('promoCodes.specificCategories')}</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                )}
-                                            />
-                                        </div>
-
+                                    <div className="mt-4">
                                         {watchType !== 'free_delivery' && watchType !== 'bogo' && (
                                             <div>
                                                 <Label htmlFor="value">
@@ -989,115 +1017,469 @@ export default function PromoCodesPage() {
                                     </div>
                                 </TabsContent>
 
-                                <TabsContent value="targeting" className="space-y-4">
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                                        <h4 className="font-medium text-blue-800 mb-2">📌 {t('promoCodes.howTargetingWorks')}</h4>
-                                        <p className="text-sm text-blue-700">
-                                            {watchAppliesTo === 'order' && t('promoCodes.targetingOrderDesc')}
-                                            {watchAppliesTo === 'product' && t('promoCodes.targetingProductDesc')}
-                                            {watchAppliesTo === 'category' && t('promoCodes.targetingCategoryDesc')}
-                                        </p>
+                                <TabsContent value="targeting" className="space-y-6">
+                                    {/* Section 1: User Targeting */}
+                                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-5">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Users className="w-5 h-5 text-indigo-600" />
+                                            <h4 className="font-semibold text-indigo-800">{t('promoCodes.targeting.userSegment')}</h4>
+                                        </div>
+                                        <p className="text-sm text-indigo-600 mb-4">{t('promoCodes.targeting.userSegmentDesc')}</p>
+
+                                        <Controller
+                                            name={'target_audience' as any}
+                                            control={control}
+                                            render={({ field }) => (
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                    {/* All Users */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'all_users' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="all_users"
+                                                            checked={field.value === 'all_users'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Users className="w-4 h-4 text-gray-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.allUsers')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.allUsersDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* New Users */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'new_users' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="new_users"
+                                                            checked={field.value === 'new_users'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <UserPlus className="w-4 h-4 text-green-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.newUsers')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.newUsersDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* High Spenders */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'high_spenders' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-amber-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="high_spenders"
+                                                            checked={field.value === 'high_spenders'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <DollarSign className="w-4 h-4 text-amber-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.highSpenders')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.highSpendersDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* Active Users */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'active_users' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="active_users"
+                                                            checked={field.value === 'active_users'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <TrendingUp className="w-4 h-4 text-blue-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.activeUsers')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.activeUsersDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* Delivery Lovers */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'delivery_lovers' ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:border-cyan-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="delivery_lovers"
+                                                            checked={field.value === 'delivery_lovers'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Truck className="w-4 h-4 text-cyan-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.deliveryLovers')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.deliveryLoversDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* High Rated Users */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'high_rated' ? 'border-yellow-500 bg-yellow-50' : 'border-gray-200 hover:border-yellow-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="high_rated"
+                                                            checked={field.value === 'high_rated'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Star className="w-4 h-4 text-yellow-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.highRated')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.highRatedDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* Inactive Users */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'inactive_users' ? 'border-gray-500 bg-gray-100' : 'border-gray-200 hover:border-gray-400 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="inactive_users"
+                                                            checked={field.value === 'inactive_users'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Clock className="w-4 h-4 text-gray-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.inactiveUsers')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.inactiveUsersDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* Offline Users */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'offline_users' ? 'border-slate-500 bg-slate-50' : 'border-gray-200 hover:border-slate-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="offline_users"
+                                                            checked={field.value === 'offline_users'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Clock className="w-4 h-4 text-slate-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.offlineUsers')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.offlineUsersDesc')}</p>
+                                                        </div>
+                                                    </label>
+
+                                                    {/* Custom Criteria */}
+                                                    <label className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'custom' ? 'border-rose-500 bg-rose-50' : 'border-gray-200 hover:border-rose-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="custom"
+                                                            checked={field.value === 'custom'}
+                                                            className="mt-1"
+                                                        />
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Settings className="w-4 h-4 text-rose-600" />
+                                                                <span className="font-medium">{t('promoCodes.targeting.custom')}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.customDesc')}</p>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            )}
+                                        />
+
+                                        {/* Custom Criteria Fields */}
+                                        {watchTargetAudience === 'custom' && (
+                                            <div className="mt-4 p-4 bg-white rounded-lg border border-rose-200 space-y-4">
+                                                <h5 className="font-medium text-gray-700">{t('promoCodes.targeting.customCriteria')}</h5>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label>{t('promoCodes.targeting.minSpend30Days')}</Label>
+                                                        <Input
+                                                            type="number"
+                                                            {...register('minimum_spend_30days' as any)}
+                                                            placeholder="10000"
+                                                        />
+                                                        <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.minSpendHint')}</p>
+                                                    </div>
+                                                    <div>
+                                                        <Label>{t('promoCodes.targeting.minOrders30Days')}</Label>
+                                                        <Input
+                                                            type="number"
+                                                            {...register('minimum_orders_30days' as any)}
+                                                            placeholder="5"
+                                                        />
+                                                        <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.minOrdersHint')}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label>{t('promoCodes.targeting.lastOrderDate')}</Label>
+                                                        <div className="flex items-center gap-2">
+                                                            <Input type="date" {...register('last_order_date_from' as any)} placeholder={t('promoCodes.targeting.from')} />
+                                                            <Input type="date" {...register('last_order_date_to' as any)} placeholder={t('promoCodes.targeting.to')} />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <Label>{t('promoCodes.targeting.registrationDate')}</Label>
+                                                        <div className="flex items-center gap-2">
+                                                            <Input type="date" {...register('registration_date_from' as any)} placeholder={t('promoCodes.targeting.from')} />
+                                                            <Input type="date" {...register('registration_date_to' as any)} placeholder={t('promoCodes.targeting.to')} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label>{t('promoCodes.targeting.locationCity')}</Label>
+                                                        <Input {...register('location' as any)} placeholder="Cairo, Alex..." />
+                                                    </div>
+                                                    <div>
+                                                        <Label>{t('promoCodes.targeting.specificUserIds')}</Label>
+                                                        <Input {...register('specific_user_ids' as any)} placeholder={t('promoCodes.targeting.specificUserIdsHint')} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* High Spenders - Extra Fields */}
+                                        {watchTargetAudience === 'high_spenders' && (
+                                            <div className="mt-4 p-4 bg-white rounded-lg border border-amber-200">
+                                                <div>
+                                                    <Label>{t('promoCodes.targeting.minSpendAmount')}</Label>
+                                                    <Input
+                                                        type="number"
+                                                        {...register('minimum_spend_30days' as any)}
+                                                        placeholder="10000"
+                                                    />
+                                                    <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.minSpendAmountHint')}</p>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {watchAppliesTo === 'product' && (
-                                        <div>
-                                            <Label className="text-base font-semibold">{t('promoCodes.selectProductsToApply')}</Label>
-                                            <p className="text-sm text-gray-500 mb-2">{t('promoCodes.selectProductsHint')}</p>
-                                            {productsLoading ? (
-                                                <div className={`flex items-center justify-center py-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                                    <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-                                                    <span className={`${isRTL ? 'mr-2' : 'ml-2'} text-gray-500`}>{t('promoCodes.loadingProducts')}</span>
-                                                </div>
-                                            ) : (
-                                                <div className="mt-2 border rounded-lg max-h-80 overflow-y-auto">
-                                                    {(productsData as any)?.data?.length > 0 ? (
-                                                        (productsData as any).data.map((product: any) => (
-                                                            <label key={product.id || product.barcode} className="flex items-center gap-3 p-3 hover:bg-gray-50 border-b last:border-b-0 cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    value={product.id || product.barcode}
-                                                                    {...register('product_ids')}
-                                                                    className="rounded w-4 h-4"
-                                                                />
-                                                                <div className="flex-1">
-                                                                    <span className="font-medium">{product.name || product.name_en}</span>
-                                                                    <span className="text-xs text-gray-500 ml-2">#{product.barcode || product.id}</span>
-                                                                </div>
-                                                                <span className="text-sm font-semibold text-green-600">EGP {product.price}</span>
-                                                            </label>
-                                                        ))
-                                                    ) : (
-                                                        <div className="p-8 text-center text-gray-500">
-                                                            <ShoppingBag className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                                            <p>{t('promoCodes.noProductsAvailable')}</p>
-                                                        </div>
-                                                    )}
+                                    {/* Section 2: Product/Category Targeting */}
+                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-5">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <ShoppingBag className="w-5 h-5 text-emerald-600" />
+                                            <h4 className="font-semibold text-emerald-800">{t('promoCodes.targeting.productScope')}</h4>
+                                        </div>
+                                        <p className="text-sm text-emerald-600 mb-4">{t('promoCodes.targeting.productScopeDesc')}</p>
+
+                                        <Controller
+                                            name="applies_to"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                                    <label className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'order' ? 'border-emerald-500 bg-emerald-100' : 'border-gray-200 hover:border-emerald-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="order"
+                                                            checked={field.value === 'order'}
+                                                            className="hidden"
+                                                        />
+                                                        <ShoppingCart className={`w-8 h-8 mb-2 ${field.value === 'order' ? 'text-emerald-600' : 'text-gray-400'}`} />
+                                                        <span className={`font-medium ${field.value === 'order' ? 'text-emerald-700' : 'text-gray-600'}`}>{t('promoCodes.allProducts')}</span>
+                                                        <p className="text-xs text-gray-500 mt-1 text-center">{t('promoCodes.targeting.allProductsHint')}</p>
+                                                    </label>
+
+                                                    <label className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'product' ? 'border-emerald-500 bg-emerald-100' : 'border-gray-200 hover:border-emerald-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="product"
+                                                            checked={field.value === 'product'}
+                                                            className="hidden"
+                                                        />
+                                                        <Package className={`w-8 h-8 mb-2 ${field.value === 'product' ? 'text-emerald-600' : 'text-gray-400'}`} />
+                                                        <span className={`font-medium ${field.value === 'product' ? 'text-emerald-700' : 'text-gray-600'}`}>{t('promoCodes.specificProducts')}</span>
+                                                        <p className="text-xs text-gray-500 mt-1 text-center">{t('promoCodes.targeting.specificProductsHint')}</p>
+                                                    </label>
+
+                                                    <label className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-all ${field.value === 'category' ? 'border-emerald-500 bg-emerald-100' : 'border-gray-200 hover:border-emerald-300 bg-white'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            {...field}
+                                                            value="category"
+                                                            checked={field.value === 'category'}
+                                                            className="hidden"
+                                                        />
+                                                        <Layers className={`w-8 h-8 mb-2 ${field.value === 'category' ? 'text-emerald-600' : 'text-gray-400'}`} />
+                                                        <span className={`font-medium ${field.value === 'category' ? 'text-emerald-700' : 'text-gray-600'}`}>{t('promoCodes.specificCategories')}</span>
+                                                        <p className="text-xs text-gray-500 mt-1 text-center">{t('promoCodes.targeting.specificCategoriesHint')}</p>
+                                                    </label>
                                                 </div>
                                             )}
-                                        </div>
-                                    )}
+                                        />
 
-                                    {watchAppliesTo === 'category' && (
-                                        <div>
-                                            <Label className="text-base font-semibold">{t('promoCodes.selectCategoriesToApply')}</Label>
-                                            <p className="text-sm text-gray-500 mb-2">{t('promoCodes.selectCategoriesHint')}</p>
-                                            {categoriesLoading ? (
-                                                <div className={`flex items-center justify-center py-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                                    <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-                                                    <span className={`${isRTL ? 'mr-2' : 'ml-2'} text-gray-500`}>{t('promoCodes.loadingCategories')}</span>
+                                        {/* Product Selection */}
+                                        {watchAppliesTo === 'product' && (
+                                            <div className="mt-4 bg-white rounded-lg border border-emerald-200 p-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <Label className="text-base font-semibold">{t('promoCodes.selectProductsToApply')}</Label>
+                                                    <Badge variant="outline">{t('promoCodes.targeting.selectedCount', { count: watch('product_ids')?.length || 0 })}</Badge>
                                                 </div>
-                                            ) : (
-                                                <div className="mt-2 border rounded-lg max-h-80 overflow-y-auto">
-                                                    {(categoriesData as any)?.data?.length > 0 ? (
-                                                        (categoriesData as any).data.map((category: any) => (
-                                                            <div key={category.id} className="border-b last:border-b-0">
-                                                                <label className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                <div className="relative mb-3">
+                                                    <Search className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400`} />
+                                                    <Input
+                                                        value={productSearch}
+                                                        onChange={(e) => setProductSearch(e.target.value)}
+                                                        placeholder={t('promoCodes.targeting.searchProductsPlaceholder')}
+                                                        className={`h-9 ${isRTL ? 'pr-9' : 'pl-9'}`}
+                                                    />
+                                                </div>
+                                                {productsLoading ? (
+                                                    <div className={`flex items-center justify-center py-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                        <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                                                        <span className={`${isRTL ? 'mr-2' : 'ml-2'} text-gray-500`}>{t('promoCodes.loadingProducts')}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="border rounded-lg max-h-60 overflow-y-auto">
+                                                        {(productsData as any)?.data?.length > 0 ? (
+                                                            (productsData as any).data.map((product: any) => (
+                                                                <label key={product.id || product.barcode} className="flex items-center gap-3 p-3 hover:bg-gray-50 border-b last:border-b-0 cursor-pointer">
                                                                     <input
                                                                         type="checkbox"
-                                                                        value={category.id}
-                                                                        className="rounded w-4 h-4"
+                                                                        value={product.id || product.barcode}
+                                                                        {...register('product_ids')}
+                                                                        className="rounded w-4 h-4 text-emerald-600"
                                                                     />
-                                                                    <span className="font-medium flex-1">{category.name || category.name_en}</span>
-                                                                    <label className={`flex items-center gap-2 text-xs text-gray-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                                                        <input type="checkbox" className="rounded" />
-                                                                        {t('promoCodes.includeSubcategories')}
-                                                                    </label>
-                                                                </label>
-                                                                {category.children?.length > 0 && (
-                                                                    <div className="pl-8 pb-2">
-                                                                        {category.children.map((child: any) => (
-                                                                            <label key={child.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer text-sm">
-                                                                                <input
-                                                                                    type="checkbox"
-                                                                                    value={child.id}
-                                                                                    className="rounded w-3 h-3"
-                                                                                />
-                                                                                <span className="text-gray-600">↳ {child.name || child.name_en}</span>
-                                                                            </label>
-                                                                        ))}
+                                                                    <div className="flex-1">
+                                                                        <span className="font-medium">{product.name || product.name_en}</span>
+                                                                        <span className="text-xs text-gray-500 ml-2">#{product.barcode || product.id}</span>
                                                                     </div>
-                                                                )}
+                                                                    <span className="text-sm font-semibold text-green-600">EGP {product.price}</span>
+                                                                </label>
+                                                            ))
+                                                        ) : (
+                                                            <div className="p-8 text-center text-gray-500">
+                                                                <ShoppingBag className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                                                <p>{t('promoCodes.noProductsAvailable')}</p>
                                                             </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="p-8 text-center text-gray-500">
-                                                            <Layers className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                                                            <p>{t('promoCodes.noCategoriesAvailable')}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
-                                    {watchAppliesTo === 'order' && (
-                                        <div className="text-center py-12">
-                                            <ShoppingBag className="w-16 h-16 mx-auto mb-4 text-green-500" />
-                                            <h3 className="text-lg font-semibold text-gray-700">{t('promoCodes.appliesToEntireOrder')}</h3>
-                                            <p className="text-gray-500 mt-2">{t('promoCodes.entireOrderDesc')}</p>
-                                            <p className="text-sm text-gray-400 mt-1">{t('promoCodes.noSelectionNeeded')}</p>
+                                        {/* Category Selection */}
+                                        {watchAppliesTo === 'category' && (
+                                            <div className="mt-4 bg-white rounded-lg border border-emerald-200 p-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <Label className="text-base font-semibold">{t('promoCodes.selectCategoriesToApply')}</Label>
+                                                    <Badge variant="outline">{t('promoCodes.targeting.selectedCount', { count: 0 })}</Badge>
+                                                </div>
+                                                {categoriesLoading ? (
+                                                    <div className={`flex items-center justify-center py-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                        <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                                                        <span className={`${isRTL ? 'mr-2' : 'ml-2'} text-gray-500`}>{t('promoCodes.loadingCategories')}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="border rounded-lg max-h-60 overflow-y-auto">
+                                                        {(categoriesData as any)?.data?.length > 0 ? (
+                                                            (categoriesData as any).data.map((category: any) => (
+                                                                <div key={category.id} className="border-b last:border-b-0">
+                                                                    <label className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            value={category.id}
+                                                                            className="rounded w-4 h-4 text-emerald-600"
+                                                                        />
+                                                                        <span className="font-medium flex-1">{category.name || category.name_en}</span>
+                                                                        <label className={`flex items-center gap-2 text-xs text-gray-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                                            <input type="checkbox" className="rounded" />
+                                                                            {t('promoCodes.includeSubcategories')}
+                                                                        </label>
+                                                                    </label>
+                                                                    {category.children?.length > 0 && (
+                                                                        <div className="pl-8 pb-2">
+                                                                            {category.children.map((child: any) => (
+                                                                                <label key={child.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer text-sm">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        value={child.id}
+                                                                                        className="rounded w-3 h-3"
+                                                                                    />
+                                                                                    <span className="text-gray-600">↳ {child.name || child.name_en}</span>
+                                                                                </label>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="p-8 text-center text-gray-500">
+                                                                <Layers className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                                                                <p>{t('promoCodes.noCategoriesAvailable')}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* All Products Info */}
+                                        {watchAppliesTo === 'order' && (
+                                            <div className="mt-4 text-center py-6 bg-white rounded-lg border border-emerald-200">
+                                                <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-emerald-500" />
+                                                <h3 className="font-semibold text-gray-700">{t('promoCodes.appliesToEntireOrder')}</h3>
+                                                <p className="text-sm text-gray-500 mt-1">{t('promoCodes.entireOrderDesc')}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Section 3: Promotional Message */}
+                                    <div className="bg-gradient-to-r from-pink-50 to-orange-50 border border-pink-200 rounded-xl p-5">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <MessageSquare className="w-5 h-5 text-pink-600" />
+                                            <h4 className="font-semibold text-pink-800">{t('promoCodes.targeting.promoMessage')}</h4>
                                         </div>
-                                    )}
+                                        <p className="text-sm text-pink-600 mb-4">{t('promoCodes.targeting.promoMessageDesc')}</p>
+
+                                        <div className="space-y-4">
+                                            <div className="bg-white rounded-lg border border-pink-200 p-4">
+                                                <Label className="flex items-center gap-2 mb-2">
+                                                    <span className="text-lg">🇬🇧</span>
+                                                    {t('promoCodes.targeting.messageEnglish')}
+                                                </Label>
+                                                <textarea
+                                                    {...register('promotional_message' as any)}
+                                                    className="w-full border rounded-lg p-3 text-sm resize-none"
+                                                    rows={3}
+                                                    placeholder={t('promoCodes.targeting.messageEnglishPlaceholder')}
+                                                />
+                                            </div>
+
+                                            <div className="bg-white rounded-lg border border-pink-200 p-4">
+                                                <Label className="flex items-center gap-2 mb-2">
+                                                    <span className="text-lg">🇸🇦</span>
+                                                    {t('promoCodes.targeting.messageArabic')}
+                                                </Label>
+                                                <textarea
+                                                    {...register('promotional_message_ar' as any)}
+                                                    className="w-full border rounded-lg p-3 text-sm resize-none text-right"
+                                                    dir="rtl"
+                                                    rows={3}
+                                                    placeholder={t('promoCodes.targeting.messageArabicPlaceholder')}
+                                                />
+                                            </div>
+
+                                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                                                <div className="flex items-start gap-2">
+                                                    <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5" />
+                                                    <p className="text-xs text-orange-700">{t('promoCodes.targeting.messageNote')}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </TabsContent>
 
                                 <TabsContent value="limits" className="space-y-4">
@@ -1257,7 +1639,7 @@ export default function PromoCodesPage() {
                                                                             <Label className="text-xs">{t('promoCodes.bogo.selectProductBarcode')}</Label>
                                                                             <Input
                                                                                 type="number"
-                                                                                placeholder="Product barcode"
+                                                                                placeholder={t('promoCodes.bogo.productBarcodePlaceholder')}
                                                                                 {...register(`bogo_rules.${index}.buy_product_id` as any)}
                                                                                 className="h-9"
                                                                             />
@@ -1272,7 +1654,7 @@ export default function PromoCodesPage() {
                                                                                 render={({ field }) => (
                                                                                     <Select value={field.value?.toString()} onValueChange={(v) => field.onChange(parseInt(v))}>
                                                                                         <SelectTrigger className="h-9">
-                                                                                            <SelectValue placeholder="Select category..." />
+                                                                                            <SelectValue placeholder={t('promoCodes.bogo.selectCategoryPlaceholder')} />
                                                                                         </SelectTrigger>
                                                                                         <SelectContent>
                                                                                             {(categoriesData as any)?.data?.map((cat: any) => (
@@ -1366,7 +1748,7 @@ export default function PromoCodesPage() {
                                                                             <Label className="text-xs">{t('promoCodes.bogo.freeProductBarcode')}</Label>
                                                                             <Input
                                                                                 type="number"
-                                                                                placeholder="Product barcode"
+                                                                                placeholder={t('promoCodes.bogo.productBarcodePlaceholder')}
                                                                                 {...register(`bogo_rules.${index}.get_product_id` as any)}
                                                                                 className="h-9"
                                                                             />
@@ -1381,7 +1763,7 @@ export default function PromoCodesPage() {
                                                                                 render={({ field }) => (
                                                                                     <Select value={field.value?.toString()} onValueChange={(v) => field.onChange(parseInt(v))}>
                                                                                         <SelectTrigger className="h-9">
-                                                                                            <SelectValue placeholder="Select category..." />
+                                                                                            <SelectValue placeholder={t('promoCodes.bogo.selectCategoryPlaceholder')} />
                                                                                         </SelectTrigger>
                                                                                         <SelectContent>
                                                                                             {(categoriesData as any)?.data?.map((cat: any) => (
