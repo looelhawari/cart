@@ -64,7 +64,7 @@ class ProductController extends Controller
 
             // Stock filter
             if ($request->get('in_stock') == '1') {
-                $query->where('stock_quantity', '>', 0);
+                $query->where('is_in_stock', true)->where('stock_quantity', '>', 0);
             }
 
             // Sorting
