@@ -3,34 +3,29 @@ import Pusher from 'pusher-js';
 import { API_CONFIG } from '@/config/app.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Enable Pusher logging for debugging
+Pusher.logToConsole = true;
+
 // @ts-ignore
 window.Pusher = Pusher;
 
-// Extract hostname from BASE_URL
-const getHost = () => {
-    try {
-        const url = new URL(API_CONFIG.BASE_URL);
-        return url.hostname;
-    } catch (e) {
-        return '192.168.1.10'; // Fallback
-    }
-};
-
 const echo = new Echo({
-    broadcaster: 'reverb',
-    key: 'vst3y4visf3dtbunxyzr', // REVERB_APP_KEY
-    wsHost: getHost(),
-    wsPort: 8081,
-    wssPort: 8081,
-    forceTLS: false,
-    enabledTransports: ['ws', 'wss'],
-    disableStats: true,
-    authorizer: (channel, options) => {
+    broadcaster: 'pusher',
+    key: '140ea82c9593f7627bdc',
+    cluster: 'eu',
+    forceTLS: true,
+    authorizer: (channel: any, options: any) => {
         return {
-            authorize: async (socketId, callback) => {
+            authorize: async (socketId: string, callback: (error: Error | null, data: any) => void) => {
                 try {
                     const token = await AsyncStorage.getItem('access_token');
-                    console.log('[Echo] Authorizing channel:', channel.name, 'with socketId:', socketId);
+                    console.log('[Echo] Authorizing channel:', channel.name, 'socketId:', socketId);
+
+                    if (!token) {
+                        console.error('[Echo] No auth token found');
+                        callback(new Error('No auth token'), null);
+                        return;
+                    }
 
                     const response = await fetch(`${API_CONFIG.BASE_URL}/broadcasting/auth`, {
                         method: 'POST',
@@ -62,6 +57,19 @@ const echo = new Echo({
             }
         };
     },
+});
+
+// Connection status logging
+echo.connector.pusher.connection.bind('connected', () => {
+    console.log('[Echo] ✓ Connected to Pusher');
+});
+
+echo.connector.pusher.connection.bind('error', (err: any) => {
+    console.error('[Echo] Connection error:', err);
+});
+
+echo.connector.pusher.connection.bind('disconnected', () => {
+    console.log('[Echo] Disconnected from Pusher');
 });
 
 export default echo;

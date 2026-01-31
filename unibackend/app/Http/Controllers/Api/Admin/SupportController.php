@@ -132,6 +132,65 @@ class SupportController extends Controller
         return response()->json($ticket->load(['assignedTo']));
     }
 
+    /**
+     * Update ticket status only
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        $ticket = Complaint::findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|in:open,in_progress,awaiting_response,resolved,closed',
+        ]);
+
+        if ($validated['status'] === 'resolved') {
+            $ticket->resolved_at = now();
+            $ticket->resolved_by = auth()->id();
+        }
+
+        $ticket->status = $validated['status'];
+        $ticket->save();
+
+        return response()->json($ticket);
+    }
+
+    /**
+     * Update ticket priority only
+     */
+    public function updatePriority(Request $request, $id)
+    {
+        $ticket = Complaint::findOrFail($id);
+
+        $validated = $request->validate([
+            'priority' => 'required|in:low,medium,high,urgent',
+        ]);
+
+        $ticket->priority = $validated['priority'];
+        $ticket->save();
+
+        return response()->json($ticket);
+    }
+
+    /**
+     * Assign ticket to a user (0 = assign to self)
+     */
+    public function assignTicket(Request $request, $id)
+    {
+        $ticket = Complaint::findOrFail($id);
+
+        $validated = $request->validate([
+            'assigned_to' => 'required',
+        ]);
+
+        // If 0 is passed, assign to current user
+        $assignTo = $validated['assigned_to'] == 0 ? auth()->id() : $validated['assigned_to'];
+        
+        $ticket->assigned_to = $assignTo;
+        $ticket->save();
+
+        return response()->json($ticket->load('assignedTo'));
+    }
+
     public function addMessage(Request $request, $id)
     {
         $ticket = Complaint::findOrFail($id);
@@ -155,5 +214,24 @@ class SupportController extends Controller
         broadcast(new \App\Events\ComplaintMessageSent($message))->toOthers();
 
         return response()->json($message->load('user'), 201);
+    }
+
+    /**
+     * Broadcast typing status
+     */
+    public function typing(Request $request, $id)
+    {
+        $ticket = Complaint::findOrFail($id);
+        $user = auth()->user();
+
+        broadcast(new \App\Events\UserTyping(
+            $ticket->id,
+            $user->id,
+            $user->first_name . ' ' . $user->last_name,
+            $request->boolean('is_typing'),
+            true // is_admin
+        ))->toOthers();
+
+        return response()->json(['status' => 'ok']);
     }
 }

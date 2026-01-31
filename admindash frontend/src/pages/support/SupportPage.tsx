@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { supportService, type TicketFilters } from '@/services/support.service'
@@ -8,18 +8,40 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
-import { Search, Eye, MessageSquare } from 'lucide-react'
+import { Search, Eye, MessageSquare, UserPlus, CheckCircle, XCircle } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
+import { useToast } from '@/components/ui/use-toast'
+import type { TicketStatus } from '@/types'
 
 export default function SupportPage() {
     const { t, i18n } = useTranslation()
     const isRTL = i18n.language === 'ar'
+    const queryClient = useQueryClient()
+    const { toast } = useToast()
     const [filters, setFilters] = useState<TicketFilters>({ page: 1, per_page: 20, sort_by: 'created_at', sort_order: 'desc' })
     const [searchTerm, setSearchTerm] = useState('')
 
     const { data: ticketsData, isLoading } = useQuery({
         queryKey: ['support-tickets', filters],
         queryFn: () => supportService.getTickets(filters),
+    })
+
+    // Quick action mutations
+    const statusMutation = useMutation({
+        mutationFn: ({ id, status }: { id: number; status: TicketStatus }) =>
+            supportService.updateTicketStatus(id, status),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['support-tickets'] })
+            toast({ title: t('support.statusUpdated') })
+        },
+    })
+
+    const assignMutation = useMutation({
+        mutationFn: (id: number) => supportService.assignTicket(id, 0), // 0 = assign to self
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['support-tickets'] })
+            toast({ title: t('support.ticketAssigned') })
+        },
     })
 
     const handleSearch = () => {
@@ -108,23 +130,23 @@ export default function SupportPage() {
                         <div className="text-center py-12">{t('common.loading')}</div>
                     ) : (
                         <>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto rounded-lg border border-gray-200">
                                 <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b">
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('support.ticketNumber')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('support.subject')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('support.customer')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('support.priority')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('support.assignedTo')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.created')}</th>
-                                            <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
+                                    <thead className="bg-gradient-to-r from-green-50 to-emerald-50">
+                                        <tr>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600`}>{t('support.ticketNumber')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600`}>{t('support.subject')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600`}>{t('support.customer')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600 hidden md:table-cell`}>{t('support.priority')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600`}>{t('common.status')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell`}>{t('support.assignedTo')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600 hidden xl:table-cell`}>{t('common.created')}</th>
+                                            <th className={`${isRTL ? 'text-left' : 'text-right'} p-4 text-xs font-semibold uppercase tracking-wider text-gray-600`}>{t('common.actions')}</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {ticketsData?.data.map((ticket) => (
-                                            <tr key={ticket.id} className="border-b hover:bg-gray-50">
+                                    <tbody className="divide-y divide-gray-100">
+                                        {ticketsData?.data.map((ticket, index) => (
+                                            <tr key={ticket.id} className={`transition-all duration-200 hover:bg-green-50/50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                                                 <td className="p-3 font-mono text-sm">{ticket.ticket_number}</td>
                                                 <td className="p-3">
                                                     <div className="flex items-center space-x-2">
@@ -142,28 +164,61 @@ export default function SupportPage() {
                                                     <p className="font-medium">
                                                         {ticket.customer?.first_name} {ticket.customer?.last_name}
                                                     </p>
-                                                    <p className="text-sm text-muted-foreground">{ticket.customer?.phone}</p>
+                                                    <p className="text-sm text-muted-foreground hidden sm:block">{ticket.customer?.phone}</p>
                                                 </td>
-                                                <td className="p-3">
+                                                <td className="p-3 hidden md:table-cell">
                                                     <TicketPriorityBadge priority={ticket.priority} />
                                                 </td>
                                                 <td className="p-3">
                                                     <TicketStatusBadge status={ticket.status} />
                                                 </td>
-                                                <td className="p-3">
+                                                <td className="p-3 hidden lg:table-cell">
                                                     {ticket.assigned_to_user ? (
                                                         <p className="text-sm">
                                                             {ticket.assigned_to_user.first_name} {ticket.assigned_to_user.last_name}
                                                         </p>
                                                     ) : (
-                                                        <span className="text-sm text-muted-foreground">{t('support.unassigned')}</span>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-green-600 hover:text-green-700 hover:bg-green-50 h-7 px-2"
+                                                            onClick={() => assignMutation.mutate(ticket.id)}
+                                                            disabled={assignMutation.isPending}
+                                                        >
+                                                            <UserPlus className="h-3 w-3 mr-1" />
+                                                            {t('support.assignToMe')}
+                                                        </Button>
                                                     )}
                                                 </td>
-                                                <td className="p-3 text-sm">{formatRelativeTime(ticket.created_at)}</td>
+                                                <td className="p-3 text-sm hidden xl:table-cell">{formatRelativeTime(ticket.created_at)}</td>
                                                 <td className="p-3">
-                                                    <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'}`}>
+                                                    <div className={`flex items-center gap-1 ${isRTL ? 'justify-start' : 'justify-end'}`}>
+                                                        {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="text-green-600 hover:text-green-700 hover:bg-green-50 h-8 w-8 p-0"
+                                                                onClick={() => statusMutation.mutate({ id: ticket.id, status: 'resolved' })}
+                                                                disabled={statusMutation.isPending}
+                                                                title={t('support.markResolved')}
+                                                            >
+                                                                <CheckCircle className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        {ticket.status !== 'closed' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 h-8 w-8 p-0"
+                                                                onClick={() => statusMutation.mutate({ id: ticket.id, status: 'closed' })}
+                                                                disabled={statusMutation.isPending}
+                                                                title={t('support.closeTicket')}
+                                                            >
+                                                                <XCircle className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                         <Link to={`/support/${ticket.id}`}>
-                                                            <Button size="sm" variant="outline">
+                                                            <Button size="sm" variant="outline" className="h-8">
                                                                 <Eye className={`h-4 w-4 ${isRTL ? 'ml-1' : 'mr-1'}`} />
                                                                 {t('common.view')}
                                                             </Button>

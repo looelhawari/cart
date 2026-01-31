@@ -21,6 +21,7 @@ import Spacing from '@/constants/Spacing';
 import {
   getComplaint,
   replyToComplaint,
+  broadcastTyping,
   type ComplaintDetail,
   type ComplaintMessage,
 } from '@/services/api/complaintsApi';
@@ -33,6 +34,9 @@ export default function ComplaintDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAdminTyping, setIsAdminTyping] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   const loadComplaint = async () => {
@@ -59,48 +63,103 @@ export default function ComplaintDetailsScreen() {
   useEffect(() => {
     if (!id) return;
 
-    console.log(`Listening to complaints.${id}`);
+    console.log(`[RT] Subscribing to complaints.${id}`);
     const channel = echo.private(`complaints.${id}`)
-      .listen('message.sent', (event: { message: ComplaintMessage }) => {
-        console.log('New message received:', event.message);
+      .listen('.message.sent', (event: { message: ComplaintMessage }) => {
+        console.log('[RT] New message received:', event.message);
+        setIsAdminTyping(false); // Clear typing when message arrives
+
         setComplaint((prev) => {
           if (!prev) return prev;
-          // Avoid duplicates
           if (prev.messages?.some((m) => m.id === event.message.id)) return prev;
-
           return {
             ...prev,
             messages: [...(prev.messages || []), event.message],
           };
         });
+
+        // Auto-scroll to bottom
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }, 100);
+      })
+      .listen('.user.typing', (event: { user_name: string; is_typing: boolean; is_admin: boolean }) => {
+        console.log('[RT] Typing event:', event);
+        if (event.is_admin) {
+          setIsAdminTyping(event.is_typing);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          if (event.is_typing) {
+            typingTimeoutRef.current = setTimeout(() => setIsAdminTyping(false), 3000);
+          }
+        }
       });
 
     return () => {
-      console.log(`Leaving complaints.${id}`);
+      console.log(`[RT] Leaving complaints.${id}`);
       echo.leave(`complaints.${id}`);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [id]);
 
   const handleSend = async () => {
     if (!message.trim() || !complaint) return;
+    const messageText = message.trim();
+    setMessage(''); // Clear immediately for better UX
+
     try {
       setSending(true);
-      await replyToComplaint(complaint.id, message.trim());
-      setMessage('');
 
-      // Optimistic update or reload
-      await loadComplaint();
-      // Scroll to bottom after reload
+      // Optimistic update - add message immediately
+      const optimisticMessage: ComplaintMessage = {
+        id: Date.now(), // Temporary ID
+        message: messageText,
+        is_admin_reply: false,
+        created_at: new Date().toISOString(),
+      };
+
+      setComplaint((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: [...(prev.messages || []), optimisticMessage],
+        };
+      });
+
+      // Scroll to bottom
       if (flatListRef.current) {
         setTimeout(() => {
           flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         }, 100);
       }
+
+      // Send to server
+      await replyToComplaint(complaint.id, messageText);
+
     } catch (err: any) {
       setError(err.message || 'Failed to send reply');
+      setMessage(messageText); // Restore message on error
     } finally {
       setSending(false);
     }
+  };
+
+  const handleTyping = (text: string) => {
+    setMessage(text);
+    if (!id) return;
+
+    // Clear existing timeout
+    if (sendTypingTimeoutRef.current) {
+      clearTimeout(sendTypingTimeoutRef.current);
+    } else {
+      // Send start typing
+      broadcastTyping(Number(id), true);
+    }
+
+    // Set timeout to stop typing
+    sendTypingTimeoutRef.current = setTimeout(() => {
+      broadcastTyping(Number(id), false);
+      sendTypingTimeoutRef.current = null;
+    }, 2000);
   };
 
   const getStatusColor = (status: string) => {
@@ -211,8 +270,8 @@ export default function ComplaintDetailsScreen() {
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
           style={styles.keyboardView}
         >
           {loading ? (
@@ -243,6 +302,23 @@ export default function ComplaintDetailsScreen() {
                 inverted
                 contentContainerStyle={styles.listContent}
                 ListFooterComponent={renderHeader} // Footer becomes header in inverted list
+                ListHeaderComponent={isAdminTyping ? (
+                  <View style={[styles.messageRow, styles.messageRowLeft]}>
+                    <View style={styles.avatarContainer}>
+                      <Image
+                        source={{ uri: 'https://ui-avatars.com/api/?name=Support&background=16a34a&color=fff' }}
+                        style={styles.avatar}
+                      />
+                    </View>
+                    <View style={[styles.messageBubble, styles.bubbleLeft, styles.typingBubble]}>
+                      <View style={styles.typingDots}>
+                        <View style={[styles.typingDot, styles.dot1]} />
+                        <View style={[styles.typingDot, styles.dot2]} />
+                        <View style={[styles.typingDot, styles.dot3]} />
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
                 showsVerticalScrollIndicator={false}
               />
             </>
@@ -256,7 +332,7 @@ export default function ComplaintDetailsScreen() {
                 placeholder="Type your reply..."
                 placeholderTextColor={Colors.neutralMedium}
                 value={message}
-                onChangeText={setMessage}
+                onChangeText={handleTyping}
                 multiline
                 maxLength={500}
               />
@@ -551,5 +627,31 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
     fontSize: 14,
     fontFamily: 'Poppins-Medium',
+  },
+  // Typing Indicator Styles
+  typingBubble: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.neutralMedium,
+    opacity: 0.6,
+  },
+  dot1: {
+    opacity: 0.4,
+  },
+  dot2: {
+    opacity: 0.6,
+  },
+  dot3: {
+    opacity: 0.8,
   },
 });

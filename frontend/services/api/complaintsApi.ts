@@ -167,3 +167,13 @@ export const closeComplaint = async (
     method: "POST",
   });
 };
+
+export const broadcastTyping = async (
+  id: number,
+  isTyping: boolean,
+): Promise<{ success: boolean }> => {
+  return await apiRequest<{ success: boolean }>(`/complaints/${id}/typing`, {
+    method: "POST",
+    body: JSON.stringify({ is_typing: isTyping }),
+  });
+};

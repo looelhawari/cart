@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { FormLabelWithTooltip } from '@/components/FormLabelWithTooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -465,7 +466,12 @@ export default function PromotionsPage() {
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="title">{t('promotions.form.titleEnglish')} *</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="title"
+                                    label={t('promotions.form.titleEnglish')}
+                                    tooltip={t('promotions.tooltips.titleEnglish')}
+                                    required
+                                />
                                 <Input
                                     id="title"
                                     {...register('title', { required: true })}
@@ -473,7 +479,12 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="title_ar">{t('promotions.form.titleArabic')} *</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="title_ar"
+                                    label={t('promotions.form.titleArabic')}
+                                    tooltip={t('promotions.tooltips.titleArabic')}
+                                    required
+                                />
                                 <Input
                                     id="title_ar"
                                     {...register('title_ar', { required: true })}
@@ -485,7 +496,11 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="description">{t('promotions.form.descriptionEnglish')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="description"
+                                    label={t('promotions.form.descriptionEnglish')}
+                                    tooltip={t('promotions.tooltips.descriptionEnglish')}
+                                />
                                 <Textarea
                                     id="description"
                                     {...register('description')}
@@ -493,7 +508,11 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="description_ar">{t('promotions.form.descriptionArabic')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="description_ar"
+                                    label={t('promotions.form.descriptionArabic')}
+                                    tooltip={t('promotions.tooltips.descriptionArabic')}
+                                />
                                 <Textarea
                                     id="description_ar"
                                     {...register('description_ar')}
@@ -505,7 +524,12 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-3 gap-4">
                             <div>
-                                <Label htmlFor="discount_type">{t('promotions.form.discountType')} *</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="discount_type"
+                                    label={t('promotions.form.discountType')}
+                                    tooltip={t('promotions.tooltips.discountType')}
+                                    required
+                                />
                                 <Controller
                                     name="discount_type"
                                     control={control}
@@ -526,7 +550,12 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="discount_value">{t('promotions.form.discountValue')} *</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="discount_value"
+                                    label={t('promotions.form.discountValue')}
+                                    tooltip={t('promotions.tooltips.discountValue')}
+                                    required
+                                />
                                 <Input
                                     id="discount_value"
                                     type="number"
@@ -536,7 +565,11 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="max_discount">{t('promotions.form.maxDiscountCap')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="max_discount"
+                                    label={t('promotions.form.maxDiscountCap')}
+                                    tooltip={t('promotions.tooltips.maxDiscount')}
+                                />
                                 <Input
                                     id="max_discount"
                                     type="number"
@@ -549,7 +582,12 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="start_date">{t('promotions.startDate')} *</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="start_date"
+                                    label={t('promotions.startDate')}
+                                    tooltip={t('promotions.tooltips.startDate')}
+                                    required
+                                />
                                 <Input
                                     id="start_date"
                                     type="datetime-local"
@@ -557,7 +595,12 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="end_date">{t('promotions.endDate')} *</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="end_date"
+                                    label={t('promotions.endDate')}
+                                    tooltip={t('promotions.tooltips.endDate')}
+                                    required
+                                />
                                 <Input
                                     id="end_date"
                                     type="datetime-local"
@@ -567,7 +610,12 @@ export default function PromotionsPage() {
                         </div>
 
                         <div>
-                            <Label htmlFor="applies_to">{t('promotions.appliesTo')} *</Label>
+                            <FormLabelWithTooltip
+                                htmlFor="applies_to"
+                                label={t('promotions.appliesTo')}
+                                tooltip={t('promotions.tooltips.appliesTo')}
+                                required
+                            />
                             <Controller
                                 name="applies_to"
                                 control={control}
@@ -804,7 +852,11 @@ export default function PromotionsPage() {
                         )}
 
                         <div>
-                            <Label htmlFor="min_purchase">{t('promotions.form.minPurchaseAmount')}</Label>
+                            <FormLabelWithTooltip
+                                htmlFor="min_purchase"
+                                label={t('promotions.form.minPurchaseAmount')}
+                                tooltip={t('promotions.tooltips.minPurchase')}
+                            />
                             <Input
                                 id="min_purchase"
                                 type="number"
@@ -816,7 +868,11 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="terms_conditions">{t('promotions.form.termsEnglish')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="terms_conditions"
+                                    label={t('promotions.form.termsEnglish')}
+                                    tooltip={t('promotions.tooltips.termsEnglish')}
+                                />
                                 <Textarea
                                     id="terms_conditions"
                                     {...register('terms_conditions')}
@@ -824,7 +880,11 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="terms_conditions_ar">{t('promotions.form.termsArabic')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="terms_conditions_ar"
+                                    label={t('promotions.form.termsArabic')}
+                                    tooltip={t('promotions.tooltips.termsArabic')}
+                                />
                                 <Textarea
                                     id="terms_conditions_ar"
                                     {...register('terms_conditions_ar')}
@@ -836,7 +896,11 @@ export default function PromotionsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="image">{t('promotions.form.promotionImage')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="image"
+                                    label={t('promotions.form.promotionImage')}
+                                    tooltip={t('promotions.tooltips.image')}
+                                />
                                 <Input
                                     id="image"
                                     type="file"
@@ -845,7 +909,11 @@ export default function PromotionsPage() {
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="banner_image">{t('promotions.form.bannerImage')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="banner_image"
+                                    label={t('promotions.form.bannerImage')}
+                                    tooltip={t('promotions.tooltips.bannerImage')}
+                                />
                                 <Input
                                     id="banner_image"
                                     type="file"
@@ -868,7 +936,12 @@ export default function PromotionsPage() {
                                         />
                                     )}
                                 />
-                                <Label htmlFor="is_active">{t('common.active')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="is_active"
+                                    label={t('common.active')}
+                                    tooltip={t('promotions.tooltips.isActive')}
+                                    className="mb-0"
+                                />
                             </div>
                             <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <Controller
@@ -882,7 +955,12 @@ export default function PromotionsPage() {
                                         />
                                     )}
                                 />
-                                <Label htmlFor="is_featured">{t('promotions.form.featuredHomepage')}</Label>
+                                <FormLabelWithTooltip
+                                    htmlFor="is_featured"
+                                    label={t('promotions.form.featuredHomepage')}
+                                    tooltip={t('promotions.tooltips.isFeatured')}
+                                    className="mb-0"
+                                />
                             </div>
                         </div>
 

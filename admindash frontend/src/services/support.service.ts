@@ -9,6 +9,7 @@ export interface TicketFilters {
     priority?: TicketPriority | TicketPriority[]
     category?: string[]
     assigned_to?: number | 'unassigned' | 'me'
+    customer_id?: number
     date_from?: string
     date_to?: string
     sort_by?: string
@@ -51,5 +52,9 @@ export const supportService = {
 
     uploadAttachment: async (id: number, file: File): Promise<any> => {
         return apiClient.uploadFile(`/admin/support/tickets/${id}/attachments`, file, 'file')
+    },
+
+    typing: async (id: number, isTyping: boolean): Promise<any> => {
+        return apiClient.post(`/admin/support/tickets/${id}/typing`, { is_typing: isTyping })
     },
 }

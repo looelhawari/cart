@@ -23,6 +23,7 @@ import {
 import { format, formatDistanceToNow } from 'date-fns'
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { FormLabelWithTooltip } from '@/components/FormLabelWithTooltip'
 import type { PromoCode } from '@/types'
 
 // Type icons mapping
@@ -862,7 +863,12 @@ export default function PromoCodesPage() {
                                 <TabsContent value="basic" className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <Label htmlFor="code">{t('promoCodes.code')} *</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="code"
+                                                label={t('promoCodes.code')}
+                                                tooltip={t('promoCodes.tooltips.code')}
+                                                required
+                                            />
                                             <Input
                                                 id="code"
                                                 {...register('code', { required: t('promoCodes.codeRequired') })}
@@ -874,7 +880,12 @@ export default function PromoCodesPage() {
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="type">{t('promoCodes.discountType')} *</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="type"
+                                                label={t('promoCodes.discountType')}
+                                                tooltip={t('promoCodes.tooltips.discountType')}
+                                                required
+                                            />
                                             <Controller
                                                 name="type"
                                                 control={control}
@@ -919,9 +930,12 @@ export default function PromoCodesPage() {
                                     <div className="mt-4">
                                         {watchType !== 'free_delivery' && watchType !== 'bogo' && (
                                             <div>
-                                                <Label htmlFor="value">
-                                                    {watchType === 'percentage' ? t('promoCodes.percentageValue') : t('promoCodes.discountAmount')}
-                                                </Label>
+                                                <FormLabelWithTooltip
+                                                    htmlFor="value"
+                                                    label={watchType === 'percentage' ? t('promoCodes.percentageValue') : t('promoCodes.discountAmount')}
+                                                    tooltip={t('promoCodes.tooltips.value')}
+                                                    required
+                                                />
                                                 <Input
                                                     id="value"
                                                     type="number"
@@ -941,7 +955,11 @@ export default function PromoCodesPage() {
                                     {watchType === 'percentage' && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <Label htmlFor="maximum_discount">{t('promoCodes.maximumDiscount')}</Label>
+                                                <FormLabelWithTooltip
+                                                    htmlFor="maximum_discount"
+                                                    label={t('promoCodes.maximumDiscount')}
+                                                    tooltip={t('promoCodes.tooltips.maximumDiscount')}
+                                                />
                                                 <Input
                                                     id="maximum_discount"
                                                     type="number"
@@ -952,7 +970,11 @@ export default function PromoCodesPage() {
                                                 <p className="text-xs text-gray-500 mt-1">{t('promoCodes.capMaxDiscount')}</p>
                                             </div>
                                             <div>
-                                                <Label htmlFor="minimum_order">{t('promoCodes.minimumOrder')}</Label>
+                                                <FormLabelWithTooltip
+                                                    htmlFor="minimum_order"
+                                                    label={t('promoCodes.minimumOrder')}
+                                                    tooltip={t('promoCodes.tooltips.minimumOrder')}
+                                                />
                                                 <Input
                                                     id="minimum_order"
                                                     type="number"
@@ -966,7 +988,12 @@ export default function PromoCodesPage() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <Label htmlFor="valid_from">{t('promoCodes.validFrom')} *</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="valid_from"
+                                                label={t('promoCodes.validFrom')}
+                                                tooltip={t('promoCodes.tooltips.startDate')}
+                                                required
+                                            />
                                             <Input
                                                 id="valid_from"
                                                 type="date"
@@ -975,7 +1002,12 @@ export default function PromoCodesPage() {
                                             {errors.valid_from && <span className="text-xs text-red-500">{errors.valid_from.message}</span>}
                                         </div>
                                         <div>
-                                            <Label htmlFor="valid_until">{t('promoCodes.validUntil')} *</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="valid_until"
+                                                label={t('promoCodes.validUntil')}
+                                                tooltip={t('promoCodes.tooltips.endDate')}
+                                                required
+                                            />
                                             <Input
                                                 id="valid_until"
                                                 type="date"
@@ -1202,7 +1234,11 @@ export default function PromoCodesPage() {
                                                 <h5 className="font-medium text-gray-700">{t('promoCodes.targeting.customCriteria')}</h5>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <Label>{t('promoCodes.targeting.minSpend30Days')}</Label>
+                                                        <FormLabelWithTooltip
+                                                            htmlFor="minimum_spend_30days"
+                                                            label={t('promoCodes.targeting.minSpend30Days')}
+                                                            tooltip={t('promoCodes.tooltips.minSpend')}
+                                                        />
                                                         <Input
                                                             type="number"
                                                             {...register('minimum_spend_30days' as any)}
@@ -1211,7 +1247,11 @@ export default function PromoCodesPage() {
                                                         <p className="text-xs text-gray-500 mt-1">{t('promoCodes.targeting.minSpendHint')}</p>
                                                     </div>
                                                     <div>
-                                                        <Label>{t('promoCodes.targeting.minOrders30Days')}</Label>
+                                                        <FormLabelWithTooltip
+                                                            htmlFor="minimum_orders_30days"
+                                                            label={t('promoCodes.targeting.minOrders30Days')}
+                                                            tooltip={t('promoCodes.tooltips.minOrders')}
+                                                        />
                                                         <Input
                                                             type="number"
                                                             {...register('minimum_orders_30days' as any)}
@@ -1238,11 +1278,19 @@ export default function PromoCodesPage() {
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div>
-                                                        <Label>{t('promoCodes.targeting.locationCity')}</Label>
+                                                        <FormLabelWithTooltip
+                                                            htmlFor="location"
+                                                            label={t('promoCodes.targeting.locationCity')}
+                                                            tooltip={t('promoCodes.tooltips.location')}
+                                                        />
                                                         <Input {...register('location' as any)} placeholder="Cairo, Alex..." />
                                                     </div>
                                                     <div>
-                                                        <Label>{t('promoCodes.targeting.specificUserIds')}</Label>
+                                                        <FormLabelWithTooltip
+                                                            htmlFor="specific_user_ids"
+                                                            label={t('promoCodes.targeting.specificUserIds')}
+                                                            tooltip={t('promoCodes.tooltips.specificUserIds')}
+                                                        />
                                                         <Input {...register('specific_user_ids' as any)} placeholder={t('promoCodes.targeting.specificUserIdsHint')} />
                                                     </div>
                                                 </div>
@@ -1446,10 +1494,12 @@ export default function PromoCodesPage() {
 
                                         <div className="space-y-4">
                                             <div className="bg-white rounded-lg border border-pink-200 p-4">
-                                                <Label className="flex items-center gap-2 mb-2">
-                                                    <span className="text-lg">🇬🇧</span>
-                                                    {t('promoCodes.targeting.messageEnglish')}
-                                                </Label>
+                                                <FormLabelWithTooltip
+                                                    htmlFor="promotional_message"
+                                                    label={`🇬🇧 ${t('promoCodes.targeting.messageEnglish')}`}
+                                                    tooltip={t('promoCodes.tooltips.promoMessageEn')}
+                                                    className="mb-2"
+                                                />
                                                 <textarea
                                                     {...register('promotional_message' as any)}
                                                     className="w-full border rounded-lg p-3 text-sm resize-none"
@@ -1459,10 +1509,12 @@ export default function PromoCodesPage() {
                                             </div>
 
                                             <div className="bg-white rounded-lg border border-pink-200 p-4">
-                                                <Label className="flex items-center gap-2 mb-2">
-                                                    <span className="text-lg">🇸🇦</span>
-                                                    {t('promoCodes.targeting.messageArabic')}
-                                                </Label>
+                                                <FormLabelWithTooltip
+                                                    htmlFor="promotional_message_ar"
+                                                    label={`🇸🇦 ${t('promoCodes.targeting.messageArabic')}`}
+                                                    tooltip={t('promoCodes.tooltips.promoMessageAr')}
+                                                    className="mb-2"
+                                                />
                                                 <textarea
                                                     {...register('promotional_message_ar' as any)}
                                                     className="w-full border rounded-lg p-3 text-sm resize-none text-right"
@@ -1485,7 +1537,11 @@ export default function PromoCodesPage() {
                                 <TabsContent value="limits" className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <Label htmlFor="usage_limit">{t('promoCodes.usageLimit')}</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="usage_limit"
+                                                label={t('promoCodes.usageLimit')}
+                                                tooltip={t('promoCodes.tooltips.usageLimit')}
+                                            />
                                             <Input
                                                 id="usage_limit"
                                                 type="number"
@@ -1495,7 +1551,11 @@ export default function PromoCodesPage() {
                                             <p className="text-xs text-gray-500 mt-1">{t('promoCodes.usageLimitHint')}</p>
                                         </div>
                                         <div>
-                                            <Label htmlFor="usage_per_user">{t('promoCodes.usagePerUser')}</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="usage_per_user"
+                                                label={t('promoCodes.usagePerUser')}
+                                                tooltip={t('promoCodes.tooltips.usagePerUser')}
+                                            />
                                             <Input
                                                 id="usage_per_user"
                                                 type="number"
@@ -1508,7 +1568,11 @@ export default function PromoCodesPage() {
 
                                     {!watchType.includes('free') && (
                                         <div>
-                                            <Label htmlFor="minimum_order">{t('promoCodes.minimumOrderAmount')}</Label>
+                                            <FormLabelWithTooltip
+                                                htmlFor="minimum_order"
+                                                label={t('promoCodes.minimumOrderAmount')}
+                                                tooltip={t('promoCodes.tooltips.minimumOrder')}
+                                            />
                                             <Input
                                                 id="minimum_order"
                                                 type="number"
@@ -1607,7 +1671,13 @@ export default function PromoCodesPage() {
                                                                 <p className="text-xs font-bold text-gray-600 mb-2">🛒 {t('promoCodes.bogo.whenCustomerBuys')}:</p>
                                                                 <div className="grid grid-cols-3 gap-3">
                                                                     <div>
-                                                                        <Label className="text-xs">{t('promoCodes.bogo.buyQty')}</Label>
+                                                                        <FormLabelWithTooltip
+                                                                            htmlFor={`bogo_buy_qty_${index}`}
+                                                                            label={t('promoCodes.bogo.buyQty')}
+                                                                            tooltip={t('promoCodes.tooltips.bogo.buyQty')}
+                                                                            labelClassName="text-xs"
+                                                                            className="mb-0"
+                                                                        />
                                                                         <Input
                                                                             type="number"
                                                                             min="1"
@@ -1616,7 +1686,13 @@ export default function PromoCodesPage() {
                                                                         />
                                                                     </div>
                                                                     <div className="col-span-2">
-                                                                        <Label className="text-xs">{t('promoCodes.bogo.buyFrom')}</Label>
+                                                                        <FormLabelWithTooltip
+                                                                            htmlFor={`bogo_buy_scope_${index}`}
+                                                                            label={t('promoCodes.bogo.buyFrom')}
+                                                                            tooltip={t('promoCodes.tooltips.bogo.buyFrom')}
+                                                                            labelClassName="text-xs"
+                                                                            className="mb-0"
+                                                                        />
                                                                         <Controller
                                                                             name={`bogo_rules.${index}.buy_scope` as any}
                                                                             control={control}
@@ -1636,7 +1712,13 @@ export default function PromoCodesPage() {
                                                                     </div>
                                                                     {watch(`bogo_rules.${index}.buy_scope`) === 'product' && (
                                                                         <div className="col-span-3">
-                                                                            <Label className="text-xs">{t('promoCodes.bogo.selectProductBarcode')}</Label>
+                                                                            <FormLabelWithTooltip
+                                                                                htmlFor={`bogo_buy_product_${index}`}
+                                                                                label={t('promoCodes.bogo.selectProductBarcode')}
+                                                                                tooltip={t('promoCodes.tooltips.bogo.buyProductId')}
+                                                                                labelClassName="text-xs"
+                                                                                className="mb-0"
+                                                                            />
                                                                             <Input
                                                                                 type="number"
                                                                                 placeholder={t('promoCodes.bogo.productBarcodePlaceholder')}
@@ -1647,7 +1729,13 @@ export default function PromoCodesPage() {
                                                                     )}
                                                                     {watch(`bogo_rules.${index}.buy_scope`) === 'category' && (
                                                                         <div className="col-span-3">
-                                                                            <Label className="text-xs">{t('promoCodes.bogo.selectCategory')}</Label>
+                                                                            <FormLabelWithTooltip
+                                                                                htmlFor={`bogo_buy_category_${index}`}
+                                                                                label={t('promoCodes.bogo.selectCategory')}
+                                                                                tooltip={t('promoCodes.tooltips.bogo.buyCategoryId')}
+                                                                                labelClassName="text-xs"
+                                                                                className="mb-0"
+                                                                            />
                                                                             <Controller
                                                                                 name={`bogo_rules.${index}.buy_category_id` as any}
                                                                                 control={control}
@@ -1676,7 +1764,13 @@ export default function PromoCodesPage() {
                                                                 <p className="text-xs font-bold text-green-700 mb-2">🎁 {t('promoCodes.bogo.theyGet')}:</p>
                                                                 <div className="grid grid-cols-4 gap-3">
                                                                     <div>
-                                                                        <Label className="text-xs">{t('promoCodes.bogo.getQty')}</Label>
+                                                                        <FormLabelWithTooltip
+                                                                            htmlFor={`bogo_get_qty_${index}`}
+                                                                            label={t('promoCodes.bogo.getQty')}
+                                                                            tooltip={t('promoCodes.tooltips.bogo.getQty')}
+                                                                            labelClassName="text-xs"
+                                                                            className="mb-0"
+                                                                        />
                                                                         <Input
                                                                             type="number"
                                                                             min="1"
@@ -1685,7 +1779,13 @@ export default function PromoCodesPage() {
                                                                         />
                                                                     </div>
                                                                     <div>
-                                                                        <Label className="text-xs">{t('promoCodes.bogo.getFrom')}</Label>
+                                                                        <FormLabelWithTooltip
+                                                                            htmlFor={`bogo_get_scope_${index}`}
+                                                                            label={t('promoCodes.bogo.getFrom')}
+                                                                            tooltip={t('promoCodes.tooltips.bogo.getFrom')}
+                                                                            labelClassName="text-xs"
+                                                                            className="mb-0"
+                                                                        />
                                                                         <Controller
                                                                             name={`bogo_rules.${index}.get_scope` as any}
                                                                             control={control}
@@ -1704,7 +1804,13 @@ export default function PromoCodesPage() {
                                                                         />
                                                                     </div>
                                                                     <div>
-                                                                        <Label className="text-xs">{t('promoCodes.bogo.discount')}</Label>
+                                                                        <FormLabelWithTooltip
+                                                                            htmlFor={`bogo_get_discount_type_${index}`}
+                                                                            label={t('promoCodes.bogo.discount')}
+                                                                            tooltip={t('promoCodes.tooltips.bogo.discountType')}
+                                                                            labelClassName="text-xs"
+                                                                            className="mb-0"
+                                                                        />
                                                                         <Controller
                                                                             name={`bogo_rules.${index}.get_discount_type` as any}
                                                                             control={control}
@@ -1724,7 +1830,13 @@ export default function PromoCodesPage() {
                                                                     </div>
                                                                     {watch(`bogo_rules.${index}.get_discount_type`) !== 'free' && (
                                                                         <div>
-                                                                            <Label className="text-xs">{t('promoCodes.bogo.discountValue')}</Label>
+                                                                            <FormLabelWithTooltip
+                                                                                htmlFor={`bogo_get_discount_value_${index}`}
+                                                                                label={t('promoCodes.bogo.discountValue')}
+                                                                                tooltip={t('promoCodes.tooltips.bogo.discountValue')}
+                                                                                labelClassName="text-xs"
+                                                                                className="mb-0"
+                                                                            />
                                                                             <Input
                                                                                 type="number"
                                                                                 min="0"
@@ -1735,7 +1847,13 @@ export default function PromoCodesPage() {
                                                                         </div>
                                                                     )}
                                                                     <div>
-                                                                        <Label className="text-xs">{t('promoCodes.bogo.maxPerOrder')}</Label>
+                                                                        <FormLabelWithTooltip
+                                                                            htmlFor={`bogo_max_per_order_${index}`}
+                                                                            label={t('promoCodes.bogo.maxPerOrder')}
+                                                                            tooltip={t('promoCodes.tooltips.bogo.maxPerOrder')}
+                                                                            labelClassName="text-xs"
+                                                                            className="mb-0"
+                                                                        />
                                                                         <Input
                                                                             type="number"
                                                                             min="1"
@@ -1745,7 +1863,13 @@ export default function PromoCodesPage() {
                                                                     </div>
                                                                     {watch(`bogo_rules.${index}.get_scope`) === 'product' && (
                                                                         <div className="col-span-4">
-                                                                            <Label className="text-xs">{t('promoCodes.bogo.freeProductBarcode')}</Label>
+                                                                            <FormLabelWithTooltip
+                                                                                htmlFor={`bogo_get_product_${index}`}
+                                                                                label={t('promoCodes.bogo.freeProductBarcode')}
+                                                                                tooltip={t('promoCodes.tooltips.bogo.getProductId')}
+                                                                                labelClassName="text-xs"
+                                                                                className="mb-0"
+                                                                            />
                                                                             <Input
                                                                                 type="number"
                                                                                 placeholder={t('promoCodes.bogo.productBarcodePlaceholder')}
@@ -1756,7 +1880,13 @@ export default function PromoCodesPage() {
                                                                     )}
                                                                     {watch(`bogo_rules.${index}.get_scope`) === 'category' && (
                                                                         <div className="col-span-4">
-                                                                            <Label className="text-xs">{t('promoCodes.bogo.freeFromCategory')}</Label>
+                                                                            <FormLabelWithTooltip
+                                                                                htmlFor={`bogo_get_category_${index}`}
+                                                                                label={t('promoCodes.bogo.freeFromCategory')}
+                                                                                tooltip={t('promoCodes.tooltips.bogo.getCategoryId')}
+                                                                                labelClassName="text-xs"
+                                                                                className="mb-0"
+                                                                            />
                                                                             <Controller
                                                                                 name={`bogo_rules.${index}.get_category_id` as any}
                                                                                 control={control}

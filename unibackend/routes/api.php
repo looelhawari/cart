@@ -256,6 +256,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [ComplaintController::class, 'store']);
             Route::get('/{id}', [ComplaintController::class, 'show']);
             Route::post('/{id}/messages', [ComplaintController::class, 'addMessage']);
+            Route::post('/{id}/typing', [ComplaintController::class, 'typing']);
         });
 
         // Reviews endpoints (protected)
@@ -302,6 +303,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{barcode}', [AdminProductController::class, 'show']);
                 Route::put('/{barcode}', [AdminProductController::class, 'update']);
                 Route::delete('/{barcode}', [AdminProductController::class, 'destroy']);
+                Route::post('/{barcode}/upload-image', [AdminProductController::class, 'uploadImage']);
             });
 
             // Categories Management
@@ -330,7 +332,21 @@ Route::prefix('v1')->group(function () {
                 Route::post('/tickets', [SupportController::class, 'store']);
                 Route::get('/tickets/{id}', [SupportController::class, 'show']);
                 Route::put('/tickets/{id}', [SupportController::class, 'update']);
+                Route::put('/tickets/{id}/status', [SupportController::class, 'updateStatus']);
+                Route::put('/tickets/{id}/priority', [SupportController::class, 'updatePriority']);
+                Route::post('/tickets/{id}/assign', [SupportController::class, 'assignTicket']);
                 Route::post('/tickets/{id}/messages', [SupportController::class, 'addMessage']);
+                Route::post('/tickets/{id}/typing', [SupportController::class, 'typing']);
+            });
+
+            // Canned Responses
+            Route::prefix('canned-responses')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'index']);
+                Route::post('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'store']);
+                Route::get('/categories', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'categories']);
+                Route::get('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'show']);
+                Route::put('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'update']);
+                Route::delete('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'destroy']);
             });
 
             // Financial Management

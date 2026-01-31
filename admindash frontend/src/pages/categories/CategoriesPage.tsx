@@ -9,10 +9,27 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Edit, Trash2, FolderTree } from 'lucide-react'
+import { Plus, Edit, Trash2, FolderTree, Info } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { Category } from '@/types'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
+const FormLabelWithTooltip = ({ htmlFor, label, tooltip, required }: { htmlFor?: string, label: string, tooltip: string, required?: boolean }) => (
+    <div className="flex items-center gap-2 mb-1.5">
+        <Label htmlFor={htmlFor} className="cursor-pointer">{label} {required && <span className="text-red-500">*</span>}</Label>
+        <TooltipProvider>
+            <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-primary cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    <p className="max-w-xs text-xs">{tooltip}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    </div>
+)
 
 export default function CategoriesPage() {
     const { t, i18n } = useTranslation()
@@ -293,34 +310,49 @@ export default function CategoriesPage() {
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="name_en">{t('categories.nameEn')} *</Label>
+                                <FormLabelWithTooltip htmlFor="name_en" label={t('categories.nameEn')} tooltip={t('categories.tooltips.nameEn')} required />
                                 <Input id="name_en" {...register('name_en', { required: true })} placeholder={t('categories.nameEnPlaceholder')} />
                             </div>
                             <div>
-                                <Label htmlFor="name_ar">{t('categories.nameAr')} *</Label>
+                                <FormLabelWithTooltip htmlFor="name_ar" label={t('categories.nameAr')} tooltip={t('categories.tooltips.nameAr')} required />
                                 <Input id="name_ar" {...register('name_ar', { required: true })} placeholder={t('categories.nameArPlaceholder')} dir="rtl" />
                             </div>
                         </div>
 
                         <div>
-                            <Label htmlFor="slug">{t('categories.slug')} *</Label>
-                            <Input id="slug" {...register('slug', { required: true })} placeholder={t('categories.slugPlaceholder')} />
-                            <p className="text-xs text-muted-foreground mt-1">{t('categories.slugHint')}</p>
+                            <FormLabelWithTooltip htmlFor="slug" label={t('categories.slug')} tooltip={t('categories.tooltips.slug')} required />
+                            <Input
+                                id="slug"
+                                {...register('slug', { required: true })}
+                                placeholder={t('categories.slugPlaceholder')}
+                                disabled={!!editingCategory}
+                            />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="icon">{t('categories.icon')}</Label>
-                                <Input id="icon" {...register('icon')} placeholder={t('categories.iconPlaceholder')} />
+                                <FormLabelWithTooltip htmlFor="icon" label={t('categories.icon')} tooltip={t('categories.tooltips.icon')} />
+                                <Input
+                                    id="icon"
+                                    {...register('icon')}
+                                    placeholder={t('categories.iconPlaceholder')}
+                                    disabled={!!editingCategory}
+                                />
                             </div>
                             <div>
-                                <Label htmlFor="sort_order">{t('categories.sortOrder')}</Label>
-                                <Input id="sort_order" type="number" {...register('sort_order')} placeholder="0" />
+                                <FormLabelWithTooltip htmlFor="sort_order" label={t('categories.sortOrder')} tooltip={t('categories.tooltips.sortOrder')} />
+                                <Input
+                                    id="sort_order"
+                                    type="number"
+                                    {...register('sort_order')}
+                                    placeholder="0"
+                                    disabled={!!editingCategory}
+                                />
                             </div>
                         </div>
 
                         <div>
-                            <Label htmlFor="parent_id">{t('categories.parent')}</Label>
+                            <FormLabelWithTooltip htmlFor="parent_id" label={t('categories.parent')} tooltip={t('categories.tooltips.parent')} />
                             <Select
                                 value={watch('parent_id') === null || watch('parent_id') === undefined ? 'null' : watch('parent_id')?.toString()}
                                 onValueChange={(value) => setValue('parent_id', value === 'null' ? null : Number(value))}
@@ -343,17 +375,17 @@ export default function CategoriesPage() {
                         </div>
 
                         <div>
-                            <Label htmlFor="description_en">{t('categories.descriptionEn')}</Label>
+                            <FormLabelWithTooltip htmlFor="description_en" label={t('categories.descriptionEn')} tooltip={t('categories.tooltips.descriptionEn')} />
                             <Textarea id="description_en" {...register('description_en')} rows={2} placeholder={t('categories.descriptionEnPlaceholder')} />
                         </div>
 
                         <div>
-                            <Label htmlFor="description_ar">{t('categories.descriptionAr')}</Label>
+                            <FormLabelWithTooltip htmlFor="description_ar" label={t('categories.descriptionAr')} tooltip={t('categories.tooltips.descriptionAr')} />
                             <Textarea id="description_ar" {...register('description_ar')} rows={2} placeholder={t('categories.descriptionArPlaceholder')} dir="rtl" />
                         </div>
 
                         <div>
-                            <Label htmlFor="image">{t('categories.image')}</Label>
+                            <FormLabelWithTooltip htmlFor="image" label={t('categories.image')} tooltip={t('categories.tooltips.image')} />
                             <Input
                                 id="image"
                                 type="file"
@@ -375,6 +407,16 @@ export default function CategoriesPage() {
                         <div className={`flex items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                             <input type="checkbox" id="is_active" {...register('is_active')} className="h-4 w-4 rounded border-gray-300" />
                             <Label htmlFor="is_active">{t('common.active')}</Label>
+                            <TooltipProvider>
+                                <Tooltip delayDuration={300}>
+                                    <TooltipTrigger asChild>
+                                        <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-primary cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                                        <p className="max-w-xs text-xs">{t('categories.tooltips.isActive')}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
 
                         <DialogFooter>

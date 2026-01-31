@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 
 class AdminCategoryController extends Controller
@@ -98,23 +99,32 @@ class AdminCategoryController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
+            $cloudinary = new CloudinaryService();
+
             // Delete old image if exists
-            if ($category->image && file_exists(public_path($category->image))) {
-                unlink(public_path($category->image));
+            if ($category->image) {
+                $oldPublicId = $cloudinary->getPublicIdFromUrl($category->image);
+                if ($oldPublicId) {
+                    $cloudinary->deleteImage($oldPublicId);
+                }
             }
 
-            $image = $request->file('image');
-            $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
-            $path = 'uploads/categories';
-            
-            // Create directory if it doesn't exist
-            if (!file_exists(public_path($path))) {
-                mkdir(public_path($path), 0777, true);
-            }
+            // Upload to Cloudinary
+            $result = $cloudinary->uploadImage(
+                $request->file('image'),
+                'categories',
+                ['public_id' => 'category_' . $category->id . '_' . time()]
+            );
 
-            $image->move(public_path($path), $filename);
-            $category->image = '/' . $path . '/' . $filename;
-            $category->save();
+            if ($result['success']) {
+                $category->image = $result['url'];
+                $category->save();
+            } else {
+                return response()->json([
+                    'message' => 'Failed to upload image',
+                    'error' => $result['error'] ?? 'Unknown error'
+                ], 500);
+            }
         }
 
         return response()->json($category->load('parent'));

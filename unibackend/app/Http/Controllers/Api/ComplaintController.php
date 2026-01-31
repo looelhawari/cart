@@ -229,4 +229,35 @@ class ComplaintController extends Controller
             'message' => 'Complaint closed successfully',
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
+
+    /**
+     * Broadcast typing status
+     * POST /api/v1/complaints/{id}/typing
+     */
+    public function typing(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $complaint = Complaint::where('id', $id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$complaint) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Complaint not found',
+            ], 404, [], JSON_UNESCAPED_UNICODE);
+        }
+
+        broadcast(new \App\Events\UserTyping(
+            $complaint->id,
+            $user->id,
+            $user->first_name . ' ' . $user->last_name,
+            $request->boolean('is_typing'),
+            false // not admin
+        ))->toOthers();
+
+        return response()->json([
+            'success' => true,
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
 }

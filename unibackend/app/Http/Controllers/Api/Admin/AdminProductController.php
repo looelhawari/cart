@@ -7,6 +7,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\CloudinaryService;
 
 class AdminProductController extends Controller
 {
@@ -132,11 +133,55 @@ class AdminProductController extends Controller
         $product = Product::where('barcode', $barcode)->firstOrFail();
 
         if ($product->image_url) {
-            Storage::disk('public')->delete($product->image_url);
+            $cloudinary = new CloudinaryService();
+            $publicId = $cloudinary->getPublicIdFromUrl($product->image_url);
+            if ($publicId) {
+                $cloudinary->deleteImage($publicId);
+            }
         }
 
         $product->delete();
 
         return response()->json(['message' => 'Product deleted successfully']);
+    }
+
+    public function uploadImage(Request $request, $barcode)
+    {
+        $product = Product::where('barcode', $barcode)->firstOrFail();
+
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+        ]);
+
+        if ($request->hasFile('image')) {
+            $cloudinary = new CloudinaryService();
+
+            // Delete old image if exists
+            if ($product->image_url) {
+                $oldPublicId = $cloudinary->getPublicIdFromUrl($product->image_url);
+                if ($oldPublicId) {
+                    $cloudinary->deleteImage($oldPublicId);
+                }
+            }
+
+            // Upload to Cloudinary
+            $result = $cloudinary->uploadImage(
+                $request->file('image'),
+                'products',
+                ['public_id' => 'product_' . $product->id . '_' . time()]
+            );
+
+            if ($result['success']) {
+                $product->image_url = $result['url'];
+                $product->save();
+            } else {
+                return response()->json([
+                    'message' => 'Failed to upload image',
+                    'error' => $result['error'] ?? 'Unknown error'
+                ], 500);
+            }
+        }
+
+        return response()->json($product->load('categories'));
     }
 }

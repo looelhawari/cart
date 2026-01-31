@@ -218,7 +218,32 @@
         "createError": "Failed to create product",
         "updateError": "Failed to update product",
         "deleteError": "Failed to delete product",
-        "confirmDelete": "Are you sure you want to delete this product?"
+        "confirmDelete": "Are you sure you want to delete this product?",
+        "tooltips": {
+            "barcode": "A unique code to identify this product (e.g. EAN13).",
+            "mainCategory": "The primary category this product belongs to.",
+            "subCategory": "A specific sub-category for better classification.",
+            "slug": "URL-friendly name used in the address bar (SEO).",
+            "nameEn": "The name of the product in English.",
+            "nameAr": "The name of the product in Arabic.",
+            "packaging": "The packaging type (e.g. Can, Box, Piece).",
+            "salesCount": "Total units sold. Can be manually adjusted for initial data.",
+            "price": "The currently displayed selling price.",
+            "originalPrice": "The pre-discount price (crossed out for reference).",
+            "salePrice": "The discounted price if a sale is active.",
+            "activePromotionId": "ID of a specific promotion campaign applied to this product.",
+            "costPrice": "The internal cost to purchase or manufacture this product.",
+            "stockQuantity": "Current available inventory count.",
+            "minStockLevel": "Stock level at which a 'Low Stock' warning appears.",
+            "weight": "Physical weight of the product in grams.",
+            "unit": "Unit of measurement (e.g. kg, liter, piece).",
+            "descriptionEn": "Detailed product description in English.",
+            "descriptionAr": "Detailed product description in Arabic.",
+            "nutritionFacts": "Information about calories, fats, vitamins, ingredients etc.",
+            "isActive": "If unchecked, product is hidden from the store.",
+            "isFeatured": "If checked, product appears in 'Featured' sections.",
+            "image": "Main product image to be displayed."
+        }
     },
     "categories": {
         "title": "Categories",
@@ -255,7 +280,19 @@
         "deleteError": "Failed to delete category",
         "confirmDelete": "Are you sure you want to delete this category?",
         "cannotDeleteWithProducts": "Cannot delete category with products",
-        "cannotDeleteWithSubcategories": "Cannot delete category with subcategories"
+        "cannotDeleteWithSubcategories": "Cannot delete category with subcategories",
+        "tooltips": {
+            "nameEn": "The name of the category in English.",
+            "nameAr": "The name of the category in Arabic.",
+            "slug": "URL-friendly identifier.",
+            "icon": "Icon name/code (e.g. from Lucide library) to represent this category.",
+            "sortOrder": "Order of appearance in lists (lower numbers first).",
+            "parent": "If selected, this category will be a sub-category under the parent.",
+            "descriptionEn": "Detailed explanation of what this category contains (English).",
+            "descriptionAr": "Detailed explanation of what this category contains (Arabic).",
+            "image": "Banner or thumbnail image for the category.",
+            "isActive": "If unchecked, this category and its products may be hidden."
+        }
     },
     "orders": {
         "title": "Orders",
@@ -366,7 +403,36 @@
     "promoCodes": {
         "title": "Promo Codes",
         "subtitle": "Create and manage extraordinary discount experiences",
-        "addPromoCode": "Create Promo Code",
+        "tooltips": {
+            "code": "The unique code users will enter (e.g. SUMMER2024). Uppercase only.",
+            "type": "The logic used to calculate the discount.",
+            "value": "The numerical value of the discount.",
+            "maxDiscount": "The maximum amount that can be deducted.",
+            "minOrder": "Minimum subtotal required to use this code.",
+            "validFrom": "Start date for code validity.",
+            "validUntil": "Expiration date for code validity.",
+            "usageLimit": "Total number of times this code can be used by anyone.",
+            "usagePerUser": "How many times a single user can use this code.",
+            "userSegment": "Select which group of users can use this code.",
+            "productScope": "Define if this applies to the whole order or specific items.",
+            "promoMessageEn": "Message shown to the user when code is applied (English).",
+            "promoMessageAr": "Message shown to the user when code is applied (Arabic).",
+            "firstOrderOnly": "If enabled, this code can only be used on the user's first order.",
+            "bogo": {
+                "buyQty": "Quantity customer must buy to trigger the offer.",
+                "buyFrom": "Product source for the 'buy' condition (any, specific product, or category).",
+                "buyProductId": "Barcode of the product to buy.",
+                "buyCategoryId": "Category of products to buy from.",
+                "getQty": "Quantity customer receives with discount.",
+                "getFrom": "Product source for the 'get' item (same product, specific, or category).",
+                "discountType": "Type of discount for the 'get' item (Free, %, Fixed).",
+                "discountValue": "Value of the discount.",
+                "maxPerOrder": "Maximum times this rule can apply per order.",
+                "getProductId": "Barcode of the product to give.",
+                "getCategoryId": "Category of products to give from."
+            }
+        },
+        "addPromoCode": "Add Promo Code",
         "editPromoCode": "Edit Promo Code",
         "deletePromoCode": "Delete Promo Code",
         "createExtraordinary": "Create Extraordinary Promo Code",
@@ -569,6 +635,25 @@
             "percentage": "Percentage (%)",
             "fixed": "Fixed Amount",
             "buyXGetY": "Buy X Get Y"
+        },
+        "tooltips": {
+            "titleEnglish": "The name of the promotion displayed to English users.",
+            "titleArabic": "The name of the promotion displayed to Arabic users.",
+            "descriptionEnglish": "A brief description of what the promotion offers (English).",
+            "descriptionArabic": "A brief description of what the promotion offers (Arabic).",
+            "discountType": "Choose between Percentage (%), Fixed Amount, or other types.",
+            "discountValue": "The value of the discount (e.g. 20 for 20% or 50 for 50 EGP).",
+            "maxDiscount": "Limit the maximum discount amount for percentage-based offers.",
+            "startDate": "When this promotion becomes active.",
+            "endDate": "When this promotion expires.",
+            "appliesTo": "Choose to apply this to all items, specific categories, or specific products.",
+            "isActive": "Toggle to enable or disable this promotion immediately.",
+            "isFeatured": "If checked, this promotion will be highlighted in the app.",
+            "minPurchase": "Minimum amount required to qualify for this promotion.",
+            "termsEnglish": "Terms and conditions in English.",
+            "termsArabic": "Terms and conditions in Arabic.",
+            "image": "Main image for the promotion card.",
+            "bannerImage": "Wide banner image for details page."
         },
         "form": {
             "titleEnglish": "Title (English)",

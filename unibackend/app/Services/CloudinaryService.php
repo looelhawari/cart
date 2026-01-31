@@ -26,7 +26,7 @@ class CloudinaryService
             ],
         ]);
 
-        $this->uploadApi = new UploadApi();
+        $this->uploadApi = $this->cloudinary->uploadApi();
     }
 
     /**

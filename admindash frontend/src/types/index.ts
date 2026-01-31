@@ -73,7 +73,9 @@ export interface Product {
     name: string
     name_en?: string
     name_ar: string
+    slug?: string
     description: string | null
+    description_en?: string | null
     description_ar: string | null
     price: number
     original_price: number | null
@@ -90,6 +92,9 @@ export interface Product {
     is_active?: boolean
     weight: number | null
     unit: string | null
+    packaging?: string | null
+    nutrition_facts?: string | null
+    sales_count?: number
     active_promotion_id: number | null
     active_promotion?: Promotion
     on_sale: boolean
