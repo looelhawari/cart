@@ -16,6 +16,7 @@ import ProductsPage from '@/pages/products/ProductsPage'
 import CategoriesPage from '@/pages/categories/CategoriesPage'
 import OrdersPage from '@/pages/orders/OrdersPage'
 import OrderDetailPage from '@/pages/orders/OrderDetailPage'
+import OrderReceiptPage from '@/pages/orders/OrderReceiptPage'
 import SupportPage from '@/pages/support/SupportPage'
 import TicketDetailPage from '@/pages/support/TicketDetailPage'
 import FinancialPage from '@/pages/financial/FinancialPage'
@@ -62,6 +63,7 @@ function App() {
 
                             <Route element={<DashboardLayout><OrdersPage /></DashboardLayout>} path="/orders" />
                             <Route element={<DashboardLayout><OrderDetailPage /></DashboardLayout>} path="/orders/:id" />
+                            <Route path="/orders/:id/receipt" element={<OrderReceiptPage />} />
 
                             <Route element={<DashboardLayout><SupportPage /></DashboardLayout>} path="/support" />
                             <Route element={<DashboardLayout><TicketDetailPage /></DashboardLayout>} path="/support/:id" />

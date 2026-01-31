@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { ArrowLeft, MapPin, User, Package, DollarSign, CheckCircle, Truck, Clock, XCircle, RefreshCw } from 'lucide-react'
+import { ArrowLeft, MapPin, User, Package, DollarSign, CheckCircle, Truck, Clock, XCircle, RefreshCw, Printer } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
 import { useState } from 'react'
@@ -95,6 +95,10 @@ export default function OrderDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center space-x-3">
+                    <Button variant="outline" size="sm" onClick={() => window.open(`/orders/${order.id}/receipt`, '_blank')}>
+                        <Printer className="h-4 w-4 mr-2" />
+                        {t('orders.printReceipt')}
+                    </Button>
                     <OrderStatusBadge status={order.status} />
                     <PaymentStatusBadge status={order.payment_status} />
                 </div>

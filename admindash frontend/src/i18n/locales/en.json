@@ -323,6 +323,7 @@
         "updateStatus": "Update Status",
         "cancelOrder": "Cancel Order",
         "refundOrder": "Refund Order",
+        "printReceipt": "Print Receipt",
         "printInvoice": "Print Invoice",
         "sendNotification": "Send Notification",
         "allStatus": "All Status",

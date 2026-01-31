@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge'
-import { Search, Eye } from 'lucide-react'
+import { Search, Eye, Printer } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -133,6 +133,15 @@ export default function OrdersPage() {
                                                 <td className="p-3 text-sm">{formatDate(order.created_at)}</td>
                                                 <td className="p-3">
                                                     <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'}`}>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => window.open(`/orders/${order.id}/receipt`, '_blank', 'noopener,noreferrer')}
+                                                            className={isRTL ? 'ml-2' : 'mr-2'}
+                                                        >
+                                                            <Printer className={`h-4 w-4 ${isRTL ? 'ml-1' : 'mr-1'}`} />
+                                                            Print Receipt
+                                                        </Button>
                                                         <Link to={`/orders/${order.id}`}>
                                                             <Button size="sm" variant="outline">
                                                                 <Eye className={`h-4 w-4 ${isRTL ? 'ml-1' : 'mr-1'}`} />
