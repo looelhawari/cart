@@ -10,6 +10,7 @@ import RatingStars from "./RatingStars";
 import { getCachedImage } from "@/services/cache/imageCache";
 import { SaleBadge } from "./SaleBadge";
 import { useLocalizedValue, useTranslation } from "@/i18n";
+import { Toast } from "@/components/Toast";
 
 interface ProductCardProps {
   product: Product;
@@ -34,6 +35,16 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
   const displayName = getName(product) || "Product";
   const displayImage = product.image || "https://via.placeholder.com/160";
 
+  const isOutOfStock =
+    product.is_in_stock === false || (product.stock_quantity || 0) <= 0;
+  const isLowStock = !isOutOfStock && (product.stock_quantity || 0) <= 3;
+
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info">(
+    "info",
+  );
+
   // Cache product image
   useEffect(() => {
     if (product.image) {
@@ -47,6 +58,12 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
       <View style={styles.imageContainer}>
         <Image
           source={{ uri: cachedImageUri || displayImage }}
@@ -70,6 +87,24 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
             small
             position="top-left"
           />
+        )}
+
+        {isOutOfStock && (
+          <View style={styles.stockBadgeOut}>
+            <Text style={styles.stockBadgeText}>{t.products.outOfStock}</Text>
+          </View>
+        )}
+
+        {isLowStock && (
+          <View style={styles.stockBadgeLow}>
+            <Text style={styles.stockBadgeText}>
+              {t.products.lowStock} •{" "}
+              {t.products.onlyLeft.replace(
+                "{count}",
+                (product.stock_quantity || 0).toString(),
+              )}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -108,15 +143,33 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
         </View>
 
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, isOutOfStock && styles.addButtonDisabled]}
           onPress={async (e) => {
             e.stopPropagation();
+            if (isOutOfStock) {
+              setToastType("error");
+              setToastMessage(t.products.outOfStock);
+              setShowToast(true);
+              return;
+            }
             try {
               await addToCart(productId, 1);
-            } catch (error) {
+              setToastType("success");
+              setToastMessage(t.cart.itemAdded);
+              setShowToast(true);
+            } catch (error: any) {
               console.error("Failed to add to cart:", error);
+              const msg =
+                error?.message ||
+                error?.error ||
+                (typeof error === "string" ? error : null) ||
+                t.products.failedToAddToCart;
+              setToastType("error");
+              setToastMessage(msg);
+              setShowToast(true);
             }
           }}
+          disabled={isOutOfStock}
         >
           <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
         </TouchableOpacity>
@@ -223,9 +276,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
   },
+  addButtonDisabled: {
+    backgroundColor: Colors.neutralGray,
+  },
   addButtonText: {
     color: Colors.neutralWhite,
     fontSize: Typography.bodyMedium,
     fontWeight: Typography.semibold,
+  },
+
+  stockBadgeOut: {
+    position: "absolute",
+    bottom: Spacing.sm,
+    left: Spacing.sm,
+    backgroundColor: Colors.accentRed,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  stockBadgeLow: {
+    position: "absolute",
+    bottom: Spacing.sm,
+    left: Spacing.sm,
+    backgroundColor: Colors.accentOrange,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  stockBadgeText: {
+    color: Colors.neutralWhite,
+    fontSize: Typography.bodySmall,
+    fontWeight: Typography.bold,
   },
 });

@@ -339,7 +339,9 @@ export default function ProductDetailScreen() {
       setShowToast(true);
     } catch (error) {
       console.error("Failed to add to cart:", error);
-      setToastMessage(t.products.failedToAddToCart);
+      const err: any = error;
+      const msg = err?.message || err?.error || t.products.failedToAddToCart;
+      setToastMessage(msg);
       setShowToast(true);
     }
   };
@@ -378,7 +380,7 @@ export default function ProductDetailScreen() {
             />
           </Animated.View>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => {}} style={styles.headerButton}>
+        <TouchableOpacity onPress={() => { }} style={styles.headerButton}>
           <Share2 size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -425,7 +427,7 @@ export default function ProductDetailScreen() {
             {
               top:
                 discount > 0 ||
-                (offerPricing && offerPricing.discountedPrice < basePrice)
+                  (offerPricing && offerPricing.discountedPrice < basePrice)
                   ? 100
                   : 60,
               backgroundColor: Colors.accentYellow,
@@ -556,16 +558,16 @@ export default function ProductDetailScreen() {
 
       {/* Stock Status with Better UI */}
       <View style={styles.stockSection}>
-        {(product.stock_quantity || 0) > 0 ? (
+        {product.is_in_stock !== false && (product.stock_quantity || 0) > 0 ? (
           <>
             <View style={[styles.stockIndicator, styles.inStockIndicator]}>
               <View style={styles.stockDot} />
               <Text style={styles.stockText}>{t.products.inStock}</Text>
             </View>
-            {product.stock_quantity && product.stock_quantity < 10 && (
+            {product.stock_quantity && product.stock_quantity <= 3 && (
               <View style={styles.limitedStockBadge}>
                 <Text style={styles.limitedStockText}>
-                  ⚠️{" "}
+                  ⚠️ {t.products.lowStock} {" "}
                   {t.products.onlyLeft.replace(
                     "{count}",
                     product.stock_quantity.toString(),
@@ -1081,7 +1083,7 @@ export default function ProductDetailScreen() {
                     style={[
                       styles.orderOption,
                       selectedOrderId === order.order_id &&
-                        styles.orderOptionSelected,
+                      styles.orderOptionSelected,
                     ]}
                     onPress={() => setSelectedOrderId(order.order_id)}
                   >
@@ -1168,7 +1170,7 @@ export default function ProductDetailScreen() {
             style={[
               styles.submitReviewButton,
               (!reviewComment.trim() || reviewComment.length < 10) &&
-                styles.submitReviewDisabled,
+              styles.submitReviewDisabled,
             ]}
             onPress={handleSubmitReview}
             disabled={

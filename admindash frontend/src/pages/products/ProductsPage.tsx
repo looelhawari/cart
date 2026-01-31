@@ -17,6 +17,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { Product, Category } from '@/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Switch } from '@/components/ui/switch'
 
 const FormLabelWithTooltip = ({ htmlFor, label, tooltip, required }: { htmlFor?: string, label: string, tooltip: string, required?: boolean }) => (
     <div className="flex items-center gap-2 mb-1.5">
@@ -54,6 +55,21 @@ export default function ProductsPage() {
     const { data: productsData, isLoading } = useQuery({
         queryKey: ['products', filters],
         queryFn: () => productService.getProducts(filters),
+    })
+
+    const toggleStockMutation = useMutation({
+        mutationFn: ({ barcode, is_in_stock }: { barcode: string; is_in_stock: boolean }) =>
+            productService.toggleStockStatus(barcode, is_in_stock),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] })
+        },
+        onError: (error: any) => {
+            toast({
+                title: t('common.error'),
+                description: error?.response?.data?.message || t('common.error'),
+                variant: 'destructive'
+            })
+        }
     })
 
     const { data: categories } = useQuery({
@@ -192,6 +208,7 @@ export default function ProductsPage() {
         setValue('sale_price', product.sale_price) // Added
         setValue('cost_price', product.cost_price)
         setValue('stock_quantity', product.stock_quantity)
+        setValue('is_in_stock', product.is_in_stock)
         setValue('min_stock_level', product.min_stock_level)
         setValue('weight', product.weight)
         setValue('unit', product.unit)
@@ -326,6 +343,7 @@ export default function ProductsPage() {
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.category')}</th>
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.price')}</th>
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.stock')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.inStock')}</th>
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
                                             <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
                                         </tr>
@@ -364,10 +382,22 @@ export default function ProductsPage() {
                                                     </span>
                                                 </td>
                                                 <td className="p-3">
+                                                    <Switch
+                                                        checked={!!product.is_in_stock}
+                                                        onCheckedChange={(checked) => {
+                                                            toggleStockMutation.mutate({
+                                                                barcode: product.barcode,
+                                                                is_in_stock: checked,
+                                                            })
+                                                        }}
+                                                        disabled={toggleStockMutation.isPending}
+                                                    />
+                                                </td>
+                                                <td className="p-3">
                                                     <ProductAvailabilityBadge
                                                         status={
                                                             !product.is_active ? 'discontinued' :
-                                                                product.stock_quantity === 0 ? 'out_of_stock' :
+                                                                (!product.is_in_stock || product.stock_quantity === 0) ? 'out_of_stock' :
                                                                     'in_stock'
                                                         }
                                                     />
@@ -609,6 +639,11 @@ export default function ProductsPage() {
                                     {...register('min_stock_level', { required: true, valueAsNumber: true })}
                                 />
                             </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                            <input type="checkbox" id="is_in_stock" {...register('is_in_stock')} className="h-4 w-4" />
+                            <Label htmlFor="is_in_stock">{t('products.inStock')}</Label>
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">

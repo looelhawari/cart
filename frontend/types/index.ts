@@ -9,6 +9,7 @@ export interface Product {
   sale_price?: number;
   cost_price?: number;
   stock_quantity: number;
+  is_in_stock?: boolean;
   image?: string;
   weight?: number;
   unit?: string;
@@ -65,12 +66,12 @@ export interface Order {
   orderNumber: string;
   date: string;
   status:
-    | "processing"
-    | "confirmed"
-    | "preparing"
-    | "out_for_delivery"
-    | "delivered"
-    | "cancelled";
+  | "processing"
+  | "confirmed"
+  | "preparing"
+  | "out_for_delivery"
+  | "delivered"
+  | "cancelled";
   subtotal: number;
   deliveryFee: number;
   discount: number;

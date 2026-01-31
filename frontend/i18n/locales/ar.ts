@@ -614,6 +614,7 @@ export default {
     addToCart: "أضف للسلة",
     addedToCart: "تمت الإضافة",
     outOfStock: "نفذ من المخزون",
+    lowStock: "مخزون منخفض",
     inStock: "متوفر",
     quantity: "الكمية",
     price: "السعر",
