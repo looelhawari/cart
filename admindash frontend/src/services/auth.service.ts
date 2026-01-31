@@ -1,9 +1,10 @@
 import { apiClient } from '@/lib/api-client'
-import type { AuthResponse, User } from '@/types'
+import type { AuthResponse, RefreshTokenResponse, User } from '@/types'
 
 export interface LoginCredentials {
     email: string
     password: string
+    remember_me?: boolean
 }
 
 export const authService = {
@@ -14,6 +15,7 @@ export const authService = {
     logout: async (): Promise<void> => {
         await apiClient.post('/auth/logout')
         localStorage.removeItem('auth_token')
+        localStorage.removeItem('refresh_token')
         localStorage.removeItem('user')
     },
 
@@ -21,7 +23,7 @@ export const authService = {
         return apiClient.get('/profile')
     },
 
-    refreshToken: async (): Promise<{ token: string }> => {
-        return apiClient.post('/auth/refresh')
+    refreshToken: async (refreshToken: string): Promise<RefreshTokenResponse> => {
+        return apiClient.post('/auth/refresh', { refresh_token: refreshToken })
     },
 }

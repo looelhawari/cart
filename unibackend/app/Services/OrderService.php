@@ -116,8 +116,37 @@ class OrderService
 
             // Create order items from cart items
             $cart->load('items.product');
+
+            $productQuantities = [];
             foreach ($cart->items as $cartItem) {
-                $product = $cartItem->product;
+                $productId = (int) $cartItem->product_id;
+                $productQuantities[$productId] = ($productQuantities[$productId] ?? 0) + (int) $cartItem->quantity;
+            }
+
+            $products = Product::whereIn('barcode', array_keys($productQuantities))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy(fn($product) => (int) $product->barcode);
+
+            foreach ($productQuantities as $productId => $qty) {
+                /** @var Product|null $product */
+                $product = $products->get((int) $productId);
+
+                if (!$product || !$product->is_active || !$product->is_in_stock) {
+                    throw new \Exception('One or more products in your cart are out of stock', 422);
+                }
+
+                if ($product->stock_quantity < $qty) {
+                    throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
+                }
+            }
+
+            foreach ($cart->items as $cartItem) {
+                $product = $products->get((int) $cartItem->product_id);
+
+                if (!$product || !$product->is_in_stock) {
+                    throw new \Exception('One or more products in your cart are out of stock', 422);
+                }
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -255,7 +284,7 @@ class OrderService
         // Add items from order to cart
         foreach ($order->items as $item) {
             // Check if product still exists and is active
-            if ($item->product && $item->product->is_active && $item->product->stock_quantity > 0) {
+            if ($item->product && $item->product->is_active && $item->product->is_in_stock && $item->product->stock_quantity > 0) {
                 $this->cartService->addItem($cart, $item->product_id, $item->quantity);
                 $addedItems[] = [
                     'product_id' => $item->product_id,
@@ -267,7 +296,7 @@ class OrderService
                     'product_id' => $item->product_id,
                     'product_name' => $item->product_name,
                     'quantity' => $item->quantity,
-                    'reason' => !$item->product ? 'discontinued' : (!$item->product->is_active ? 'inactive' : 'out_of_stock'),
+                    'reason' => !$item->product ? 'discontinued' : ((!$item->product->is_active || !$item->product->is_in_stock) ? 'inactive' : 'out_of_stock'),
                 ];
             }
         }

@@ -106,6 +106,7 @@ export interface Product {
   price: number;
   sale_price: number | null;
   stock_quantity: number;
+  is_in_stock?: boolean;
 }
 
 export interface CartItem {

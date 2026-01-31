@@ -166,7 +166,7 @@ class CartController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
-            ], 500);
+            ], $e->getCode() === 422 ? 422 : 500);
         }
     }
 

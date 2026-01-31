@@ -186,7 +186,9 @@ class AuthController extends Controller
 
         // Create new tokens
         $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addMinutes(30))->plainTextToken;
-        $refreshToken = $user->createToken('refresh_token', ['refresh'], Carbon::now()->addDays(30))->plainTextToken;
+        $rememberMe = (bool) $request->input('remember_me', false);
+        $refreshTokenExpiry = $rememberMe ? Carbon::now()->addDays(90) : Carbon::now()->addDays(30);
+        $refreshToken = $user->createToken('refresh_token', ['refresh'], $refreshTokenExpiry)->plainTextToken;
 
         // Merge guest cart if session ID is provided
         $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');

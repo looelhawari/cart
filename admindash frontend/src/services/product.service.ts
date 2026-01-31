@@ -58,4 +58,8 @@ export const productService = {
     bulkUpdateStock: async (updates: Array<{ barcode: string; stock_quantity: number }>): Promise<void> => {
         return apiClient.post('/admin/products/bulk-update-stock', { products: updates })
     },
+
+    toggleStockStatus: async (barcode: string, is_in_stock: boolean): Promise<Product> => {
+        return apiClient.put(`/admin/products/${barcode}`, { is_in_stock })
+    },
 }

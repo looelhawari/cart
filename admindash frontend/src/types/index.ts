@@ -65,6 +65,17 @@ export interface AuthResponse {
     }
 }
 
+export interface RefreshTokenResponse {
+    success: boolean
+    message: string
+    data: {
+        access_token: string
+        refresh_token: string
+        token_type: string
+        expires_in: number
+    }
+}
+
 // Product Types
 export type ProductAvailability = 'in_stock' | 'out_of_stock' | 'discontinued'
 
@@ -82,6 +93,7 @@ export interface Product {
     sale_price: number | null
     cost_price: number
     stock_quantity: number
+    is_in_stock?: boolean
     min_stock_level: number
     category_id: number
     category?: Category

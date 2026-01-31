@@ -323,10 +323,14 @@ export const useStore = create<StoreState>()(
           const response = await addToCartApi(productId, quantity);
           set({ cart: response.data.cart });
         } catch (error: any) {
+          const message =
+            error?.message ||
+            error?.error ||
+            (typeof error === "string" ? error : "Failed to add item to cart");
           set({
-            cartError: error.message || "Failed to add item to cart",
+            cartError: message,
           });
-          throw error;
+          throw new Error(message);
         }
       },
 
@@ -352,10 +356,14 @@ export const useStore = create<StoreState>()(
           const response = await updateCartItem(itemId, quantity);
           set({ cart: response.data.cart });
         } catch (error: any) {
+          const message =
+            error?.message ||
+            error?.error ||
+            (typeof error === "string" ? error : "Failed to update quantity");
           set({
-            cartError: error.message || "Failed to update quantity",
+            cartError: message,
           });
-          throw error;
+          throw new Error(message);
         }
       },
 
