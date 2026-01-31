@@ -618,6 +618,7 @@ export default {
     addToCart: "Add to Cart",
     addedToCart: "Added to Cart",
     outOfStock: "Out of Stock",
+    lowStock: "Low Stock",
     inStock: "In Stock",
     quantity: "Quantity",
     price: "Price",

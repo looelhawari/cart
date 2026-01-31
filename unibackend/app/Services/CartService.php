@@ -168,9 +168,13 @@ class CartService
         // Get product and lock price
         $product = Product::where('barcode', $productId)->firstOrFail();
 
+        if (!$product->is_in_stock) {
+            throw new \Exception('Product is out of stock', 422);
+        }
+
         // Check stock availability
         if ($product->stock_quantity < $quantity) {
-            throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity);
+            throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
         }
 
         if (!$product->is_active) {
@@ -190,7 +194,7 @@ class CartService
 
             // Check stock for new quantity
             if ($product->stock_quantity < $newQuantity) {
-                throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity);
+                throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
             }
 
             $cartItem->update([
@@ -218,8 +222,12 @@ class CartService
         // Check stock availability
         $product = $cartItem->product;
 
+        if (!$product->is_in_stock) {
+            throw new \Exception('Product is out of stock', 422);
+        }
+
         if ($product->stock_quantity < $quantity) {
-            throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity);
+            throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
         }
 
         $cartItem->update(['quantity' => $quantity]);

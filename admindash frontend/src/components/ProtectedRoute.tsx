@@ -7,13 +7,17 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
-    const { isAuthenticated, user } = useAuthStore()
+    const { isAuthenticated, user, isHydrated } = useAuthStore()
 
     useEffect(() => {
         console.log('ProtectedRoute - isAuthenticated:', isAuthenticated)
         console.log('ProtectedRoute - user:', user)
         console.log('localStorage auth_token:', localStorage.getItem('auth_token'))
     }, [isAuthenticated, user])
+
+    if (!isHydrated) {
+        return null
+    }
 
     if (!isAuthenticated) {
         console.log('Not authenticated, redirecting to login')

@@ -16,6 +16,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher'
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
+    remember_me: z.boolean().optional(),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -34,6 +35,9 @@ export default function LoginPage() {
         formState: { errors },
     } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
+        defaultValues: {
+            remember_me: false,
+        },
     })
 
 
@@ -41,7 +45,11 @@ export default function LoginPage() {
     const onSubmit = async (data: LoginFormData) => {
         setIsLoading(true)
         try {
-            const response = await authService.login(data)
+            const response = await authService.login({
+                email: data.email,
+                password: data.password,
+                remember_me: data.remember_me,
+            })
             const user = {
                 id: response.data.user.id,
                 first_name: response.data.user.first_name,
@@ -57,7 +65,7 @@ export default function LoginPage() {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             }
-            setAuth(user, response.data.access_token)
+            setAuth(user, response.data.access_token, response.data.refresh_token)
             toast({
                 title: t('auth.loginSuccess'),
                 description: `${t('auth.welcomeBack')}, ${response.data.user.first_name}!`,
@@ -128,6 +136,15 @@ export default function LoginPage() {
                         >
                             {isLoading ? t('auth.signingIn') : t('auth.signIn')}
                         </Button>
+                        <div className="flex items-center space-x-2">
+                            <input
+                                id="remember_me"
+                                type="checkbox"
+                                className="h-4 w-4"
+                                {...register('remember_me')}
+                            />
+                            <Label htmlFor="remember_me">{t('auth.rememberMe')}</Label>
+                        </div>
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">
                                 <span className="w-full border-t" />
