@@ -142,19 +142,37 @@ Route::prefix('v1')->group(function () {
 
         // Broadcasting auth (Universal for Admin & Customer)
         Route::post('/broadcasting/auth', function (Request $request) {
-            \Log::info('Broadcasting Auth Request:', [
-                'user_id' => $request->user()->id,
-                'channel' => $request->channel_name,
-                'socket_id' => $request->socket_id
-            ]);
             try {
-                return Broadcast::auth($request);
-            } catch (\Exception $e) {
+                $user = $request->user();
+                if (!$user) {
+                    \Log::warning('Broadcasting Auth: No authenticated user');
+                    return response()->json(['error' => 'Unauthenticated'], 401);
+                }
+                
+                \Log::info('Broadcasting Auth Request:', [
+                    'user_id' => $user->id,
+                    'channel' => $request->channel_name,
+                    'socket_id' => $request->socket_id
+                ]);
+                
+                $response = Broadcast::auth($request);
+                
+                // Log successful auth
+                \Log::info('Broadcasting Auth Success:', [
+                    'user_id' => $user->id,
+                    'channel' => $request->channel_name,
+                    'response_type' => gettype($response)
+                ]);
+                
+                return $response;
+            } catch (\Throwable $e) {
                 \Log::error('Broadcasting Auth Error:', [
                     'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
                     'trace' => $e->getTraceAsString()
                 ]);
-                return response()->json(['error' => 'Broadcasting auth failed'], 500);
+                return response()->json(['error' => 'Broadcasting auth failed: ' . $e->getMessage()], 500);
             }
         });
 

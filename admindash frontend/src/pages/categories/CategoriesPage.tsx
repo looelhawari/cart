@@ -325,7 +325,6 @@ export default function CategoriesPage() {
                                 id="slug"
                                 {...register('slug', { required: true })}
                                 placeholder={t('categories.slugPlaceholder')}
-                                disabled={!!editingCategory}
                             />
                         </div>
 
@@ -336,7 +335,6 @@ export default function CategoriesPage() {
                                     id="icon"
                                     {...register('icon')}
                                     placeholder={t('categories.iconPlaceholder')}
-                                    disabled={!!editingCategory}
                                 />
                             </div>
                             <div>
@@ -346,7 +344,6 @@ export default function CategoriesPage() {
                                     type="number"
                                     {...register('sort_order')}
                                     placeholder="0"
-                                    disabled={!!editingCategory}
                                 />
                             </div>
                         </div>

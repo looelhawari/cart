@@ -9,19 +9,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
-import { ArrowLeft, FileText, Send, Paperclip, ChevronDown, Package, X, Check, Image as ImageIcon, File, AlertCircle } from 'lucide-react-native';
+import { ArrowLeft, Send, Package, X, Check, Image as ImageIcon, File, AlertCircle, ChevronDown } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
 import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
-import { Button } from '@/components/Button';
 import { createComplaint } from '@/services/api/complaintsApi';
 import { BottomSheet } from '@/components/BottomSheet';
 import { orderApi, type Order } from '@/services/api/orderApi';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const categories = [
   { label: 'Order Issue', value: 'order_issue', icon: '📦' },
@@ -49,7 +50,6 @@ export default function NewComplaintScreen() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrdersSheet, setShowOrdersSheet] = useState(false);
 
-  // Load orders only when needed or in background
   const loadOrders = async () => {
     try {
       setOrdersLoading(true);
@@ -67,21 +67,25 @@ export default function NewComplaintScreen() {
   }, []);
 
   const handlePickAttachments = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/*'],
-      multiple: true,
-      copyToCacheDirectory: true,
-    });
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
 
-    if (result.canceled) return;
+      if (result.canceled) return;
 
-    const files = result.assets.map((asset) => ({
-      uri: asset.uri,
-      name: asset.name || `attachment-${Date.now()}`,
-      mimeType: asset.mimeType || 'application/octet-stream',
-    }));
+      const files = result.assets.map((asset) => ({
+        uri: asset.uri,
+        name: asset.name || `attachment-${Date.now()}`,
+        mimeType: asset.mimeType || 'application/octet-stream',
+      }));
 
-    setAttachments((prev) => [...prev, ...files]);
+      setAttachments((prev) => [...prev, ...files]);
+    } catch (err) {
+      console.error('Error picking document:', err);
+    }
   };
 
   const removeAttachment = (index: number) => {
@@ -107,16 +111,18 @@ export default function NewComplaintScreen() {
       });
 
       if (!response.success) {
-        throw new Error(response.message || 'Failed to submit complaint');
+        throw new Error(response.message || 'Failed to submit');
       }
 
       router.replace('/complaints');
     } catch (err: any) {
-      setError(err.message || 'Failed to submit complaint');
+      setError(err.message || 'Failed to submit');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const isValid = formData.subject && formData.category && formData.description;
 
   return (
     <>
@@ -126,232 +132,188 @@ export default function NewComplaintScreen() {
           title: 'New Request',
           headerTitleStyle: { fontFamily: 'Poppins-SemiBold', fontSize: 18 },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={24} color={Colors.neutralCharcoal} />
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <ArrowLeft size={22} color={Colors.neutralCharcoal} />
             </TouchableOpacity>
           ),
-          headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.neutralCloud }} />,
+          headerBackground: () => <View style={styles.headerBg} />,
           headerShadowVisible: false,
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
+          style={styles.flex}
         >
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-            {/* Category Selection */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Category */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>What can we help you with? *</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoriesRow}
-              >
-                {categories.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.value}
-                    style={[
-                      styles.categoryCard,
-                      formData.category === cat.value && styles.categoryCardActive
-                    ]}
-                    onPress={() => setFormData({ ...formData, category: cat.value })}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                    <Text style={[
-                      styles.categoryLabel,
-                      formData.category === cat.value && styles.categoryLabelActive
-                    ]}>
-                      {cat.label}
-                    </Text>
-                    {formData.category === cat.value && (
-                      <View style={styles.checkBadge}>
-                        <Check size={10} color={Colors.neutralWhite} strokeWidth={4} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <Text style={styles.label}>Category <Text style={styles.required}>*</Text></Text>
+              <View style={styles.categoryGrid}>
+                {categories.map((cat) => {
+                  const isSelected = formData.category === cat.value;
+                  return (
+                    <TouchableOpacity
+                      key={cat.value}
+                      style={[styles.categoryItem, isSelected && styles.categoryItemActive]}
+                      onPress={() => setFormData({ ...formData, category: cat.value })}
+                    >
+                      <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                      <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelActive]}>
+                        {cat.label}
+                      </Text>
+                      {isSelected && (
+                        <View style={styles.checkIcon}>
+                          <Check size={12} color="#fff" strokeWidth={3} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             {/* Subject */}
             <View style={styles.section}>
-              <Text style={styles.label}>Subject *</Text>
+              <Text style={styles.label}>Subject <Text style={styles.required}>*</Text></Text>
               <TextInput
                 style={styles.input}
                 placeholder="Briefly describe the issue"
-                placeholderTextColor={Colors.neutralMedium}
+                placeholderTextColor="#9ca3af"
                 value={formData.subject}
                 onChangeText={(text) => setFormData({ ...formData, subject: text })}
+                maxLength={100}
+              />
+            </View>
+
+            {/* Description */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Description <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Provide more details..."
+                placeholderTextColor="#9ca3af"
+                value={formData.description}
+                onChangeText={(text) => setFormData({ ...formData, description: text })}
+                multiline
+                textAlignVertical="top"
+                maxLength={1000}
               />
             </View>
 
             {/* Order Selection */}
             <View style={styles.section}>
-              <Text style={styles.label}>Related Order (Optional)</Text>
+              <Text style={styles.label}>Related Order <Text style={styles.optional}>(Optional)</Text></Text>
               <TouchableOpacity
                 style={styles.orderSelector}
                 onPress={() => setShowOrdersSheet(true)}
               >
-                <View style={styles.orderSelectorContent}>
-                  <View style={styles.iconBox}>
-                    <Package size={20} color={Colors.primary900} />
-                  </View>
-                  {selectedOrder ? (
-                    <View>
-                      <Text style={styles.selectedOrderText}>Order #{selectedOrder.order_number}</Text>
-                      <Text style={styles.selectedOrderSub}>
-                        {new Date(selectedOrder.created_at).toLocaleDateString()} • {selectedOrder.status_label || selectedOrder.status}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View>
-                      <Text style={styles.placeholderText}>Select an order</Text>
-                      <Text style={styles.subText}>Link this request to a recent purchase</Text>
-                    </View>
-                  )}
-                </View>
-                <ChevronDown size={20} color={Colors.neutralMedium} />
+                <Package size={18} color={selectedOrder ? '#22c55e' : '#9ca3af'} />
+                <Text style={[styles.orderText, selectedOrder && styles.orderTextActive]}>
+                  {selectedOrder ? `Order #${selectedOrder.order_number}` : 'Select an order'}
+                </Text>
+                <ChevronDown size={18} color="#9ca3af" />
               </TouchableOpacity>
               {selectedOrder && (
-                <TouchableOpacity
-                  style={styles.clearOrderBtn}
-                  onPress={() => setSelectedOrder(null)}
-                >
-                  <Text style={styles.clearOrderText}>Clear selection</Text>
+                <TouchableOpacity onPress={() => setSelectedOrder(null)} style={styles.clearBtn}>
+                  <X size={12} color="#ef4444" />
+                  <Text style={styles.clearText}>Clear</Text>
                 </TouchableOpacity>
               )}
-            </View>
-
-            {/* Description */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Details *</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Please provide as much detail as possible..."
-                placeholderTextColor={Colors.neutralMedium}
-                value={formData.description}
-                onChangeText={(text) => setFormData({ ...formData, description: text })}
-                multiline
-                textAlignVertical="top"
-              />
             </View>
 
             {/* Attachments */}
             <View style={styles.section}>
-              <View style={styles.attachmentHeader}>
-                <Text style={styles.label}>Attachments</Text>
-                <TouchableOpacity onPress={handlePickAttachments}>
-                  <Text style={styles.addText}>+ Add Files</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.label}>Attachments <Text style={styles.optional}>(Optional)</Text></Text>
 
-              {attachments.length === 0 ? (
-                <TouchableOpacity
-                  style={styles.uploadArea}
-                  onPress={handlePickAttachments}
-                >
-                  <Paperclip size={24} color={Colors.neutralMedium} />
-                  <Text style={styles.uploadText}>Tap to upload photos or documents</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.attachmentGrid}>
-                  {attachments.map((file, index) => {
-                    const isImage = file.mimeType?.startsWith('image/');
-                    return (
-                      <View key={index} style={styles.attachmentItem}>
-                        <View style={styles.attachmentIcon}>
-                          {isImage ? (
-                            <ImageIcon size={20} color={Colors.primary900} />
-                          ) : (
-                            <File size={20} color={Colors.primary900} />
-                          )}
-                        </View>
-                        <View style={styles.attachmentInfo}>
-                          <Text style={styles.attachmentName} numberOfLines={1}>{file.name}</Text>
-                          <Text style={styles.attachmentSize}>
-                            {isImage ? 'Image' : 'Document'}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.removeBtn}
-                          onPress={() => removeAttachment(index)}
-                        >
-                          <X size={16} color={Colors.neutralMedium} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                  <TouchableOpacity
-                    style={styles.addMoreBtn}
-                    onPress={handlePickAttachments}
-                  >
-                    <Text style={styles.addMoreText}>+ Add another</Text>
-                  </TouchableOpacity>
+              {attachments.length > 0 && (
+                <View style={styles.attachmentList}>
+                  {attachments.map((file, index) => (
+                    <View key={index} style={styles.attachmentItem}>
+                      {file.mimeType?.startsWith('image/') ? (
+                        <ImageIcon size={16} color="#22c55e" />
+                      ) : (
+                        <File size={16} color="#3b82f6" />
+                      )}
+                      <Text style={styles.attachmentName} numberOfLines={1}>{file.name}</Text>
+                      <TouchableOpacity onPress={() => removeAttachment(index)}>
+                        <X size={16} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
               )}
+
+              <TouchableOpacity style={styles.uploadBtn} onPress={handlePickAttachments}>
+                <Text style={styles.uploadText}>+ Add files</Text>
+              </TouchableOpacity>
             </View>
 
+            {/* Error */}
             {error && (
               <View style={styles.errorBox}>
-                <AlertCircle size={16} color={Colors.accentRed} />
-                <Text style={styles.errorMsg}>{error}</Text>
+                <AlertCircle size={14} color="#ef4444" />
+                <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
-
-            <View style={styles.footerSpacing} />
           </ScrollView>
 
+          {/* Submit Button */}
           <View style={styles.footer}>
-            <Button
-              title={submitting ? 'Submitting...' : 'Submit Request'}
+            <TouchableOpacity
+              style={[styles.submitBtn, (!isValid || submitting) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
-              icon={<Send size={20} color={Colors.neutralWhite} />}
-              variant="primary"
-              disabled={submitting}
-              style={styles.submitBtn}
-            />
+              disabled={!isValid || submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Send size={18} color="#fff" />
+                  <Text style={styles.submitText}>Submit Request</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
+      {/* Orders Bottom Sheet */}
       <BottomSheet
         visible={showOrdersSheet}
         onClose={() => setShowOrdersSheet(false)}
-        title="Select Related Order"
-        snapPoints={[0.6]}
+        title="Select Order"
+        snapPoints={[0.5]}
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+        <ScrollView contentContainerStyle={styles.sheetContent}>
           {ordersLoading ? (
-            <ActivityIndicator color={Colors.primary900} style={{ marginTop: 20 }} />
+            <ActivityIndicator color="#22c55e" style={{ marginTop: 20 }} />
           ) : orders.length === 0 ? (
-            <View style={{ alignItems: 'center', padding: 20 }}>
-              <Text style={{ color: Colors.neutralMedium }}>No recent orders found</Text>
+            <View style={styles.emptyOrders}>
+              <Package size={32} color="#d1d5db" />
+              <Text style={styles.emptyOrdersText}>No recent orders</Text>
             </View>
           ) : (
             orders.map((order) => (
               <TouchableOpacity
                 key={order.id}
-                style={styles.sheetOption}
+                style={[styles.orderOption, selectedOrder?.id === order.id && styles.orderOptionActive]}
                 onPress={() => {
                   setSelectedOrder(order);
                   setShowOrdersSheet(false);
                 }}
               >
-                <View style={styles.sheetIcon}>
-                  <Package size={20} color={Colors.primary900} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetTitle}>Order #{order.order_number}</Text>
-                  <Text style={styles.sheetSub}>
-                    {new Date(order.created_at).toLocaleDateString()} • {Number(order.total).toFixed(2)} EGP
+                <Package size={16} color={selectedOrder?.id === order.id ? '#22c55e' : '#64748b'} />
+                <View style={styles.orderInfo}>
+                  <Text style={styles.orderNumber}>Order #{order.order_number}</Text>
+                  <Text style={styles.orderDate}>
+                    {new Date(order.created_at).toLocaleDateString()}
                   </Text>
                 </View>
-                {selectedOrder?.id === order.id && (
-                  <Check size={20} color={Colors.primary900} />
-                )}
+                {selectedOrder?.id === order.id && <Check size={18} color="#22c55e" />}
               </TouchableOpacity>
             ))
           )}
@@ -364,274 +326,232 @@ export default function NewComplaintScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutralCloud,
+    backgroundColor: '#f8fafc',
   },
-  keyboardView: {
+  flex: {
     flex: 1,
   },
-  scrollContent: {
-    padding: Spacing.lg,
+  headerBg: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
-  backButton: {
+  backBtn: {
     marginLeft: Platform.OS === 'ios' ? -8 : 0,
     padding: 8,
   },
-  section: {
-    marginBottom: 24,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.neutralCharcoal,
-    marginBottom: 12,
+  // Sections
+  section: {
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.neutralCharcoal,
-    marginBottom: 8,
+    color: '#1e293b',
+    marginBottom: 10,
   },
-  // Categories
-  categoriesRow: {
-    paddingRight: 16,
-    paddingBottom: 4,
+  required: {
+    color: '#ef4444',
   },
-  categoryCard: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 12,
+  optional: {
+    color: '#9ca3af',
+    fontWeight: '400',
+  },
+  // Category Grid
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  categoryItem: {
+    width: (SCREEN_WIDTH - 48) / 3,
+    margin: 4,
+    backgroundColor: '#fff',
+    borderRadius: 10,
     padding: 12,
-    marginRight: 12,
-    minWidth: 100,
-    borderWidth: 1,
-    borderColor: Colors.neutralGray,
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  categoryCardActive: {
-    backgroundColor: Colors.primary900,
-    borderColor: Colors.primary900,
+  categoryItemActive: {
+    borderColor: '#22c55e',
+    backgroundColor: '#f0fdf4',
   },
   categoryIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+    fontSize: 20,
+    marginBottom: 6,
   },
   categoryLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.neutralCharcoal,
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'center',
   },
   categoryLabelActive: {
-    color: Colors.neutralWhite,
+    color: '#22c55e',
+    fontWeight: '600',
   },
-  checkBadge: {
+  checkIcon: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-    padding: 2,
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  // Inputs
+  // Input
   input: {
-    backgroundColor: Colors.neutralWhite,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#1e293b',
     borderWidth: 1,
-    borderColor: Colors.neutralGray,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: Colors.neutralCharcoal,
+    borderColor: '#e2e8f0',
   },
   textArea: {
-    height: 120,
-    paddingTop: 14,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   // Order Selector
   orderSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.neutralWhite,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.neutralGray,
-    borderRadius: 12,
-    padding: 12,
+    borderColor: '#e2e8f0',
+    gap: 10,
   },
-  orderSelectorContent: {
+  orderText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#9ca3af',
+  },
+  orderTextActive: {
+    color: '#1e293b',
+  },
+  clearBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    marginTop: 8,
+    gap: 4,
   },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${Colors.primary900}10`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedOrderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.neutralCharcoal,
-  },
-  selectedOrderSub: {
+  clearText: {
     fontSize: 12,
-    color: Colors.neutralMedium,
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: Colors.neutralCharcoal,
-  },
-  subText: {
-    fontSize: 12,
-    color: Colors.neutralMedium,
-  },
-  clearOrderBtn: {
-    alignSelf: 'flex-end',
-    marginTop: 6,
-  },
-  clearOrderText: {
-    fontSize: 12,
-    color: Colors.accentRed,
+    color: '#ef4444',
   },
   // Attachments
-  attachmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  addText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary900,
-  },
-  uploadArea: {
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: `${Colors.neutralGray}20`,
-  },
-  uploadText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: Colors.neutralMedium,
-  },
-  attachmentGrid: {
+  attachmentList: {
+    marginBottom: 10,
     gap: 8,
   },
   attachmentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.neutralWhite,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.neutralGray,
-  },
-  attachmentIcon: {
-    width: 32,
-    height: 32,
+    backgroundColor: '#fff',
     borderRadius: 8,
-    backgroundColor: `${Colors.primary900}10`,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  attachmentInfo: {
-    flex: 1,
+    padding: 10,
+    gap: 10,
   },
   attachmentName: {
+    flex: 1,
     fontSize: 13,
-    fontWeight: '500',
-    color: Colors.neutralCharcoal,
+    color: '#475569',
   },
-  attachmentSize: {
-    fontSize: 11,
-    color: Colors.neutralMedium,
+  uploadBtn: {
+    paddingVertical: 10,
   },
-  removeBtn: {
-    padding: 8,
+  uploadText: {
+    fontSize: 14,
+    color: '#22c55e',
+    fontWeight: '600',
   },
-  addMoreBtn: {
-    alignItems: 'center',
-    padding: 8,
-  },
-  addMoreText: {
-    fontSize: 13,
-    color: Colors.primary900,
-    fontWeight: '500',
-  },
-  // Error & Footer
+  // Error
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 12,
+    backgroundColor: '#fef2f2',
     borderRadius: 8,
+    padding: 12,
     gap: 8,
-    marginBottom: 16,
   },
-  errorMsg: {
-    color: Colors.accentRed,
+  errorText: {
+    flex: 1,
     fontSize: 13,
+    color: '#ef4444',
   },
-  footerSpacing: {
-    height: 80,
-  },
+  // Footer
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.neutralWhite,
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 16,
+    backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: Colors.neutralGray,
+    borderTopColor: '#f1f5f9',
   },
   submitBtn: {
-    borderRadius: 14,
-    height: 52,
-  },
-  // Sheet
-  sheetOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.neutralGray,
-  },
-  sheetIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${Colors.primary900}10`,
-    alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    backgroundColor: '#22c55e',
+    borderRadius: 10,
+    paddingVertical: 14,
+    gap: 8,
   },
-  sheetTitle: {
+  submitBtnDisabled: {
+    backgroundColor: '#d1d5db',
+  },
+  submitText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: Colors.neutralCharcoal,
+    fontWeight: '700',
+    color: '#fff',
   },
-  sheetSub: {
-    fontSize: 13,
-    color: Colors.neutralMedium,
+  // Sheet
+  sheetContent: {
+    padding: 16,
+  },
+  emptyOrders: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 10,
+  },
+  emptyOrdersText: {
+    fontSize: 14,
+    color: '#9ca3af',
+  },
+  orderOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    marginBottom: 8,
+    gap: 12,
+  },
+  orderOptionActive: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  orderNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  orderDate: {
+    fontSize: 12,
+    color: '#64748b',
     marginTop: 2,
   },
 });

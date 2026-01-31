@@ -14,12 +14,14 @@ declare global {
 
 window.Pusher = Pusher as any;
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://cartshop.site/api/v1';
+
 const echo = new Echo({
     broadcaster: 'pusher',
     key: '140ea82c9593f7627bdc',
     cluster: 'eu',
     forceTLS: true,
-    authEndpoint: 'http://192.168.1.10:8000/api/v1/broadcasting/auth',
+    authEndpoint: `${API_BASE_URL}/broadcasting/auth`,
     authorizer: (channel: any, _options: any) => {
         return {
             authorize: (socketId: string, callback: (error: Error | null, data: any) => void) => {
@@ -33,7 +35,7 @@ const echo = new Echo({
                     return;
                 }
 
-                fetch('http://192.168.1.10:8000/api/v1/broadcasting/auth', {
+                fetch(`${API_BASE_URL}/broadcasting/auth`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -45,11 +47,16 @@ const echo = new Echo({
                         channel_name: channel.name
                     })
                 })
-                    .then(response => {
+                    .then(async response => {
                         if (!response.ok) {
-                            throw new Error(`Auth failed: ${response.status}`);
+                            const errorText = await response.text();
+                            throw new Error(`Auth failed: ${response.status} - ${errorText || 'Unknown error'}`);
                         }
-                        return response.json();
+                        const text = await response.text();
+                        if (!text || text.trim() === '') {
+                            throw new Error('Server returned empty response');
+                        }
+                        return JSON.parse(text);
                     })
                     .then(data => {
                         console.log('[Echo] Auth success:', data);

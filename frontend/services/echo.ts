@@ -43,13 +43,27 @@ const echo = new Echo({
                     if (!response.ok) {
                         const errorText = await response.text();
                         console.error('[Echo] Auth failed with status:', response.status, errorText);
-                        callback(new Error(errorText), null);
+                        callback(new Error(errorText || `Auth failed: ${response.status}`), null);
                         return;
                     }
 
-                    const data = await response.json();
-                    console.log('[Echo] Auth success:', data);
-                    callback(null, data);
+                    // Get response text first to handle empty responses
+                    const responseText = await response.text();
+
+                    if (!responseText || responseText.trim() === '') {
+                        console.error('[Echo] Auth returned empty response');
+                        callback(new Error('Server returned empty response'), null);
+                        return;
+                    }
+
+                    try {
+                        const data = JSON.parse(responseText);
+                        console.log('[Echo] Auth success:', data);
+                        callback(null, data);
+                    } catch (parseError) {
+                        console.error('[Echo] Failed to parse auth response:', responseText);
+                        callback(new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`), null);
+                    }
                 } catch (error) {
                     console.error('[Echo] Auth error:', error);
                     callback(error instanceof Error ? error : new Error(String(error)), null);

@@ -134,9 +134,9 @@ class AdminProductController extends Controller
     {
         $product = Product::where('barcode', $barcode)->firstOrFail();
 
-        if ($product->image_url) {
+        if ($product->image) {
             $cloudinary = new CloudinaryService();
-            $publicId = $cloudinary->getPublicIdFromUrl($product->image_url);
+            $publicId = $cloudinary->getPublicIdFromUrl($product->image);
             if ($publicId) {
                 $cloudinary->deleteImage($publicId);
             }
@@ -159,8 +159,8 @@ class AdminProductController extends Controller
             $cloudinary = new CloudinaryService();
 
             // Delete old image if exists
-            if ($product->image_url) {
-                $oldPublicId = $cloudinary->getPublicIdFromUrl($product->image_url);
+            if ($product->image) {
+                $oldPublicId = $cloudinary->getPublicIdFromUrl($product->image);
                 if ($oldPublicId) {
                     $cloudinary->deleteImage($oldPublicId);
                 }
@@ -170,11 +170,11 @@ class AdminProductController extends Controller
             $result = $cloudinary->uploadImage(
                 $request->file('image'),
                 'products',
-                ['public_id' => 'product_' . $product->id . '_' . time()]
+                ['public_id' => 'product_' . $product->barcode . '_' . time()]
             );
 
             if ($result['success']) {
-                $product->image_url = $result['url'];
+                $product->image = $result['url'];
                 $product->save();
             } else {
                 return response()->json([

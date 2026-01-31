@@ -9,12 +9,44 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { ArrowLeft, Send, User, Package, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Send, User, Package, MessageSquare, Clock, Mail, Phone, ChevronRight, Sparkles } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Ticket, TicketMessage, TicketStatus, TicketPriority } from '@/types'
 import echo from '@/lib/echo'
 import { CannedResponseDropdown } from '@/components/support/CannedResponseDropdown'
 import { CustomerHistoryCard } from '@/components/support/CustomerHistoryCard'
+
+// Format relative time
+const formatTimeAgo = (date: string) => {
+    const now = new Date()
+    const then = new Date(date)
+    const diffMs = now.getTime() - then.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return formatDate(date)
+}
+
+// Typing Indicator Component
+const TypingIndicator = ({ userName }: { userName: string }) => (
+    <div className="flex items-end gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-medium text-xs">
+            {userName.charAt(0)}
+        </div>
+        <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
+            <div className="flex space-x-1.5 items-center h-4">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+            </div>
+        </div>
+    </div>
+)
 
 export default function TicketDetailPage() {
     const { id } = useParams()
@@ -26,11 +58,20 @@ export default function TicketDetailPage() {
     const [isCustomerTyping, setIsCustomerTyping] = useState(false)
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const sendTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
 
     const { data: ticket, isLoading } = useQuery({
         queryKey: ['support-ticket', id],
         queryFn: () => supportService.getTicket(Number(id)),
     })
+
+    useEffect(() => {
+        scrollToBottom()
+    }, [ticket?.messages])
 
     useEffect(() => {
         if (!id) return;
@@ -40,16 +81,12 @@ export default function TicketDetailPage() {
             .listen('.message.sent', (e: { message: TicketMessage }) => {
                 console.log('New message received:', e.message);
 
-                // Update the ticket messages in cache
                 queryClient.setQueryData(['support-ticket', id], (oldData: Ticket | undefined) => {
                     if (!oldData) return oldData;
-
-                    // Avoid duplicates if any
                     if (oldData.messages?.some(m => m.id === e.message.id)) return oldData;
-
                     return {
                         ...oldData,
-                        messages: [e.message, ...(oldData.messages || [])],
+                        messages: [...(oldData.messages || []), e.message],
                     };
                 });
 
@@ -80,7 +117,6 @@ export default function TicketDetailPage() {
         mutationFn: ({ id, message }: { id: number; message: string }) =>
             supportService.replyToTicket(id, { message }),
         onMutate: async ({ message }) => {
-            // Optimistic update - add message immediately
             const optimisticMessage: TicketMessage = {
                 id: Date.now(),
                 complaint_id: Number(id),
@@ -96,7 +132,7 @@ export default function TicketDetailPage() {
                 if (!oldData) return oldData;
                 return {
                     ...oldData,
-                    messages: [optimisticMessage, ...(oldData.messages || [])],
+                    messages: [...(oldData.messages || []), optimisticMessage],
                 };
             });
 
@@ -106,7 +142,6 @@ export default function TicketDetailPage() {
             toast({ title: t('support.replySent') })
         },
         onError: () => {
-            // Refetch on error to restore correct state
             queryClient.invalidateQueries({ queryKey: ['support-ticket', id] })
         },
     })
@@ -114,15 +149,12 @@ export default function TicketDetailPage() {
     const handleTyping = () => {
         if (!id) return;
 
-        // Clear existing timeout
         if (sendTypingTimeoutRef.current) {
             clearTimeout(sendTypingTimeoutRef.current);
         } else {
-            // Send start typing
             supportService.typing(Number(id), true);
         }
 
-        // Set timeout to stop typing
         sendTypingTimeoutRef.current = setTimeout(() => {
             supportService.typing(Number(id), false);
             sendTypingTimeoutRef.current = null;
@@ -152,257 +184,293 @@ export default function TicketDetailPage() {
         replyMutation.mutate({ id: Number(id), message: replyMessage })
     }
 
-    if (isLoading) return <div className="text-center py-12">{t('common.loading')}</div>
-    if (!ticket) return <div className="text-center py-12">{t('support.ticketNotFound')}</div>
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSendReply()
+        }
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-[60vh]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="h-12 w-12 rounded-full border-4 border-green-500 border-t-transparent animate-spin"></div>
+                    <p className="text-muted-foreground">{t('common.loading')}</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (!ticket) {
+        return (
+            <div className="flex items-center justify-center h-[60vh]">
+                <div className="text-center">
+                    <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                    <p className="text-xl font-medium text-gray-600">{t('support.ticketNotFound')}</p>
+                </div>
+            </div>
+        )
+    }
+
+    const customerName = `${ticket.user?.first_name || ticket.customer?.first_name || ''} ${ticket.user?.last_name || ticket.customer?.last_name || ''}`.trim()
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                    <Button variant="outline" size="icon" onClick={() => navigate('/support')}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div>
-                        <h1 className="text-3xl font-bold text-elbaraka-primary">{t('support.ticketNumber')} {ticket.ticket_number}</h1>
-                        <p className="text-muted-foreground mt-1">{ticket.subject}</p>
+        <div className="h-[calc(100vh-80px)] flex flex-col">
+            {/* Header */}
+            <div className="flex-shrink-0 bg-white border-b px-6 py-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" onClick={() => navigate('/support')} className="hover:bg-gray-100">
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                {customerName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-bold text-gray-900">{customerName}</h1>
+                                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{ticket.ticket_number}</span>
+                                    <span>•</span>
+                                    <span>{ticket.subject}</span>
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                    <TicketPriorityBadge priority={ticket.priority} />
-                    <TicketStatusBadge status={ticket.status} />
+                    <div className="flex items-center gap-3">
+                        <TicketPriorityBadge priority={ticket.priority} />
+                        <TicketStatusBadge status={ticket.status} />
+                    </div>
                 </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Ticket Description */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className="h-10 w-10 rounded-full bg-elbaraka-primary flex items-center justify-center text-white font-semibold">
-                                        {(ticket.user?.first_name || ticket.customer?.first_name)?.charAt(0)}
-                                        {(ticket.user?.last_name || ticket.customer?.last_name)?.charAt(0)}
+            {/* Main Content */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* Chat Area */}
+                <div className="flex-1 flex flex-col bg-gradient-to-b from-gray-50 to-white">
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                        {/* Original Ticket */}
+                        <div className="mb-6 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-semibold text-sm">
+                                    {customerName.split(' ').map(n => n[0]).join('')}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-gray-900">{customerName}</span>
+                                        <span className="text-xs text-gray-400">{formatTimeAgo(ticket.created_at)}</span>
                                     </div>
-                                    <div>
-                                        <p className="font-semibold">
-                                            {ticket.user?.first_name || ticket.customer?.first_name} {ticket.user?.last_name || ticket.customer?.last_name}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground">{formatDate(ticket.created_at)}</p>
-                                    </div>
+                                    <span className="text-xs text-gray-500 capitalize">{ticket.category.replace('_', ' ')}</span>
                                 </div>
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
-                        </CardContent>
-                    </Card>
+                            <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
+                        </div>
 
-                    {/* Message Thread */}
-                    <Card className="overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
-                            <CardTitle className="text-lg">{t('support.conversation')}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 max-h-[500px] overflow-y-auto">
-                            <div className="p-4 space-y-4">
-                                {ticket.messages?.length === 0 && (
-                                    <div className="text-center py-12 text-gray-400">
-                                        <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                        <p>{t('support.noMessages')}</p>
-                                    </div>
-                                )}
-                                {ticket.messages?.map((message) => (
+                        {/* Messages */}
+                        <div className="space-y-4">
+                            {ticket.messages?.map((message, index) => {
+                                const isAdmin = message.is_admin_reply
+                                const showAvatar = index === 0 || ticket.messages![index - 1]?.is_admin_reply !== isAdmin
+
+                                return (
                                     <div
                                         key={message.id}
-                                        className={`flex gap-3 ${message.is_admin_reply ? 'flex-row' : 'flex-row-reverse'}`}
+                                        className={`flex items-end gap-3 ${isAdmin ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                                     >
-                                        <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm ${message.is_admin_reply
-                                            ? 'bg-gradient-to-br from-green-500 to-emerald-600'
-                                            : 'bg-gradient-to-br from-gray-400 to-gray-500'
-                                            }`}>
-                                            {message.user?.first_name?.charAt(0) || 'U'}
-                                            {message.user?.last_name?.charAt(0) || ''}
-                                        </div>
-                                        <div className={`flex-1 max-w-[75%] ${message.is_admin_reply ? '' : 'text-right'}`}>
-                                            <div className={`inline-block rounded-2xl px-4 py-3 ${message.is_admin_reply
-                                                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-tl-none'
-                                                : 'bg-gray-100 text-gray-800 rounded-tr-none'
-                                                }`}>
-                                                <p className="whitespace-pre-wrap text-sm">{message.message}</p>
+                                        {!isAdmin && showAvatar && (
+                                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-medium text-xs">
+                                                {message.user?.first_name?.charAt(0) || 'U'}
                                             </div>
-                                            <div className={`mt-1 flex items-center gap-2 text-xs text-gray-400 ${message.is_admin_reply ? '' : 'justify-end'}`}>
-                                                <span className="font-medium">{message.user?.first_name} {message.user?.last_name}</span>
-                                                <span>•</span>
-                                                <span>{formatDate(message.created_at)}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {isCustomerTyping && (
-                                    <div className="flex gap-3 flex-row-reverse">
-                                        <div className="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm bg-gradient-to-br from-gray-400 to-gray-500">
-                                            {(ticket.user?.first_name || ticket.customer?.first_name)?.charAt(0)}
-                                            {(ticket.user?.last_name || ticket.customer?.last_name)?.charAt(0)}
-                                        </div>
-                                        <div className="flex-1 max-w-[75%] text-right">
-                                            <div className="inline-block rounded-2xl px-4 py-3 bg-gray-100 text-gray-800 rounded-tr-none">
-                                                <div className="flex space-x-1 items-center h-5">
-                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-1 flex items-center gap-2 text-xs text-gray-400 justify-end">
-                                                <span className="font-medium italic">{t('support.typing')}...</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                        )}
+                                        {!isAdmin && !showAvatar && <div className="w-8" />}
 
-                    {/* Reply Form */}
+                                        <div className={`max-w-[70%] ${isAdmin ? 'order-1' : ''}`}>
+                                            <div className={`rounded-2xl px-4 py-3 ${isAdmin
+                                                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-br-md shadow-lg shadow-green-500/20'
+                                                : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
+                                                }`}>
+                                                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.message}</p>
+                                            </div>
+                                            <div className={`mt-1 flex items-center gap-2 text-xs text-gray-400 ${isAdmin ? 'justify-end' : ''}`}>
+                                                <span>{formatTimeAgo(message.created_at)}</span>
+                                            </div>
+                                        </div>
+
+                                        {isAdmin && showAvatar && (
+                                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-medium text-xs order-2">
+                                                <Sparkles className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                        {isAdmin && !showAvatar && <div className="w-8 order-2" />}
+                                    </div>
+                                )
+                            })}
+
+                            {/* Typing Indicator */}
+                            {isCustomerTyping && <TypingIndicator userName={customerName} />}
+                        </div>
+
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input Area */}
                     {ticket.status !== 'closed' && (
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle>{t('support.sendReply')}</CardTitle>
+                        <div className="flex-shrink-0 p-4 bg-white/80 backdrop-blur-xl border-t">
+                            <div className="flex items-end gap-3">
                                 <CannedResponseDropdown onSelect={(content) => setReplyMessage(prev => prev + content)} />
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <Textarea
-                                    placeholder={t('support.typeYourMessage')}
-                                    value={replyMessage}
-                                    onChange={(e) => {
-                                        setReplyMessage(e.target.value);
-                                        handleTyping();
-                                    }}
-                                    rows={4}
-                                    className="resize-none"
-                                />
-                                <div className="flex items-center justify-end">
+                                <div className="flex-1 relative">
+                                    <Textarea
+                                        placeholder={t('support.typeYourMessage')}
+                                        value={replyMessage}
+                                        onChange={(e) => {
+                                            setReplyMessage(e.target.value);
+                                            handleTyping();
+                                        }}
+                                        onKeyDown={handleKeyDown}
+                                        rows={1}
+                                        className="resize-none pr-14 min-h-[48px] max-h-[120px] rounded-2xl border-gray-200 focus:border-green-500 focus:ring-green-500/20 transition-all"
+                                    />
                                     <Button
                                         onClick={handleSendReply}
                                         disabled={!replyMessage.trim() || replyMutation.isPending}
-                                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                                        size="icon"
+                                        className="absolute right-2 bottom-2 h-8 w-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/30 disabled:opacity-50 disabled:shadow-none transition-all"
                                     >
-                                        <Send className="h-4 w-4 mr-2" />
-                                        {t('support.sendReply')}
+                                        <Send className="h-4 w-4" />
                                     </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Sidebar */}
+                <div className="w-80 flex-shrink-0 border-l bg-white overflow-y-auto">
+                    <div className="p-4 space-y-4">
+                        {/* Customer Info */}
+                        <Card className="border-0 shadow-sm">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                    <User className="h-4 w-4 text-gray-400" />
+                                    {t('support.customerDetails')}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                                        <User className="h-4 w-4 text-green-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm">{customerName}</p>
+                                        <p className="text-xs text-gray-500">Customer</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                        <Mail className="h-4 w-4 text-blue-600" />
+                                    </div>
+                                    <p className="text-sm text-gray-600 truncate">{ticket.user?.email || ticket.customer?.email}</p>
+                                </div>
+                                <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                                    <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                        <Phone className="h-4 w-4 text-purple-600" />
+                                    </div>
+                                    <p className="text-sm text-gray-600">{ticket.user?.phone || ticket.customer?.phone || 'N/A'}</p>
                                 </div>
                             </CardContent>
                         </Card>
-                    )}
-                </div>
 
-                <div className="space-y-6">
-                    {/* Ticket Info */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center">
-                                <User className="h-5 w-5 mr-2" />
-                                {t('support.ticketInformation')}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            <div>
-                                <p className="text-sm text-muted-foreground">{t('support.category')}</p>
-                                <p className="font-medium">{ticket.category.replace('_', ' ')}</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">{t('common.status')}</p>
-                                <Select
-                                    value={ticket.status}
-                                    onValueChange={(value: TicketStatus) =>
-                                        updateStatusMutation.mutate({ id: ticket.id, status: value })
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="open">{t('support.statuses.open')}</SelectItem>
-                                        <SelectItem value="in_progress">{t('support.statuses.inProgress')}</SelectItem>
-                                        <SelectItem value="awaiting_response">{t('support.statuses.awaitingResponse')}</SelectItem>
-                                        <SelectItem value="resolved">{t('support.statuses.resolved')}</SelectItem>
-                                        <SelectItem value="closed">{t('support.statuses.closed')}</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">{t('support.priority')}</p>
-                                <Select
-                                    value={ticket.priority}
-                                    onValueChange={(value: TicketPriority) =>
-                                        updatePriorityMutation.mutate({ id: ticket.id, priority: value })
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="low">{t('support.priorities.low')}</SelectItem>
-                                        <SelectItem value="medium">{t('support.priorities.medium')}</SelectItem>
-                                        <SelectItem value="high">{t('support.priorities.high')}</SelectItem>
-                                        <SelectItem value="urgent">{t('support.priorities.urgent')}</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Customer Info */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{t('support.customerDetails')}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                            <div>
-                                <p className="text-sm text-muted-foreground">{t('orders.name')}</p>
-                                <p className="font-medium">
-                                    {ticket.user?.first_name || ticket.customer?.first_name} {ticket.user?.last_name || ticket.customer?.last_name}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">{t('orders.email')}</p>
-                                <p className="font-medium">{ticket.user?.email || ticket.customer?.email}</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">{t('orders.phone')}</p>
-                                <p className="font-medium">{ticket.user?.phone || ticket.customer?.phone}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Customer History */}
-                    {ticket.user_id && (
-                        <CustomerHistoryCard customerId={ticket.user_id} currentTicketId={ticket.id} />
-                    )}
-
-                    {/* Related Order */}
-                    {ticket.order && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center">
-                                    <Package className="h-5 w-5 mr-2" />
-                                    {t('support.relatedOrder')}
+                        {/* Ticket Info */}
+                        <Card className="border-0 shadow-sm">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                    <MessageSquare className="h-4 w-4 text-gray-400" />
+                                    {t('support.ticketInformation')}
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <p className="font-mono text-sm">{ticket.order.order_number}</p>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-2"
-                                    onClick={() => navigate(`/orders/${ticket.order_id}`)}
-                                >
-                                    {t('support.viewOrder')}
-                                </Button>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <p className="text-xs text-gray-500 mb-1.5">{t('support.category')}</p>
+                                    <p className="text-sm font-medium capitalize">{ticket.category.replace('_', ' ')}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 mb-1.5">{t('common.status')}</p>
+                                    <Select
+                                        value={ticket.status}
+                                        onValueChange={(value: TicketStatus) =>
+                                            updateStatusMutation.mutate({ id: ticket.id, status: value })
+                                        }
+                                    >
+                                        <SelectTrigger className="h-9">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="open">{t('support.statuses.open')}</SelectItem>
+                                            <SelectItem value="in_progress">{t('support.statuses.inProgress')}</SelectItem>
+                                            <SelectItem value="awaiting_response">{t('support.statuses.awaitingResponse')}</SelectItem>
+                                            <SelectItem value="resolved">{t('support.statuses.resolved')}</SelectItem>
+                                            <SelectItem value="closed">{t('support.statuses.closed')}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 mb-1.5">{t('support.priority')}</p>
+                                    <Select
+                                        value={ticket.priority}
+                                        onValueChange={(value: TicketPriority) =>
+                                            updatePriorityMutation.mutate({ id: ticket.id, priority: value })
+                                        }
+                                    >
+                                        <SelectTrigger className="h-9">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="low">{t('support.priorities.low')}</SelectItem>
+                                            <SelectItem value="medium">{t('support.priorities.medium')}</SelectItem>
+                                            <SelectItem value="high">{t('support.priorities.high')}</SelectItem>
+                                            <SelectItem value="urgent">{t('support.priorities.urgent')}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>Created {formatTimeAgo(ticket.created_at)}</span>
+                                </div>
                             </CardContent>
                         </Card>
-                    )}
+
+                        {/* Customer History */}
+                        {ticket.user_id && (
+                            <CustomerHistoryCard customerId={ticket.user_id} currentTicketId={ticket.id} />
+                        )}
+
+                        {/* Related Order */}
+                        {ticket.order && (
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                        <Package className="h-4 w-4 text-gray-400" />
+                                        {t('support.relatedOrder')}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full justify-between group hover:border-green-500 hover:text-green-600 transition-all"
+                                        onClick={() => navigate(`/orders/${ticket.order_id}`)}
+                                    >
+                                        <span className="font-mono text-xs">{ticket.order.order_number}</span>
+                                        <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-green-500 transition-colors" />
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div >
+        </div>
     )
 }

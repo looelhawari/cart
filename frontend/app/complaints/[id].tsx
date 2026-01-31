@@ -9,14 +9,13 @@ import {
   Platform,
   ActivityIndicator,
   FlatList,
-  Image,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
-import { ArrowLeft, Send, AlertCircle, Paperclip, FileText, Check } from 'lucide-react-native';
+import { ArrowLeft, Send, AlertCircle, Check } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
 import {
   getComplaint,
@@ -26,6 +25,59 @@ import {
   type ComplaintMessage,
 } from '@/services/api/complaintsApi';
 import echo from '@/services/echo';
+
+// Format time
+const formatTime = (date: string) => {
+  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatTimeAgo = (date: string) => {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+// Typing Indicator
+const TypingIndicator = () => {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animateDot = (dot: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: -4, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ])
+      );
+    };
+
+    const anim = Animated.parallel([
+      animateDot(dot1, 0),
+      animateDot(dot2, 100),
+      animateDot(dot3, 200),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [dot1, dot2, dot3]);
+
+  return (
+    <View style={styles.typingRow}>
+      <View style={styles.typingBubble}>
+        <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot1 }] }]} />
+        <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot2 }] }]} />
+        <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot3 }] }]} />
+      </View>
+    </View>
+  );
+};
 
 export default function ComplaintDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -42,15 +94,12 @@ export default function ComplaintDetailsScreen() {
   const loadComplaint = async () => {
     if (!id) return;
     try {
-      setLoading(true);
       setError(null);
       const response = await getComplaint(Number(id));
-      if (!response.success || !response.data?.complaint) {
-        throw new Error('Failed to load complaint');
-      }
+      if (!response.success || !response.data?.complaint) throw new Error('Failed to load');
       setComplaint(response.data.complaint);
     } catch (err: any) {
-      setError(err.message || 'Failed to load complaint');
+      setError(err.message || 'Failed to load');
     } finally {
       setLoading(false);
     }
@@ -63,28 +112,15 @@ export default function ComplaintDetailsScreen() {
   useEffect(() => {
     if (!id) return;
 
-    console.log(`[RT] Subscribing to complaints.${id}`);
     const channel = echo.private(`complaints.${id}`)
       .listen('.message.sent', (event: { message: ComplaintMessage }) => {
-        console.log('[RT] New message received:', event.message);
-        setIsAdminTyping(false); // Clear typing when message arrives
-
-        setComplaint((prev) => {
+        setComplaint(prev => {
           if (!prev) return prev;
-          if (prev.messages?.some((m) => m.id === event.message.id)) return prev;
-          return {
-            ...prev,
-            messages: [...(prev.messages || []), event.message],
-          };
+          if (prev.messages?.some(m => m.id === event.message.id)) return prev;
+          return { ...prev, messages: [...(prev.messages || []), event.message] };
         });
-
-        // Auto-scroll to bottom
-        setTimeout(() => {
-          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-        }, 100);
       })
-      .listen('.user.typing', (event: { user_name: string; is_typing: boolean; is_admin: boolean }) => {
-        console.log('[RT] Typing event:', event);
+      .listen('.user.typing', (event: { is_typing: boolean; is_admin: boolean }) => {
         if (event.is_admin) {
           setIsAdminTyping(event.is_typing);
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -95,49 +131,34 @@ export default function ComplaintDetailsScreen() {
       });
 
     return () => {
-      console.log(`[RT] Leaving complaints.${id}`);
       echo.leave(`complaints.${id}`);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
     };
   }, [id]);
 
   const handleSend = async () => {
-    if (!message.trim() || !complaint) return;
-    const messageText = message.trim();
-    setMessage(''); // Clear immediately for better UX
+    if (!message.trim() || !id) return;
+
+    const text = message.trim();
+    setMessage('');
+    setSending(true);
+
+    const tempMsg: ComplaintMessage = {
+      id: Date.now(),
+      message: text,
+      is_admin_reply: false,
+      user: undefined,
+      created_at: new Date().toISOString(),
+    };
+
+    setComplaint(prev => prev ? { ...prev, messages: [...(prev.messages || []), tempMsg] } : prev);
 
     try {
-      setSending(true);
-
-      // Optimistic update - add message immediately
-      const optimisticMessage: ComplaintMessage = {
-        id: Date.now(), // Temporary ID
-        message: messageText,
-        is_admin_reply: false,
-        created_at: new Date().toISOString(),
-      };
-
-      setComplaint((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: [...(prev.messages || []), optimisticMessage],
-        };
-      });
-
-      // Scroll to bottom
-      if (flatListRef.current) {
-        setTimeout(() => {
-          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-        }, 100);
-      }
-
-      // Send to server
-      await replyToComplaint(complaint.id, messageText);
-
+      await replyToComplaint(Number(id), text);
     } catch (err: any) {
-      setError(err.message || 'Failed to send reply');
-      setMessage(messageText); // Restore message on error
+      setError(err.message || 'Failed to send');
+      setMessage(text);
     } finally {
       setSending(false);
     }
@@ -147,106 +168,71 @@ export default function ComplaintDetailsScreen() {
     setMessage(text);
     if (!id) return;
 
-    // Clear existing timeout
     if (sendTypingTimeoutRef.current) {
       clearTimeout(sendTypingTimeoutRef.current);
     } else {
-      // Send start typing
       broadcastTyping(Number(id), true);
     }
 
-    // Set timeout to stop typing
     sendTypingTimeoutRef.current = setTimeout(() => {
       broadcastTyping(Number(id), false);
       sendTypingTimeoutRef.current = null;
     }, 2000);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'open': return Colors.accentOrange;
-      case 'in_progress': return Colors.primary700;
-      case 'resolved': return Colors.primary900;
-      case 'closed': return Colors.neutralMedium;
-      default: return Colors.neutralMedium;
+      case 'open': return { bg: '#fff7ed', color: '#f97316' };
+      case 'in_progress': return { bg: '#eff6ff', color: '#3b82f6' };
+      case 'resolved': return { bg: '#f0fdf4', color: '#22c55e' };
+      default: return { bg: '#f9fafb', color: '#6b7280' };
     }
   };
 
-  const renderHeader = () => {
-    if (!complaint) return null;
+  const renderMessage = ({ item }: { item: ComplaintMessage }) => {
+    const isAdmin = item.is_admin_reply;
+
     return (
-      <View style={styles.headerContainer}>
-        <View style={styles.headerCard}>
-          <View style={styles.headerRow}>
-            <Text style={styles.ticketNumber}>{complaint.ticket_number}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(complaint.status)}15` }]}>
-              <Text style={[styles.statusText, { color: getStatusColor(complaint.status) }]}>
-                {complaint.status.replace('_', ' ').toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.subject}>{complaint.subject}</Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaChip}>
-              <Text style={styles.metaLabel}>{complaint.category.replace('_', ' ')}</Text>
-            </View>
-            {complaint.order_id && (
-              <View style={[styles.metaChip, styles.orderChip]}>
-                <Text style={[styles.metaLabel, styles.orderLabel]}>Order #{complaint.order_id}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.descriptionText}>{complaint.description}</Text>
-
-          {complaint.attachments && complaint.attachments.length > 0 && (
-            <View style={styles.attachmentsRow}>
-              {complaint.attachments.map((att) => (
-                <View key={att.id} style={styles.attachmentChip}>
-                  <Paperclip size={14} color={Colors.primary900} />
-                  <Text style={styles.attachmentName} numberOfLines={1}>{att.file_name}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <Text style={styles.timestamp}>
-            Created on {new Date(complaint.created_at).toLocaleString()}
+      <View style={[styles.msgRow, isAdmin ? styles.msgLeft : styles.msgRight]}>
+        <View style={[styles.bubble, isAdmin ? styles.bubbleLeft : styles.bubbleRight]}>
+          <Text style={[styles.msgText, isAdmin ? styles.textLeft : styles.textRight]}>
+            {item.message}
           </Text>
-        </View>
-        <View style={styles.chatDivider}>
-          <Text style={styles.chatDividerText}>Conversation History</Text>
+          <View style={styles.msgMeta}>
+            <Text style={[styles.msgTime, isAdmin ? styles.timeLeft : styles.timeRight]}>
+              {formatTime(item.created_at)}
+            </Text>
+            {!isAdmin && <Check size={12} color="rgba(255,255,255,0.6)" style={{ marginLeft: 4 }} />}
+          </View>
         </View>
       </View>
     );
   };
 
-  const renderMessage = ({ item }: { item: ComplaintMessage }) => {
-    const isAdmin = item.is_admin_reply;
+  const renderHeader = () => {
+    if (!complaint) return null;
+    const status = complaint.status || 'open';
+    const statusStyle = getStatusStyle(status);
+
     return (
-      <View style={[styles.messageRow, isAdmin ? styles.messageRowLeft : styles.messageRowRight]}>
-        {isAdmin && (
-          <View style={styles.avatarContainer}>
-            <Image
-              source={{ uri: 'https://ui-avatars.com/api/?name=Support&background=16a34a&color=fff' }}
-              style={styles.avatar}
-            />
+      <View style={styles.header}>
+        <View style={styles.headerCard}>
+          <View style={styles.headerTop}>
+            <Text style={styles.ticketNum}>{complaint.ticket_number || 'N/A'}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+              <Text style={[styles.statusText, { color: statusStyle.color }]}>
+                {(status || 'open').replace('_', ' ')}
+              </Text>
+            </View>
           </View>
-        )}
-        <View style={[styles.messageBubble, isAdmin ? styles.bubbleLeft : styles.bubbleRight]}>
-          <Text style={[styles.messageText, isAdmin ? styles.textLeft : styles.textRight]}>
-            {item.message}
-          </Text>
-          <View style={styles.messageMeta}>
-            <Text style={[styles.messageTime, isAdmin ? styles.timeLeft : styles.timeRight]}>
-              {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-            {!isAdmin && <Check size={12} color={Colors.primary100} style={{ marginLeft: 4 }} />}
-          </View>
+          <Text style={styles.headerSubject}>{complaint.subject || 'No subject'}</Text>
+          <Text style={styles.headerDesc} numberOfLines={3}>{complaint.description || ''}</Text>
+          <Text style={styles.headerTime}>{complaint.created_at ? formatTimeAgo(complaint.created_at) : ''}</Text>
+        </View>
+        <View style={styles.chatDivider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>Messages</Text>
+          <View style={styles.dividerLine} />
         </View>
       </View>
     );
@@ -260,11 +246,11 @@ export default function ComplaintDetailsScreen() {
           title: 'Ticket Details',
           headerTitleStyle: { fontFamily: 'Poppins-SemiBold', fontSize: 18 },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={24} color={Colors.neutralCharcoal} />
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <ArrowLeft size={22} color={Colors.neutralCharcoal} />
             </TouchableOpacity>
           ),
-          headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.neutralCloud }} />,
+          headerBackground: () => <View style={styles.headerBg} />,
           headerShadowVisible: false,
         }}
       />
@@ -272,86 +258,63 @@ export default function ComplaintDetailsScreen() {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
-          style={styles.keyboardView}
+          style={styles.flex}
         >
           {loading ? (
-            <View style={styles.loadingContainer}>
+            <View style={styles.center}>
               <ActivityIndicator size="large" color={Colors.primary900} />
             </View>
           ) : !complaint ? (
-            <View style={styles.errorContainer}>
-              <AlertCircle size={48} color={Colors.neutralMedium} />
-              <Text style={styles.errorText}>Complaint not found</Text>
+            <View style={styles.center}>
+              <AlertCircle size={48} color="#d1d5db" />
+              <Text style={styles.errorText}>Ticket not found</Text>
             </View>
           ) : (
             <>
               {error && (
-                <View style={styles.errorBanner}>
-                  <AlertCircle size={16} color={Colors.neutralWhite} />
+                <TouchableOpacity style={styles.errorBanner} onPress={() => setError(null)}>
+                  <AlertCircle size={14} color="#fff" />
                   <Text style={styles.errorBannerText}>{error}</Text>
-                  <TouchableOpacity onPress={() => setError(null)}>
-                    <Check size={16} color={Colors.neutralWhite} />
-                  </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               )}
+
               <FlatList
                 ref={flatListRef}
-                data={[...(complaint.messages || [])].reverse()} // Reverse for inverted list
+                data={complaint.messages || []}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={renderMessage}
-                inverted
                 contentContainerStyle={styles.listContent}
-                ListFooterComponent={renderHeader} // Footer becomes header in inverted list
-                ListHeaderComponent={isAdminTyping ? (
-                  <View style={[styles.messageRow, styles.messageRowLeft]}>
-                    <View style={styles.avatarContainer}>
-                      <Image
-                        source={{ uri: 'https://ui-avatars.com/api/?name=Support&background=16a34a&color=fff' }}
-                        style={styles.avatar}
-                      />
-                    </View>
-                    <View style={[styles.messageBubble, styles.bubbleLeft, styles.typingBubble]}>
-                      <View style={styles.typingDots}>
-                        <View style={[styles.typingDot, styles.dot1]} />
-                        <View style={[styles.typingDot, styles.dot2]} />
-                        <View style={[styles.typingDot, styles.dot3]} />
-                      </View>
-                    </View>
-                  </View>
-                ) : null}
+                ListHeaderComponent={renderHeader}
+                ListFooterComponent={isAdminTyping ? <TypingIndicator /> : null}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
               />
+
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Type a message..."
+                  placeholderTextColor="#9ca3af"
+                  value={message}
+                  onChangeText={handleTyping}
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[styles.sendBtn, (!message.trim() || sending) && styles.sendBtnDisabled]}
+                  onPress={handleSend}
+                  disabled={!message.trim() || sending}
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Send size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
             </>
           )}
-
-          {/* Input Area */}
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Type your reply..."
-                placeholderTextColor={Colors.neutralMedium}
-                value={message}
-                onChangeText={handleTyping}
-                multiline
-                maxLength={500}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  (!message.trim() || sending) && styles.sendButtonDisabled,
-                ]}
-                onPress={handleSend}
-                disabled={!message.trim() || sending}
-              >
-                {sending ? (
-                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
-                ) : (
-                  <Send size={20} color={Colors.neutralWhite} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </>
@@ -361,297 +324,209 @@ export default function ComplaintDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutralCloud,
+    backgroundColor: '#f8fafc',
   },
-  keyboardView: {
+  flex: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
+  center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  errorText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: Colors.neutralMedium,
+  headerBg: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
-  backButton: {
+  backBtn: {
     marginLeft: Platform.OS === 'ios' ? -8 : 0,
     padding: 8,
   },
-  listContent: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
+  errorText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#9ca3af',
   },
-  // Header Styles
-  headerContainer: {
-    marginBottom: Spacing.lg,
+  listContent: {
+    padding: 16,
+    paddingBottom: 16,
+  },
+  header: {
+    marginBottom: 12,
   },
   headerCard: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-    shadowColor: Colors.neutralCharcoal,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
   },
-  headerRow: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  ticketNumber: {
-    fontSize: 12,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontWeight: '700',
-    color: Colors.neutralMedium,
+  ticketNum: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#9ca3af',
   },
   statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '700',
-  },
-  subject: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.neutralCharcoal,
-    marginBottom: 8,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  metaChip: {
-    backgroundColor: Colors.neutralLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  metaLabel: {
-    fontSize: 11,
-    color: Colors.neutralMedium,
-    fontWeight: '500',
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
-  orderChip: {
-    backgroundColor: `${Colors.primary900}10`,
+  headerSubject: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 8,
   },
-  orderLabel: {
-    color: Colors.primary900,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.neutralLight,
-    marginVertical: 12,
-  },
-  descriptionText: {
+  headerDesc: {
     fontSize: 14,
-    color: Colors.neutralCharcoal,
-    lineHeight: 22,
-    marginBottom: 12,
+    color: '#64748b',
+    lineHeight: 20,
+    marginBottom: 10,
   },
-  attachmentsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  attachmentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.neutralLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.neutralGray,
-  },
-  attachmentName: {
+  headerTime: {
     fontSize: 11,
-    color: Colors.neutralCharcoal,
-    maxWidth: 150,
-  },
-  timestamp: {
-    fontSize: 10,
-    color: Colors.neutralMedium,
-    textAlign: 'right',
+    color: '#9ca3af',
   },
   chatDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 16,
+    marginTop: 16,
+    gap: 10,
   },
-  chatDividerText: {
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0',
+  },
+  dividerText: {
     fontSize: 11,
-    color: Colors.neutralMedium,
     fontWeight: '600',
-    backgroundColor: Colors.neutralCloud,
-    paddingHorizontal: 8,
+    color: '#9ca3af',
     textTransform: 'uppercase',
   },
-  // Message Styles
-  messageRow: {
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    maxWidth: '85%',
+  msgRow: {
+    marginVertical: 4,
+    maxWidth: '80%',
   },
-  messageRowLeft: {
+  msgLeft: {
     alignSelf: 'flex-start',
   },
-  messageRowRight: {
+  msgRight: {
     alignSelf: 'flex-end',
-    justifyContent: 'flex-end',
   },
-  avatarContainer: {
-    marginRight: 8,
-    marginBottom: 2,
-  },
-  avatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-  },
-  messageBubble: {
+  bubble: {
     borderRadius: 16,
-    padding: 12,
-    minWidth: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   bubbleLeft: {
-    backgroundColor: Colors.neutralWhite,
+    backgroundColor: '#fff',
     borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   bubbleRight: {
-    backgroundColor: Colors.primary900,
+    backgroundColor: '#22c55e',
     borderBottomRightRadius: 4,
   },
-  messageText: {
+  msgText: {
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: 4,
   },
   textLeft: {
-    color: Colors.neutralCharcoal,
+    color: '#1e293b',
   },
   textRight: {
-    color: Colors.neutralWhite,
+    color: '#fff',
   },
-  messageMeta: {
+  msgMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 4,
     justifyContent: 'flex-end',
   },
-  messageTime: {
+  msgTime: {
     fontSize: 10,
   },
   timeLeft: {
-    color: Colors.neutralMedium,
+    color: '#9ca3af',
   },
   timeRight: {
-    color: Colors.primary100,
-    opacity: 0.8,
+    color: 'rgba(255,255,255,0.7)',
   },
-  // Input Styles
+  typingRow: {
+    alignSelf: 'flex-start',
+    marginVertical: 4,
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#9ca3af',
+  },
   inputContainer: {
-    backgroundColor: Colors.neutralWhite,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Platform.OS === 'ios' ? Spacing.sm : Spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? Spacing.lg : Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutralLight,
-  },
-  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: Colors.neutralLight,
-    borderRadius: 24,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    padding: 12,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 12,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    gap: 10,
   },
   input: {
     flex: 1,
-    maxHeight: 100,
+    backgroundColor: '#f8fafc',
+    borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     fontSize: 14,
-    color: Colors.neutralCharcoal,
+    color: '#1e293b',
+    maxHeight: 100,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  sendButton: {
+  sendBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary900,
-    alignItems: 'center',
+    backgroundColor: '#22c55e',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  sendButtonDisabled: {
-    backgroundColor: Colors.neutralMedium,
-    opacity: 0.5,
+  sendBtnDisabled: {
+    backgroundColor: '#d1d5db',
   },
   errorBanner: {
-    backgroundColor: '#ef4444',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 8,
     borderRadius: 8,
     gap: 8,
   },
   errorBannerText: {
     flex: 1,
-    color: Colors.neutralWhite,
-    fontSize: 14,
-    fontFamily: 'Poppins-Medium',
-  },
-  // Typing Indicator Styles
-  typingBubble: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  typingDots: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.neutralMedium,
-    opacity: 0.6,
-  },
-  dot1: {
-    opacity: 0.4,
-  },
-  dot2: {
-    opacity: 0.6,
-  },
-  dot3: {
-    opacity: 0.8,
+    color: '#fff',
+    fontSize: 13,
   },
 });

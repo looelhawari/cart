@@ -8,17 +8,41 @@ import {
   Animated,
   RefreshControl,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { ArrowLeft, Plus, AlertCircle, ChevronRight, MessageSquare } from 'lucide-react-native';
+import { ArrowLeft, Plus, MessageSquare, ChevronRight, Clock, Inbox } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
 import Spacing from '@/constants/Spacing';
 import { Button } from '@/components/Button';
 import { listComplaints, type ComplaintSummary } from '@/services/api/complaintsApi';
+
+// Format relative time
+const formatTimeAgo = (date: string) => {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d`;
+  return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const statusFilters = [
+  { key: 'all', label: 'All' },
+  { key: 'open', label: 'Open' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'resolved', label: 'Resolved' },
+];
 
 // Skeleton Component
 const ComplaintSkeleton = () => {
@@ -48,15 +72,13 @@ const ComplaintSkeleton = () => {
 
   return (
     <View style={styles.skeletonCard}>
-      <View style={styles.skeletonHeader}>
-        <Animated.View style={[styles.skeletonText, { width: 80, height: 16, opacity }]} />
+      <View style={styles.skeletonRow}>
+        <Animated.View style={[styles.skeletonCircle, { opacity }]} />
+        <View style={{ flex: 1, gap: 8 }}>
+          <Animated.View style={[styles.skeletonLine, { width: '60%', opacity }]} />
+          <Animated.View style={[styles.skeletonLine, { width: '80%', opacity }]} />
+        </View>
         <Animated.View style={[styles.skeletonBadge, { opacity }]} />
-      </View>
-      <Animated.View style={[styles.skeletonText, { width: '80%', height: 20, marginBottom: 8, opacity }]} />
-      <Animated.View style={[styles.skeletonText, { width: 100, height: 14, opacity }]} />
-      <View style={styles.skeletonFooter}>
-        <Animated.View style={[styles.skeletonBadge, { width: 80, opacity }]} />
-        <Animated.View style={[styles.skeletonText, { width: 60, height: 12, opacity }]} />
       </View>
     </View>
   );
@@ -67,6 +89,7 @@ export default function ComplaintsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   const loadComplaints = async () => {
     try {
@@ -99,39 +122,33 @@ export default function ComplaintsScreen() {
     loadComplaints();
   }, []);
 
+  const filteredComplaints = complaints.filter(c =>
+    activeFilter === 'all' || c.status === activeFilter
+  );
+
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'open':
-        return { color: Colors.accentOrange, label: 'Open', bg: '#FFF7ED' };
-      case 'in_progress':
-        return { color: Colors.primary700, label: 'In Progress', bg: '#F0FDF4' };
-      case 'resolved':
-        return { color: Colors.primary900, label: 'Resolved', bg: '#DCFCE7' };
-      case 'closed':
-        return { color: Colors.neutralMedium, label: 'Closed', bg: '#F1F5F9' };
-      default:
-        return { color: Colors.neutralMedium, label: status, bg: '#F1F5F9' };
+      case 'open': return { color: '#f97316', bg: '#fff7ed', dot: '#fb923c' };
+      case 'in_progress': return { color: '#3b82f6', bg: '#eff6ff', dot: '#60a5fa' };
+      case 'resolved': return { color: '#22c55e', bg: '#f0fdf4', dot: '#4ade80' };
+      case 'closed': return { color: '#6b7280', bg: '#f9fafb', dot: '#9ca3af' };
+      default: return { color: '#6b7280', bg: '#f9fafb', dot: '#9ca3af' };
     }
   };
 
   const getPriorityConfig = (priority: string) => {
     switch (priority) {
-      case 'urgent':
-        return { color: Colors.accentRed, label: 'Urgent' };
-      case 'high':
-        return { color: Colors.accentOrange, label: 'High' };
-      case 'medium':
-        return { color: Colors.accentYellow, label: 'Medium' };
-      case 'low':
-        return { color: Colors.neutralMedium, label: 'Low' };
-      default:
-        return { color: Colors.neutralMedium, label: priority };
+      case 'urgent': return '#ef4444';
+      case 'high': return '#f97316';
+      case 'medium': return '#eab308';
+      case 'low': return '#6b7280';
+      default: return '#6b7280';
     }
   };
 
   const renderComplaint = ({ item }: { item: ComplaintSummary }) => {
     const status = getStatusConfig(item.status);
-    const priority = getPriorityConfig(item.priority);
+    const priorityColor = getPriorityConfig(item.priority);
 
     return (
       <TouchableOpacity
@@ -139,84 +156,133 @@ export default function ComplaintsScreen() {
         onPress={() => router.push(`/complaints/${item.id}` as any)}
         activeOpacity={0.7}
       >
-        <View style={styles.cardHeader}>
-          <View style={styles.ticketBadge}>
-            <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
+        <View style={styles.cardContent}>
+          {/* Left: Avatar/Icon */}
+          <View style={styles.cardLeft}>
+            <LinearGradient
+              colors={['#22c55e', '#16a34a']}
+              style={styles.avatarGradient}
+            >
+              <MessageSquare size={18} color="#fff" />
+            </LinearGradient>
+            {item.priority === 'urgent' && (
+              <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
+            )}
           </View>
-          <View style={[styles.priorityPill, { borderColor: priority.color }]}>
-            <View style={[styles.priorityDot, { backgroundColor: priority.color }]} />
-            <Text style={[styles.priorityText, { color: priority.color }]}>
-              {priority.label}
-            </Text>
-          </View>
-        </View>
 
-        <Text style={styles.subject} numberOfLines={2}>
-          {item.subject}
-        </Text>
-
-        <View style={styles.metaRow}>
-          <View style={styles.categoryContainer}>
-            <Text style={styles.category}>{item.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</Text>
-          </View>
-          {item.messages_count !== undefined && item.messages_count > 0 && (
-            <View style={styles.messageCount}>
-              <MessageSquare size={12} color={Colors.neutralMedium} />
-              <Text style={styles.messageCountText}>{item.messages_count}</Text>
+          {/* Middle: Content */}
+          <View style={styles.cardMiddle}>
+            <View style={styles.headerRow}>
+              <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
+              <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
             </View>
-          )}
+            <Text style={styles.subject} numberOfLines={1}>{item.subject}</Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.category}>
+                {item.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              </Text>
+              {item.messages_count !== undefined && item.messages_count > 0 && (
+                <View style={styles.messagesBadge}>
+                  <MessageSquare size={10} color="#64748b" />
+                  <Text style={styles.messagesCount}>{item.messages_count}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Right: Time & Arrow */}
+          <View style={styles.cardRight}>
+            <Text style={styles.timeText}>{formatTimeAgo(item.created_at)}</Text>
+            <ChevronRight size={18} color="#cbd5e1" />
+          </View>
         </View>
 
-        <View style={styles.divider} />
-
-        <View style={styles.cardFooter}>
-          <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-            <Text style={[styles.statusText, { color: status.color }]}>
-              {status.label}
-            </Text>
-          </View>
-          <View style={styles.dateContainer}>
-            <Text style={styles.date}>
-              {new Date(item.created_at).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </Text>
-            <ChevronRight size={16} color={Colors.neutralMedium} />
-          </View>
+        {/* Status Bar at Bottom */}
+        <View style={[styles.statusBar, { backgroundColor: status.bg }]}>
+          <Text style={[styles.statusText, { color: status.color }]}>
+            {item.status.replace('_', ' ').toUpperCase()}
+          </Text>
         </View>
       </TouchableOpacity>
     );
   };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <LinearGradient
+        colors={['#f0fdf4', '#dcfce7']}
+        style={styles.emptyIconBg}
+      >
+        <Inbox size={40} color="#22c55e" />
+      </LinearGradient>
+      <Text style={styles.emptyTitle}>No Tickets Yet</Text>
+      <Text style={styles.emptyText}>
+        You haven't submitted any support tickets. We're here to help!
+      </Text>
+    </View>
+  );
 
   return (
     <>
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Support Tickets',
+          title: 'Support',
           headerTitleStyle: {
             fontFamily: 'Poppins-SemiBold',
             fontSize: 18,
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={24} color={Colors.neutralCharcoal} />
+              <ArrowLeft size={22} color={Colors.neutralCharcoal} />
             </TouchableOpacity>
           ),
           headerBackground: () => (
-            <View style={{ flex: 1, backgroundColor: Colors.neutralCloud }} />
+            <View style={{ flex: 1, backgroundColor: '#fff' }} />
           ),
           headerShadowVisible: false,
         }}
       />
       <SafeAreaView style={styles.container} edges={['bottom']}>
+        {/* Filter Tabs */}
+        <View style={styles.filterContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+          >
+            {statusFilters.map((filter) => {
+              const isActive = activeFilter === filter.key;
+              const count = filter.key === 'all'
+                ? complaints.length
+                : complaints.filter(c => c.status === filter.key).length;
+
+              return (
+                <TouchableOpacity
+                  key={filter.key}
+                  style={[styles.filterTab, isActive && styles.filterTabActive]}
+                  onPress={() => setActiveFilter(filter.key)}
+                >
+                  <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>
+                    {filter.label}
+                  </Text>
+                  {count > 0 && (
+                    <View style={[styles.filterCount, isActive && styles.filterCountActive]}>
+                      <Text style={[styles.filterCountText, isActive && styles.filterCountTextActive]}>
+                        {count}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         <View style={styles.content}>
           {loading ? (
             <FlatList
-              data={[1, 2, 3, 4, 5]}
+              data={[1, 2, 3, 4]}
               keyExtractor={(item) => item.toString()}
               renderItem={() => <ComplaintSkeleton />}
               contentContainerStyle={styles.listContent}
@@ -224,42 +290,36 @@ export default function ComplaintsScreen() {
             />
           ) : (
             <FlatList
-              data={complaints}
+              data={filteredComplaints}
               keyExtractor={(item) => item.id.toString()}
               renderItem={renderComplaint}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary900]} />
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#22c55e']}
+                  tintColor="#22c55e"
+                />
               }
-              ListEmptyComponent={() => (
-                <View style={styles.emptyState}>
-                  <View style={styles.emptyIconContainer}>
-                    <LinearGradient
-                      colors={[Colors.primary100, '#ffffff']}
-                      style={styles.emptyIconBg}
-                    >
-                      <AlertCircle size={48} color={Colors.primary900} />
-                    </LinearGradient>
-                  </View>
-                  <Text style={styles.emptyTitle}>No Complaints Found</Text>
-                  <Text style={styles.emptyText}>
-                    You haven&apos;t submitted any complaints yet. We're here to help if you need anything!
-                  </Text>
-                </View>
-              )}
+              ListEmptyComponent={renderEmptyState}
             />
           )}
 
-          <View style={styles.footer}>
-            <Button
-              title="Create New Ticket"
-              onPress={() => router.push('/complaints/new' as any)}
-              icon={<Plus size={20} color={Colors.neutralWhite} />}
-              variant="primary"
-              style={styles.createButton}
-            />
-          </View>
+          {/* FAB */}
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => router.push('/complaints/new' as any)}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={['#22c55e', '#16a34a']}
+              style={styles.fabGradient}
+            >
+              <Plus size={24} color="#fff" strokeWidth={2.5} />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </>
@@ -269,174 +329,212 @@ export default function ComplaintsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutralCloud,
+    backgroundColor: '#f8fafc',
   },
   content: {
     flex: 1,
-  },
-  listContent: {
-    padding: Spacing.lg,
-    paddingBottom: 100, // Space for floating button
   },
   backButton: {
     marginLeft: Platform.OS === 'ios' ? -8 : 0,
     padding: 8,
   },
-  // Skeleton Styles
-  skeletonCard: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 16,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.neutralLight,
+  // Filter Tabs
+  filterContainer: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
-  skeletonHeader: {
+  filterScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  filterTab: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    gap: 6,
+  },
+  filterTabActive: {
+    backgroundColor: '#22c55e',
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  filterLabelActive: {
+    color: '#fff',
+  },
+  filterCount: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  filterCountActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  filterCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  filterCountTextActive: {
+    color: '#fff',
+  },
+  // List
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  // Skeleton
+  skeletonCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 12,
   },
-  skeletonText: {
-    backgroundColor: Colors.neutralGray,
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  skeletonCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e2e8f0',
+  },
+  skeletonLine: {
+    height: 14,
+    backgroundColor: '#e2e8f0',
     borderRadius: 4,
-    marginBottom: 6,
   },
   skeletonBadge: {
-    height: 24,
-    width: 80,
-    backgroundColor: Colors.neutralGray,
-    borderRadius: 12,
-  },
-  skeletonFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
+    width: 50,
+    height: 20,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 10,
   },
   // Card Styles
   complaintCard: {
-    backgroundColor: Colors.neutralWhite,
+    backgroundColor: '#fff',
     borderRadius: 16,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    shadowColor: Colors.neutralCharcoal,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: Colors.neutralLight,
+    overflow: 'hidden',
   },
-  cardHeader: {
+  cardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: 14,
+    gap: 12,
+  },
+  cardLeft: {
+    position: 'relative',
+  },
+  avatarGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  ticketBadge: {
-    backgroundColor: Colors.neutralLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  ticketNumber: {
-    fontSize: 12,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontWeight: '700',
-    color: Colors.neutralMedium,
-  },
-  priorityPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    gap: 4,
   },
   priorityDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  cardMiddle: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  ticketNumber: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  priorityText: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
   subject: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: Colors.neutralCharcoal,
-    marginBottom: 8,
-    lineHeight: 24,
+    color: '#1e293b',
+    marginBottom: 4,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: 8,
   },
   category: {
-    fontSize: 13,
-    color: Colors.neutralMedium,
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#64748b',
   },
-  messageCount: {
+  messagesBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.neutralLight,
+    backgroundColor: '#f1f5f9',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 8,
   },
-  messageCountText: {
-    fontSize: 11,
-    color: Colors.neutralMedium,
+  messagesCount: {
+    fontSize: 10,
     fontWeight: '600',
+    color: '#64748b',
   },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.neutralLight,
-    marginBottom: 12,
+  cardRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 8,
   },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  timeText: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: '500',
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+  statusBar: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
-  },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  date: {
-    fontSize: 12,
-    color: Colors.neutralMedium,
+    letterSpacing: 0.5,
   },
   // Empty State
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-    marginTop: Spacing.xl,
-  },
-  emptyIconContainer: {
-    marginBottom: Spacing.lg,
+    paddingVertical: 60,
   },
   emptyIconBg: {
     width: 80,
@@ -444,40 +542,39 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.primary500,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: Typography.h4,
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.neutralCharcoal,
-    marginBottom: Spacing.sm,
+    color: '#1e293b',
+    marginBottom: 8,
   },
   emptyText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
+    fontSize: 14,
+    color: '#64748b',
     textAlign: 'center',
-    maxWidth: '80%',
-    lineHeight: 22,
+    maxWidth: '75%',
+    lineHeight: 20,
   },
-  // Footer Button
-  footer: {
+  // FAB
+  fab: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: Spacing.lg,
-    paddingBottom: Platform.OS === 'ios' ? 0 : Spacing.lg,
-    backgroundColor: 'transparent',
-  },
-  createButton: {
-    shadowColor: Colors.primary900,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
+    overflow: 'hidden',
+  },
+  fabGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
