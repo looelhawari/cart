@@ -244,9 +244,9 @@ class SocialAuthController extends Controller
         // Revoke all existing tokens
         $user->tokens()->delete();
 
-        // Create new tokens
-        $accessToken = $user->createToken('mobile-app', ['*'], now()->addMinutes(30))->plainTextToken;
-        $refreshToken = $user->createToken('refresh-token', ['refresh'], now()->addDays(30))->plainTextToken;
+        // Create new tokens - 24 hour access token for mobile/social login
+        $accessToken = $user->createToken('mobile-app', ['*'], now()->addHours(24))->plainTextToken;
+        $refreshToken = $user->createToken('refresh-token', ['refresh', 'standard'], now()->addDays(30))->plainTextToken;
 
         // Determine if phone verification is required
         $requiresPhoneVerification = is_null($user->phone_verified_at);
@@ -274,7 +274,7 @@ class SocialAuthController extends Controller
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'token_type' => 'Bearer',
-                'expires_in' => 1800, // 30 minutes
+                'expires_in' => 86400, // 24 hours
                 'requires_phone_verification' => $requiresPhoneVerification,
             ],
         ], 200);

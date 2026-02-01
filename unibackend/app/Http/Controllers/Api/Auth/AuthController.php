@@ -114,9 +114,9 @@ class AuthController extends Controller
 
         $otpRecord->markAsUsed();
 
-        // Create tokens
-        $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addMinutes(30))->plainTextToken;
-        $refreshToken = $user->createToken('refresh_token', ['refresh'], Carbon::now()->addDays(30))->plainTextToken;
+        // Create tokens - standard 24 hour session for new registrations
+        $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addHours(24))->plainTextToken;
+        $refreshToken = $user->createToken('refresh_token', ['refresh', 'standard'], Carbon::now()->addDays(30))->plainTextToken;
 
         return response()->json([
             'success' => true,
@@ -137,7 +137,7 @@ class AuthController extends Controller
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'token_type' => 'Bearer',
-                'expires_in' => 1800, // 30 minutes in seconds
+                'expires_in' => 86400, // 24 hours in seconds
             ],
         ]);
     }
@@ -184,11 +184,16 @@ class AuthController extends Controller
         // Revoke all existing tokens
         $user->tokens()->delete();
 
-        // Create new tokens
-        $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addMinutes(30))->plainTextToken;
+        // Create new tokens - extend lifetime significantly for admin dashboard
         $rememberMe = (bool) $request->input('remember_me', false);
+        
+        // Access token: 7 days with remember_me, 24 hours otherwise
+        $accessTokenExpiry = $rememberMe ? Carbon::now()->addDays(7) : Carbon::now()->addHours(24);
+        $accessToken = $user->createToken('access_token', ['*'], $accessTokenExpiry)->plainTextToken;
+        
+        // Refresh token: 90 days with remember_me, 30 days otherwise
         $refreshTokenExpiry = $rememberMe ? Carbon::now()->addDays(90) : Carbon::now()->addDays(30);
-        $refreshToken = $user->createToken('refresh_token', ['refresh'], $refreshTokenExpiry)->plainTextToken;
+        $refreshToken = $user->createToken('refresh_token', ['refresh', $rememberMe ? 'remember' : 'standard'], $refreshTokenExpiry)->plainTextToken;
 
         // Merge guest cart if session ID is provided
         $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
@@ -223,7 +228,7 @@ class AuthController extends Controller
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'token_type' => 'Bearer',
-                'expires_in' => 1800, // 30 minutes in seconds
+                'expires_in' => $rememberMe ? 604800 : 86400, // 7 days or 24 hours in seconds
             ],
         ]);
     }
@@ -254,13 +259,19 @@ class AuthController extends Controller
         }
 
         $user = $token->tokenable;
+        
+        // Check if the refresh token was created with remember_me
+        $wasRemembered = $token->can('remember');
 
         // Revoke old tokens
         $user->tokens()->delete();
 
-        // Create new tokens
-        $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addMinutes(30))->plainTextToken;
-        $refreshToken = $user->createToken('refresh_token', ['refresh'], Carbon::now()->addDays(30))->plainTextToken;
+        // Create new tokens - preserve remember_me setting from original login
+        $accessTokenExpiry = $wasRemembered ? Carbon::now()->addDays(7) : Carbon::now()->addHours(24);
+        $accessToken = $user->createToken('access_token', ['*'], $accessTokenExpiry)->plainTextToken;
+        
+        $refreshTokenExpiry = $wasRemembered ? Carbon::now()->addDays(90) : Carbon::now()->addDays(30);
+        $refreshToken = $user->createToken('refresh_token', ['refresh', $wasRemembered ? 'remember' : 'standard'], $refreshTokenExpiry)->plainTextToken;
 
         return response()->json([
             'success' => true,
@@ -269,7 +280,7 @@ class AuthController extends Controller
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'token_type' => 'Bearer',
-                'expires_in' => 1800,
+                'expires_in' => $wasRemembered ? 604800 : 86400, // 7 days or 24 hours
             ],
         ]);
     }
