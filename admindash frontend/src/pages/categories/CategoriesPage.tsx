@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Edit, Trash2, FolderTree, Info } from 'lucide-react'
+import { Plus, Edit, Trash2, FolderTree, Info, X, Package, Image as ImageIcon, Search, Layers, Tag, TrendingUp } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { Category } from '@/types'
@@ -37,8 +37,10 @@ export default function CategoriesPage() {
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+    const [viewingCategory, setViewingCategory] = useState<Category | null>(null)
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [searchQuery, setSearchQuery] = useState('')
 
     const queryClient = useQueryClient()
     const { toast } = useToast()
@@ -160,15 +162,18 @@ export default function CategoriesPage() {
     const handleEdit = (category: Category) => {
         setEditingCategory(category)
         setIsDialogOpen(true)
-        setValue('name_en', category.name_en)
-        setValue('name_ar', category.name_ar)
-        setValue('slug', category.slug)
-        setValue('description_en', category.description_en || '')
-        setValue('description_ar', category.description_ar || '')
-        setValue('icon', category.icon || '')
-        setValue('parent_id', category.parent_id)
-        setValue('sort_order', category.sort_order)
-        setValue('is_active', category.is_active)
+        // Use reset to properly set all form values
+        reset({
+            name_en: category.name_en || '',
+            name_ar: category.name_ar || '',
+            slug: category.slug || '',
+            description_en: category.description_en || '',
+            description_ar: category.description_ar || '',
+            icon: category.icon || '',
+            parent_id: category.parent_id || null,
+            sort_order: category.sort_order || 0,
+            is_active: category.is_active ?? true
+        })
         setImagePreview(category.image || null)
         setImageFile(null)
     }
@@ -214,20 +219,57 @@ export default function CategoriesPage() {
         return result
     }
 
+    const filterCategories = (categories: Category[], query: string): Category[] => {
+        if (!query.trim()) return categories
+
+        const lowerQuery = query.toLowerCase()
+        return categories.filter(cat => {
+            const nameMatch = cat.name_en?.toLowerCase().includes(lowerQuery) ||
+                cat.name_ar?.toLowerCase().includes(lowerQuery)
+            const slugMatch = cat.slug?.toLowerCase().includes(lowerQuery)
+            const descMatch = cat.description_en?.toLowerCase().includes(lowerQuery) ||
+                cat.description_ar?.toLowerCase().includes(lowerQuery)
+
+            const childrenMatch = cat.children && cat.children.length > 0
+                ? filterCategories(cat.children, query).length > 0
+                : false
+
+            return nameMatch || slugMatch || descMatch || childrenMatch
+        }).map(cat => ({
+            ...cat,
+            children: cat.children ? filterCategories(cat.children, query) : []
+        }))
+    }
+
+    const allCategories = categoryTree ? getAllCategories(categoryTree) : []
+    const totalCategories = allCategories.length
+    const activeCategories = allCategories.filter(cat => cat.is_active).length
+    const totalProducts = allCategories.reduce((sum, cat) => sum + (cat.products_count || 0), 0)
+
     const renderCategoryTree = (categories: Category[], level = 0) => {
         return categories.map((category) => (
             <div key={category.id}>
                 <div
-                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}
+                    className={`flex items-center justify-between p-4 border-2 border-gray-100 rounded-xl hover:border-elbaraka-primary hover:bg-gradient-to-r hover:from-elbaraka-primary/5 hover:to-transparent hover:shadow-md transition-all duration-300 mb-3 cursor-pointer group ${isRTL ? 'flex-row-reverse' : ''}`}
                     style={{ marginLeft: isRTL ? '0' : `${level * 24}px`, marginRight: isRTL ? `${level * 24}px` : '0' }}
+                    onClick={() => setViewingCategory(category)}
                 >
                     <div className={`flex items-center flex-1 ${isRTL ? 'space-x-reverse space-x-3' : 'space-x-3'}`}>
-                        {category.image && (
+                        {category.image ? (
                             <img
                                 src={category.image}
                                 alt={isRTL ? category.name_ar : category.name_en}
-                                className="h-10 w-10 rounded object-cover"
+                                className="h-12 w-12 rounded-lg object-cover border-2 border-gray-200 group-hover:border-elbaraka-primary transition-colors shadow-sm"
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    target.parentElement!.innerHTML = '<div class="h-10 w-10 bg-gray-100 rounded flex items-center justify-center border border-gray-200"><svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                                }}
                             />
+                        ) : (
+                            <div className="h-10 w-10 bg-gray-100 rounded flex items-center justify-center border border-gray-200">
+                                <ImageIcon className="h-5 w-5 text-gray-400" />
+                            </div>
                         )}
                         <FolderTree className="h-5 w-5 text-elbaraka-primary" />
                         <div className="flex-1">
@@ -242,7 +284,7 @@ export default function CategoriesPage() {
                             </p>
                         </div>
                     </div>
-                    <div className={`flex items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
+                    <div className={`flex items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`} onClick={(e) => e.stopPropagation()}>
                         <span
                             className={`px-2 py-1 text-xs rounded ${category.is_active
                                 ? 'bg-green-100 text-green-800'
@@ -251,13 +293,14 @@ export default function CategoriesPage() {
                         >
                             {category.is_active ? t('common.active') : t('common.inactive')}
                         </span>
-                        <Button size="sm" variant="outline" onClick={() => handleEdit(category)}>
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleEdit(category); }}>
                             <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => {
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 if (confirm(t('confirmations.deleteCategory'))) {
                                     deleteMutation.mutate(category.id)
                                 }
@@ -276,31 +319,320 @@ export default function CategoriesPage() {
         ))
     }
 
+    const filteredCategories = categoryTree ? filterCategories(categoryTree, searchQuery) : []
+
     return (
-        <div className="space-y-6">
-            <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+        <div className="space-y-6 p-6">
+            {/* Header Section */}
+            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isRTL ? 'md:flex-row-reverse' : ''}`}>
                 <div>
-                    <h1 className="text-3xl font-bold text-elbaraka-primary">{t('categories.title')}</h1>
-                    <p className="text-muted-foreground mt-1">{t('categories.subtitle')}</p>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-elbaraka-primary to-elbaraka-secondary bg-clip-text text-transparent">
+                        {t('categories.title')}
+                    </h1>
+                    <p className="text-muted-foreground mt-2 text-sm">{t('categories.subtitle')}</p>
                 </div>
                 <Button
                     onClick={handleOpenDialog}
-                    className="bg-elbaraka-primary hover:bg-elbaraka-secondary"
+                    size="lg"
+                    className="bg-gradient-to-r from-elbaraka-primary to-elbaraka-secondary hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-300"
                 >
-                    <Plus className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    <Plus className={`h-5 w-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                     {t('categories.addCategory')}
                 </Button>
             </div>
 
-            <Card>
-                <CardContent className="pt-6">
-                    {isLoading ? (
-                        <div className="text-center py-12">{t('common.loading')}</div>
-                    ) : (
-                        <div className="space-y-0">{categoryTree && renderCategoryTree(categoryTree)}</div>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="border-l-4 border-l-elbaraka-primary bg-gradient-to-br from-white to-elbaraka-primary/5 hover:shadow-lg transition-shadow duration-300">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">{t('categories.total')}</p>
+                                <p className="text-3xl font-bold text-elbaraka-primary mt-1">{totalCategories}</p>
+                            </div>
+                            <div className="bg-elbaraka-primary/10 p-3 rounded-full">
+                                <Layers className="h-6 w-6 text-elbaraka-primary" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-white to-green-50 hover:shadow-lg transition-shadow duration-300">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">{t('categories.active')}</p>
+                                <p className="text-3xl font-bold text-green-600 mt-1">{activeCategories}</p>
+                            </div>
+                            <div className="bg-green-100 p-3 rounded-full">
+                                <TrendingUp className="h-6 w-6 text-green-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-blue-500 bg-gradient-to-br from-white to-blue-50 hover:shadow-lg transition-shadow duration-300">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">{t('categories.totalProducts')}</p>
+                                <p className="text-3xl font-bold text-blue-600 mt-1">{totalProducts}</p>
+                            </div>
+                            <div className="bg-blue-100 p-3 rounded-full">
+                                <Package className="h-6 w-6 text-blue-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-white to-purple-50 hover:shadow-lg transition-shadow duration-300">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">{t('categories.inactive')}</p>
+                                <p className="text-3xl font-bold text-purple-600 mt-1">{totalCategories - activeCategories}</p>
+                            </div>
+                            <div className="bg-purple-100 p-3 rounded-full">
+                                <Tag className="h-6 w-6 text-purple-600" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Search Bar */}
+            <Card className="shadow-md">
+                <CardContent className="p-4">
+                    <div className="relative">
+                        <Search className={`absolute top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 ${isRTL ? 'right-3' : 'left-3'}`} />
+                        <Input
+                            type="text"
+                            placeholder={t('categories.searchPlaceholder') || 'Search categories by name, slug, or description...'}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className={`${isRTL ? 'pr-10 text-right' : 'pl-10'} h-12 text-base border-2 focus:border-elbaraka-primary transition-colors`}
+                        />
+                        {searchQuery && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'left-2' : 'right-2'}`}
+                                onClick={() => setSearchQuery('')}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
+                    </div>
+                    {searchQuery && (
+                        <p className="text-sm text-gray-600 mt-2">
+                            {t('categories.searchResults') || 'Found'} {filterCategories(categoryTree || [], searchQuery).length} {t('categories.categories') || 'categories'}
+                        </p>
                     )}
                 </CardContent>
             </Card>
+
+            {/* Categories List */}
+            <Card className="shadow-lg">
+                <CardContent className="pt-6">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center py-16">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-elbaraka-primary mb-4"></div>
+                            <p className="text-gray-600">{t('common.loading')}</p>
+                        </div>
+                    ) : filteredCategories.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                            <Search className="h-16 w-16 mb-4 text-gray-300" />
+                            <p className="text-lg font-medium">{searchQuery ? t('categories.noResults') || 'No categories found' : t('categories.noCategories') || 'No categories yet'}</p>
+                            <p className="text-sm mt-2">{searchQuery ? t('categories.tryDifferentSearch') || 'Try a different search term' : t('categories.addFirstCategory') || 'Add your first category to get started'}</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-0">{renderCategoryTree(filteredCategories)}</div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Category Detail View Dialog */}
+            <Dialog open={!!viewingCategory} onOpenChange={(open) => !open && setViewingCategory(null)}>
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0">
+                    {viewingCategory && (
+                        <div className="grid md:grid-cols-2 h-full">
+                            {/* Left Side - Category Image */}
+                            <div className="bg-gradient-to-br from-elbaraka-primary/10 to-elbaraka-secondary/10 p-8 flex items-center justify-center relative">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute top-4 right-4 z-10"
+                                    onClick={() => setViewingCategory(null)}
+                                >
+                                    <X className="h-5 w-5" />
+                                </Button>
+                                {viewingCategory.image ? (
+                                    <img
+                                        src={viewingCategory.image}
+                                        alt={viewingCategory.name_en || viewingCategory.name_ar}
+                                        className="max-w-full max-h-[600px] object-contain rounded-lg shadow-xl"
+                                    />
+                                ) : (
+                                    <div className="w-full h-96 bg-white rounded-lg flex items-center justify-center shadow-xl">
+                                        <FolderTree className="h-32 w-32 text-gray-300" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Side - Category Information */}
+                            <div className="p-8 overflow-y-auto">
+                                <div className="space-y-6">
+                                    {/* Header */}
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                            {viewingCategory.is_active ? (
+                                                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                                                    ✓ {t('common.active')}
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded">
+                                                    {t('common.inactive')}
+                                                </span>
+                                            )}
+                                            {viewingCategory.parent_id && (
+                                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                                                    📁 {t('categories.subcategoryLabel')}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <h2 className="text-3xl font-bold text-gray-900 mb-1">
+                                            {isRTL ? (viewingCategory.name_ar || viewingCategory.name_en) : (viewingCategory.name_en || viewingCategory.name_ar)}
+                                        </h2>
+                                        <p className="text-sm text-gray-500">{t('categories.idLabel')}: {viewingCategory.id}</p>
+                                        {viewingCategory.slug && (
+                                            <p className="text-xs text-gray-400 mt-1">{t('categories.slug')}: {viewingCategory.slug}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Category Details Grid */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {viewingCategory.icon && (
+                                            <div className="bg-gray-50 p-3 rounded-lg">
+                                                <p className="text-xs text-gray-600 mb-1">{t('categories.icon')}</p>
+                                                <p className="font-semibold text-gray-900 text-2xl">{viewingCategory.icon}</p>
+                                            </div>
+                                        )}
+                                        <div className="bg-gray-50 p-3 rounded-lg">
+                                            <p className="text-xs text-gray-600 mb-1">{t('categories.sortOrder')}</p>
+                                            <p className="font-semibold text-gray-900 text-sm">{viewingCategory.sort_order}</p>
+                                        </div>
+                                        {viewingCategory.products_count !== undefined && (
+                                            <div className="bg-elbaraka-primary/5 p-3 rounded-lg border-l-4 border-elbaraka-primary">
+                                                <p className="text-xs text-gray-600 mb-1">{t('categories.productsCount')}</p>
+                                                <p className="font-bold text-elbaraka-primary text-lg">{viewingCategory.products_count}</p>
+                                            </div>
+                                        )}
+                                        {viewingCategory.children && viewingCategory.children.length > 0 && (
+                                            <div className="bg-blue-50 p-3 rounded-lg">
+                                                <p className="text-xs text-gray-600 mb-1">{t('categories.subcategories')}</p>
+                                                <p className="font-semibold text-blue-700 text-sm">{viewingCategory.children.length}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Parent Category Info */}
+                                    {viewingCategory.parent_id && categoryTree && (
+                                        <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white p-4 rounded-lg">
+                                            <p className="text-xs mb-1">📁 {t('categories.parentCategory')}</p>
+                                            <p className="font-bold">
+                                                {(() => {
+                                                    const findParent = (cats: Category[]): Category | null => {
+                                                        for (const cat of cats) {
+                                                            if (cat.id === viewingCategory.parent_id) return cat;
+                                                            if (cat.children) {
+                                                                const found = findParent(cat.children);
+                                                                if (found) return found;
+                                                            }
+                                                        }
+                                                        return null;
+                                                    };
+                                                    const parent = findParent(categoryTree);
+                                                    return parent ? (isRTL ? parent.name_ar : parent.name_en) : 'N/A';
+                                                })()}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Subcategories List */}
+                                    {viewingCategory.children && viewingCategory.children.length > 0 && (
+                                        <div className="pt-3 border-t">
+                                            <h3 className="text-lg font-bold text-gray-800 mb-3">{t('categories.subcategories')}</h3>
+                                            <div className="space-y-2">
+                                                {viewingCategory.children.map((child) => (
+                                                    <div key={child.id} className="bg-gray-50 p-3 rounded-lg flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <FolderTree className="h-4 w-4 text-elbaraka-primary" />
+                                                            <span className="font-medium text-sm">
+                                                                {isRTL ? child.name_ar : child.name_en}
+                                                            </span>
+                                                        </div>
+                                                        {child.products_count !== undefined && (
+                                                            <span className="text-xs text-gray-600">
+                                                                {child.products_count} {t('products.productsCount')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Descriptions */}
+                                    {(viewingCategory.description_en || viewingCategory.description_ar) && (
+                                        <div className="space-y-3 pt-3 border-t">
+                                            <h3 className="text-lg font-bold text-gray-800">{t('categories.descriptions')}</h3>
+                                            {viewingCategory.description_en && (
+                                                <div>
+                                                    <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('categories.descriptionEn')}</h4>
+                                                    <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded">{viewingCategory.description_en}</p>
+                                                </div>
+                                            )}
+                                            {viewingCategory.description_ar && (
+                                                <div>
+                                                    <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('categories.descriptionAr')}</h4>
+                                                    <p className="text-gray-600 text-sm leading-relaxed text-right bg-gray-50 p-3 rounded" dir="rtl">{viewingCategory.description_ar}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Timestamps */}
+                                    <div className="pt-3 border-t text-xs text-gray-500 space-y-1">
+                                        <p>{t('categories.createdAt')}: {new Date(viewingCategory.created_at).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}</p>
+                                        <p>{t('categories.updatedAt')}: {new Date(viewingCategory.updated_at).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-US')}</p>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-3 pt-4 border-t">
+                                        <Button
+                                            onClick={() => {
+                                                setViewingCategory(null)
+                                                handleEdit(viewingCategory)
+                                            }}
+                                            className="flex-1 bg-elbaraka-primary hover:bg-elbaraka-secondary"
+                                        >
+                                            <Edit className="h-4 w-4 mr-2" />
+                                            {t('common.edit')}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setViewingCategory(null)}
+                                            className="flex-1"
+                                        >
+                                            {t('common.close')}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -394,7 +726,7 @@ export default function CategoriesPage() {
                                 <div className="mt-2">
                                     <img
                                         src={imagePreview}
-                                        alt="Preview"
+                                        alt={t('categories.preview')}
                                         className="h-32 w-32 object-cover rounded border"
                                     />
                                 </div>
@@ -402,7 +734,13 @@ export default function CategoriesPage() {
                         </div>
 
                         <div className={`flex items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
-                            <input type="checkbox" id="is_active" {...register('is_active')} className="h-4 w-4 rounded border-gray-300" />
+                            <input
+                                type="checkbox"
+                                id="is_active"
+                                {...register('is_active')}
+                                checked={watch('is_active')}
+                                className="h-4 w-4 rounded border-gray-300"
+                            />
                             <Label htmlFor="is_active">{t('common.active')}</Label>
                             <TooltipProvider>
                                 <Tooltip delayDuration={300}>

@@ -41,13 +41,22 @@ export const promotionService = {
     createPromotion: async (data: CreatePromotionData, imageFile?: File, bannerFile?: File): Promise<Promotion> => {
         const formData = new FormData()
 
-        // Add all fields to FormData
+        // Add all fields to FormData with proper type handling
         Object.entries(data).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
                 if (Array.isArray(value)) {
+                    // Handle arrays
                     value.forEach((item, index) => {
                         formData.append(`${key}[${index}]`, String(item))
                     })
+                } else if (typeof value === 'boolean') {
+                    // Laravel expects "1" or "0" for boolean fields
+                    formData.append(key, value ? '1' : '0')
+                } else if (typeof value === 'number') {
+                    // Skip NaN values, send 0 for optional numeric fields
+                    if (!isNaN(value)) {
+                        formData.append(key, String(value))
+                    }
                 } else {
                     formData.append(key, String(value))
                 }
@@ -73,13 +82,22 @@ export const promotionService = {
     ): Promise<Promotion> => {
         const formData = new FormData()
 
-        // Add all fields to FormData
+        // Add all fields to FormData with proper type handling
         Object.entries(data).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
                 if (Array.isArray(value)) {
+                    // Handle arrays
                     value.forEach((item, index) => {
                         formData.append(`${key}[${index}]`, String(item))
                     })
+                } else if (typeof value === 'boolean') {
+                    // Laravel expects "1" or "0" for boolean fields
+                    formData.append(key, value ? '1' : '0')
+                } else if (typeof value === 'number') {
+                    // Skip NaN values, send 0 for optional numeric fields
+                    if (!isNaN(value)) {
+                        formData.append(key, String(value))
+                    }
                 } else {
                     formData.append(key, String(value))
                 }

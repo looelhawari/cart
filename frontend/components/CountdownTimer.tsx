@@ -5,6 +5,7 @@ interface CountdownTimerProps {
     endDate: string;
     onExpire?: () => void;
     compact?: boolean;
+    light?: boolean;
 }
 
 interface TimeLeft {
@@ -17,7 +18,8 @@ interface TimeLeft {
 export const CountdownTimer: React.FC<CountdownTimerProps> = ({
     endDate,
     onExpire,
-    compact = false
+    compact = false,
+    light = false,
 }) => {
     const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
 
@@ -53,9 +55,9 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
 
     if (compact) {
         return (
-            <View style={styles.compactContainer}>
-                <Text style={styles.compactText}>
-                    Ends in: {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m
+            <View style={[styles.compactContainer, light && styles.compactContainerLight]}>
+                <Text style={[styles.compactText, light && styles.compactTextLight]}>
+                    {light ? `${timeLeft.days}d ${timeLeft.hours}h ${timeLeft.minutes}m` : `Ends in: ${timeLeft.days}d ${timeLeft.hours}h ${timeLeft.minutes}m`}
                 </Text>
             </View>
         );
@@ -132,9 +134,18 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         paddingHorizontal: 12,
     },
+    compactContainerLight: {
+        backgroundColor: 'transparent',
+        padding: 0,
+    },
     compactText: {
         fontSize: 12,
         color: '#FF3B30',
         fontWeight: '600',
+    },
+    compactTextLight: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: '700',
     },
 });

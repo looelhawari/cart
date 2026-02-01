@@ -265,11 +265,11 @@ class PromotionService
      */
     public function getActivePromotions(?string $type = null, ?int $categoryId = null): Collection
     {
-        $query = Promotion::active()->orderBy('priority', 'desc')->orderBy('created_at', 'desc');
+        $query = Promotion::active()->orderBy('is_featured', 'desc')->orderBy('created_at', 'desc');
 
-        // Filter by promotion type (flash_sale, deal, seasonal, clearance) if specified
+        // Filter by promotion type (applies_to field) if specified
         if ($type && $type !== 'all') {
-            $query->where('type', $type);
+            $query->where('applies_to', $type);
         }
 
         if ($categoryId) {
@@ -292,8 +292,8 @@ class PromotionService
 
         // Activate promotions that should start
         $toActivate = Promotion::where('is_active', false)
-            ->where('starts_at', '<=', $now)
-            ->where('ends_at', '>=', $now)
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
             ->get();
 
         foreach ($toActivate as $promotion) {
@@ -304,7 +304,7 @@ class PromotionService
 
         // Deactivate expired promotions
         $toDeactivate = Promotion::where('is_active', true)
-            ->where('ends_at', '<', $now)
+            ->where('end_date', '<', $now)
             ->get();
 
         foreach ($toDeactivate as $promotion) {

@@ -1,23 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { promotionService, type PromotionFilters } from '@/services/promotion.service'
-import { categoryService } from '@/services/category.service'
-import { productService } from '@/services/product.service'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { FormLabelWithTooltip } from '@/components/FormLabelWithTooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Search, Edit, Trash2, Star, StarOff, X, Package } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Star, StarOff, Gift, Percent, Calendar, Tag } from 'lucide-react'
 import { format } from 'date-fns'
-import { useForm, Controller } from 'react-hook-form'
 import type { Promotion } from '@/types'
+import CreatePromotionForm from './CreatePromotionForm'
+import EditPromotionForm from './EditPromotionForm'
 
 export default function PromotionsPage() {
     const { t, i18n } = useTranslation()
@@ -27,125 +21,17 @@ export default function PromotionsPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
     const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
-    const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-    const [selectedBannerFile, setSelectedBannerFile] = useState<File | null>(null)
-
-    // Product search and selection states
-    const [productSearchTerm, setProductSearchTerm] = useState('')
-    const [selectedProducts, setSelectedProducts] = useState<any[]>([])
-    const [productPage, setProductPage] = useState(1)
-    const productsPerPage = 10
 
     const queryClient = useQueryClient()
     const { toast } = useToast()
 
-    const { register, handleSubmit, reset, watch, control } = useForm()
-
-    const appliesTo = watch('applies_to', 'all')
-
+    // Fetch promotions
     const { data: promotionsData, isLoading } = useQuery({
         queryKey: ['promotions', filters],
         queryFn: () => promotionService.getPromotions(filters),
     })
 
-    const { data: categories } = useQuery({
-        queryKey: ['categories-tree'],
-        queryFn: () => categoryService.getCategoryTree(),
-    })
-
-    const { data: products, isLoading: isLoadingProducts, error: _productsError } = useQuery({
-        queryKey: ['products-all'],
-        queryFn: async () => {
-            try {
-                const result = await productService.getProducts({ per_page: 1000 })
-                console.log('Products loaded:', result)
-                return result
-            } catch (error: any) {
-                console.error('Failed to load products:', error)
-                console.error('Error response:', error.response?.data)
-                toast({
-                    title: t('promotions.errorLoadingProducts'),
-                    description: error.response?.data?.message || t('promotions.createError'),
-                    variant: 'destructive',
-                })
-                throw error
-            }
-        },
-        enabled: appliesTo === 'products',
-        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-        retry: false,
-    })
-
-    // Filter and paginate products for the selector
-    const filteredProducts = useMemo(() => {
-        if (!products?.data) return []
-
-        const search = productSearchTerm.toLowerCase()
-        if (!search) return products.data
-
-        return products.data.filter((product: any) =>
-            product.name_en?.toLowerCase().includes(search) ||
-            product.name_ar?.toLowerCase().includes(search) ||
-            product.barcode?.toLowerCase().includes(search) ||
-            product.price?.toString().includes(search)
-        )
-    }, [products, productSearchTerm])
-
-    const paginatedProducts = useMemo(() => {
-        const startIndex = (productPage - 1) * productsPerPage
-        const endIndex = startIndex + productsPerPage
-        return filteredProducts.slice(startIndex, endIndex)
-    }, [filteredProducts, productPage])
-
-    const totalProductPages = Math.ceil(filteredProducts.length / productsPerPage)
-
-    const createMutation = useMutation({
-        mutationFn: async (data: any) => {
-            return promotionService.createPromotion(data, selectedImageFile || undefined, selectedBannerFile || undefined)
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['promotions'] })
-            setIsCreateDialogOpen(false)
-            reset()
-            setSelectedImageFile(null)
-            setSelectedBannerFile(null)
-            toast({
-                title: t('common.success'),
-                description: t('promotions.createSuccess'),
-            })
-        },
-        onError: (error: any) => {
-            toast({
-                title: t('common.error'),
-                description: error?.response?.data?.message || t('promotions.createError'),
-                variant: 'destructive',
-            })
-        },
-    })
-
-    const updateMutation = useMutation({
-        mutationFn: async ({ id, data }: { id: number; data: any }) => {
-            return promotionService.updatePromotion(id, data, selectedImageFile || undefined, selectedBannerFile || undefined)
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['promotions'] })
-            setEditingPromotion(null)
-            setSelectedImageFile(null)
-            setSelectedBannerFile(null)
-            toast({
-                title: t('common.success'),
-                description: t('promotions.updateSuccess'),
-            })
-        },
-        onError: (error: any) => {
-            toast({
-                title: t('common.error'),
-                description: error?.response?.data?.message || t('promotions.updateError'),
-                variant: 'destructive',
-            })
-        },
-    })
-
+    // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: promotionService.deletePromotion,
         onSuccess: () => {
@@ -164,6 +50,7 @@ export default function PromotionsPage() {
         },
     })
 
+    // Feature toggle mutation
     const featureMutation = useMutation({
         mutationFn: promotionService.setFeatured,
         onSuccess: () => {
@@ -177,64 +64,6 @@ export default function PromotionsPage() {
 
     const handleSearch = () => {
         setFilters({ ...filters, search: searchTerm, page: 1 })
-    }
-
-    const handleEdit = (promotion: Promotion) => {
-        setEditingPromotion(promotion)
-
-        // Set selected products if editing a products promotion
-        if (promotion.applies_to === 'products' && promotion.products) {
-            setSelectedProducts(promotion.products)
-        } else {
-            setSelectedProducts([])
-        }
-
-        reset({
-            title: promotion.title,
-            title_ar: promotion.title_ar,
-            description: promotion.description,
-            description_ar: promotion.description_ar,
-            discount_type: promotion.discount_type,
-            discount_value: promotion.discount_value,
-            start_date: format(new Date(promotion.start_date), "yyyy-MM-dd'T'HH:mm"),
-            end_date: format(new Date(promotion.end_date), "yyyy-MM-dd'T'HH:mm"),
-            is_active: promotion.is_active,
-            is_featured: promotion.is_featured,
-            applies_to: promotion.applies_to,
-            min_purchase: promotion.min_purchase,
-            max_discount: promotion.max_discount,
-            terms_conditions: promotion.terms_conditions,
-            terms_conditions_ar: promotion.terms_conditions_ar,
-            category_ids: promotion.categories?.map(c => c.id),
-            product_barcodes: promotion.products?.map(p => p.barcode),
-        })
-    }
-
-    const onSubmit = (data: any) => {
-        // Add selected products barcodes to form data
-        if (appliesTo === 'products') {
-            data.product_barcodes = selectedProducts.map(p => p.barcode)
-        }
-
-        if (editingPromotion) {
-            updateMutation.mutate({ id: editingPromotion.id, data })
-        } else {
-            createMutation.mutate(data)
-        }
-    }
-
-    const handleAddProduct = (product: any) => {
-        if (!selectedProducts.find(p => p.barcode === product.barcode)) {
-            setSelectedProducts([...selectedProducts, product])
-        }
-    }
-
-    const handleRemoveProduct = (barcode: string) => {
-        setSelectedProducts(selectedProducts.filter(p => p.barcode !== barcode))
-    }
-
-    const handleClearProducts = () => {
-        setSelectedProducts([])
     }
 
     const handleDelete = (id: number) => {
@@ -251,32 +80,130 @@ export default function PromotionsPage() {
 
     const getStatusBadge = (promotion: Promotion) => {
         if (!promotion.is_active) {
-            return <span className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">{t('common.inactive')}</span>
+            return <span className="px-2 py-1 text-xs rounded-full bg-gray-200 text-gray-700 font-medium">{t('common.inactive')}</span>
         }
         if (promotion.is_currently_active) {
-            return <span className="px-2 py-1 text-xs rounded bg-green-200 text-green-700">{t('common.active')}</span>
+            return <span className="px-2 py-1 text-xs rounded-full bg-green-200 text-green-700 font-medium">{t('common.active')}</span>
         }
         const now = new Date()
         const start = new Date(promotion.start_date)
         if (now < start) {
-            return <span className="px-2 py-1 text-xs rounded bg-blue-200 text-blue-700">{t('promotions.scheduled')}</span>
+            return <span className="px-2 py-1 text-xs rounded-full bg-blue-200 text-blue-700 font-medium">{t('promotions.scheduled')}</span>
         }
-        return <span className="px-2 py-1 text-xs rounded bg-red-200 text-red-700">{t('promotions.expired')}</span>
+        return <span className="px-2 py-1 text-xs rounded-full bg-red-200 text-red-700 font-medium">{t('promotions.expired')}</span>
     }
+
+    const getAppliesToBadge = (appliesTo: string) => {
+        switch (appliesTo) {
+            case 'all':
+                return <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700 font-medium">{t('promotions.allProducts')}</span>
+            case 'category':
+                return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">{t('promotions.categoryBased')}</span>
+            case 'products':
+                return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">{t('promotions.specificProducts')}</span>
+            default:
+                return <span className="capitalize">{appliesTo}</span>
+        }
+    }
+
+    // Extract promotions from response
+    const promotions: Promotion[] = (() => {
+        if (!promotionsData) return []
+        if (Array.isArray(promotionsData.data)) return promotionsData.data
+        if (promotionsData.data && Array.isArray((promotionsData.data as any).data)) {
+            return (promotionsData.data as any).data
+        }
+        return []
+    })()
+
+    // Stats
+    const activeCount = promotions.filter(p => p.is_active && p.is_currently_active).length
+    const scheduledCount = promotions.filter(p => p.is_active && new Date(p.start_date) > new Date()).length
+    const featuredCount = promotions.filter(p => p.is_featured).length
 
     return (
         <div className={`p-6 space-y-6 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+            {/* Header */}
             <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                 <div className={isRTL ? 'text-right' : 'text-left'}>
-                    <h1 className="text-3xl font-bold">{t('promotions.title')}</h1>
-                    <p className="text-gray-500 mt-1">{t('promotions.subtitle')}</p>
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-elbaraka-primary to-elbaraka-secondary shadow-lg">
+                            <Gift className="h-8 w-8 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold bg-gradient-to-r from-elbaraka-primary to-elbaraka-secondary bg-clip-text text-transparent">
+                                {t('promotions.title')}
+                            </h1>
+                            <p className="text-gray-500 mt-1">{t('promotions.subtitle')}</p>
+                        </div>
+                    </div>
                 </div>
-                <Button onClick={() => { reset(); setIsCreateDialogOpen(true) }}>
+                <Button
+                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="bg-gradient-to-r from-elbaraka-primary to-elbaraka-secondary hover:from-elbaraka-primary/90 hover:to-elbaraka-secondary/90 text-white shadow-lg"
+                >
                     <Plus className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                     {t('promotions.createPromotion')}
                 </Button>
             </div>
 
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700">
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-purple-500/20">
+                                <Gift className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-purple-600 font-medium">{t('promotions.totalPromotions')}</p>
+                                <p className="text-2xl font-bold text-purple-700">{promotions.length}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-700">
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-green-500/20">
+                                <Percent className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-green-600 font-medium">{t('promotions.activeNow')}</p>
+                                <p className="text-2xl font-bold text-green-700">{activeCount}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-700">
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-blue-500/20">
+                                <Calendar className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-blue-600 font-medium">{t('promotions.scheduled')}</p>
+                                <p className="text-2xl font-bold text-blue-700">{scheduledCount}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-700">
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-yellow-500/20">
+                                <Star className="h-5 w-5 text-yellow-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-yellow-600 font-medium">{t('promotions.featured')}</p>
+                                <p className="text-2xl font-bold text-yellow-700">{featuredCount}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Filters */}
             <Card>
                 <CardContent className="pt-6">
                     <div className={`flex gap-4 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
@@ -289,7 +216,7 @@ export default function PromotionsPage() {
                                 className={isRTL ? 'text-right' : 'text-left'}
                             />
                         </div>
-                        <Button onClick={handleSearch}>
+                        <Button onClick={handleSearch} className="bg-elbaraka-primary hover:bg-elbaraka-primary/90">
                             <Search className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                             {t('common.search')}
                         </Button>
@@ -333,661 +260,150 @@ export default function PromotionsPage() {
                         </Select>
                     </div>
 
+                    {/* Table */}
                     {isLoading ? (
-                        <div className="text-center py-8">{t('common.loading')}</div>
-                    ) : (() => {
-                        // Safely extract promotions array from nested response
-                        const promotions: Promotion[] = (() => {
-                            if (!promotionsData) return []
-                            if (Array.isArray(promotionsData.data)) return promotionsData.data
-                            if (promotionsData.data && Array.isArray((promotionsData.data as any).data)) {
-                                return (promotionsData.data as any).data
-                            }
-                            return []
-                        })()
-
-                        if (promotions.length === 0) {
-                            return <div className="text-center py-8 text-gray-500">{t('promotions.noPromotions')}</div>
-                        }
-
-                        return (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.promotion')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.discount')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.appliesTo')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.duration')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('promotions.featured')}</th>
-                                            <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {promotions.map((promotion: Promotion) => (
-                                            <tr key={promotion.id} className="hover:bg-gray-50">
-                                                <td className="p-3">
-                                                    <div className="flex items-center gap-3">
-                                                        {promotion.image_url && (
-                                                            <img
-                                                                src={promotion.image_url}
-                                                                alt={promotion.title}
-                                                                className="w-12 h-12 object-cover rounded"
-                                                            />
-                                                        )}
-                                                        <div>
-                                                            <div className="font-medium">{promotion.title}</div>
-                                                            <div className="text-sm text-gray-500">{promotion.title_ar}</div>
+                        <div className="text-center py-12">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-elbaraka-primary mx-auto mb-4"></div>
+                            <p className="text-gray-500">{t('common.loading')}</p>
+                        </div>
+                    ) : promotions.length === 0 ? (
+                        <div className="text-center py-12">
+                            <Gift className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                            <p className="text-gray-500 font-medium">{t('promotions.noPromotions')}</p>
+                            <p className="text-gray-400 text-sm mt-1">{t('promotions.createFirstPromotion')}</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                            <table className="w-full">
+                                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700">
+                                    <tr>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('promotions.promotion')}
+                                        </th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('promotions.discount')}
+                                        </th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('promotions.appliesTo')}
+                                        </th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('promotions.duration')}
+                                        </th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('common.status')}
+                                        </th>
+                                        <th className={`${isRTL ? 'text-right' : 'text-left'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('promotions.featured')}
+                                        </th>
+                                        <th className={`${isRTL ? 'text-left' : 'text-right'} p-4 font-semibold text-gray-700 dark:text-gray-300`}>
+                                            {t('common.actions')}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {promotions.map((promotion: Promotion) => (
+                                        <tr key={promotion.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    {promotion.image_url ? (
+                                                        <img
+                                                            src={promotion.image_url}
+                                                            alt={promotion.title}
+                                                            className="w-12 h-12 object-cover rounded-lg shadow-sm"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-12 h-12 bg-gradient-to-br from-elbaraka-primary/20 to-elbaraka-secondary/20 rounded-lg flex items-center justify-center">
+                                                            <Tag className="h-6 w-6 text-elbaraka-primary" />
                                                         </div>
+                                                    )}
+                                                    <div>
+                                                        <div className="font-medium text-gray-900 dark:text-white">{promotion.title}</div>
+                                                        <div className="text-sm text-gray-500" dir="rtl">{promotion.title_ar}</div>
                                                     </div>
-                                                </td>
-                                                <td className="p-3">
-                                                    <div className="font-semibold text-green-600">
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30">
+                                                    <Percent className="h-3 w-3 text-green-600" />
+                                                    <span className="font-semibold text-green-700 dark:text-green-400">
                                                         {promotion.discount_type === 'percentage'
                                                             ? `${promotion.discount_value}%`
                                                             : formatCurrency(promotion.discount_value)
                                                         }
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                {getAppliesToBadge(promotion.applies_to)}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="text-sm">
+                                                    <div className="flex items-center gap-1 text-gray-700 dark:text-gray-300">
+                                                        <Calendar className="h-3 w-3" />
+                                                        {format(new Date(promotion.start_date), 'MMM dd, yyyy')}
                                                     </div>
-                                                </td>
-                                                <td className="p-3">
-                                                    <span className="capitalize">{promotion.applies_to}</span>
-                                                </td>
-                                                <td className="p-3 text-sm">
-                                                    <div>{format(new Date(promotion.start_date), 'MMM dd, yyyy')}</div>
-                                                    <div className="text-gray-500">
+                                                    <div className="text-gray-500 mt-1">
                                                         {t('common.to')} {format(new Date(promotion.end_date), 'MMM dd, yyyy')}
                                                     </div>
-                                                </td>
-                                                <td className="p-3">
-                                                    {getStatusBadge(promotion)}
-                                                </td>
-                                                <td className="p-3">
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                {getStatusBadge(promotion)}
+                                            </td>
+                                            <td className="p-4">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleToggleFeatured(promotion.id)}
+                                                    className="hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+                                                >
+                                                    {promotion.is_featured ? (
+                                                        <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                                                    ) : (
+                                                        <StarOff className="w-5 h-5 text-gray-400" />
+                                                    )}
+                                                </Button>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className={`flex gap-1 ${isRTL ? 'justify-start' : 'justify-end'}`}>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        onClick={() => handleToggleFeatured(promotion.id)}
+                                                        onClick={() => setEditingPromotion(promotion)}
+                                                        className="hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                                     >
-                                                        {promotion.is_featured ? (
-                                                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                                        ) : (
-                                                            <StarOff className="w-4 h-4 text-gray-400" />
-                                                        )}
+                                                        <Edit className="w-4 h-4 text-blue-600" />
                                                     </Button>
-                                                </td>
-                                                <td className="p-3 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleEdit(promotion)}
-                                                        >
-                                                            <Edit className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleDelete(promotion.id)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4 text-red-500" />
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )
-                    })()}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(promotion.id)}
+                                                        className="hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    >
+                                                        <Trash2 className="w-4 h-4 text-red-500" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Create/Edit Dialog */}
-            <Dialog open={isCreateDialogOpen || !!editingPromotion} onOpenChange={(open) => {
-                if (!open) {
-                    setIsCreateDialogOpen(false)
-                    setEditingPromotion(null)
-                    reset()
-                    setSelectedImageFile(null)
-                    setSelectedBannerFile(null)
-                    setSelectedProducts([])
-                    setProductSearchTerm('')
-                    setProductPage(1)
-                }
-            }}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir={isRTL ? 'rtl' : 'ltr'}>
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingPromotion ? t('promotions.editPromotion') : t('promotions.createNewPromotion')}
-                        </DialogTitle>
-                    </DialogHeader>
+            {/* Create Form Dialog */}
+            <CreatePromotionForm
+                isOpen={isCreateDialogOpen}
+                onClose={() => setIsCreateDialogOpen(false)}
+            />
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="title"
-                                    label={t('promotions.form.titleEnglish')}
-                                    tooltip={t('promotions.tooltips.titleEnglish')}
-                                    required
-                                />
-                                <Input
-                                    id="title"
-                                    {...register('title', { required: true })}
-                                    placeholder="Weekend Sale"
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="title_ar"
-                                    label={t('promotions.form.titleArabic')}
-                                    tooltip={t('promotions.tooltips.titleArabic')}
-                                    required
-                                />
-                                <Input
-                                    id="title_ar"
-                                    {...register('title_ar', { required: true })}
-                                    placeholder="تخفيضات نهاية الأسبوع"
-                                    dir="rtl"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="description"
-                                    label={t('promotions.form.descriptionEnglish')}
-                                    tooltip={t('promotions.tooltips.descriptionEnglish')}
-                                />
-                                <Textarea
-                                    id="description"
-                                    {...register('description')}
-                                    placeholder="Get up to 50% off on selected items"
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="description_ar"
-                                    label={t('promotions.form.descriptionArabic')}
-                                    tooltip={t('promotions.tooltips.descriptionArabic')}
-                                />
-                                <Textarea
-                                    id="description_ar"
-                                    {...register('description_ar')}
-                                    placeholder="احصل على خصم يصل إلى 50٪"
-                                    dir="rtl"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="discount_type"
-                                    label={t('promotions.form.discountType')}
-                                    tooltip={t('promotions.tooltips.discountType')}
-                                    required
-                                />
-                                <Controller
-                                    name="discount_type"
-                                    control={control}
-                                    defaultValue="percentage"
-                                    rules={{ required: true }}
-                                    render={({ field }) => (
-                                        <Select value={field.value} onValueChange={field.onChange}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder={t('promotions.form.selectType')} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="percentage">{t('promotions.types.percentage')}</SelectItem>
-                                                <SelectItem value="fixed">{t('promotions.types.fixed')}</SelectItem>
-                                                <SelectItem value="buy_x_get_y">{t('promotions.types.buyXGetY')}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="discount_value"
-                                    label={t('promotions.form.discountValue')}
-                                    tooltip={t('promotions.tooltips.discountValue')}
-                                    required
-                                />
-                                <Input
-                                    id="discount_value"
-                                    type="number"
-                                    step="0.01"
-                                    {...register('discount_value', { required: true, valueAsNumber: true })}
-                                    placeholder="25"
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="max_discount"
-                                    label={t('promotions.form.maxDiscountCap')}
-                                    tooltip={t('promotions.tooltips.maxDiscount')}
-                                />
-                                <Input
-                                    id="max_discount"
-                                    type="number"
-                                    step="0.01"
-                                    {...register('max_discount', { valueAsNumber: true })}
-                                    placeholder="100"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="start_date"
-                                    label={t('promotions.startDate')}
-                                    tooltip={t('promotions.tooltips.startDate')}
-                                    required
-                                />
-                                <Input
-                                    id="start_date"
-                                    type="datetime-local"
-                                    {...register('start_date', { required: true })}
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="end_date"
-                                    label={t('promotions.endDate')}
-                                    tooltip={t('promotions.tooltips.endDate')}
-                                    required
-                                />
-                                <Input
-                                    id="end_date"
-                                    type="datetime-local"
-                                    {...register('end_date', { required: true })}
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <FormLabelWithTooltip
-                                htmlFor="applies_to"
-                                label={t('promotions.appliesTo')}
-                                tooltip={t('promotions.tooltips.appliesTo')}
-                                required
-                            />
-                            <Controller
-                                name="applies_to"
-                                control={control}
-                                defaultValue="all"
-                                rules={{ required: true }}
-                                render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder={t('promotions.form.selectScope')} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">{t('promotions.allProducts')}</SelectItem>
-                                            <SelectItem value="category">{t('promotions.form.specificCategories')}</SelectItem>
-                                            <SelectItem value="products">{t('promotions.form.specificProducts')}</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                        </div>
-
-                        {appliesTo === 'category' && (
-                            <div className="border rounded-lg p-4 bg-gray-50">
-                                <Label className="text-base font-semibold mb-3 block">
-                                    {t('promotions.form.selectCategories')}
-                                </Label>
-                                <p className="text-sm text-gray-500 mb-3">
-                                    {t('promotions.form.selectCategoriesHint')}
-                                </p>
-                                <select
-                                    multiple
-                                    {...register('category_ids')}
-                                    className="w-full border rounded-md p-3 bg-white focus:ring-2 focus:ring-elbaraka-primary focus:border-transparent"
-                                    style={{ minHeight: '200px' }}
-                                >
-                                    {((categories as any)?.data || categories)?.map((cat: any) => (
-                                        <optgroup key={cat.id} label={`${cat.name_en} (${cat.name_ar})`}>
-                                            <option value={cat.id} className="font-semibold">
-                                                ✓ {t('promotions.form.mainCategory')}: {cat.name_en}
-                                            </option>
-                                            {cat.subcategories?.map((sub: any) => (
-                                                <option key={sub.id} value={sub.id} className="pl-4">
-                                                    └─ {sub.name_en} ({sub.name_ar})
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-gray-400 mt-2">
-                                    {((categories as any)?.data?.length || (categories as any)?.length || 0)} {t('promotions.form.categoriesAvailable')}
-                                </p>
-                            </div>
-                        )}
-
-                        {appliesTo === 'products' && (
-                            <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
-                                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                    <Label className="text-base font-semibold">
-                                        {t('promotions.form.selectSpecificProducts')}
-                                    </Label>
-                                    <div className="text-sm text-gray-600">
-                                        {selectedProducts.length} {t('promotions.form.productsSelected')}
-                                    </div>
-                                </div>
-
-                                {/* Selected Products */}
-                                {selectedProducts.length > 0 && (
-                                    <div className="border rounded-md bg-white p-3">
-                                        <div className={`flex items-center justify-between mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                            <span className="text-sm font-medium">{t('promotions.selectedProducts')}:</span>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={handleClearProducts}
-                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                            >
-                                                {t('promotions.form.clearAll')}
-                                            </Button>
-                                        </div>
-                                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                                            {selectedProducts.map((product) => (
-                                                <div
-                                                    key={product.barcode}
-                                                    className="flex items-center justify-between bg-elbaraka-primary/5 p-2 rounded border border-elbaraka-primary/20"
-                                                >
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-medium text-sm truncate">
-                                                            {product.name_en}
-                                                        </div>
-                                                        <div className="text-xs text-gray-600">
-                                                            EGP {product.price} • {product.barcode}
-                                                        </div>
-                                                    </div>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleRemoveProduct(product.barcode)}
-                                                        className="ml-2 h-7 w-7 p-0 hover:bg-red-100"
-                                                    >
-                                                        <X className="h-4 w-4 text-red-600" />
-                                                    </Button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Product Search */}
-                                <div>
-                                    <div className="relative">
-                                        <Search className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400`} />
-                                        <Input
-                                            placeholder={t('promotions.form.searchProductsPlaceholder')}
-                                            className={isRTL ? 'pr-10' : 'pl-10'}
-                                            value={productSearchTerm}
-                                            onChange={(e) => {
-                                                setProductSearchTerm(e.target.value)
-                                                setProductPage(1)
-                                            }}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        {t('promotions.form.showingProducts', { filtered: filteredProducts.length, total: products?.data?.length || 0 })}
-                                    </p>
-                                </div>
-
-                                {/* Products List */}
-                                <div className="border rounded-md bg-white divide-y max-h-96 overflow-y-auto">
-                                    {isLoadingProducts ? (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-elbaraka-primary mx-auto mb-2"></div>
-                                            <p>{t('promotions.loadingProducts')}</p>
-                                        </div>
-                                    ) : paginatedProducts.length === 0 && !isLoadingProducts ? (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <Package className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                                            <p>{t('promotions.noProductsFound')}</p>
-                                            {productSearchTerm && (
-                                                <p className="text-sm mt-1">{t('promotions.tryDifferentSearch')}</p>
-                                            )}
-                                            {!productSearchTerm && filteredProducts.length === 0 && (
-                                                <p className="text-sm mt-1">{t('promotions.noProductsAvailable')}</p>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        paginatedProducts.map((product: any) => {
-                                            const isSelected = selectedProducts.find(p => p.barcode === product.barcode)
-                                            return (
-                                                <div
-                                                    key={product.barcode}
-                                                    className={`p-3 hover:bg-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-elbaraka-primary/5 border-l-4 border-elbaraka-primary' : ''
-                                                        }`}
-                                                    onClick={() => {
-                                                        if (isSelected) {
-                                                            handleRemoveProduct(product.barcode)
-                                                        } else {
-                                                            handleAddProduct(product)
-                                                        }
-                                                    }}
-                                                >
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className={`h-5 w-5 border-2 rounded flex items-center justify-center flex-shrink-0 ${isSelected
-                                                                    ? 'bg-elbaraka-primary border-elbaraka-primary'
-                                                                    : 'border-gray-300'
-                                                                    }`}>
-                                                                    {isSelected && (
-                                                                        <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path d="M5 13l4 4L19 7"></path>
-                                                                        </svg>
-                                                                    )}
-                                                                </div>
-                                                                <h4 className="font-medium text-sm truncate">
-                                                                    {product.name_en}
-                                                                </h4>
-                                                            </div>
-                                                            {product.name_ar && (
-                                                                <p className="text-xs text-gray-600 mt-1 mr-7" dir="rtl">
-                                                                    {product.name_ar}
-                                                                </p>
-                                                            )}
-                                                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 mr-7">
-                                                                <span className="font-medium text-elbaraka-primary">
-                                                                    EGP {product.price}
-                                                                </span>
-                                                                <span>•</span>
-                                                                <span>Barcode: {product.barcode}</span>
-                                                                {product.stock !== undefined && (
-                                                                    <>
-                                                                        <span>•</span>
-                                                                        <span>Stock: {product.stock}</span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })
-                                    )}
-                                </div>
-
-                                {/* Pagination */}
-                                {totalProductPages > 1 && (
-                                    <div className={`flex items-center justify-between pt-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                        <div className="text-sm text-gray-600">
-                                            {t('promotions.form.page')} {productPage} {t('common.of')} {totalProductPages}
-                                        </div>
-                                        <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setProductPage(Math.max(1, productPage - 1))}
-                                                disabled={productPage === 1}
-                                            >
-                                                {t('common.previous')}
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setProductPage(Math.min(totalProductPages, productPage + 1))}
-                                                disabled={productPage === totalProductPages}
-                                            >
-                                                {t('common.next')}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div>
-                            <FormLabelWithTooltip
-                                htmlFor="min_purchase"
-                                label={t('promotions.form.minPurchaseAmount')}
-                                tooltip={t('promotions.tooltips.minPurchase')}
-                            />
-                            <Input
-                                id="min_purchase"
-                                type="number"
-                                step="0.01"
-                                {...register('min_purchase', { valueAsNumber: true })}
-                                placeholder="0"
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="terms_conditions"
-                                    label={t('promotions.form.termsEnglish')}
-                                    tooltip={t('promotions.tooltips.termsEnglish')}
-                                />
-                                <Textarea
-                                    id="terms_conditions"
-                                    {...register('terms_conditions')}
-                                    placeholder="Valid while supplies last..."
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="terms_conditions_ar"
-                                    label={t('promotions.form.termsArabic')}
-                                    tooltip={t('promotions.tooltips.termsArabic')}
-                                />
-                                <Textarea
-                                    id="terms_conditions_ar"
-                                    {...register('terms_conditions_ar')}
-                                    placeholder="صالح طالما توفرت الإمدادات"
-                                    dir="rtl"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="image"
-                                    label={t('promotions.form.promotionImage')}
-                                    tooltip={t('promotions.tooltips.image')}
-                                />
-                                <Input
-                                    id="image"
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => setSelectedImageFile(e.target.files?.[0] || null)}
-                                />
-                            </div>
-                            <div>
-                                <FormLabelWithTooltip
-                                    htmlFor="banner_image"
-                                    label={t('promotions.form.bannerImage')}
-                                    tooltip={t('promotions.tooltips.bannerImage')}
-                                />
-                                <Input
-                                    id="banner_image"
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => setSelectedBannerFile(e.target.files?.[0] || null)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className={`flex items-center gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                            <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                <Controller
-                                    name="is_active"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Switch
-                                            id="is_active"
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    )}
-                                />
-                                <FormLabelWithTooltip
-                                    htmlFor="is_active"
-                                    label={t('common.active')}
-                                    tooltip={t('promotions.tooltips.isActive')}
-                                    className="mb-0"
-                                />
-                            </div>
-                            <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                <Controller
-                                    name="is_featured"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Switch
-                                            id="is_featured"
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    )}
-                                />
-                                <FormLabelWithTooltip
-                                    htmlFor="is_featured"
-                                    label={t('promotions.form.featuredHomepage')}
-                                    tooltip={t('promotions.tooltips.isFeatured')}
-                                    className="mb-0"
-                                />
-                            </div>
-                        </div>
-
-                        <DialogFooter className={isRTL ? 'flex-row-reverse' : ''}>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsCreateDialogOpen(false)
-                                    setEditingPromotion(null)
-                                    reset()
-                                }}
-                            >
-                                {t('common.cancel')}
-                            </Button>
-                            <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                                {createMutation.isPending || updateMutation.isPending
-                                    ? t('promotions.saving')
-                                    : editingPromotion
-                                        ? t('promotions.updatePromotion')
-                                        : t('promotions.createPromotion')
-                                }
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            {/* Edit Form Dialog */}
+            <EditPromotionForm
+                promotion={editingPromotion}
+                onClose={() => setEditingPromotion(null)}
+            />
         </div>
     )
 }

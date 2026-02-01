@@ -16,18 +16,18 @@ export interface ProductFilters {
 
 export interface CreateProductData {
     barcode: string
-    name: string
+    name_en: string
     name_ar: string
-    description?: string
+    description_en?: string
     description_ar?: string
     price: number
-    cost_price: number
     stock_quantity: number
-    min_stock_level: number
     category_id: number
     weight?: number
     unit?: string
     is_featured?: boolean
+    is_active?: boolean
+    is_in_stock?: boolean
 }
 
 export const productService = {

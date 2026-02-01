@@ -233,7 +233,6 @@ export default function AddressesScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <OfflineIndicator />
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -245,39 +244,9 @@ export default function AddressesScreen() {
           <Text style={styles.headerTitle}>{t.addresses.title}</Text>
           <View style={styles.backButton} />
         </View>
-        <ScrollView style={{ flex: 1, padding: Spacing.lg }}>
-          {[1, 2, 3].map((i) => (
-            <View
-              key={i}
-              style={{
-                marginBottom: Spacing.lg,
-                backgroundColor: Colors.neutralWhite,
-                borderRadius: 12,
-                padding: Spacing.md,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                <SkeletonLoader width={100} height={20} borderRadius={6} />
-                <SkeletonLoader width={60} height={24} borderRadius={12} />
-              </View>
-              <View style={{ height: 8 }} />
-              <SkeletonLoader width="80%" height={16} borderRadius={4} />
-              <View style={{ height: 6 }} />
-              <SkeletonLoader width="60%" height={16} borderRadius={4} />
-              <View style={{ height: 16 }} />
-              <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                <SkeletonLoader width={80} height={36} borderRadius={18} />
-                <SkeletonLoader width={80} height={36} borderRadius={18} />
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary900} />
+        </View>
       </SafeAreaView>
     );
   }

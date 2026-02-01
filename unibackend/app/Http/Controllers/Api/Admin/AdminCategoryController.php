@@ -137,10 +137,17 @@ class AdminCategoryController extends Controller
                 'id' => $category->id,
                 'name_en' => $category->name_en,
                 'name_ar' => $category->name_ar,
+                'slug' => $category->slug,
+                'description_en' => $category->description_en,
+                'description_ar' => $category->description_ar,
                 'parent_id' => $category->parent_id,
+                'image' => $category->image,
+                'icon' => $category->icon,
                 'is_active' => $category->is_active,
                 'sort_order' => $category->sort_order,
                 'product_count' => $category->products()->count(),
+                'created_at' => $category->created_at,
+                'updated_at' => $category->updated_at,
                 'children' => $this->buildTree($category->children),
             ];
         });

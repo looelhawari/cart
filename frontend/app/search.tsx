@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,17 +7,25 @@ import {
   TouchableOpacity,
   FlatList,
   ScrollView,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Search, X, SlidersHorizontal } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { ProductCard } from "@/components/ProductCard";
-import { products } from "@/data/products";
+import { getProducts, type ProductsResponse } from "@/services/api/productsApi";
+import { getCategories } from "@/services/api/categoryApi";
+import type { Product, Category } from "@/types";
 import { useTranslation, useLocalizedValue } from "@/i18n";
+
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = (width - Spacing.lg * 2 - Spacing.md) / 2;
 
 const POPULAR_SEARCHES = [
   "Tomatoes",
@@ -34,33 +42,102 @@ export default function SearchScreen() {
   const { t } = useTranslation();
   const { getName } = useLocalizedValue();
   const [searchQuery, setSearchQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>([
-    "Fresh Milk",
-    "Organic Tomatoes",
-    "Bread",
-  ]);
-  const [searchResults, setSearchResults] = useState<typeof products>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load categories on mount
   useEffect(() => {
-    if (searchQuery.trim()) {
-      setIsSearching(true);
-      const results = products.filter((product) =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
-      setSearchResults(results);
-    } else {
-      setIsSearching(false);
-      setSearchResults([]);
-    }
-  }, [searchQuery]);
+    loadCategories();
+  }, []);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim() && !recentSearches.includes(query)) {
-      setRecentSearches([query, ...recentSearches.slice(0, 9)]);
+  const loadCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const response = await getCategories(true);
+      if (response.success) {
+        setCategories(response.data.categories.slice(0, 8));
+      }
+    } catch (error) {
+      console.error("Failed to load categories:", error);
+    } finally {
+      setLoadingCategories(false);
     }
   };
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (searchQuery.trim()) {
+      setIsSearching(true);
+      setLoading(true);
+
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(searchQuery.trim(), selectedCategory);
+      }, 500); // 500ms debounce
+    } else if (!selectedCategory) {
+      setIsSearching(false);
+      setSearchResults([]);
+      setLoading(false);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, selectedCategory]);
+
+  const performSearch = async (query: string, categoryId: number | null) => {
+    try {
+      setLoading(true);
+      const response = await getProducts({
+        search: query,
+        category_id: categoryId || undefined,
+        per_page: 50,
+      }, false);
+
+      if (response.success) {
+        setSearchResults(response.data.products);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim() && !recentSearches.includes(query)) {
+      setRecentSearches(prev => [query, ...prev.slice(0, 9)]);
+    }
+  }, [recentSearches]);
+
+  const handleCategorySelect = useCallback((categoryId: number) => {
+    if (selectedCategory === categoryId) {
+      setSelectedCategory(null);
+      if (!searchQuery.trim()) {
+        setIsSearching(false);
+        setSearchResults([]);
+      }
+    } else {
+      setSelectedCategory(categoryId);
+      setIsSearching(true);
+      performSearch(searchQuery.trim(), categoryId);
+    }
+  }, [selectedCategory, searchQuery]);
 
   const removeRecentSearch = (search: string) => {
     setRecentSearches(recentSearches.filter((s) => s !== search));
@@ -69,6 +146,15 @@ export default function SearchScreen() {
   const clearAllRecent = () => {
     setRecentSearches([]);
   };
+
+  const renderProduct = ({ item }: { item: Product }) => (
+    <View style={styles.resultItem}>
+      <ProductCard
+        product={item}
+        onPress={() => router.push(`/product/${item.barcode}` as any)}
+      />
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -167,19 +253,34 @@ export default function SearchScreen() {
           {/* Search by Category */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Search by Category</Text>
-            <View style={styles.categoryFilters}>
-              {["Fruits", "Dairy", "Meat", "Bakery", "Beverages", "Snacks"].map(
-                (category, index) => (
+            {loadingCategories ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={Colors.primary900} />
+              </View>
+            ) : (
+              <View style={styles.categoryFilters}>
+                {categories.map((category) => (
                   <TouchableOpacity
-                    key={index}
-                    style={styles.categoryFilter}
+                    key={category.id}
+                    style={[
+                      styles.categoryFilter,
+                      selectedCategory === category.id && styles.categoryFilterActive,
+                    ]}
+                    onPress={() => handleCategorySelect(category.id)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.categoryFilterText}>{category}</Text>
+                    <Text
+                      style={[
+                        styles.categoryFilterText,
+                        selectedCategory === category.id && styles.categoryFilterTextActive,
+                      ]}
+                    >
+                      {getName(category)}
+                    </Text>
                   </TouchableOpacity>
-                ),
-              )}
-            </View>
+                ))}
+              </View>
+            )}
           </View>
         </ScrollView>
       ) : (
@@ -187,8 +288,7 @@ export default function SearchScreen() {
           {/* Results Header */}
           <View style={styles.resultsHeader}>
             <Text style={styles.resultsCount}>
-              {searchResults.length}{" "}
-              {searchResults.length === 1 ? "result" : "results"} found
+              {loading ? "Searching..." : `${searchResults.length} ${searchResults.length === 1 ? "result" : "results"} found`}
             </Text>
             <TouchableOpacity style={styles.sortButton}>
               <Text style={styles.sortText}>Sort</Text>
@@ -197,27 +297,27 @@ export default function SearchScreen() {
           </View>
 
           {/* Results Grid */}
-          {searchResults.length > 0 ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary900} />
+              <Text style={styles.loadingText}>Searching products...</Text>
+            </View>
+          ) : searchResults.length > 0 ? (
             <FlatList
               data={searchResults}
-              renderItem={({ item }) => (
-                <View style={styles.resultItem}>
-                  <ProductCard
-                    product={item}
-                    onPress={() => router.push(`/product/${item.id}`)}
-                  />
-                </View>
-              )}
-              keyExtractor={(item) => item.id}
+              renderItem={renderProduct}
+              keyExtractor={(item) => (item.barcode || item.id)?.toString() || ""}
               numColumns={2}
               contentContainerStyle={styles.resultsGrid}
+              columnWrapperStyle={styles.resultRow}
               showsVerticalScrollIndicator={false}
             />
           ) : (
             <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={64} color={Colors.neutralGray} />
               <Text style={styles.emptyTitle}>No results found</Text>
               <Text style={styles.emptyText}>
-                Try searching with different keywords
+                Try searching with different keywords or check your spelling
               </Text>
             </View>
           )}
@@ -352,10 +452,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutralGray,
   },
+  categoryFilterActive: {
+    backgroundColor: Colors.primary900,
+    borderColor: Colors.primary900,
+  },
   categoryFilterText: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralCharcoal,
     fontFamily: "Poppins_600SemiBold",
+  },
+  categoryFilterTextActive: {
+    color: Colors.neutralWhite,
   },
   resultsContainer: {
     flex: 1,
@@ -388,22 +495,39 @@ const styles = StyleSheet.create({
   resultsGrid: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
-    gap: Spacing.md,
+    paddingBottom: 100,
+  },
+  resultRow: {
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
   },
   resultItem: {
-    width: "48%",
-    marginBottom: Spacing.md,
+    width: CARD_WIDTH,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.xxl,
+  },
+  loadingText: {
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralMedium,
+    marginTop: Spacing.md,
+    fontFamily: "Poppins_400Regular",
   },
   emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.xxl,
   },
   emptyTitle: {
     fontSize: Typography.h3,
     fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
+    marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   emptyText: {

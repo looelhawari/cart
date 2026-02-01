@@ -22,6 +22,7 @@ import {
   Leaf,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useResponsive } from "@/hooks/useResponsive";
 import {
   useFonts,
@@ -37,12 +38,37 @@ import { ProductCard } from "@/components/ProductCard";
 import { HeroBanner } from "@/components/HeroBanner";
 import { useStore } from "@/store";
 import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
-import { getFeaturedCategoriesWithProducts } from "@/services/api/categoryApi";
-import type { Product } from "@/types";
+import { getFeaturedCategoriesWithProducts, getCategories } from "@/services/api/categoryApi";
+import type { Product, Category } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { useLocalizedValue, useTranslation } from "@/i18n";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
+
+// Category icon mapping for quick access icons
+const CATEGORY_ICONS: { [key: string]: { icon: keyof typeof Ionicons.glyphMap; color: string } } = {
+  fruits: { icon: "nutrition-outline", color: "#ef4444" },
+  vegetables: { icon: "leaf-outline", color: "#22c55e" },
+  meat: { icon: "restaurant-outline", color: "#b45309" },
+  dairy: { icon: "water-outline", color: "#3b82f6" },
+  bakery: { icon: "cafe-outline", color: "#f59e0b" },
+  snacks: { icon: "fast-food-outline", color: "#8b5cf6" },
+  beverages: { icon: "beer-outline", color: "#06b6d4" },
+  frozen: { icon: "snow-outline", color: "#64748b" },
+  default: { icon: "grid-outline", color: "#6b7280" },
+};
+
+const getCategoryIcon = (slug: string): { icon: keyof typeof Ionicons.glyphMap; color: string } => {
+  const normalizedSlug = slug?.toLowerCase().replace(/[^a-z]/g, '') || '';
+
+  // Try to match by partial slug
+  for (const [key, value] of Object.entries(CATEGORY_ICONS)) {
+    if (normalizedSlug.includes(key) || key.includes(normalizedSlug)) {
+      return value;
+    }
+  }
+  return CATEGORY_ICONS.default;
+};
 
 export default function HomeScreen() {
   const { wp, hp, isSmallDevice, width } = useResponsive();
@@ -62,6 +88,7 @@ export default function HomeScreen() {
   const [categoriesWithProducts, setCategoriesWithProducts] = useState<
     CategoryWithProducts[]
   >([]);
+  const [quickCategories, setQuickCategories] = useState<Category[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,14 +107,20 @@ export default function HomeScreen() {
   const loadData = async () => {
     try {
       if (!refreshing) setLoading(true);
-      const [categoriesRes, featuredRes, flashDealsRes] = await Promise.all([
+      const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] = await Promise.all([
         getFeaturedCategoriesWithProducts(),
+        getCategories(),
         getFeaturedProducts(),
         getFlashDeals(),
       ]);
 
       if (categoriesRes.success)
         setCategoriesWithProducts(categoriesRes.data.categories);
+      if (allCategoriesRes.success)
+        setQuickCategories(allCategoriesRes.data.categories.slice(0, 8)); // Show max 8 categories
+      if (featuredRes.success) setFeaturedProducts(featuredRes.data.products);
+      if (flashDealsRes.success) setFlashDeals(flashDealsRes.data.products);
+      setCategoriesWithProducts(categoriesRes.data.categories);
       if (featuredRes.success) setFeaturedProducts(featuredRes.data.products);
       if (flashDealsRes.success) setFlashDeals(flashDealsRes.data.products);
     } catch (error) {
@@ -416,14 +449,13 @@ export default function HomeScreen() {
     );
   }
 
-  const quickCategories = [
-    { id: 1, name: t.common.fruits, emoji: "🍎" },
-    { id: 2, name: t.common.vegetables, emoji: "🥕" },
-    { id: 3, name: t.common.meat, emoji: "🥩" },
-    { id: 4, name: t.common.dairy, emoji: "🥛" },
-    { id: 5, name: t.common.bakery, emoji: "🍞" },
-    { id: 6, name: t.common.snacks, emoji: "🍿" },
-  ];
+  // Fallback categories if API doesn't return any
+  const displayCategories = quickCategories.length > 0 ? quickCategories : [
+    { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
+    { id: 2, name_en: "Vegetables", name_ar: "خضروات", slug: "vegetables" },
+    { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
+    { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
+  ] as Category[];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -539,18 +571,23 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesScroll}
           >
-            {quickCategories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={styles.categoryCard}
-                onPress={() => router.push("/(tabs)/categories")}
-              >
-                <View style={styles.categoryIcon}>
-                  <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-                </View>
-                <Text style={styles.categoryName}>{cat.name}</Text>
-              </TouchableOpacity>
-            ))}
+            {displayCategories.map((cat) => {
+              const iconInfo = getCategoryIcon(cat.slug || '');
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={styles.categoryCard}
+                  onPress={() => router.push(`/categories/${cat.id}` as any)}
+                >
+                  <View style={[styles.categoryIcon, { backgroundColor: iconInfo.color + '15' }]}>
+                    <Ionicons name={iconInfo.icon} size={28} color={iconInfo.color} />
+                  </View>
+                  <Text style={styles.categoryName} numberOfLines={1}>
+                    {getName(cat)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 

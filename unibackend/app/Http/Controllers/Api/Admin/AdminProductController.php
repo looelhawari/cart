@@ -52,15 +52,13 @@ class AdminProductController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'barcode' => 'required|string|size:13|unique:products',
+            'barcode' => 'required|string|min:1|max:50|unique:products',
             'name_en' => 'required|string|max:255',
             'name_ar' => 'required|string|max:255',
             'description_en' => 'nullable|string',
             'description_ar' => 'nullable|string',
             'category_id' => 'required|exists:categories,id',
             'price' => 'required|numeric|min:0',
-            'sale_price' => 'nullable|numeric|min:0|lt:price',
-            'cost_price' => 'nullable|numeric|min:0',
             'stock_quantity' => 'required|integer|min:0',
             'is_in_stock' => 'nullable|boolean',
             'weight' => 'nullable|numeric|min:0',
@@ -102,8 +100,6 @@ class AdminProductController extends Controller
             'description_ar' => 'nullable|string',
             'category_id' => 'sometimes|exists:categories,id',
             'price' => 'sometimes|numeric|min:0',
-            'sale_price' => 'nullable|numeric|min:0',
-            'cost_price' => 'nullable|numeric|min:0',
             'stock_quantity' => 'sometimes|integer|min:0',
             'is_in_stock' => 'nullable|boolean',
             'weight' => 'nullable|numeric|min:0',
