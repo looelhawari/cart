@@ -27,7 +27,7 @@ class StaticPageController extends Controller
     public function index()
     {
         try {
-            $pages = StaticPage::with('updatedByUser:id,name,email')
+            $pages = StaticPage::with('updatedByUser:id,first_name,last_name,email')
                 ->orderBy('slug')
                 ->get()
                 ->map(function ($page) {
@@ -42,7 +42,7 @@ class StaticPageController extends Controller
                         'last_updated_at' => $page->last_updated_at?->toISOString(),
                         'updated_by' => $page->updatedByUser ? [
                             'id' => $page->updatedByUser->id,
-                            'name' => $page->updatedByUser->name,
+                            'name' => $page->updatedByUser->full_name,
                         ] : null,
                         'created_at' => $page->created_at->toISOString(),
                         'updated_at' => $page->updated_at->toISOString(),

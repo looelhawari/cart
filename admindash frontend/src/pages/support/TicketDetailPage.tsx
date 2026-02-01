@@ -9,12 +9,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { ArrowLeft, Send, User, Package, MessageSquare, Clock, Mail, Phone, ChevronRight, Sparkles } from 'lucide-react'
+import { ArrowLeft, Send, User, Package, MessageSquare, Clock, Mail, Phone, ChevronRight, Sparkles, X, LogOut } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Ticket, TicketMessage, TicketStatus, TicketPriority } from '@/types'
 import echo from '@/lib/echo'
 import { CannedResponseDropdown } from '@/components/support/CannedResponseDropdown'
 import { CustomerHistoryCard } from '@/components/support/CustomerHistoryCard'
+import { SmartSuggestionsPanel } from '@/components/support/SmartSuggestionsPanel'
 
 // Format relative time
 const formatTimeAgo = (date: string) => {
@@ -56,6 +57,7 @@ export default function TicketDetailPage() {
     const { t } = useTranslation()
     const [replyMessage, setReplyMessage] = useState('')
     const [isCustomerTyping, setIsCustomerTyping] = useState(false)
+    const [isChatSessionEnded, setIsChatSessionEnded] = useState(false)
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const sendTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -74,7 +76,7 @@ export default function TicketDetailPage() {
     }, [ticket?.messages])
 
     useEffect(() => {
-        if (!id) return;
+        if (!id || isChatSessionEnded) return;
 
         console.log(`Listening to complaints.${id}`);
         const channel = echo.private(`complaints.${id}`)
@@ -111,7 +113,32 @@ export default function TicketDetailPage() {
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
         };
-    }, [id, queryClient, t, toast]);
+    }, [id, queryClient, t, toast, isChatSessionEnded]);
+
+    // Function to end the chat session and disconnect Pusher
+    const handleEndChatSession = () => {
+        if (id) {
+            console.log(`Manually ending chat session for complaints.${id}`);
+            echo.leave(`complaints.${id}`);
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
+            setIsChatSessionEnded(true);
+            setIsCustomerTyping(false);
+            toast({
+                title: t('support.chatSessionEnded'),
+                description: t('support.chatSessionEndedDesc'),
+            });
+        }
+    };
+
+    // Function to reconnect to chat
+    const handleReconnectChat = () => {
+        setIsChatSessionEnded(false);
+        toast({
+            title: t('support.chatReconnected'),
+            description: t('support.chatReconnectedDesc'),
+        });
+    };
 
     const replyMutation = useMutation({
         mutationFn: ({ id, message }: { id: number; message: string }) =>
@@ -241,6 +268,29 @@ export default function TicketDetailPage() {
                     <div className="flex items-center gap-3">
                         <TicketPriorityBadge priority={ticket.priority} />
                         <TicketStatusBadge status={ticket.status} />
+
+                        {/* End/Reconnect Chat Session Button */}
+                        {isChatSessionEnded ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleReconnectChat}
+                                className="border-green-500 text-green-600 hover:bg-green-50"
+                            >
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                {t('support.reconnectChat')}
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleEndChatSession}
+                                className="border-red-300 text-red-600 hover:bg-red-50"
+                            >
+                                <LogOut className="h-4 w-4 mr-2" />
+                                {t('support.endChatSession')}
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -249,6 +299,24 @@ export default function TicketDetailPage() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Chat Area */}
                 <div className="flex-1 flex flex-col bg-gradient-to-b from-gray-50 to-white">
+                    {/* Disconnected Banner */}
+                    {isChatSessionEnded && (
+                        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-amber-700">
+                                <LogOut className="h-4 w-4" />
+                                <span className="text-sm font-medium">{t('support.chatDisconnected')}</span>
+                                <span className="text-xs text-amber-600">• {t('support.chatDisconnectedHint')}</span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleReconnectChat}
+                                className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                            >
+                                {t('support.reconnectChat')}
+                            </Button>
+                        </div>
+                    )}
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto px-6 py-4">
                         {/* Original Ticket */}
@@ -445,6 +513,12 @@ export default function TicketDetailPage() {
                         {ticket.user_id && (
                             <CustomerHistoryCard customerId={ticket.user_id} currentTicketId={ticket.id} />
                         )}
+
+                        {/* Smart Suggestions */}
+                        <SmartSuggestionsPanel
+                            ticketId={ticket.id}
+                            onSelectSuggestion={(message) => setReplyMessage(message)}
+                        />
 
                         {/* Related Order */}
                         {ticket.order && (

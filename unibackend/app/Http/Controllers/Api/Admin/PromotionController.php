@@ -102,11 +102,6 @@ class PromotionController extends Controller
         try {
             DB::beginTransaction();
 
-            // If setting as featured, unfeatured others
-            if ($request->boolean('is_featured')) {
-                Promotion::where('is_featured', true)->update(['is_featured' => false]);
-            }
-
             $promotionData = $request->except(['category_ids', 'product_barcodes', 'image', 'banner_image']);
             $promotionData['created_by'] = auth()->id();
 
@@ -222,11 +217,6 @@ class PromotionController extends Controller
             $promotion = Promotion::findOrFail($id);
             DB::beginTransaction();
 
-            // If setting as featured, unfeatured others
-            if ($request->boolean('is_featured') && !$promotion->is_featured) {
-                Promotion::where('is_featured', true)->update(['is_featured' => false]);
-            }
-
             $wasActive = $promotion->is_currently_active;
             $promotion->update($request->except(['category_ids', 'product_barcodes', 'image', 'banner_image']));
 
@@ -331,18 +321,13 @@ class PromotionController extends Controller
     }
 
     /**
-     * Set promotion as featured (unfeatured others)
+     * Set promotion as featured
      */
     public function setFeatured($id)
     {
         try {
-            DB::beginTransaction();
-
-            Promotion::where('is_featured', true)->update(['is_featured' => false]);
             $promotion = Promotion::findOrFail($id);
             $promotion->update(['is_featured' => true]);
-
-            DB::commit();
 
             return response()->json([
                 'success' => true,
@@ -350,7 +335,6 @@ class PromotionController extends Controller
                 'data' => $promotion,
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to set featured promotion',

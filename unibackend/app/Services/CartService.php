@@ -352,11 +352,11 @@ class CartService
         }
 
         $now = now();
-        if ($promoCode->valid_from && $promoCode->valid_from > $now) {
+        if ($promoCode->valid_from && $now->lt($promoCode->valid_from)) {
             return $this->invalidatePromo($payload, 'NOT_STARTED');
         }
 
-        if ($promoCode->valid_until && $promoCode->valid_until < $now) {
+        if ($promoCode->valid_until && $now->gt($promoCode->valid_until)) {
             return $this->invalidatePromo($payload, 'EXPIRED');
         }
 

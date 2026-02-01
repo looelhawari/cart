@@ -145,17 +145,16 @@ class ApiClient {
     }
 
     async uploadFormData<T>(url: string, formData: FormData, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
-        const response = method === 'PUT'
-            ? await this.client.put<T>(url, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            })
-            : await this.client.post<T>(url, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            })
+        // Laravel doesn't support multipart/form-data with PUT, so we use POST with _method override
+        if (method === 'PUT') {
+            formData.append('_method', 'PUT')
+        }
+
+        const response = await this.client.post<T>(url, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        })
         return response.data
     }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,11 @@ import {
   Platform,
   ActivityIndicator,
   FlatList,
-  Animated,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
-import { ArrowLeft, Send, AlertCircle, Check } from 'lucide-react-native';
+import { ArrowLeft, Send, AlertCircle, Check, CheckCheck } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import Spacing from '@/constants/Spacing';
@@ -42,38 +42,26 @@ const formatTimeAgo = (date: string) => {
   return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
-// Typing Indicator
+// Typing Indicator with better animations
 const TypingIndicator = () => {
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animateDot = (dot: Animated.Value, delay: number) => {
-      return Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(dot, { toValue: -4, duration: 200, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0, duration: 200, useNativeDriver: true }),
-        ])
-      );
-    };
-
-    const anim = Animated.parallel([
-      animateDot(dot1, 0),
-      animateDot(dot2, 100),
-      animateDot(dot3, 200),
-    ]);
-    anim.start();
-    return () => anim.stop();
-  }, [dot1, dot2, dot3]);
-
   return (
     <View style={styles.typingRow}>
       <View style={styles.typingBubble}>
-        <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot1 }] }]} />
-        <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot2 }] }]} />
-        <Animated.View style={[styles.typingDot, { transform: [{ translateY: dot3 }] }]} />
+        <View style={styles.typingDotsContainer}>
+          <Animated.View
+            style={[styles.typingDot]}
+            entering={FadeInUp.delay(0).duration(300)}
+          />
+          <Animated.View
+            style={[styles.typingDot]}
+            entering={FadeInUp.delay(100).duration(300)}
+          />
+          <Animated.View
+            style={[styles.typingDot]}
+            entering={FadeInUp.delay(200).duration(300)}
+          />
+        </View>
+        <Text style={styles.typingText}>Support is typing...</Text>
       </View>
     </View>
   );
@@ -189,11 +177,15 @@ export default function ComplaintDetailsScreen() {
     }
   };
 
-  const renderMessage = ({ item }: { item: ComplaintMessage }) => {
+  const renderMessage = ({ item, index }: { item: ComplaintMessage; index: number }) => {
     const isAdmin = item.is_admin_reply;
+    const isLast = index === (complaint?.messages?.length || 0) - 1;
 
     return (
-      <View style={[styles.msgRow, isAdmin ? styles.msgLeft : styles.msgRight]}>
+      <Animated.View
+        style={[styles.msgRow, isAdmin ? styles.msgLeft : styles.msgRight]}
+        entering={FadeInDown.duration(300).delay(50)}
+      >
         <View style={[styles.bubble, isAdmin ? styles.bubbleLeft : styles.bubbleRight]}>
           <Text style={[styles.msgText, isAdmin ? styles.textLeft : styles.textRight]}>
             {item.message}
@@ -202,10 +194,18 @@ export default function ComplaintDetailsScreen() {
             <Text style={[styles.msgTime, isAdmin ? styles.timeLeft : styles.timeRight]}>
               {formatTime(item.created_at)}
             </Text>
-            {!isAdmin && <Check size={12} color="rgba(255,255,255,0.6)" style={{ marginLeft: 4 }} />}
+            {!isAdmin && (
+              <View style={{ marginLeft: 4 }}>
+                {item.is_read ? (
+                  <CheckCheck size={12} color="rgba(255,255,255,0.9)" />
+                ) : (
+                  <Check size={12} color="rgba(255,255,255,0.6)" />
+                )}
+              </View>
+            )}
           </View>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -467,12 +467,27 @@ const styles = StyleSheet.create({
   },
   typingBubble: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 16,
     borderBottomLeftRadius: 4,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
+    paddingVertical: 10,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  typingDotsContainer: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  typingText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    fontStyle: 'italic',
   },
   typingDot: {
     width: 6,

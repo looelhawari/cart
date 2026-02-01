@@ -37,25 +37,25 @@ export const HeroBanner: React.FC = () => {
         try {
             setLoading(true);
 
-            // Try to get featured promotion first
-            try {
-                const featuredResponse = await getFeaturedPromotion();
-                if (featuredResponse.success && featuredResponse.data) {
-                    setPromotions([featuredResponse.data.promotion]);
+            // Get all featured promotions
+            const featuredResponse = await getFeaturedPromotion();
+            if (featuredResponse.success && featuredResponse.data?.promotions) {
+                const validPromotions = featuredResponse.data.promotions
+                    .filter((promo: Promotion) => promo && promo.image_url);
+
+                if (validPromotions.length > 0) {
+                    setPromotions(validPromotions);
                     setLoading(false);
                     return;
                 }
-            } catch (error) {
-                console.log('No featured promotion, loading all active promotions');
             }
 
-            // If no featured, get all active promotions
+            // If no featured promotions, get all active promotions as fallback
             const response = await getPromotions();
             if (response.success) {
-                // Filter out null/undefined promotions and those without image_url
                 const validPromotions = response.data.promotions
                     .filter((promo: Promotion | null) => promo && promo.image_url)
-                    .slice(0, 5); // Limit to 5 for carousel
+                    .slice(0, 5);
                 setPromotions(validPromotions);
             }
         } catch (error) {

@@ -19,6 +19,7 @@ import OrderDetailPage from '@/pages/orders/OrderDetailPage'
 import OrderReceiptPage from '@/pages/orders/OrderReceiptPage'
 import SupportPage from '@/pages/support/SupportPage'
 import TicketDetailPage from '@/pages/support/TicketDetailPage'
+import SupportAnalyticsPage from '@/pages/support/SupportAnalyticsPage'
 import FinancialPage from '@/pages/financial/FinancialPage'
 import UsersPage from '@/pages/users/UsersPage'
 import CustomersPage from '@/pages/customers/CustomersPage'
@@ -66,6 +67,7 @@ function App() {
                             <Route path="/orders/:id/receipt" element={<OrderReceiptPage />} />
 
                             <Route element={<DashboardLayout><SupportPage /></DashboardLayout>} path="/support" />
+                            <Route element={<DashboardLayout><SupportAnalyticsPage /></DashboardLayout>} path="/support/analytics" />
                             <Route element={<DashboardLayout><TicketDetailPage /></DashboardLayout>} path="/support/:id" />
 
                             <Route element={<DashboardLayout><FinancialPage /></DashboardLayout>} path="/financial" />

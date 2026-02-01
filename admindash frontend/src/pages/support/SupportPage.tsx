@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
-import { Search, Eye, MessageSquare, UserPlus, CheckCircle, XCircle } from 'lucide-react'
+import { Search, Eye, MessageSquare, UserPlus, CheckCircle, XCircle, BarChart3 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import type { TicketStatus } from '@/types'
@@ -50,9 +50,17 @@ export default function SupportPage() {
 
     return (
         <div className="space-y-6" dir={isRTL ? 'rtl' : 'ltr'}>
-            <div>
-                <h1 className="text-3xl font-bold text-elbaraka-primary">{t('support.title')}</h1>
-                <p className="text-muted-foreground mt-1">{t('support.subtitle')}</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold text-elbaraka-primary">{t('support.title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('support.subtitle')}</p>
+                </div>
+                <Link to="/support/analytics">
+                    <Button variant="outline" className="gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        {t('support.viewAnalytics', 'View Analytics')}
+                    </Button>
+                </Link>
             </div>
 
             <Card>

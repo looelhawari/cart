@@ -402,6 +402,10 @@ Route::prefix('v1')->group(function () {
                 Route::post('/tickets/{id}/assign', [SupportController::class, 'assignTicket']);
                 Route::post('/tickets/{id}/messages', [SupportController::class, 'addMessage']);
                 Route::post('/tickets/{id}/typing', [SupportController::class, 'typing']);
+                Route::get('/tickets/{id}/suggestions', [SupportController::class, 'getSuggestions']);
+                Route::post('/tickets/{id}/read', [SupportController::class, 'markAsRead']);
+                Route::get('/tickets/{id}/customer-history', [SupportController::class, 'getCustomerHistory']);
+                Route::get('/analytics', [SupportController::class, 'analytics']);
             });
 
             // Canned Responses

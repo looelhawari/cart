@@ -43,32 +43,23 @@ class PromotionController extends Controller
     }
 
     /**
-     * Get featured promotion (for homepage hero banner)
+     * Get featured promotions (for homepage hero banner)
      */
     public function featured()
     {
         try {
-            $promotion = $this->promotionService->getFeaturedPromotion();
-
-            if (!$promotion) {
-                return response()->json([
-                    'success' => true,
-                    'data' => [
-                        'promotion' => null,
-                    ],
-                ]);
-            }
+            $promotions = $this->promotionService->getFeaturedPromotions();
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'promotion' => $promotion,
+                    'promotions' => $promotions,
                 ],
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch featured promotion',
+                'message' => 'Failed to fetch featured promotions',
                 'error' => $e->getMessage(),
             ], 500);
         }

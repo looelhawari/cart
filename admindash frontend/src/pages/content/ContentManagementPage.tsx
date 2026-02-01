@@ -76,10 +76,15 @@ export default function ContentManagementPage() {
     const sendNotification = watch('send_notification')
 
     // Fetch all pages
-    const { data: pages, isLoading } = useQuery({
+    const { data: pages, isLoading, isError, error } = useQuery({
         queryKey: ['static-pages'],
         queryFn: () => staticPageService.getPages(),
     })
+
+    // Log error for debugging
+    if (isError) {
+        console.error('Failed to fetch static pages:', error)
+    }
 
     // Fetch page history
     const { data: historyData, isLoading: isLoadingHistory } = useQuery({
@@ -222,6 +227,21 @@ export default function ContentManagementPage() {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        )
+    }
+
+    if (isError) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                <XCircle className="w-12 h-12 text-red-500" />
+                <p className="text-lg font-medium text-red-600">{t('common.error')}</p>
+                <p className="text-sm text-muted-foreground">
+                    {(error as any)?.message || t('contentManagement.fetchError') || 'Failed to load pages'}
+                </p>
+                <Button onClick={() => window.location.reload()} variant="outline">
+                    {t('common.retry') || 'Retry'}
+                </Button>
             </div>
         )
     }

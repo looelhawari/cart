@@ -253,7 +253,15 @@ class PromotionService
     }
 
     /**
-     * Get featured promotion for homepage banner
+     * Get featured promotions for homepage banner
+     */
+    public function getFeaturedPromotions(): Collection
+    {
+        return Promotion::featured()->get();
+    }
+
+    /**
+     * Get featured promotion for homepage banner (backward compatibility)
      */
     public function getFeaturedPromotion(): ?Promotion
     {
