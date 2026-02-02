@@ -53,10 +53,10 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Auth rate limit: 30 requests per minute (reasonable like big tech apps)
+        // Auth rate limit: 60 requests per minute (like big tech apps)
         // Users may retry login, have network issues, or use multiple forms
         RateLimiter::for('auth', function (Request $request) {
-            return Limit::perMinute(30)->by(
+            return Limit::perMinute(60)->by(
                 $request->ip()  // Rate limit by IP only, not email (user might try different emails)
             )->response(function (Request $request, array $headers) {
                 return response()->json([
@@ -87,9 +87,9 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        // Checkout rate limit: Reasonable limit (30 per minute covers retries)
+        // Checkout rate limit: Reasonable limit (60 per minute covers retries)
         RateLimiter::for('checkout', function (Request $request) {
-            return Limit::perMinute(30)->by(
+            return Limit::perMinute(60)->by(
                 $request->user()?->id ?: $request->ip()
             )->response(function (Request $request, array $headers) {
                 return response()->json([

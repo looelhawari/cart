@@ -52,8 +52,8 @@ Route::get('health/metrics', [HealthController::class, 'metrics']);
 
 Route::prefix('v1')->group(function () {
 
-    // Auth routes (guest only) - throttled to 30 requests per minute (reasonable for normal users)
-    Route::middleware(['guest', 'throttle:30,1'])->group(function () {
+    // Auth routes (guest only) - throttled to 60 requests per minute (like big tech apps)
+    Route::middleware(['guest', 'throttle:60,1'])->group(function () {
         Route::post('auth/register', [AuthController::class, 'register']);
         Route::post('auth/verify-email', [AuthController::class, 'verifyEmail']);
         Route::post('auth/resend-otp', [AuthController::class, 'resendOtp']);
@@ -69,8 +69,8 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/apple', [SocialAuthController::class, 'apple']);
     });
 
-    // Refresh token (no auth required) - throttled to 30 requests per minute
-    Route::middleware('throttle:30,1')->post('auth/refresh', [AuthController::class, 'refreshToken']);
+    // Refresh token (no auth required) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->post('auth/refresh', [AuthController::class, 'refreshToken']);
 
     // Cart routes (guest or authenticated) - throttled to 60 requests per minute
     Route::middleware('throttle:60,1')->prefix('cart')->group(function () {
