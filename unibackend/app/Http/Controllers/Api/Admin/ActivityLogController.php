@@ -119,7 +119,7 @@ class ActivityLogController extends Controller
             ->get();
 
         // Activities by user (last 30 days)
-        $byUser = ActivityLog::whereBetween('created_at', [now()->subDays(30), now()])
+        $byUser = ActivityLog::whereBetween('activity_logs.created_at', [now()->subDays(30), now()])
             ->whereNotNull('user_id')
             ->join('users', 'activity_logs.user_id', '=', 'users.id')
             ->selectRaw('user_id, CONCAT(users.first_name, " ", users.last_name) as name, COUNT(*) as count')
