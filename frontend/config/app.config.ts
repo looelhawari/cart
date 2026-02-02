@@ -28,8 +28,8 @@ export const TOKEN_CONFIG = {
   ACCESS_TOKEN_KEY: "access_token",
   REFRESH_TOKEN_KEY: "refresh_token",
   USER_CACHE_KEY: "user_cache", // Minimal user data for quick startup
-  ACCESS_TOKEN_EXPIRY: 1800, // 30 minutes in seconds
-  REFRESH_TOKEN_EXPIRY: 2592000, // 30 days in seconds
+  ACCESS_TOKEN_EXPIRY: 604800, // 7 days in seconds (was 30 min - too short!)
+  REFRESH_TOKEN_EXPIRY: 7776000, // 90 days in seconds (was 30 days)
 };
 
 // OTP Configuration

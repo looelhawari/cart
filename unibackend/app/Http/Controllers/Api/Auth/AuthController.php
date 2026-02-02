@@ -184,15 +184,15 @@ class AuthController extends Controller
         // Revoke all existing tokens
         $user->tokens()->delete();
 
-        // Create new tokens - extend lifetime significantly for admin dashboard
+        // Create new tokens - extend lifetime significantly for better UX
         $rememberMe = (bool) $request->input('remember_me', false);
         
-        // Access token: 7 days with remember_me, 24 hours otherwise
-        $accessTokenExpiry = $rememberMe ? Carbon::now()->addDays(7) : Carbon::now()->addHours(24);
+        // Access token: 30 days with remember_me, 7 days otherwise
+        $accessTokenExpiry = $rememberMe ? Carbon::now()->addDays(30) : Carbon::now()->addDays(7);
         $accessToken = $user->createToken('access_token', ['*'], $accessTokenExpiry)->plainTextToken;
         
-        // Refresh token: 90 days with remember_me, 30 days otherwise
-        $refreshTokenExpiry = $rememberMe ? Carbon::now()->addDays(90) : Carbon::now()->addDays(30);
+        // Refresh token: 180 days (6 months) with remember_me, 90 days otherwise
+        $refreshTokenExpiry = $rememberMe ? Carbon::now()->addDays(180) : Carbon::now()->addDays(90);
         $refreshToken = $user->createToken('refresh_token', ['refresh', $rememberMe ? 'remember' : 'standard'], $refreshTokenExpiry)->plainTextToken;
 
         // Merge guest cart if session ID is provided
