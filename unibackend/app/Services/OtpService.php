@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendOtpEmail;
 use App\Models\Otp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -71,9 +72,38 @@ class OtpService
     }
 
     /**
-     * Send OTP via email.
+     * Send OTP via email - QUEUED for performance.
+     * 
+     * This uses a queue job to prevent blocking the API response.
+     * On a single server, this is CRITICAL for performance.
      */
     public function sendEmail(string $email, string $otp, string $purpose = 'ElBaraka Email Verification'): bool
+    {
+        try {
+            // Dispatch to queue instead of sending synchronously
+            SendOtpEmail::dispatch($email, $otp, $purpose);
+            
+            Log::info("OTP queued for {$email}");
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Failed to queue OTP for {$email}: " . $e->getMessage());
+            
+            // Fallback to sync send if queue fails
+            try {
+                Mail::to($email)->send(new \App\Mail\OtpMail($otp, $purpose));
+                Log::info("OTP sent synchronously to {$email} (fallback)");
+                return true;
+            } catch (\Exception $fallbackError) {
+                Log::error("Fallback OTP send also failed: " . $fallbackError->getMessage());
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Send OTP synchronously (for critical cases where queue might be down)
+     */
+    public function sendEmailSync(string $email, string $otp, string $purpose = 'ElBaraka Email Verification'): bool
     {
         try {
             Mail::to($email)->send(new \App\Mail\OtpMail($otp, $purpose));

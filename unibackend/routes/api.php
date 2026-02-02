@@ -489,6 +489,7 @@ Route::prefix('v1')->group(function () {
             // Analytics & Reporting
             Route::prefix('analytics')->group(function () {
                 Route::get('/dashboard', [AnalyticsController::class, 'dashboard']);
+                Route::get('/quick-stats', [AnalyticsController::class, 'quickStats']); // Cached lightweight stats
                 Route::get('/products', [AnalyticsController::class, 'productPerformance']);
                 Route::get('/customers', [AnalyticsController::class, 'customerInsights']);
 

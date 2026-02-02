@@ -9,11 +9,40 @@ use App\Models\PromoCode;
 use App\Models\PromoCodeBogoRule;
 use App\Models\PromoCodeCategory;
 use App\Models\PromoCodeProduct;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CartService
 {
+    protected const CART_CACHE_TTL = 3600; // 1 hour cache
+    protected const CART_DETAILS_CACHE_TTL = 300; // 5 minutes for cart details
+    
+    /**
+     * Get cart cache key
+     */
+    protected function getCartCacheKey(?int $userId, ?string $sessionId): string
+    {
+        if ($userId) {
+            return "cart:user:{$userId}";
+        }
+        return "cart:session:{$sessionId}";
+    }
+    
+    /**
+     * Clear cart cache
+     */
+    public function clearCartCache(?int $userId, ?string $sessionId): void
+    {
+        Cache::forget($this->getCartCacheKey($userId, $sessionId));
+        if ($userId) {
+            Cache::forget("cart_details:user:{$userId}");
+        }
+        if ($sessionId) {
+            Cache::forget("cart_details:session:{$sessionId}");
+        }
+    }
+    
     /**
      * Get or create cart for guest or authenticated user
      * STEP 1: Newest Cart Wins - NO MERGING
@@ -210,6 +239,9 @@ class CartService
                 'price' => $effectivePrice,
             ]);
         }
+        
+        // Clear cart cache after modification
+        $this->clearCartCache($cart->user_id, $cart->session_id);
 
         return $cartItem;
     }
@@ -231,6 +263,10 @@ class CartService
         }
 
         $cartItem->update(['quantity' => $quantity]);
+        
+        // Clear cart cache after modification
+        $cart = $cartItem->cart;
+        $this->clearCartCache($cart->user_id, $cart->session_id);
 
         return $cartItem;
     }
@@ -240,7 +276,11 @@ class CartService
      */
     public function removeItem(CartItem $cartItem): void
     {
+        $cart = $cartItem->cart;
         $cartItem->delete();
+        
+        // Clear cart cache after modification
+        $this->clearCartCache($cart->user_id, $cart->session_id);
     }
 
     /**
@@ -249,6 +289,9 @@ class CartService
     public function clearCart(Cart $cart): void
     {
         $cart->items()->delete();
+        
+        // Clear cart cache
+        $this->clearCartCache($cart->user_id, $cart->session_id);
     }
 
     /**

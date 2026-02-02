@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessOrderAsync;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\PaymobPayment;
@@ -593,6 +594,9 @@ class PaymentController extends Controller
                             'user_id' => $order->user_id,
                         ]);
                     }
+                    
+                    // 5. Dispatch async processing (notifications, analytics, etc.)
+                    ProcessOrderAsync::dispatch($order, 'confirmed');
 
                     // ═══════════════════════════════════════════════════════
                     // ✅ PHASE 3: SAVE CARD TOKEN (if user opted in)
@@ -811,6 +815,9 @@ class PaymentController extends Controller
                             }
 
                             DB::commit();
+                            
+                            // Dispatch async processing (notifications, analytics)
+                            ProcessOrderAsync::dispatch($order, 'confirmed');
 
                             Log::info('✅ Payment auto-updated from Paymob fetch', [
                                 'payment_id' => $payment->id,
@@ -1420,6 +1427,9 @@ class PaymentController extends Controller
                             }
 
                             DB::commit();
+                            
+                            // Dispatch async processing (notifications, analytics)
+                            ProcessOrderAsync::dispatch($order, 'confirmed');
 
                             Log::info('✅ Payment auto-updated from Paymob fetch', [
                                 'payment_id' => $payment->id,
