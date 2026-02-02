@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\PromoCodeApiController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\StaticPageController;
 use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -43,6 +44,11 @@ use Illuminate\Http\Request;
 | API Routes
 |--------------------------------------------------------------------------
 */
+
+// Health check endpoints (no rate limiting, no auth)
+Route::get('health', [HealthController::class, 'ping']);
+Route::get('health/detailed', [HealthController::class, 'detailed']);
+Route::get('health/metrics', [HealthController::class, 'metrics']);
 
 Route::prefix('v1')->group(function () {
 

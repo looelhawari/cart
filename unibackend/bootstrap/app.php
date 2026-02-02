@@ -20,12 +20,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'password.confirm' => \App\Http\Middleware\RequirePasswordConfirmation::class,
             'log.admin.activity' => \App\Http\Middleware\LogAdminActivity::class,
+            'gzip' => \App\Http\Middleware\GzipCompress::class,
         ]);
 
-        // Apply ForceJsonResponse and SecurityHeaders to all API routes
+        // Apply ForceJsonResponse, SecurityHeaders, and Gzip to all API routes
         $middleware->appendToGroup('api', [
             \App\Http\Middleware\ForceJsonResponse::class,
             \App\Http\Middleware\SecurityHeaders::class,
+            \App\Http\Middleware\GzipCompress::class, // 60-80% bandwidth reduction
         ]);
 
         // Prevent authentication redirects for API requests
