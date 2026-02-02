@@ -9,12 +9,16 @@ export interface ComplaintSummary {
   status: string;
   created_at: string;
   messages_count?: number;
+  bot_handled?: boolean;
+  escalated_to_agent?: boolean;
 }
 
 export interface ComplaintMessage {
   id: number;
   message: string;
   is_admin_reply: boolean;
+  is_bot_reply?: boolean;
+  bot_intent?: string;
   user?: {
     id: number;
     first_name: string;
@@ -40,6 +44,10 @@ export interface ComplaintDetail extends ComplaintSummary {
   attachments?: ComplaintAttachment[];
   updated_at?: string;
   resolved_at?: string | null;
+  bot_handled?: boolean;
+  escalated_to_agent?: boolean;
+  escalated_at?: string | null;
+  bot_satisfaction_rating?: number | null;
 }
 
 export interface ComplaintsResponse {
@@ -66,6 +74,13 @@ export interface ComplaintResponse {
 export interface ReplyResponse {
   success: boolean;
   message: string;
+  data?: {
+    message?: ComplaintMessage;
+    bot_response?: {
+      message: ComplaintMessage;
+      escalated: boolean;
+    };
+  };
 }
 
 export interface CreateComplaintPayload {
@@ -175,5 +190,29 @@ export const broadcastTyping = async (
   return await apiRequest<{ success: boolean }>(`/complaints/${id}/typing`, {
     method: "POST",
     body: JSON.stringify({ is_typing: isTyping }),
+  });
+};
+
+export const escalateToAgent = async (
+  id: number,
+  reason?: string,
+): Promise<{ success: boolean; message: string }> => {
+  return await apiRequest<{ success: boolean; message: string }>(
+    `/complaints/${id}/escalate`,
+    {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    },
+  );
+};
+
+export const rateBotExperience = async (
+  id: number,
+  rating: number,
+  feedback?: string,
+): Promise<{ success: boolean }> => {
+  return await apiRequest<{ success: boolean }>(`/complaints/${id}/rate-bot`, {
+    method: "POST",
+    body: JSON.stringify({ rating, feedback }),
   });
 };

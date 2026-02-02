@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { ArrowLeft, Send, User, Package, MessageSquare, Clock, Mail, Phone, ChevronRight, Sparkles, X, LogOut } from 'lucide-react'
+import { ArrowLeft, Send, User, Package, MessageSquare, Clock, Mail, Phone, ChevronRight, Sparkles, X, LogOut, Bot } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Ticket, TicketMessage, TicketStatus, TicketPriority } from '@/types'
 import echo from '@/lib/echo'
@@ -266,6 +266,18 @@ export default function TicketDetailPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        {ticket.bot_handled && !ticket.escalated_to_agent && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 rounded-full">
+                                <Bot className="h-4 w-4 text-purple-600" />
+                                <span className="text-xs font-semibold text-purple-700">Bot Handling</span>
+                            </div>
+                        )}
+                        {ticket.escalated_to_agent && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 rounded-full">
+                                <User className="h-4 w-4 text-blue-600" />
+                                <span className="text-xs font-semibold text-blue-700">Escalated</span>
+                            </div>
+                        )}
                         <TicketPriorityBadge priority={ticket.priority} />
                         <TicketStatusBadge status={ticket.status} />
 
@@ -340,38 +352,52 @@ export default function TicketDetailPage() {
                         <div className="space-y-4">
                             {ticket.messages?.map((message, index) => {
                                 const isAdmin = message.is_admin_reply
-                                const showAvatar = index === 0 || ticket.messages![index - 1]?.is_admin_reply !== isAdmin
+                                const isBot = message.is_bot_reply
+                                const showAvatar = index === 0 || ticket.messages![index - 1]?.is_admin_reply !== isAdmin || ticket.messages![index - 1]?.is_bot_reply !== isBot
 
                                 return (
                                     <div
                                         key={message.id}
-                                        className={`flex items-end gap-3 ${isAdmin ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                                        className={`flex items-end gap-3 ${isAdmin || isBot ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                                     >
-                                        {!isAdmin && showAvatar && (
+                                        {!isAdmin && !isBot && showAvatar && (
                                             <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-medium text-xs">
                                                 {message.user?.first_name?.charAt(0) || 'U'}
                                             </div>
                                         )}
-                                        {!isAdmin && !showAvatar && <div className="w-8" />}
+                                        {!isAdmin && !isBot && !showAvatar && <div className="w-8" />}
 
-                                        <div className={`max-w-[70%] ${isAdmin ? 'order-1' : ''}`}>
-                                            <div className={`rounded-2xl px-4 py-3 ${isAdmin
-                                                ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-br-md shadow-lg shadow-green-500/20'
-                                                : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
+                                        <div className={`max-w-[70%] ${isAdmin || isBot ? 'order-1' : ''}`}>
+                                            {isBot && (
+                                                <div className="flex items-center gap-1.5 mb-1 justify-end">
+                                                    <Bot className="h-3 w-3 text-purple-500" />
+                                                    <span className="text-xs text-purple-500 font-medium">Smart Assistant</span>
+                                                </div>
+                                            )}
+                                            <div className={`rounded-2xl px-4 py-3 ${isBot
+                                                ? 'bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-br-md shadow-lg shadow-purple-500/20'
+                                                : isAdmin
+                                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-br-md shadow-lg shadow-green-500/20'
+                                                    : 'bg-white border border-gray-100 text-gray-800 rounded-bl-md shadow-sm'
                                                 }`}>
                                                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.message}</p>
                                             </div>
-                                            <div className={`mt-1 flex items-center gap-2 text-xs text-gray-400 ${isAdmin ? 'justify-end' : ''}`}>
+                                            <div className={`mt-1 flex items-center gap-2 text-xs text-gray-400 ${isAdmin || isBot ? 'justify-end' : ''}`}>
                                                 <span>{formatTimeAgo(message.created_at)}</span>
                                             </div>
                                         </div>
 
-                                        {isAdmin && showAvatar && (
+                                        {isBot && showAvatar && (
+                                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white font-medium text-xs order-2">
+                                                <Bot className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                        {isAdmin && !isBot && showAvatar && (
                                             <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-medium text-xs order-2">
                                                 <Sparkles className="h-4 w-4" />
                                             </div>
                                         )}
-                                        {isAdmin && !showAvatar && <div className="w-8 order-2" />}
+                                        {(isAdmin || isBot) && !showAvatar && <div className="w-8 order-2" />}
                                     </div>
                                 )
                             })}

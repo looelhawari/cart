@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { ArrowLeft, Plus, MessageSquare, ChevronRight, Clock, Inbox } from 'lucide-react-native';
+import { ArrowLeft, Plus, MessageSquare, ChevronRight, Clock, Inbox, Bot, User } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import Colors from '@/constants/Colors';
@@ -149,6 +149,8 @@ export default function ComplaintsScreen() {
   const renderComplaint = ({ item }: { item: ComplaintSummary }) => {
     const status = getStatusConfig(item.status);
     const priorityColor = getPriorityConfig(item.priority);
+    const isBotHandling = item.bot_handled && !item.escalated_to_agent;
+    const isWithAgent = item.escalated_to_agent;
 
     return (
       <TouchableOpacity
@@ -159,12 +161,22 @@ export default function ComplaintsScreen() {
         <View style={styles.cardContent}>
           {/* Left: Avatar/Icon */}
           <View style={styles.cardLeft}>
-            <LinearGradient
-              colors={['#22c55e', '#16a34a']}
-              style={styles.avatarGradient}
-            >
-              <MessageSquare size={18} color="#fff" />
-            </LinearGradient>
+            {isBotHandling ? (
+              <View style={[styles.avatarGradient, { backgroundColor: '#8b5cf6' }]}>
+                <Bot size={18} color="#fff" />
+              </View>
+            ) : isWithAgent ? (
+              <View style={[styles.avatarGradient, { backgroundColor: '#3b82f6' }]}>
+                <User size={18} color="#fff" />
+              </View>
+            ) : (
+              <LinearGradient
+                colors={['#22c55e', '#16a34a']}
+                style={styles.avatarGradient}
+              >
+                <MessageSquare size={18} color="#fff" />
+              </LinearGradient>
+            )}
             {item.priority === 'urgent' && (
               <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
             )}
@@ -174,6 +186,11 @@ export default function ComplaintsScreen() {
           <View style={styles.cardMiddle}>
             <View style={styles.headerRow}>
               <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
+              {isBotHandling && (
+                <View style={styles.botIndicator}>
+                  <Text style={styles.botIndicatorText}>🤖</Text>
+                </View>
+              )}
               <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
             </View>
             <Text style={styles.subject} numberOfLines={1}>{item.subject}</Text>
@@ -475,6 +492,12 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontWeight: '600',
     color: '#94a3b8',
+  },
+  botIndicator: {
+    marginLeft: 2,
+  },
+  botIndicatorText: {
+    fontSize: 10,
   },
   statusDot: {
     width: 6,

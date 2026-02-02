@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TicketStatusBadge, TicketPriorityBadge } from '@/components/ui/badge'
-import { Search, Eye, MessageSquare, UserPlus, CheckCircle, XCircle, BarChart3 } from 'lucide-react'
+import { Search, Eye, MessageSquare, UserPlus, CheckCircle, XCircle, BarChart3, Bot, User } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
 import type { TicketStatus } from '@/types'
@@ -155,7 +155,21 @@ export default function SupportPage() {
                                     <tbody className="divide-y divide-gray-100">
                                         {ticketsData?.data.map((ticket, index) => (
                                             <tr key={ticket.id} className={`transition-all duration-200 hover:bg-green-50/50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                                                <td className="p-3 font-mono text-sm">{ticket.ticket_number}</td>
+                                                <td className="p-3 font-mono text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        {ticket.ticket_number}
+                                                        {ticket.bot_handled && !ticket.escalated_to_agent && (
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                                                                <Bot className="h-3 w-3" />
+                                                            </span>
+                                                        )}
+                                                        {ticket.escalated_to_agent && (
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                                                <User className="h-3 w-3" />
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="p-3">
                                                     <div className="flex items-center space-x-2">
                                                         <p className="font-medium">{ticket.subject}</p>

@@ -381,6 +381,10 @@ export interface Ticket {
     attachments?: any[]
     messages_count?: number
     unread_messages_count?: number
+    bot_handled?: boolean
+    escalated_to_agent?: boolean
+    escalated_at?: string | null
+    bot_satisfaction_rating?: number | null
 }
 
 export interface TicketMessage {
@@ -389,6 +393,8 @@ export interface TicketMessage {
     user_id: number
     message: string
     is_admin_reply: boolean
+    is_bot_reply?: boolean
+    bot_intent?: string
     created_at: string
     updated_at: string
     user?: {

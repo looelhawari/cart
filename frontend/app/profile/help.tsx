@@ -171,6 +171,10 @@ export default function HelpScreen() {
     router.push("/profile/orders" as any);
   };
 
+  const handleMyMessages = () => {
+    router.push("/complaints" as any);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header with Gradient */}
@@ -331,7 +335,7 @@ export default function HelpScreen() {
                   style={[
                     styles.categoryChipText,
                     selectedCategory === category.id &&
-                      styles.categoryChipTextActive,
+                    styles.categoryChipTextActive,
                   ]}
                 >
                   {category.label}
