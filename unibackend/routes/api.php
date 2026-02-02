@@ -322,6 +322,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}', [ComplaintController::class, 'show']);
             Route::post('/{id}/messages', [ComplaintController::class, 'addMessage']);
             Route::post('/{id}/typing', [ComplaintController::class, 'typing']);
+            Route::post('/{id}/escalate', [ComplaintController::class, 'escalate']);
+            Route::post('/{id}/rate-bot', [ComplaintController::class, 'rateBot']);
+            Route::post('/{id}/close', [ComplaintController::class, 'close']);
         });
 
         // Reviews endpoints (protected)

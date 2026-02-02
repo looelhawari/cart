@@ -20,6 +20,8 @@ class ComplaintMessageResource extends JsonResource
             'id' => $this->id,
             'message' => $this->message,
             'is_admin_reply' => (bool) $this->is_admin_reply,
+            'is_bot_reply' => (bool) $this->is_bot_reply,
+            'bot_intent' => $this->bot_intent,
             'user' => $user ? [
                 'id' => $user->id,
                 'first_name' => $user->first_name,

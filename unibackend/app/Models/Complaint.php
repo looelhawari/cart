@@ -20,12 +20,21 @@ class Complaint extends Model
         'resolved_at',
         'resolved_by',
         'assigned_to',
+        'bot_handled',
+        'escalated_to_agent',
+        'escalated_at',
+        'escalation_reason',
+        'bot_satisfaction_rating',
+        'bot_feedback',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'escalated_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'bot_handled' => 'boolean',
+        'escalated_to_agent' => 'boolean',
     ];
 
     /**
@@ -74,6 +83,22 @@ class Complaint extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(ComplaintAttachment::class);
+    }
+
+    /**
+     * Bot conversation context
+     */
+    public function botContext(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(BotConversationContext::class);
+    }
+
+    /**
+     * Check if this complaint needs agent attention
+     */
+    public function needsAgentAttention(): bool
+    {
+        return $this->escalated_to_agent && !in_array($this->status, ['resolved', 'closed']);
     }
 
     /**

@@ -10,14 +10,17 @@ use App\Models\Complaint;
 use App\Models\ComplaintAttachment;
 use App\Models\ComplaintMessage;
 use App\Services\CloudinaryService;
+use App\Services\SmartBotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ComplaintController extends Controller
 {
-    public function __construct(private CloudinaryService $cloudinaryService)
-    {
+    public function __construct(
+        private CloudinaryService $cloudinaryService,
+        private SmartBotService $smartBotService
+    ) {
     }
 
     /**
@@ -73,6 +76,8 @@ class ComplaintController extends Controller
                     'priority' => $request->priority ?? 'medium',
                     'status' => 'open',
                     'description' => $request->description,
+                    'bot_handled' => true,
+                    'escalated_to_agent' => false,
                 ]);
 
                 if ($request->hasFile('attachments')) {
@@ -107,6 +112,11 @@ class ComplaintController extends Controller
 
                 return $complaint;
             });
+
+            // Send bot welcome message
+            $lang = $request->header('Accept-Language', 'en');
+            $lang = str_contains($lang, 'ar') ? 'ar' : 'en';
+            $this->smartBotService->getWelcomeMessage($complaint, $lang);
 
             return response()->json([
                 'success' => true,
@@ -178,18 +188,31 @@ class ComplaintController extends Controller
             ], 422, [], JSON_UNESCAPED_UNICODE);
         }
 
+        // Create user message
         $message = ComplaintMessage::create([
             'complaint_id' => $complaint->id,
             'user_id' => $userId,
             'message' => $request->message,
             'is_admin_reply' => false,
+            'is_bot_reply' => false,
         ]);
 
         broadcast(new \App\Events\ComplaintMessageSent($message))->toOthers();
 
+        // If bot is handling and not yet escalated, process through bot
+        $botResponse = null;
+        if ($complaint->bot_handled && !$complaint->escalated_to_agent) {
+            $lang = $request->header('Accept-Language', 'en');
+            $lang = str_contains($lang, 'ar') ? 'ar' : 'en';
+            $botResponse = $this->smartBotService->processMessage($complaint, $request->message, $lang);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Reply sent successfully',
+            'data' => [
+                'bot_response' => $botResponse,
+            ],
         ], 201, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -227,6 +250,100 @@ class ComplaintController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Complaint closed successfully',
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Request escalation to human agent
+     * POST /api/v1/complaints/{id}/escalate
+     */
+    public function escalate(Request $request, int $id): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $complaint = Complaint::where('id', $id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$complaint) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Complaint not found',
+            ], 404, [], JSON_UNESCAPED_UNICODE);
+        }
+
+        if ($complaint->escalated_to_agent) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Already escalated to agent',
+            ], 200, [], JSON_UNESCAPED_UNICODE);
+        }
+
+        $complaint->update([
+            'escalated_to_agent' => true,
+            'escalated_at' => now(),
+            'escalation_reason' => $request->reason ?? 'User requested agent',
+            'status' => 'awaiting_response',
+        ]);
+
+        // Send escalation confirmation message
+        $lang = $request->header('Accept-Language', 'en');
+        $lang = str_contains($lang, 'ar') ? 'ar' : 'en';
+        
+        $message = $lang === 'ar' 
+            ? "تم تحويلك إلى موظف دعم! 🎧\n\nسيرد عليك أحد موظفينا قريباً."
+            : "You've been connected to a support agent! 🎧\n\nOne of our team members will respond shortly.";
+
+        ComplaintMessage::create([
+            'complaint_id' => $complaint->id,
+            'user_id' => $complaint->user_id, // Use complaint owner's ID
+            'message' => $message,
+            'is_admin_reply' => true,
+            'is_bot_reply' => true,
+            'bot_intent' => 'escalate',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Escalated to support agent',
+            'data' => [
+                'escalated' => true,
+            ],
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Rate bot experience
+     * POST /api/v1/complaints/{id}/rate-bot
+     */
+    public function rateBot(Request $request, int $id): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $validated = $request->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'feedback' => 'nullable|string|max:500',
+        ]);
+
+        $complaint = Complaint::where('id', $id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if (!$complaint) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Complaint not found',
+            ], 404, [], JSON_UNESCAPED_UNICODE);
+        }
+
+        $complaint->update([
+            'bot_satisfaction_rating' => $validated['rating'],
+            'bot_feedback' => $validated['feedback'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Thank you for your feedback!',
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
