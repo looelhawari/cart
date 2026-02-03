@@ -31,6 +31,8 @@ import PromoCodeAnalyticsPage from '@/pages/promo-codes/PromoCodeAnalyticsPage'
 import ActivityLogsPage from '@/pages/ActivityLogsPage'
 import AdminLogsPage from '@/pages/AdminLogsPage'
 import ContentManagementPage from '@/pages/content/ContentManagementPage'
+import StoreSettingsPage from '@/pages/settings/StoreSettingsPage'
+import ReviewsPage from '@/pages/reviews/ReviewsPage'
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -84,6 +86,10 @@ function App() {
                             <Route element={<DashboardLayout><AdminLogsPage /></DashboardLayout>} path="/admin-logs" />
 
                             <Route element={<DashboardLayout><ContentManagementPage /></DashboardLayout>} path="/content" />
+
+                            <Route element={<DashboardLayout><StoreSettingsPage /></DashboardLayout>} path="/settings" />
+
+                            <Route element={<DashboardLayout><ReviewsPage /></DashboardLayout>} path="/reviews" />
                         </Route>
 
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />

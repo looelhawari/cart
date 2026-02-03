@@ -12,7 +12,7 @@ import {
   ResetPasswordData,
   User as ApiUser,
 } from "@/services/api";
-import { favoritesApi } from "@/services/api";
+import * as favoritesApi from "@/services/api/favoritesApi";
 
 interface User {
   id: number;

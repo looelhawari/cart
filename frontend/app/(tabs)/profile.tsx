@@ -1,29 +1,21 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
+    View,
+    Text,
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    Image,
+    RefreshControl,
+    Alert,
+    Animated,
+    Dimensions,
+    TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  User,
-  MapPin,
-  Heart,
-  CreditCard,
-  HelpCircle,
-  Settings,
-  LogOut,
-  ChevronRight,
-  MessageSquare,
-  Bell,
-  Wallet,
-} from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { ChevronRight, Package, MessageSquare } from "lucide-react-native";
 import { router } from "expo-router";
 
 import Colors from "@/constants/Colors";
@@ -32,396 +24,741 @@ import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
 
+const { width } = Dimensions.get("window");
+
 interface MenuItem {
-  id: string;
-  title: string;
-  icon: React.ReactNode;
-  route: string;
-  color: string;
+    id: string;
+    title: string;
+    icon: React.ReactNode;
+    route: string;
+    color: string;
+    bgColor: string;
 }
 
 export default function ProfileScreen() {
-  const { t } = useTranslation();
-  const { user, fetchProfile, logout, isAuthenticated } = useStore();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+    const { t } = useTranslation();
+    const { user, fetchProfile, logout, isAuthenticated, orders } = useStore();
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    // Check if user is authenticated before loading
-    if (!isAuthenticated) {
-      Alert.alert(t.alerts.sessionExpired, t.auth.loginRequired, [
-        {
-          text: t.auth.login,
-          onPress: () => router.replace("/login"),
-        },
-      ]);
-      setLoading(false);
-      return;
-    }
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
 
-    loadProfile();
-  }, [isAuthenticated]);
-
-  const loadProfile = async () => {
-    try {
-      setLoading(true);
-      await fetchProfile();
-    } catch (error: any) {
-      console.error("Failed to load profile:", error);
-
-      // Check if unauthenticated
-      if (
-        error?.message === "Unauthenticated." ||
-        error?.message === "TOKEN_EXPIRED"
-      ) {
-        Alert.alert(t.alerts.sessionExpired, t.alerts.sessionExpiredMessage, [
-          {
-            text: t.auth.login,
-            onPress: () => {
-              logout();
-              router.replace("/login");
-            },
-          },
-        ]);
-      } else {
-        Alert.alert(t.common.error, t.alerts.errorOccurred);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadProfile();
-    setRefreshing(false);
-  };
-
-  const handleLogout = async () => {
-    Alert.alert(t.alerts.logoutConfirmTitle, t.alerts.logoutConfirmMessage, [
-      { text: t.common.cancel, style: "cancel" },
-      {
-        text: t.auth.logout,
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await logout();
-            router.replace("/login");
-          } catch (error) {
-            console.error("Logout error:", error);
-          }
-        },
-      },
-    ]);
-  };
-
-  const menuItems: MenuItem[] = [
-    {
-      id: "1",
-      title: t.profile.editProfile,
-      icon: <User size={24} color={Colors.primary900} />,
-      route: "/profile/edit",
-      color: Colors.primary900,
-    },
-    {
-      id: "2",
-      title: t.profile.myAddresses,
-      icon: <MapPin size={24} color={Colors.primary700} />,
-      route: "/profile/addresses",
-      color: Colors.primary700,
-    },
-    {
-      id: "3",
-      title: t.profile.paymentMethods,
-      icon: <CreditCard size={24} color={Colors.primary700} />,
-      route: "/profile/payment-methods",
-      color: Colors.primary700,
-    },
-    {
-      id: "4",
-      title: t.profile.myFavorites,
-      icon: <Heart size={24} color={Colors.accentRed} />,
-      route: "/profile/favorites",
-      color: Colors.accentRed,
-    },
-    {
-      id: "5",
-      title: t.profile.wallet,
-      icon: <Wallet size={24} color={Colors.primary700} />,
-      route: "/profile/wallet",
-      color: Colors.primary700,
-    },
-    {
-      id: "6",
-      title: t.profile.myComplaints,
-      icon: <MessageSquare size={24} color={Colors.accentOrange} />,
-      route: "/complaints",
-      color: Colors.accentOrange,
-    },
-    {
-      id: "7",
-      title: t.profile.notifications,
-      icon: <Bell size={24} color={Colors.primary700} />,
-      route: "/notifications",
-      color: Colors.primary700,
-    },
-    {
-      id: "8",
-      title: t.profile.help,
-      icon: <HelpCircle size={24} color={Colors.neutralMedium} />,
-      route: "/profile/help",
-      color: Colors.neutralMedium,
-    },
-    {
-      id: "9",
-      title: t.profile.settings,
-      icon: <Settings size={24} color={Colors.neutralMedium} />,
-      route: "/profile/settings",
-      color: Colors.neutralMedium,
-    },
-  ];
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>{t.common.loading}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
         }
-      >
-        <View style={styles.header}>
-          <View style={styles.profileSection}>
-            <TouchableOpacity
-              style={styles.avatarContainer}
-              onPress={() => router.push("/profile/edit")}
-              activeOpacity={0.8}
-            >
-              {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <User size={40} color={Colors.neutralWhite} />
+        loadProfile();
+    }, [isAuthenticated]);
+
+    const loadProfile = async () => {
+        try {
+            setLoading(true);
+            await fetchProfile();
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(slideAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        } catch (error: any) {
+            console.error("Failed to load profile:", error);
+            if (error?.message === "Unauthenticated." || error?.message === "TOKEN_EXPIRED") {
+                Alert.alert(t.alerts?.sessionExpired || "Session Expired", t.alerts?.sessionExpiredMessage || "Please login again", [
+                    {
+                        text: t.auth?.login || "Login",
+                        onPress: () => {
+                            logout();
+                            router.replace("/login");
+                        },
+                    },
+                ]);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadProfile();
+        setRefreshing(false);
+    };
+
+    const handleLogout = async () => {
+        Alert.alert(
+            t.alerts?.logoutConfirmTitle || "Logout",
+            t.alerts?.logoutConfirmMessage || "Are you sure you want to logout?",
+            [
+                { text: t.common?.cancel || "Cancel", style: "cancel" },
+                {
+                    text: t.auth?.logout || "Logout",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await logout();
+                            router.replace("/login");
+                        } catch (error) {
+                            console.error("Logout error:", error);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const menuItems: MenuItem[] = [
+        {
+            id: "1",
+            title: t.profile?.editProfile || "Edit Profile",
+            icon: <Ionicons name="person" size={22} color={Colors.primary900} />,
+            route: "/profile/edit",
+            color: Colors.primary900,
+            bgColor: Colors.primary100,
+        },
+        {
+            id: "2",
+            title: t.nav?.orders || "My Orders",
+            icon: <Package size={22} color={Colors.accentOrange} />,
+            route: "/(tabs)/orders",
+            color: Colors.accentOrange,
+            bgColor: Colors.accentOrange + "15",
+        },
+        {
+            id: "3",
+            title: t.profile?.myAddresses || "My Addresses",
+            icon: <Ionicons name="location" size={22} color="#3B82F6" />,
+            route: "/profile/addresses",
+            color: "#3B82F6",
+            bgColor: "#3B82F6" + "15",
+        },
+        {
+            id: "4",
+            title: t.profile?.paymentMethods || "Payment Methods",
+            icon: <Ionicons name="card" size={22} color="#8B5CF6" />,
+            route: "/profile/payment-methods",
+            color: "#8B5CF6",
+            bgColor: "#8B5CF6" + "15",
+        },
+        {
+            id: "5",
+            title: t.profile?.myFavorites || "My Favorites",
+            icon: <Ionicons name="heart" size={22} color={Colors.accentRed} />,
+            route: "/profile/favorites",
+            color: Colors.accentRed,
+            bgColor: Colors.accentRed + "15",
+        },
+        {
+            id: "6",
+            title: t.profile?.wallet || "Wallet",
+            icon: <Ionicons name="wallet" size={22} color="#10B981" />,
+            route: "/profile/wallet",
+            color: "#10B981",
+            bgColor: "#10B981" + "15",
+        },
+        {
+            id: "7",
+            title: t.profile?.myComplaints || "My Complaints",
+            icon: <MessageSquare size={22} color="#F59E0B" />,
+            route: "/complaints",
+            color: "#F59E0B",
+            bgColor: "#F59E0B" + "15",
+        },
+        {
+            id: "8",
+            title: t.profile?.notifications || "Notifications",
+            icon: <Ionicons name="notifications" size={22} color="#EC4899" />,
+            route: "/notifications",
+            color: "#EC4899",
+            bgColor: "#EC4899" + "15",
+        },
+        {
+            id: "9",
+            title: t.profile?.help || "Help & Support",
+            icon: <Ionicons name="help-circle" size={22} color="#6366F1" />,
+            route: "/profile/help",
+            color: "#6366F1",
+            bgColor: "#6366F1" + "15",
+        },
+        {
+            id: "10",
+            title: t.profile?.settings || "Settings",
+            icon: <Ionicons name="settings" size={22} color={Colors.neutralMedium} />,
+            route: "/profile/settings",
+            color: Colors.neutralMedium,
+            bgColor: Colors.neutralLight,
+        },
+    ];
+
+    // Filter menu items based on search
+    const filteredMenuItems = menuItems.filter(item =>
+        item.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Guest state
+    if (!isAuthenticated) {
+        return (
+            <SafeAreaView style={styles.container} edges={["top"]}>
+                <View style={styles.header}>
+                    <LinearGradient
+                        colors={[Colors.primary900, Colors.primary800]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.headerGradient}
+                    >
+                        <View style={styles.headerTop}>
+                            <View style={styles.brandContainer}>
+                                <View style={styles.brandIcon}>
+                                    <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
+                                </View>
+                                <Text style={styles.brandName}>ElBaraka</Text>
+                            </View>
+                        </View>
+                    </LinearGradient>
                 </View>
-              )}
-            </TouchableOpacity>
-            <View style={styles.profileInfo}>
-              <Text style={styles.name}>
-                {user?.first_name} {user?.last_name}
-              </Text>
-              <Text style={styles.email}>{user?.email}</Text>
-              <Text style={styles.phone}>{user?.phone}</Text>
-            </View>
-          </View>
 
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>0</Text>
-              <Text style={styles.statLabel}>{t.nav.orders}</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{t.common.currency} 0</Text>
-              <Text style={styles.statLabel}>{t.profile.spent}</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>0</Text>
-              <Text style={styles.statLabel}>{t.profile.favorites}</Text>
-            </View>
-          </View>
-        </View>
+                <View style={styles.guestContainer}>
+                    <View style={styles.guestIconContainer}>
+                        <Ionicons name="person" size={60} color={Colors.neutralGray} />
+                    </View>
+                    <Text style={styles.guestTitle}>{t.auth?.loginRequired || "Sign In Required"}</Text>
+                    <Text style={styles.guestText}>{"Sign in to view your profile"}</Text>
+                    <TouchableOpacity
+                        style={styles.signInButton}
+                        onPress={() => router.push("/login")}
+                        activeOpacity={0.9}
+                    >
+                        <LinearGradient
+                            colors={[Colors.primary700, Colors.primary900]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.signInButtonGradient}
+                        >
+                            <Text style={styles.signInButtonText}>{t.auth?.login || "Sign In"}</Text>
+                            <ChevronRight size={18} color={Colors.neutralWhite} />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
-        <View style={styles.content}>
-          {menuItems.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.menuItem}
-              onPress={() => router.push(item.route as any)}
-              activeOpacity={0.9}
-            >
-              <View style={styles.menuLeft}>
-                <View
-                  style={[
-                    styles.iconContainer,
-                    { backgroundColor: `${item.color}15` },
-                  ]}
+    // Loading state
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container} edges={["top"]}>
+                <View style={styles.loadingContainer}>
+                    <View style={styles.loadingIcon}>
+                        <Ionicons name="person" size={32} color={Colors.primary900} />
+                    </View>
+                    <Text style={styles.loadingText}>{t.common?.loading || "Loading..."}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <SafeAreaView style={styles.container} edges={["top"]}>
+            {/* ═══════════════════════════════════════════════════════════════════════════
+          BRANDED HEADER WITH PROFILE
+      ═══════════════════════════════════════════════════════════════════════════ */}
+            <View style={styles.header}>
+                <LinearGradient
+                    colors={[Colors.primary900, Colors.primary800]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.headerGradient}
                 >
-                  {item.icon}
-                </View>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-              </View>
-              <ChevronRight size={20} color={Colors.neutralMedium} />
-            </TouchableOpacity>
-          ))}
+                    <View style={styles.headerTop}>
+                        <View style={styles.brandContainer}>
+                            <View style={styles.brandIcon}>
+                                <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
+                            </View>
+                            <Text style={styles.brandName}>ElBaraka</Text>
+                        </View>
 
-          <TouchableOpacity
-            style={styles.logoutButton}
-            activeOpacity={0.9}
-            onPress={handleLogout}
-          >
-            <LogOut size={24} color={Colors.accentRed} />
-            <Text style={styles.logoutText}>{t.auth.logout}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+                        <TouchableOpacity
+                            onPress={() => router.push("/profile/edit")}
+                            style={styles.editButton}
+                        >
+                            <Ionicons name="create-outline" size={16} color={Colors.neutralWhite} />
+                            <Text style={styles.editText}>{t.common?.edit || "Edit"}</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Profile Info Card */}
+                    <View style={styles.profileCard}>
+                        <TouchableOpacity
+                            style={styles.avatarContainer}
+                            onPress={() => router.push("/profile/edit")}
+                            activeOpacity={0.8}
+                        >
+                            {user?.avatar ? (
+                                <Image source={{ uri: user.avatar }} style={styles.avatar} />
+                            ) : (
+                                <LinearGradient
+                                    colors={[Colors.primary700, Colors.primary900]}
+                                    style={styles.avatarPlaceholder}
+                                >
+                                    <Text style={styles.avatarInitials}>
+                                        {user?.first_name?.charAt(0) || "U"}{user?.last_name?.charAt(0) || ""}
+                                    </Text>
+                                </LinearGradient>
+                            )}
+                            <View style={styles.cameraButton}>
+                                <Ionicons name="camera" size={12} color={Colors.neutralWhite} />
+                            </View>
+                        </TouchableOpacity>
+
+                        <View style={styles.profileInfo}>
+                            <Text style={styles.profileName}>
+                                {user?.first_name} {user?.last_name}
+                            </Text>
+                            <Text style={styles.profileEmail}>{user?.email}</Text>
+                            {user?.phone && (
+                                <View style={styles.phoneRow}>
+                                    <Ionicons name="call-outline" size={12} color="rgba(255,255,255,0.7)" />
+                                    <Text style={styles.profilePhone}>{user.phone}</Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+
+                    {/* Stats Row */}
+                    <View style={styles.statsRow}>
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>{orders?.length || 0}</Text>
+                            <Text style={styles.statLabel}>{t.nav?.orders || "Orders"}</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>0</Text>
+                            <Text style={styles.statLabel}>{t.profile?.favorites || "Favorites"}</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                            <Text style={styles.statValue}>0</Text>
+                            <Text style={styles.statLabel}>{"Points"}</Text>
+                        </View>
+                    </View>
+
+                    {/* Search Bar */}
+                    <View style={styles.searchBar}>
+                        <Ionicons name="search" size={18} color={Colors.neutralMedium} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder={"Search settings..."}
+                            placeholderTextColor={Colors.neutralMedium}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery("")}>
+                                <Ionicons name="close-circle" size={18} color={Colors.neutralMedium} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </LinearGradient>
+            </View>
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary900]} />
+                }
+                contentContainerStyle={styles.scrollContent}
+            >
+                {/* ═══════════════════════════════════════════════════════════════════════════
+            MENU ITEMS
+        ═══════════════════════════════════════════════════════════════════════════ */}
+                <Text style={styles.sectionTitle}>{t.profile?.myAccount || "Account"}</Text>
+
+                {filteredMenuItems.map((item, index) => (
+                    <Animated.View
+                        key={item.id}
+                        style={{
+                            opacity: fadeAnim,
+                            transform: [{
+                                translateY: slideAnim.interpolate({
+                                    inputRange: [0, 20],
+                                    outputRange: [0, 20 + index * 5],
+                                }),
+                            }],
+                        }}
+                    >
+                        <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => router.push(item.route as any)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.menuLeft}>
+                                <View style={[styles.menuIconBg, { backgroundColor: item.bgColor }]}>
+                                    {item.icon}
+                                </View>
+                                <Text style={styles.menuTitle}>{item.title}</Text>
+                            </View>
+                            <ChevronRight size={20} color={Colors.neutralMedium} />
+                        </TouchableOpacity>
+                    </Animated.View>
+                ))}
+
+                {/* Logout Button */}
+                <TouchableOpacity
+                    style={styles.logoutButton}
+                    activeOpacity={0.9}
+                    onPress={handleLogout}
+                >
+                    <Ionicons name="log-out-outline" size={22} color={Colors.accentRed} />
+                    <Text style={styles.logoutText}>{t.auth?.logout || "Logout"}</Text>
+                </TouchableOpacity>
+
+                {/* App Version */}
+                <Text style={styles.versionText}>ElBaraka v1.0.0</Text>
+
+                <View style={{ height: 100 }} />
+            </ScrollView>
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-  },
-  header: {
-    backgroundColor: Colors.neutralWhite,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  profileSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    overflow: "hidden",
-    borderWidth: 3,
-    borderColor: Colors.primary900,
-  },
-  avatar: {
-    width: "100%",
-    height: "100%",
-  },
-  avatarPlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: Colors.primary900,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  name: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-    marginBottom: 2,
-  },
-  phone: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.neutralLight,
-    borderRadius: 20,
-    padding: Spacing.md,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.primary900,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: Colors.neutralGray,
-  },
-  content: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.neutralWhite,
-    padding: Spacing.md,
-    borderRadius: 20,
-    marginBottom: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  menuLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuTitle: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-  },
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    backgroundColor: Colors.neutralWhite,
-    padding: Spacing.md,
-    borderRadius: 20,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xl,
-    borderWidth: 2,
-    borderColor: Colors.accentRed,
-  },
-  logoutText: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.bold,
-    color: Colors.accentRed,
-  },
+    container: {
+        flex: 1,
+        backgroundColor: Colors.neutralCloud,
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HEADER
+    // ═══════════════════════════════════════════════════════════════════════════
+    header: {
+        overflow: "hidden",
+    },
+    headerGradient: {
+        paddingHorizontal: 18,
+        paddingTop: 10,
+        paddingBottom: 18,
+        borderBottomLeftRadius: 26,
+        borderBottomRightRadius: 26,
+    },
+    headerTop: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    brandContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    brandIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 9,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 10,
+    },
+    brandName: {
+        fontSize: 22,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+        letterSpacing: 0.3,
+    },
+    editButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.15)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        gap: 6,
+    },
+    editText: {
+        fontSize: 12,
+        fontFamily: "Poppins-SemiBold",
+        color: Colors.neutralWhite,
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PROFILE CARD
+    // ═══════════════════════════════════════════════════════════════════════════
+    profileCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.1)",
+        borderRadius: 18,
+        padding: 14,
+        marginBottom: 14,
+    },
+    avatarContainer: {
+        position: "relative",
+    },
+    avatar: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        borderWidth: 3,
+        borderColor: "rgba(255,255,255,0.3)",
+    },
+    avatarPlaceholder: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 3,
+        borderColor: "rgba(255,255,255,0.3)",
+    },
+    avatarInitials: {
+        fontSize: 24,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+    },
+    cameraButton: {
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: Colors.primary900,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: Colors.neutralWhite,
+    },
+    profileInfo: {
+        flex: 1,
+        marginLeft: 14,
+    },
+    profileName: {
+        fontSize: 18,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+        marginBottom: 2,
+    },
+    profileEmail: {
+        fontSize: 13,
+        fontFamily: "Poppins-Regular",
+        color: "rgba(255,255,255,0.8)",
+        marginBottom: 4,
+    },
+    phoneRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    profilePhone: {
+        fontSize: 12,
+        fontFamily: "Poppins-Regular",
+        color: "rgba(255,255,255,0.7)",
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STATS ROW
+    // ═══════════════════════════════════════════════════════════════════════════
+    statsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.12)",
+        borderRadius: 14,
+        paddingVertical: 12,
+        marginBottom: 14,
+    },
+    statItem: {
+        flex: 1,
+        alignItems: "center",
+    },
+    statValue: {
+        fontSize: 18,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+        marginBottom: 2,
+    },
+    statLabel: {
+        fontSize: 11,
+        fontFamily: "Poppins-Medium",
+        color: "rgba(255,255,255,0.7)",
+    },
+    statDivider: {
+        width: 1,
+        height: 30,
+        backgroundColor: "rgba(255,255,255,0.2)",
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SEARCH BAR
+    // ═══════════════════════════════════════════════════════════════════════════
+    searchBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Colors.neutralWhite,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        gap: 10,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralCharcoal,
+        padding: 0,
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CONTENT
+    // ═══════════════════════════════════════════════════════════════════════════
+    scrollContent: {
+        paddingHorizontal: 16,
+        paddingTop: 18,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralCharcoal,
+        marginBottom: 12,
+    },
+    menuItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: Colors.neutralWhite,
+        padding: 14,
+        borderRadius: 16,
+        marginBottom: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    menuLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    menuIconBg: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    menuTitle: {
+        fontSize: 14,
+        fontFamily: "Poppins-SemiBold",
+        color: Colors.neutralCharcoal,
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LOGOUT
+    // ═══════════════════════════════════════════════════════════════════════════
+    logoutButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        backgroundColor: Colors.neutralWhite,
+        padding: 16,
+        borderRadius: 16,
+        marginTop: 16,
+        borderWidth: 2,
+        borderColor: Colors.accentRed,
+    },
+    logoutText: {
+        fontSize: 15,
+        fontFamily: "Poppins-Bold",
+        color: Colors.accentRed,
+    },
+    versionText: {
+        textAlign: "center",
+        fontSize: 12,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralMedium,
+        marginTop: 20,
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LOADING & GUEST STATES
+    // ═══════════════════════════════════════════════════════════════════════════
+    loadingContainer: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    loadingIcon: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: Colors.primary100,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    loadingText: {
+        fontSize: 14,
+        fontFamily: "Poppins-Medium",
+        color: Colors.neutralMedium,
+    },
+    guestContainer: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 40,
+    },
+    guestIconContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: Colors.neutralLight,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 20,
+    },
+    guestTitle: {
+        fontSize: 20,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralCharcoal,
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    guestText: {
+        fontSize: 14,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralMedium,
+        textAlign: "center",
+        marginBottom: 24,
+    },
+    signInButton: {
+        borderRadius: 16,
+        overflow: "hidden",
+        shadowColor: Colors.primary900,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    signInButtonGradient: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 28,
+        paddingVertical: 14,
+        gap: 6,
+    },
+    signInButtonText: {
+        fontSize: 16,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+    },
 });

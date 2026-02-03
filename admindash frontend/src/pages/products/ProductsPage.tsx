@@ -381,7 +381,7 @@ export default function ProductsPage() {
                                                 <td className="p-3">
                                                     {(product.image_url || product.image) ? (
                                                         <img
-                                                            src={product.image_url || product.image}
+                                                            src={product.image_url || product.image || undefined}
                                                             alt={product.name || product.name_en || product.name_ar}
                                                             className="h-12 w-12 object-cover rounded border border-gray-200"
                                                             onError={(e) => {
@@ -512,7 +512,7 @@ export default function ProductsPage() {
                                 </Button>
                                 {(viewingProduct.image_url || viewingProduct.image) ? (
                                     <img
-                                        src={viewingProduct.image_url || viewingProduct.image}
+                                        src={viewingProduct.image_url || viewingProduct.image || undefined}
                                         alt={viewingProduct.name_en || viewingProduct.name_ar}
                                         className="max-w-full max-h-[600px] object-contain rounded-lg shadow-xl"
                                     />

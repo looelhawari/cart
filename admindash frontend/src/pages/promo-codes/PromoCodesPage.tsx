@@ -88,14 +88,14 @@ export default function PromoCodesPage() {
             registration_date_from: undefined,
             registration_date_to: undefined,
             location: '',
-            specific_user_ids: state?.user_id ? String(state.user_id) : '',
+            specific_user_ids: state?.user_id ? [state.user_id] : [],
         }
     })
 
     useEffect(() => {
         if (state?.user_id) {
             setIsCreateDialogOpen(true)
-            setValue('specific_user_ids', String(state.user_id))
+            setValue('specific_user_ids' as any, String(state.user_id))
             setValue('target_audience', 'custom')
         }
     }, [state, setValue])
@@ -841,7 +841,7 @@ export default function PromoCodesPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleSubmit(onSubmit)}>
+                    <form onSubmit={handleSubmit(onSubmit as any)}>
                         <>
                             <Tabs value={activeTab} onValueChange={setActiveTab}>
                                 <TabsList className="grid grid-cols-4 mb-4">

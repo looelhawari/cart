@@ -165,15 +165,19 @@ export interface Review {
   userId?: string;
   user_id: number;
   order_id: number;
+  rating_type?: "product" | "order" | "store";
   userName?: string;
   userAvatar?: string;
   rating: number;
   comment: string;
+  response?: string;
+  responded_at?: string;
   date?: string;
   created_at: string;
   updated_at?: string;
   verified?: boolean;
   is_verified?: boolean;
+  status?: "pending" | "approved" | "rejected";
   images?: string[];
   helpful?: number;
   helpful_count?: number;
@@ -185,6 +189,7 @@ export interface Review {
     avatar?: string;
   };
   product?: Product;
+  order?: Order;
 }
 
 export interface Banner {

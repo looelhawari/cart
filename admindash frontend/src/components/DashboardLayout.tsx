@@ -19,6 +19,8 @@ import {
     Activity,
     Shield,
     FileText,
+    Star,
+    Settings,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -116,6 +118,18 @@ const navItems: NavItem[] = [
         titleKey: 'navigation.contentManagement',
         href: '/content',
         icon: FileText,
+        roles: ['super_admin', 'admin'],
+    },
+    {
+        titleKey: 'navigation.reviews',
+        href: '/reviews',
+        icon: Star,
+        roles: ['super_admin', 'admin', 'customer_support'],
+    },
+    {
+        titleKey: 'navigation.storeSettings',
+        href: '/settings',
+        icon: Settings,
         roles: ['super_admin', 'admin'],
     },
 ]

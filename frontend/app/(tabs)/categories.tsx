@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   ImageBackground,
   RefreshControl,
   Dimensions,
   Alert,
+  Animated,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Search, ShoppingCart } from "lucide-react-native";
+import { ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
 import Colors from "@/constants/Colors";
-import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { getCategories } from "@/services/api/categoryApi";
 import type { Category } from "@/types";
@@ -32,20 +32,21 @@ import { useLocalizedValue, useTranslation } from "@/i18n";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 
 const { width } = Dimensions.get("window");
-const CARD_WIDTH = (width - Spacing.lg * 3) / 2;
+const CARD_WIDTH = (width - 48) / 2;
 
 export default function CategoriesScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [cachedImages, setCachedImages] = useState<Map<number, string>>(
-    new Map(),
-  );
+  const [cachedImages, setCachedImages] = useState<Map<number, string>>(new Map());
   const { cart } = useStore();
-  const cartItemsCount =
-    cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const cartItemsCount = cart?.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
   const { getName } = useLocalizedValue();
   const { t, isRTL } = useTranslation();
+
+  // Animation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     initImageCache();
@@ -55,45 +56,21 @@ export default function CategoriesScreen() {
   const loadCategories = async (forceRefresh = false) => {
     try {
       setLoading(true);
-      const response = await getCategories(!forceRefresh); // useCache = !forceRefresh
-      console.log(
-        "✅ Categories response:",
-        JSON.stringify(response).substring(0, 200),
-      );
+      const response = await getCategories(!forceRefresh);
+
       if (response.success) {
-        console.log(
-          "✅ Total categories from API:",
-          response.data.categories.length,
-        );
-
-        // Filter only root categories (parent_id is null) and sort by sort_order
         const rootCategories = response.data.categories
-          .filter((cat: Category) => {
-            const isRoot = !cat.parent_id;
-            console.log(
-              `Category ${cat.id} "${cat.name_en}" - parent_id: ${cat.parent_id}, isRoot: ${isRoot}`,
-            );
-            return isRoot;
-          })
-          .sort(
-            (a: Category, b: Category) =>
-              (a.sort_order || 0) - (b.sort_order || 0),
-          );
+          .filter((cat: Category) => !cat.parent_id)
+          .sort((a: Category, b: Category) => (a.sort_order || 0) - (b.sort_order || 0));
 
-        console.log(
-          "✅ Setting",
-          rootCategories.length,
-          "categories with products",
-        );
         setCategories(rootCategories);
 
-        // Preload and cache all category images
+        // Preload images
         const imageUrls = rootCategories
           .map((cat: Category) => cat.image)
           .filter(Boolean) as string[];
 
         preloadImages(imageUrls).then(() => {
-          // Get cached URIs for all images
           const imageCache = new Map<number, string>();
           Promise.all(
             rootCategories.map(async (cat: Category) => {
@@ -108,13 +85,27 @@ export default function CategoriesScreen() {
             setCachedImages(imageCache);
           });
         });
+
+        // Start animations
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+        ]).start();
       }
     } catch (error) {
       console.error("Failed to load categories:", error);
       Alert.alert(
-        "Connection Error",
-        "Unable to load categories. Please make sure you're connected to the internet and the server is running.",
-        [{ text: "Retry", onPress: loadCategories }, { text: "OK" }],
+        t.common?.error || "Error",
+        "Unable to load categories. Please check your connection.",
+        [{ text: t.common?.retry || "Retry", onPress: () => loadCategories() }, { text: t.common?.ok || "OK" }],
       );
     } finally {
       setLoading(false);
@@ -123,97 +114,93 @@ export default function CategoriesScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadCategories(true); // Force refresh from server, bypass cache
+    await loadCategories(true);
     setRefreshing(false);
   };
 
-  const renderCategoryCard = ({ item }: { item: Category }) => {
-    const defaultImage =
-      "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800";
+  const renderCategoryCard = ({ item, index }: { item: Category; index: number }) => {
+    const defaultImage = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800";
     const imageUri = cachedImages.get(item.id) || item.image || defaultImage;
 
     return (
-      <TouchableOpacity
-        style={styles.categoryCard}
-        onPress={() => router.push(`/categories/${item.id}` as any)}
-        activeOpacity={0.9}
+      <Animated.View
+        style={[
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
       >
-        <ImageBackground
-          source={{ uri: imageUri }}
-          style={styles.cardBackground}
-          imageStyle={styles.cardImage}
-          resizeMode="cover"
+        <TouchableOpacity
+          style={styles.categoryCard}
+          onPress={() => router.push(`/categories/${item.id}` as any)}
+          activeOpacity={0.9}
         >
-          <LinearGradient
-            colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.7)"]}
-            style={styles.gradient}
+          <ImageBackground
+            source={{ uri: imageUri }}
+            style={styles.cardBackground}
+            imageStyle={styles.cardImage}
+            resizeMode="cover"
           >
-            {item.icon && <Text style={styles.iconText}>{item.icon}</Text>}
-            <Text style={styles.categoryName} numberOfLines={2}>
-              {getName(item)}
-            </Text>
-            {item.products_count !== undefined && item.products_count > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{item.products_count}</Text>
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.75)"]}
+              style={styles.gradient}
+            >
+              {/* Products count badge */}
+              {item.products_count !== undefined && item.products_count > 0 && (
+                <View style={styles.productsBadge}>
+                  <Text style={styles.productsBadgeText}>{item.products_count}</Text>
+                </View>
+              )}
+
+              {/* Category name */}
+              <View style={styles.cardContent}>
+                <Text style={styles.categoryName} numberOfLines={2}>
+                  {getName(item)}
+                </Text>
+                <View style={styles.exploreButton}>
+                  <Text style={styles.exploreText}>{t.common?.browse || "Browse"}</Text>
+                  <ChevronRight size={14} color={Colors.neutralWhite} />
+                </View>
               </View>
-            )}
-          </LinearGradient>
-        </ImageBackground>
-      </TouchableOpacity>
+            </LinearGradient>
+          </ImageBackground>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
-  const renderHeader = () => (
-    <View style={styles.listHeader}>
-      <Text style={styles.sectionTitle}>{t.nav.categories}</Text>
-      <Text style={styles.sectionSubtitle}>
-        {t.common.browse} {categories.length} {t.nav.categories.toLowerCase()}
-      </Text>
-    </View>
-  );
-
+  // Loading skeleton
   if (loading && categories.length === 0) {
     return (
-      <SafeAreaView style={[styles.container]}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <OfflineIndicator />
         {/* Header Skeleton */}
-        <View style={styles.header}>
-          <SkeletonLoader width={150} height={28} borderRadius={8} />
-          <View style={styles.headerRight}>
-            <SkeletonLoader width={40} height={40} borderRadius={20} />
-            <SkeletonLoader width={40} height={40} borderRadius={20} />
+        <View style={styles.skeletonHeader}>
+          <View style={styles.skeletonBrand}>
+            <SkeletonLoader width={32} height={32} borderRadius={8} />
+            <SkeletonLoader width={120} height={24} borderRadius={6} />
+          </View>
+          <View style={styles.skeletonActions}>
+            <SkeletonLoader width={42} height={42} borderRadius={21} />
+            <SkeletonLoader width={42} height={42} borderRadius={21} />
           </View>
         </View>
 
-        {/* List Header Skeleton */}
-        <View style={styles.listHeader}>
-          <SkeletonLoader width={200} height={24} borderRadius={6} />
-          <View style={{ height: 8 }} />
-          <SkeletonLoader width={140} height={16} borderRadius={4} />
-        </View>
+        {/* Content Skeleton */}
+        <View style={styles.skeletonContent}>
+          <View style={styles.skeletonTitleRow}>
+            <SkeletonLoader width={180} height={26} borderRadius={8} />
+            <SkeletonLoader width={60} height={18} borderRadius={6} />
+          </View>
 
-        {/* Grid Skeleton */}
-        <View
-          style={{
-            padding: Spacing.lg,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: Spacing.md,
-          }}
-        >
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <View key={i} style={{ width: CARD_WIDTH }}>
-              <SkeletonLoader
-                width="100%"
-                height={CARD_WIDTH}
-                borderRadius={16}
-              />
-              <View style={{ height: 8 }} />
-              <SkeletonLoader width="70%" height={16} borderRadius={4} />
-              <View style={{ height: 4 }} />
-              <SkeletonLoader width="40%" height={14} borderRadius={4} />
-            </View>
-          ))}
+          <View style={styles.gridContainer}>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <View key={i} style={styles.skeletonCard}>
+                <SkeletonLoader width={CARD_WIDTH} height={CARD_WIDTH * 1.2} borderRadius={20} />
+              </View>
+            ))}
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -222,42 +209,78 @@ export default function CategoriesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <OfflineIndicator />
-      {/* Header */}
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          BRANDED HEADER
+      ═══════════════════════════════════════════════════════════════════════════ */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Categories</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerIcon}
-            onPress={() => router.push("/search")}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Search size={24} color={Colors.neutralCharcoal} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIcon}
-            onPress={() => router.push("/(tabs)/cart")}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <ShoppingCart size={24} color={Colors.neutralCharcoal} />
-            {cartItemsCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>
-                  {cartItemsCount > 99 ? "99+" : cartItemsCount}
-                </Text>
+        <LinearGradient
+          colors={[Colors.primary900, Colors.primary800]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerTop}>
+            <View style={styles.brandContainer}>
+              <View style={styles.brandIcon}>
+                <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
               </View>
-            )}
-          </TouchableOpacity>
+              <Text style={styles.brandName}>ElBaraka</Text>
+            </View>
+
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push("/search")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="search" size={21} color={Colors.neutralWhite} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cartButton}
+                onPress={() => router.push("/(tabs)/cart")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="bag" size={21} color={Colors.neutralWhite} />
+                {cartItemsCount > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>
+                      {cartItemsCount > 9 ? "9+" : cartItemsCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          SECTION TITLE
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <View style={styles.sectionHeader}>
+        <View>
+          <Text style={styles.sectionTitle}>{t.nav?.categories || "Categories"}</Text>
+          <Text style={styles.sectionSubtitle}>
+            {t.common?.browse || "Browse"} {categories.length} {t.nav?.categories?.toLowerCase() || "categories"}
+          </Text>
+        </View>
+        <View style={styles.countBadge}>
+          <Ionicons name="grid" size={14} color={Colors.primary900} />
+          <Text style={styles.countText}>{categories.length}</Text>
         </View>
       </View>
 
-      {/* 2-Column Grid - Premium Design */}
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          CATEGORIES GRID
+      ═══════════════════════════════════════════════════════════════════════════ */}
       <FlatList
         data={categories}
         renderItem={renderCategoryCard}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         columnWrapperStyle={styles.row}
-        ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -276,87 +299,145 @@ export default function CategoriesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutralSnow,
+    backgroundColor: Colors.neutralCloud,
   },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEADER
+  // ═══════════════════════════════════════════════════════════════════════════
   header: {
+    overflow: "hidden",
+  },
+  headerGradient: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  headerTop: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralGray,
+    alignItems: "center",
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: Colors.neutralCharcoal,
-  },
-  headerRight: {
+  brandContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
   },
-  headerIcon: {
-    position: "relative",
+  brandIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  brandName: {
+    fontSize: 22,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+    letterSpacing: 0.3,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cartBadge: {
     position: "absolute",
-    top: -6,
-    right: -6,
-    backgroundColor: Colors.accentRed,
-    borderRadius: 10,
+    top: -3,
+    right: -3,
     minWidth: 18,
     height: 18,
-    justifyContent: "center",
+    borderRadius: 9,
+    backgroundColor: Colors.accentRed,
     alignItems: "center",
-    paddingHorizontal: 4,
+    justifyContent: "center",
     borderWidth: 2,
-    borderColor: Colors.neutralWhite,
+    borderColor: Colors.primary900,
+    paddingHorizontal: 3,
   },
   cartBadgeText: {
+    fontSize: 9,
+    fontFamily: "Poppins-Bold",
     color: Colors.neutralWhite,
-    fontSize: 10,
-    fontWeight: "700",
   },
-  listHeader: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION HEADER
+  // ═══════════════════════════════════════════════════════════════════════════
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 22,
+    fontFamily: "Poppins-Bold",
     color: Colors.neutralCharcoal,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
     color: Colors.neutralMedium,
   },
+  countBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary100,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 5,
+  },
+  countText: {
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.primary900,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GRID
+  // ═══════════════════════════════════════════════════════════════════════════
   listContent: {
-    paddingBottom: Spacing.xl,
+    paddingHorizontal: 16,
+    paddingBottom: 100,
   },
   row: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
   categoryCard: {
     width: CARD_WIDTH,
-    height: 140,
-    borderRadius: 16,
+    height: 160,
+    borderRadius: 20,
     overflow: "hidden",
-    elevation: 3,
+    elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
-    shadowRadius: 4,
+    shadowRadius: 6,
     backgroundColor: Colors.neutralWhite,
   },
   cardBackground: {
@@ -364,49 +445,97 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   cardImage: {
-    borderRadius: 16,
+    borderRadius: 20,
   },
   gradient: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing.md,
+    justifyContent: "flex-end",
+    padding: 14,
   },
-  iconText: {
-    fontSize: 36,
-    marginBottom: 8,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  productsBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: Colors.primary900,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    minWidth: 28,
+    alignItems: "center",
+  },
+  productsBadgeText: {
+    color: Colors.neutralWhite,
+    fontSize: 11,
+    fontFamily: "Poppins-Bold",
+  },
+  cardContent: {
+    gap: 6,
   },
   categoryName: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontFamily: "Poppins-Bold",
     color: Colors.neutralWhite,
-    textAlign: "center",
     textShadowColor: "rgba(0, 0, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  badge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: Colors.primary900,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 24,
+  exploreButton: {
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 3,
   },
-  badgeText: {
-    color: Colors.neutralWhite,
+  exploreText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralWhite,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SKELETON
+  // ═══════════════════════════════════════════════════════════════════════════
+  skeletonHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    backgroundColor: Colors.primary900,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  skeletonBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  skeletonActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  skeletonContent: {
+    padding: 18,
+  },
+  skeletonTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  skeletonCard: {
+    width: CARD_WIDTH,
+    height: 160,
+    marginBottom: 14,
+    borderRadius: 20,
+    overflow: "hidden",
   },
 });

@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -20,7 +19,6 @@ import {
   CreditCard,
   Banknote,
   Tag,
-  X,
 } from "lucide-react-native";
 import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
@@ -30,8 +28,7 @@ import { getDeliverySlots, DeliverySlot } from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
 import { initiatePayment } from "@/services/paymentMethodsApi";
 import { savePendingPayment } from "@/services/payment/paymentRecovery";
-import { validatePromoCode } from "@/services/api/promoCodeApi";
-import type { PromoCodeValidation } from "@/types/promoCode";
+import { getStoreStatus } from "@/services/api/storeApi";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 
 export default function CheckoutConfirmationScreen() {
@@ -66,21 +63,14 @@ export default function CheckoutConfirmationScreen() {
   const [accepted, setAccepted] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  // Promo code state
-  const [promoCode, setPromoCode] = useState("");
-  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
-  const [appliedPromo, setAppliedPromo] = useState<PromoCodeValidation | null>(
-    null,
-  );
-  const [promoError, setPromoError] = useState("");
+  // Promo code is now handled only on cart page
+  // The cart.discount already includes any applied promo code discount
 
   const subtotal = cart?.subtotal || 0;
   const deliveryFee = cart?.delivery_fee || 0;
-  const promotionDiscount = cart?.discount || 0; // Discount from promotions
-  const promoCodeDiscount = appliedPromo?.promo_code?.discount_amount || 0; // Discount from promo code
-  const totalDiscount = promotionDiscount + promoCodeDiscount;
+  const discount = cart?.discount || 0; // Total discount (promotions + promo code from cart)
   const tax = cart?.tax || 0;
-  const total = (cart?.total || 0) - promoCodeDiscount;
+  const total = cart?.total || 0; // Already calculated with discount applied
 
   useEffect(() => {
     loadData();
@@ -116,43 +106,6 @@ export default function CheckoutConfirmationScreen() {
     }
   };
 
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) {
-      setPromoError(t.checkout.enterPromoCode);
-      return;
-    }
-
-    setIsValidatingPromo(true);
-    setPromoError("");
-
-    try {
-      const response = await validatePromoCode({
-        code: promoCode.trim().toUpperCase(),
-        cart_total: subtotal,
-      });
-
-      if (response.success && response.data) {
-        setAppliedPromo(response.data);
-        Alert.alert(
-          t.common.success,
-          response.message || t.checkout.promoApplied,
-        );
-      }
-    } catch (error: any) {
-      console.error("Promo code validation error:", error);
-      setPromoError(error.message || "Invalid promo code");
-      setAppliedPromo(null);
-    } finally {
-      setIsValidatingPromo(false);
-    }
-  };
-
-  const handleRemovePromo = () => {
-    setAppliedPromo(null);
-    setPromoCode("");
-    setPromoError("");
-  };
-
   const getDateOptions = () => {
     const dates = [];
     const today = new Date();
@@ -165,10 +118,10 @@ export default function CheckoutConfirmationScreen() {
           i === 1
             ? t.checkout.tomorrow
             : date.toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-              }),
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            }),
       });
     }
     return dates;
@@ -193,6 +146,19 @@ export default function CheckoutConfirmationScreen() {
     setIsPlacingOrder(true);
 
     try {
+      // Check if store is open before placing order
+      const storeStatusResponse = await getStoreStatus();
+      if (!storeStatusResponse.data.is_open) {
+        setIsPlacingOrder(false);
+        Alert.alert(
+          t.store?.closed || "Store Closed",
+          storeStatusResponse.data.message ||
+          t.store?.cannotOrderNow ||
+          "Sorry, we are not accepting orders right now",
+        );
+        return;
+      }
+
       // Determine order ID - reuse existing on retry
       let orderId: number;
       let orderNumber: string;
@@ -203,13 +169,13 @@ export default function CheckoutConfirmationScreen() {
         orderNumber = `ORD-${retryOrderId}`; // Will be updated from payment response
       } else {
         // Create new order (with pending payment status)
+        // Promo code is already applied in cart, so we send the cart's promo code
         const response = await createOrder({
           delivery_address_id: addressId,
           delivery_date: selectedDate,
           delivery_time_slot: selectedSlot,
           payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
-          promo_code:
-            appliedPromo?.promo_code?.code || cart?.promo_code || undefined,
+          promo_code: cart?.promo_code || undefined,
         });
 
         orderId = response.data.order.id;
@@ -510,69 +476,28 @@ export default function CheckoutConfirmationScreen() {
           </View>
         </View>
 
-        {/* Promo Code Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Tag size={20} color={Colors.primary900} />
-            <Text style={styles.sectionTitle}>{t.checkout.promoCode}</Text>
-          </View>
-
-          {!appliedPromo ? (
-            <View style={styles.promoInputContainer}>
-              <TextInput
-                style={styles.promoInput}
-                placeholder={t.checkout.enterPromoCodePlaceholder}
-                value={promoCode}
-                onChangeText={(text) => {
-                  setPromoCode(text.toUpperCase());
-                  setPromoError("");
-                }}
-                autoCapitalize="characters"
-                editable={!isValidatingPromo}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.applyButton,
-                  isValidatingPromo && styles.applyButtonDisabled,
-                ]}
-                onPress={handleApplyPromo}
-                disabled={isValidatingPromo}
-              >
-                {isValidatingPromo ? (
-                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
-                ) : (
-                  <Text style={styles.applyButtonText}>
-                    {t.checkout.applyCode}
-                  </Text>
-                )}
-              </TouchableOpacity>
+        {/* Show applied promo code from cart (read-only) */}
+        {cart?.promo_code && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Tag size={20} color={Colors.primary900} />
+              <Text style={styles.sectionTitle}>{t.checkout.promoCode}</Text>
             </View>
-          ) : (
             <View style={styles.appliedPromoContainer}>
               <View style={styles.appliedPromoContent}>
                 <View style={styles.appliedPromoInfo}>
                   <Text style={styles.appliedPromoCode}>
-                    {appliedPromo.promo_code.code}
+                    {cart.promo_code}
                   </Text>
                   <Text style={styles.appliedPromoDiscount}>
-                    -{promoCodeDiscount.toFixed(2)} {t.common.currency}{" "}
+                    -{discount.toFixed(2)} {t.common.currency}{" "}
                     {t.checkout.saved}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={handleRemovePromo}
-                  style={styles.removePromoButton}
-                >
-                  <X size={20} color={Colors.neutralMedium} />
-                </TouchableOpacity>
               </View>
             </View>
-          )}
-
-          {promoError ? (
-            <Text style={styles.promoError}>{promoError}</Text>
-          ) : null}
-        </View>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.checkout.priceSummary}</Text>
@@ -596,23 +521,13 @@ export default function CheckoutConfirmationScreen() {
                   : `${deliveryFee.toFixed(2)} ${t.common.currency}`}
               </Text>
             </View>
-            {promotionDiscount > 0 && (
+            {discount > 0 && (
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>
-                  {t.checkout.promotionDiscount}
+                  {t.checkout.discount}
                 </Text>
                 <Text style={[styles.priceValue, styles.discountText]}>
-                  -{promotionDiscount.toFixed(2)} {t.common.currency}
-                </Text>
-              </View>
-            )}
-            {promoCodeDiscount > 0 && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>
-                  {t.checkout.promoCodeDiscount}
-                </Text>
-                <Text style={[styles.priceValue, styles.discountText]}>
-                  -{promoCodeDiscount.toFixed(2)} {t.common.currency}
+                  -{discount.toFixed(2)} {t.common.currency}
                 </Text>
               </View>
             )}

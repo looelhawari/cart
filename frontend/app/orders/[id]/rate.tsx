@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Star, Camera, X } from 'lucide-react-native';
+import { ArrowLeft, X } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -87,10 +88,10 @@ export default function RateOrderScreen() {
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
           >
-            <Star
+            <Ionicons
+              name={star <= rating ? "star" : "star-outline"}
               size={size}
               color={star <= rating ? Colors.accentYellow : Colors.neutralGray}
-              fill={star <= rating ? Colors.accentYellow : 'transparent'}
             />
           </TouchableOpacity>
         ))}
@@ -108,9 +109,9 @@ export default function RateOrderScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        
+
         <Text style={styles.headerTitle}>Rate Your Order</Text>
-        
+
         <View style={{ width: 40 }} />
       </View>
 
@@ -132,12 +133,12 @@ export default function RateOrderScreen() {
               {overallRating === 5
                 ? 'Excellent!'
                 : overallRating === 4
-                ? 'Very Good'
-                : overallRating === 3
-                ? 'Good'
-                : overallRating === 2
-                ? 'Fair'
-                : 'Poor'}
+                  ? 'Very Good'
+                  : overallRating === 3
+                    ? 'Good'
+                    : overallRating === 2
+                      ? 'Fair'
+                      : 'Poor'}
             </Text>
           )}
         </View>
@@ -198,7 +199,7 @@ export default function RateOrderScreen() {
                 onPress={pickImage}
                 activeOpacity={0.7}
               >
-                <Camera size={28} color={Colors.neutralMedium} />
+                <Ionicons name="camera-outline" size={28} color={Colors.neutralMedium} />
                 <Text style={styles.addPhotoText}>Add Photo</Text>
               </TouchableOpacity>
             )}

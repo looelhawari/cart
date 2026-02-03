@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { promotionService } from '@/services/promotion.service'
+import { productService } from '@/services/product.service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
     Package, ShoppingCart, DollarSign, TrendingUp, Clock,
     CheckCircle, Truck, Users, BarChart3, Activity, AlertCircle,
-    ArrowUpRight, Tag, Gift, Percent, FileText
+    ArrowUpRight, Tag, Gift, Percent, FileText, AlertTriangle
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -44,6 +45,11 @@ export default function DashboardPage() {
             const response = await promotionService.getSummaryAnalytics()
             return response
         },
+    })
+
+    const { data: stockAlertsData } = useQuery({
+        queryKey: ['stock-alerts'],
+        queryFn: () => productService.getStockAlerts(10),
     })
 
     const summary = ordersData?.summary || {}
@@ -393,6 +399,55 @@ export default function DashboardPage() {
                                 <ArrowUpRight className={`h-3 w-3 ${isRTL ? 'ml-1' : 'mr-1'}`} />
                                 <span>{t('dashboard.homepageBanner')}</span>
                             </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {/* Stock Alerts Section */}
+            {stockAlertsData && (stockAlertsData.out_of_stock?.count > 0 || stockAlertsData.low_stock?.count > 0) && (
+                <div className="grid gap-6 md:grid-cols-2">
+                    <Card className={`${isRTL ? 'border-r-4 border-r-red-500 border-l-0' : 'border-l-4 border-l-red-500'}`}>
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                {t('dashboard.outOfStock')}
+                            </CardTitle>
+                            <AlertCircle className="h-5 w-5 text-red-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-3xl font-bold text-red-600">
+                                {stockAlertsData.out_of_stock?.count || 0}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {t('dashboard.productsOutOfStock')}
+                            </p>
+                            {stockAlertsData.out_of_stock?.products?.slice(0, 3).map((p: any) => (
+                                <div key={p.barcode} className="text-xs text-red-600 mt-1 truncate">
+                                    • {isRTL ? p.name_ar : p.name_en}
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+
+                    <Card className={`${isRTL ? 'border-r-4 border-r-yellow-500 border-l-0' : 'border-l-4 border-l-yellow-500'}`}>
+                        <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                {t('dashboard.lowStock')}
+                            </CardTitle>
+                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-3xl font-bold text-yellow-600">
+                                {stockAlertsData.low_stock?.count || 0}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {t('dashboard.productsLowStock')}
+                            </p>
+                            {stockAlertsData.low_stock?.products?.slice(0, 3).map((p: any) => (
+                                <div key={p.barcode} className="text-xs text-yellow-600 mt-1 truncate">
+                                    • {isRTL ? p.name_ar : p.name_en} ({p.stock_quantity} {t('products.left')})
+                                </div>
+                            ))}
                         </CardContent>
                     </Card>
                 </div>

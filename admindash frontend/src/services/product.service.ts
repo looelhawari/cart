@@ -62,4 +62,20 @@ export const productService = {
     toggleStockStatus: async (barcode: string, is_in_stock: boolean): Promise<Product> => {
         return apiClient.put(`/admin/products/${barcode}`, { is_in_stock })
     },
+
+    getStockAlerts: async (threshold?: number): Promise<{
+        out_of_stock: { count: number; products: Product[] };
+        low_stock: { count: number; products: Product[] };
+    }> => {
+        const params = threshold ? { threshold } : {}
+        return apiClient.get('/admin/products/stock-alerts', params)
+    },
+
+    bulkToggleStock: async (barcodes: string[], is_in_stock: boolean): Promise<{
+        success: boolean;
+        updated_count: number;
+        products: Product[];
+    }> => {
+        return apiClient.post('/admin/products/bulk-stock', { barcodes, is_in_stock })
+    },
 }

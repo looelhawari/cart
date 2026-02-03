@@ -1,98 +1,131 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
-  Image,
+  Dimensions,
+  Animated,
 } from "react-native";
-import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Search,
-  ShoppingBag,
-  Bell,
-  MapPin,
-  ChevronRight,
-  Sparkles,
-  Truck,
-  Leaf,
-} from "lucide-react-native";
+import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { ChevronRight, Clock } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useResponsive } from "@/hooks/useResponsive";
-import {
-  useFonts,
-  Poppins_400Regular,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from "@expo-google-fonts/poppins";
 
 import Colors from "@/constants/Colors";
-import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { ProductCard } from "@/components/ProductCard";
-import { HeroBanner } from "@/components/HeroBanner";
 import { useStore } from "@/store";
+import { ProductCard } from "@/components/ProductCard";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
+import OfflineIndicator from "@/components/OfflineIndicator";
+import { HeroBanner } from "@/components/HeroBanner";
 import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
 import { getFeaturedCategoriesWithProducts, getCategories } from "@/services/api/categoryApi";
 import type { Product, Category } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
-import { useLocalizedValue, useTranslation } from "@/i18n";
-import { SkeletonLoader } from "@/components/SkeletonLoader";
-import OfflineIndicator from "@/components/OfflineIndicator";
+import { useTranslation, useLocalizedValue } from "@/i18n";
+import { useResponsive } from "@/hooks/useResponsive";
 
-// Category icon mapping for quick access icons
-const CATEGORY_ICONS: { [key: string]: { icon: keyof typeof Ionicons.glyphMap; color: string } } = {
-  fruits: { icon: "nutrition-outline", color: "#ef4444" },
-  vegetables: { icon: "leaf-outline", color: "#22c55e" },
-  meat: { icon: "restaurant-outline", color: "#b45309" },
-  dairy: { icon: "water-outline", color: "#3b82f6" },
-  bakery: { icon: "cafe-outline", color: "#f59e0b" },
-  snacks: { icon: "fast-food-outline", color: "#8b5cf6" },
-  beverages: { icon: "beer-outline", color: "#06b6d4" },
-  frozen: { icon: "snow-outline", color: "#64748b" },
-  default: { icon: "grid-outline", color: "#6b7280" },
-};
+const { width } = Dimensions.get("window");
 
-const getCategoryIcon = (slug: string): { icon: keyof typeof Ionicons.glyphMap; color: string } => {
+// Category icon mapping with ElBaraka brand gradients
+const getCategoryIcon = (slug: string): { icon: keyof typeof Ionicons.glyphMap; color: string; gradient: readonly [string, string] } => {
+  const iconMap: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; gradient: readonly [string, string] }> = {
+    fruits: { icon: "nutrition-outline", color: Colors.accentOrange, gradient: ['#FFF7ED', '#FFEDD5'] as const },
+    vegetables: { icon: "leaf-outline", color: Colors.primary900, gradient: ['#F0FDF4', '#DCFCE7'] as const },
+    meat: { icon: "restaurant-outline", color: "#DC2626", gradient: ['#FEF2F2', '#FECACA'] as const },
+    dairy: { icon: "water-outline", color: "#0EA5E9", gradient: ['#F0F9FF', '#E0F2FE'] as const },
+    bakery: { icon: "pizza-outline", color: "#D97706", gradient: ['#FFFBEB', '#FEF3C7'] as const },
+    beverages: { icon: "cafe-outline", color: "#7C3AED", gradient: ['#FAF5FF', '#EDE9FE'] as const },
+    snacks: { icon: "fast-food-outline", color: "#EC4899", gradient: ['#FDF2F8', '#FCE7F3'] as const },
+    frozen: { icon: "snow-outline", color: "#06B6D4", gradient: ['#ECFEFF', '#CFFAFE'] as const },
+    cleaning: { icon: "sparkles-outline", color: "#3B82F6", gradient: ['#EFF6FF', '#DBEAFE'] as const },
+    personal: { icon: "body-outline", color: "#8B5CF6", gradient: ['#F5F3FF', '#EDE9FE'] as const },
+    grocery: { icon: "cart-outline", color: Colors.primary700, gradient: ['#F0FDF4', '#DCFCE7'] as const },
+    organic: { icon: "flower-outline", color: "#10B981", gradient: ['#ECFDF5', '#D1FAE5'] as const },
+  };
+
   const normalizedSlug = slug?.toLowerCase().replace(/[^a-z]/g, '') || '';
-
-  // Try to match by partial slug
-  for (const [key, value] of Object.entries(CATEGORY_ICONS)) {
+  for (const [key, value] of Object.entries(iconMap)) {
     if (normalizedSlug.includes(key) || key.includes(normalizedSlug)) {
       return value;
     }
   }
-  return CATEGORY_ICONS.default;
+  return { icon: "grid-outline", color: Colors.primary900, gradient: ['#F0FDF4', '#DCFCE7'] as const };
 };
 
 export default function HomeScreen() {
-  const { wp, hp, isSmallDevice, width } = useResponsive();
-  const [fontsLoaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-  });
-
-  const { cart, user, isAuthenticated } = useStore();
-  const cartItemsCount =
-    cart?.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) ||
-    0;
-  const { getName } = useLocalizedValue();
+  const { wp, hp, isSmallDevice } = useResponsive();
+  const { user, isAuthenticated, cart } = useStore();
   const { t, isRTL } = useTranslation();
+  const { getName } = useLocalizedValue();
 
-  const [categoriesWithProducts, setCategoriesWithProducts] = useState<
-    CategoryWithProducts[]
-  >([]);
-  const [quickCategories, setQuickCategories] = useState<Category[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const [flashDeals, setFlashDeals] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [quickCategories, setQuickCategories] = useState<Category[]>([]);
+  const [flashDeals, setFlashDeals] = useState<Product[]>([]);
+  const [categoriesWithProducts, setCategoriesWithProducts] = useState<CategoryWithProducts[]>([]);
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const scaleAnim = useRef(new Animated.Value(0.98)).current;
+
+  // Calculate cart items count
+  const cartItemsCount = cart?.items?.reduce((total: number, item: any) => total + item.quantity, 0) || 0;
+
+  const loadData = useCallback(async () => {
+    try {
+      if (!refreshing) setLoading(true);
+
+      const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] = await Promise.all([
+        getFeaturedCategoriesWithProducts(),
+        getCategories(),
+        getFeaturedProducts(),
+        getFlashDeals(),
+      ]);
+
+      if (categoriesRes.success) {
+        setCategoriesWithProducts(categoriesRes.data.categories);
+      }
+      if (allCategoriesRes.success) {
+        setQuickCategories(allCategoriesRes.data.categories.slice(0, 8));
+      }
+      if (featuredRes.success) {
+        setFeaturedProducts(featuredRes.data.products);
+      }
+      if (flashDealsRes.success) {
+        setFlashDeals(flashDealsRes.data.products);
+      }
+    } catch (error) {
+      console.error("Error loading home data:", error);
+    } finally {
+      setLoading(false);
+      // Start entrance animations
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [refreshing, fadeAnim, slideAnim, scaleAnim]);
 
   useEffect(() => {
     loadData();
@@ -104,341 +137,90 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const loadData = async () => {
-    try {
-      if (!refreshing) setLoading(true);
-      const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] = await Promise.all([
-        getFeaturedCategoriesWithProducts(),
-        getCategories(),
-        getFeaturedProducts(),
-        getFlashDeals(),
-      ]);
-
-      if (categoriesRes.success)
-        setCategoriesWithProducts(categoriesRes.data.categories);
-      if (allCategoriesRes.success)
-        setQuickCategories(allCategoriesRes.data.categories.slice(0, 8)); // Show max 8 categories
-      if (featuredRes.success) setFeaturedProducts(featuredRes.data.products);
-      if (flashDealsRes.success) setFlashDeals(flashDealsRes.data.products);
-      setCategoriesWithProducts(categoriesRes.data.categories);
-      if (featuredRes.success) setFeaturedProducts(featuredRes.data.products);
-      if (flashDealsRes.success) setFlashDeals(flashDealsRes.data.products);
-    } catch (error) {
-      console.error("Failed to load home data:", error);
-    } finally {
-      setLoading(false);
-    }
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return t.common?.goodMorning || "Good Morning";
+    if (hour < 17) return t.common?.goodAfternoon || "Good Afternoon";
+    return t.common?.goodEvening || "Good Evening";
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: Colors.neutralLight,
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-
-    // HEADER
-    header: {
-      backgroundColor: Colors.neutralWhite,
-      paddingHorizontal: wp(4),
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.md,
-    },
-    headerTop: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: Spacing.md,
-    },
-    headerLeft: {
-      flex: 1,
-    },
-    greeting: {
-      fontSize: isSmallDevice ? 12 : Typography.bodySmall,
-      color: Colors.neutralMedium,
-      fontFamily: "Poppins_400Regular",
-    },
-    location: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      marginTop: 2,
-    },
-    locationText: {
-      fontSize: isSmallDevice ? 16 : Typography.h4,
-      fontFamily: "Poppins_700Bold",
-      color: Colors.neutralCharcoal,
-    },
-    headerActions: {
-      flexDirection: "row",
-      gap: Spacing.sm,
-    },
-    iconButton: {
-      width: isSmallDevice ? 40 : 44,
-      height: isSmallDevice ? 40 : 44,
-      borderRadius: isSmallDevice ? 20 : 22,
-      backgroundColor: Colors.neutralLight,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cartBadge: {
-      position: "absolute",
-      top: -4,
-      right: -4,
-      backgroundColor: Colors.accentRed,
-      borderRadius: 10,
-      minWidth: 18,
-      height: 18,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 4,
-      borderWidth: 2,
-      borderColor: Colors.neutralWhite,
-    },
-    cartBadgeText: {
-      color: Colors.neutralWhite,
-      fontSize: 9,
-      fontFamily: "Poppins_700Bold",
-    },
-
-    // SEARCH
-    searchContainer: {
-      paddingHorizontal: wp(4),
-      paddingVertical: Spacing.md,
-    },
-    searchBar: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: Colors.neutralWhite,
-      borderRadius: 12,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: isSmallDevice ? 12 : 14,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: Typography.bodyBase,
-      fontFamily: "Poppins_400Regular",
-      color: Colors.neutralMedium,
-      marginLeft: Spacing.sm,
-    },
-
-    // FEATURE CARDS
-    featuresContainer: {
-      flexDirection: "row",
-      paddingHorizontal: wp(4),
-      gap: Spacing.sm,
-      marginBottom: Spacing.lg,
-    },
-    featureCard: {
-      flex: 1,
-      backgroundColor: Colors.neutralWhite,
-      borderRadius: 12,
-      padding: Spacing.sm,
-      alignItems: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    featureIcon: {
-      width: isSmallDevice ? 36 : 40,
-      height: isSmallDevice ? 36 : 40,
-      borderRadius: isSmallDevice ? 18 : 20,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: Spacing.xs,
-    },
-    featureTitle: {
-      fontSize: isSmallDevice ? 10 : Typography.bodySmall,
-      fontFamily: "Poppins_600SemiBold",
-      color: Colors.neutralCharcoal,
-      textAlign: "center",
-    },
-
-    // CATEGORIES
-    categoriesSection: {
-      marginBottom: Spacing.lg,
-    },
-    categoriesScroll: {
-      paddingLeft: wp(4),
-    },
-    categoryCard: {
-      alignItems: "center",
-      marginRight: Spacing.md,
-      width: isSmallDevice ? 70 : 80,
-    },
-    categoryIcon: {
-      width: isSmallDevice ? 60 : 70,
-      height: isSmallDevice ? 60 : 70,
-      borderRadius: isSmallDevice ? 30 : 35,
-      backgroundColor: Colors.neutralWhite,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: Spacing.xs,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      elevation: 3,
-    },
-    categoryEmoji: {
-      fontSize: isSmallDevice ? 28 : 32,
-    },
-    categoryName: {
-      fontSize: Typography.bodySmall,
-      fontFamily: "Poppins_600SemiBold",
-      color: Colors.neutralCharcoal,
-      textAlign: "center",
-    },
-
-    // SECTION
-    section: {
-      marginBottom: Spacing.lg,
-    },
-    sectionHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: wp(4),
-      marginBottom: Spacing.md,
-    },
-    sectionTitle: {
-      fontSize: isSmallDevice ? 18 : Typography.h3,
-      fontFamily: "Poppins_700Bold",
-      color: Colors.neutralCharcoal,
-    },
-    viewAllButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
-    viewAllText: {
-      fontSize: Typography.bodyMedium,
-      fontFamily: "Poppins_600SemiBold",
-      color: Colors.primary900,
-    },
-
-    // DEALS
-    dealsScroll: {
-      paddingLeft: wp(4),
-      paddingRight: wp(4),
-    },
-    dealCard: {
-      width: isSmallDevice ? wp(38) : 150,
-      marginRight: Spacing.sm,
-    },
-
-    // PRODUCTS GRID
-    productsGrid: {
-      paddingHorizontal: wp(4),
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "space-between",
-      rowGap: Spacing.md,
-      columnGap: Spacing.sm,
-      marginBottom: Spacing.xl,
-    },
-    productCard: {
-      width: isSmallDevice
-        ? (width - wp(4) * 2 - Spacing.sm) / 2
-        : (width - wp(4) * 2 - Spacing.md * 2) / 3,
-      marginBottom: 0,
-    },
-  });
-
-  if (!fontsLoaded || loading) {
+  // Loading skeleton
+  if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <OfflineIndicator />
-        {/* Header Skeleton */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.headerLeft}>
-              <SkeletonLoader width={100} height={14} borderRadius={4} />
-              <View style={{ height: 4 }} />
-              <SkeletonLoader width={140} height={20} borderRadius={4} />
-            </View>
-            <View style={styles.headerActions}>
-              <SkeletonLoader width={44} height={44} borderRadius={22} />
-              <SkeletonLoader width={44} height={44} borderRadius={22} />
-            </View>
+        <View style={styles.skeletonHeader}>
+          <View style={styles.skeletonHeaderLeft}>
+            <SkeletonLoader width={140} height={26} borderRadius={8} />
+            <View style={{ height: 6 }} />
+            <SkeletonLoader width={100} height={16} borderRadius={6} />
+          </View>
+          <View style={styles.skeletonHeaderRight}>
+            <SkeletonLoader width={42} height={42} borderRadius={21} />
+            <SkeletonLoader width={42} height={42} borderRadius={21} />
           </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Search Bar Skeleton */}
-          <View style={styles.searchContainer}>
-            <SkeletonLoader width="100%" height={50} borderRadius={12} />
+          <View style={styles.skeletonSearchContainer}>
+            <SkeletonLoader width="100%" height={50} borderRadius={25} />
           </View>
 
-          {/* Hero Banner Skeleton */}
-          <View style={{ paddingHorizontal: wp(4), marginBottom: Spacing.md }}>
-            <SkeletonLoader width="100%" height={hp(20)} borderRadius={16} />
-          </View>
-
-          {/* Feature Cards Skeleton */}
+          {/* Features Skeleton */}
           <View style={styles.featuresContainer}>
             {[1, 2, 3].map((i) => (
               <View key={i} style={styles.featureCard}>
-                <SkeletonLoader width={40} height={40} borderRadius={20} />
-                <View style={{ height: 4 }} />
-                <SkeletonLoader width={60} height={14} borderRadius={4} />
+                <SkeletonLoader width={44} height={44} borderRadius={22} />
+                <View style={{ height: 6 }} />
+                <SkeletonLoader width={50} height={12} borderRadius={4} />
               </View>
             ))}
           </View>
 
+          {/* Banner Skeleton */}
+          <View style={{ paddingHorizontal: 16, marginVertical: 12 }}>
+            <SkeletonLoader width="100%" height={160} borderRadius={20} />
+          </View>
+
           {/* Categories Skeleton */}
           <View style={styles.categoriesSection}>
+            <View style={styles.sectionHeader}>
+              <SkeletonLoader width={130} height={22} borderRadius={8} />
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.categoriesScroll}
             >
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+              {[1, 2, 3, 4, 5].map((i) => (
                 <View key={i} style={styles.categoryCard}>
-                  <SkeletonLoader width={60} height={60} borderRadius={30} />
-                  <View style={{ height: 4 }} />
-                  <SkeletonLoader width={50} height={12} borderRadius={4} />
+                  <SkeletonLoader width={68} height={68} borderRadius={18} />
+                  <View style={{ height: 8 }} />
+                  <SkeletonLoader width={56} height={12} borderRadius={4} />
                 </View>
               ))}
             </ScrollView>
           </View>
 
-          {/* Section Skeleton (Products) */}
-          {[1, 2, 3].map((section) => (
+          {/* Products Skeleton */}
+          {[1, 2].map((section) => (
             <View key={section} style={styles.section}>
               <View style={styles.sectionHeader}>
-                <SkeletonLoader width={150} height={24} borderRadius={6} />
-                <SkeletonLoader width={80} height={20} borderRadius={6} />
+                <SkeletonLoader width={140} height={22} borderRadius={8} />
+                <SkeletonLoader width={75} height={24} borderRadius={12} />
               </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.dealsScroll}
               >
-                {[1, 2, 3, 4].map((i) => (
+                {[1, 2, 3].map((i) => (
                   <View key={i} style={styles.dealCard}>
-                    <SkeletonLoader
-                      width="100%"
-                      height={140}
-                      borderRadius={12}
-                    />
-                    <View style={{ height: 8 }} />
-                    <SkeletonLoader width="80%" height={16} borderRadius={4} />
-                    <View style={{ height: 4 }} />
-                    <SkeletonLoader width="60%" height={14} borderRadius={4} />
-                    <View style={{ height: 8 }} />
-                    <SkeletonLoader width="50%" height={20} borderRadius={6} />
+                    <SkeletonLoader width="100%" height={130} borderRadius={16} />
+                    <View style={{ height: 10 }} />
+                    <SkeletonLoader width="75%" height={16} borderRadius={5} />
+                    <View style={{ height: 6 }} />
+                    <SkeletonLoader width="45%" height={20} borderRadius={5} />
                   </View>
                 ))}
               </ScrollView>
@@ -449,54 +231,102 @@ export default function HomeScreen() {
     );
   }
 
-  // Fallback categories if API doesn't return any
+  // Fallback categories
   const displayCategories = quickCategories.length > 0 ? quickCategories : [
     { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
     { id: 2, name_en: "Vegetables", name_ar: "خضروات", slug: "vegetables" },
     { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
     { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
+    { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
+    { id: 6, name_en: "Beverages", name_ar: "مشروبات", slug: "beverages" },
   ] as Category[];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <OfflineIndicator />
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>
-              {isAuthenticated && user
-                ? `${t.common.hello}, ${user.first_name}`
-                : t.common.hello}
-            </Text>
-            <View style={styles.location}>
-              <MapPin size={16} color={Colors.primary900} />
-              <Text style={styles.locationText}>Cairo, Egypt</Text>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          PREMIUM BRANDED HEADER
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={[Colors.primary900, Colors.primary800]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              {/* Brand Identity */}
+              <View style={styles.brandContainer}>
+                <View style={styles.brandIcon}>
+                  <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
+                </View>
+                <Text style={styles.brandName}>ElBaraka</Text>
+              </View>
+
+              {/* Personalized Greeting */}
+              <Text style={styles.greeting}>
+                {isAuthenticated && user
+                  ? `${getGreeting()}, ${user.first_name} 👋`
+                  : `${getGreeting()} 👋`}
+              </Text>
+
+              {/* Location Selector */}
+              <TouchableOpacity style={styles.locationButton} activeOpacity={0.8}>
+                <Ionicons name="location" size={13} color={Colors.neutralWhite} />
+                <Text style={styles.locationText}>Cairo, Egypt</Text>
+                <ChevronRight size={13} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push("/notifications")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="notifications" size={21} color={Colors.neutralWhite} />
+                <View style={styles.notificationDot} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cartButton}
+                onPress={() => router.push("/(tabs)/cart")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="bag" size={21} color={Colors.neutralWhite} />
+                {cartItemsCount > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartItemsCount > 9 ? '9+' : cartItemsCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => router.push("/notifications")}
-            >
-              <Bell size={20} color={Colors.neutralCharcoal} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => router.push("/(tabs)/cart")}
-            >
-              <ShoppingBag size={20} color={Colors.neutralCharcoal} />
-              {cartItemsCount > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{cartItemsCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+          {/* ═══════════════════════════════════════════════════════════════════════════
+              SEARCH BAR - Floating Design
+          ═══════════════════════════════════════════════════════════════════════════ */}
+          <TouchableOpacity
+            style={styles.searchBar}
+            onPress={() => router.push("/search")}
+            activeOpacity={0.95}
+          >
+            <Ionicons name="search" size={20} color={Colors.neutralMedium} />
+            <Text style={styles.searchPlaceholder}>{t.common?.searchPlaceholder || "Search for products..."}</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </Animated.View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -508,80 +338,98 @@ export default function HomeScreen() {
             tintColor={Colors.primary900}
           />
         }
+        contentContainerStyle={styles.scrollContent}
       >
-        {/* SEARCH BAR */}
-        <View style={styles.searchContainer}>
-          <TouchableOpacity
-            style={styles.searchBar}
-            onPress={() => router.push("/search")}
-            activeOpacity={0.7}
-          >
-            <Search size={20} color={Colors.neutralMedium} />
-            <Text style={styles.searchInput}>{t.common.searchPlaceholder}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            FEATURE HIGHLIGHTS STRIP
+        ═══════════════════════════════════════════════════════════════════════════ */}
+        <Animated.View
+          style={[
+            styles.featuresContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}
+        >
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIcon, { backgroundColor: Colors.primary900 + "18" }]}>
+              <Ionicons name="car" size={19} color={Colors.primary900} />
+            </View>
+            <Text style={styles.featureTitle}>{t.common?.freeDelivery || "Free Delivery"}</Text>
+            <Text style={styles.featureSubtitle}>200+ EGP</Text>
+          </View>
 
-        {/* HERO BANNER - PROMOTIONS */}
+          <View style={styles.featureDivider} />
+
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIcon, { backgroundColor: Colors.accentOrange + "18" }]}>
+              <Ionicons name="time" size={19} color={Colors.accentOrange} />
+            </View>
+            <Text style={styles.featureTitle}>Fast Delivery</Text>
+            <Text style={styles.featureSubtitle}>30-45 mins</Text>
+          </View>
+
+          <View style={styles.featureDivider} />
+
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIcon, { backgroundColor: "#3B82F6" + "18" }]}>
+              <Ionicons name="shield-checkmark-outline" size={19} color="#3B82F6" />
+            </View>
+            <Text style={styles.featureTitle}>Quality</Text>
+            <Text style={styles.featureSubtitle}>Guaranteed</Text>
+          </View>
+        </Animated.View>
+
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            PROMOTIONAL BANNERS CAROUSEL
+        ═══════════════════════════════════════════════════════════════════════════ */}
         <HeroBanner />
 
-        {/* FEATURE HIGHLIGHTS */}
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureCard}>
-            <View
-              style={[
-                styles.featureIcon,
-                { backgroundColor: Colors.primary900 + "15" },
-              ]}
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            QUICK CATEGORIES
+        ═══════════════════════════════════════════════════════════════════════════ */}
+        <Animated.View
+          style={[
+            styles.categoriesSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{t.common?.browse || "Browse Categories"}</Text>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => router.push("/(tabs)/categories")}
+              activeOpacity={0.8}
             >
-              <Truck size={isSmallDevice ? 18 : 20} color={Colors.primary900} />
-            </View>
-            <Text style={styles.featureTitle}>{t.common.freeDelivery}</Text>
+              <Text style={styles.viewAllText}>{t.common?.viewAll || "View All"}</Text>
+              <ChevronRight size={15} color={Colors.primary900} />
+            </TouchableOpacity>
           </View>
-          <View style={styles.featureCard}>
-            <View
-              style={[
-                styles.featureIcon,
-                { backgroundColor: Colors.accentOrange + "15" },
-              ]}
-            >
-              <Sparkles
-                size={isSmallDevice ? 18 : 20}
-                color={Colors.accentOrange}
-              />
-            </View>
-            <Text style={styles.featureTitle}>{t.common.freshDaily}</Text>
-          </View>
-          <View style={styles.featureCard}>
-            <View
-              style={[
-                styles.featureIcon,
-                { backgroundColor: Colors.primary700 + "15" },
-              ]}
-            >
-              <Leaf size={isSmallDevice ? 18 : 20} color={Colors.primary700} />
-            </View>
-            <Text style={styles.featureTitle}>{t.common.organic}</Text>
-          </View>
-        </View>
 
-        {/* QUICK CATEGORIES */}
-        <View style={styles.categoriesSection}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesScroll}
           >
             {displayCategories.map((cat) => {
-              const iconInfo = getCategoryIcon(cat.slug || '');
+              const iconInfo = getCategoryIcon(cat.slug || "");
               return (
                 <TouchableOpacity
                   key={cat.id}
                   style={styles.categoryCard}
                   onPress={() => router.push(`/categories/${cat.id}` as any)}
+                  activeOpacity={0.85}
                 >
-                  <View style={[styles.categoryIcon, { backgroundColor: iconInfo.color + '15' }]}>
-                    <Ionicons name={iconInfo.icon} size={28} color={iconInfo.color} />
-                  </View>
+                  <LinearGradient
+                    colors={iconInfo.gradient}
+                    style={styles.categoryIconContainer}
+                  >
+                    <Ionicons name={iconInfo.icon} size={26} color={iconInfo.color} />
+                  </LinearGradient>
                   <Text style={styles.categoryName} numberOfLines={1}>
                     {getName(cat)}
                   </Text>
@@ -589,21 +437,39 @@ export default function HomeScreen() {
               );
             })}
           </ScrollView>
-        </View>
+        </Animated.View>
 
-        {/* FLASH DEALS */}
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            FLASH DEALS with Timer Badge
+        ═══════════════════════════════════════════════════════════════════════════ */}
         {flashDeals.length > 0 && (
-          <View style={styles.section}>
+          <Animated.View
+            style={[
+              styles.section,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {t.products.flashDeals} ⚡
-              </Text>
+              <View style={styles.flashDealsTitleRow}>
+                <View style={styles.flashIcon}>
+                  <Ionicons name="flash" size={14} color={Colors.neutralWhite} />
+                </View>
+                <Text style={styles.sectionTitle}>{t.products?.flashDeals || "Flash Deals"}</Text>
+                <View style={styles.timerBadge}>
+                  <Clock size={11} color={Colors.accentRed} />
+                  <Text style={styles.timerText}>Ends Soon!</Text>
+                </View>
+              </View>
               <TouchableOpacity
-                style={styles.viewAllButton}
+                style={styles.viewAllButtonAlt}
                 onPress={() => router.push("/deals/flash")}
+                activeOpacity={0.85}
               >
-                <Text style={styles.viewAllText}>{t.common.viewAll}</Text>
-                <ChevronRight size={18} color={Colors.primary900} />
+                <Text style={styles.viewAllTextAlt}>{t.common?.viewAll || "View All"}</Text>
+                <ChevronRight size={15} color={Colors.neutralWhite} />
               </TouchableOpacity>
             </View>
 
@@ -621,22 +487,76 @@ export default function HomeScreen() {
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </Animated.View>
         )}
 
-        {/* CATEGORY PRODUCTS */}
-        {categoriesWithProducts.map((category) => (
-          <View key={category.id} style={styles.section}>
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            EXCLUSIVE OFFERS BANNER
+        ═══════════════════════════════════════════════════════════════════════════ */}
+        <TouchableOpacity
+          style={styles.promoBanner}
+          onPress={() => router.push("/(tabs)/offers")}
+          activeOpacity={0.92}
+        >
+          <LinearGradient
+            colors={[Colors.primary700, Colors.primary900]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.promoBannerGradient}
+          >
+            <View style={styles.promoBannerContent}>
+              <View style={styles.promoBannerLeft}>
+                <View style={styles.promoIconContainer}>
+                  <Ionicons name="gift-outline" size={22} color={Colors.neutralWhite} />
+                </View>
+                <View>
+                  <Text style={styles.promoBannerTitle}>Exclusive Offers</Text>
+                  <Text style={styles.promoBannerSubtitle}>Get up to 50% off fresh items</Text>
+                </View>
+              </View>
+              <View style={styles.promoBannerArrow}>
+                <ChevronRight size={22} color="rgba(255,255,255,0.75)" />
+              </View>
+            </View>
+            {/* Decorative circles */}
+            <View style={styles.promoBannerDecor1} />
+            <View style={styles.promoBannerDecor2} />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            CATEGORY PRODUCT SECTIONS
+        ═══════════════════════════════════════════════════════════════════════════ */}
+        {categoriesWithProducts.map((category, index) => (
+          <Animated.View
+            key={category.id}
+            style={[
+              styles.section,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{getName(category)}</Text>
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.sectionTitle}>{getName(category)}</Text>
+                {index === 0 && (
+                  <View style={styles.popularBadge}>
+                    <Ionicons name="star" size={9} color={Colors.neutralWhite} />
+                    <Text style={styles.popularBadgeText}>Popular</Text>
+                  </View>
+                )}
+              </View>
               <TouchableOpacity
                 style={styles.viewAllButton}
                 onPress={() => router.push(`/categories/${category.id}` as any)}
+                activeOpacity={0.8}
               >
                 <Text style={styles.viewAllText}>
-                  {category.products_count} {t.common.items}
+                  {category.products_count} {t.common?.items || "items"}
                 </Text>
-                <ChevronRight size={18} color={Colors.primary900} />
+                <ChevronRight size={15} color={Colors.primary900} />
               </TouchableOpacity>
             </View>
 
@@ -645,7 +565,7 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.dealsScroll}
             >
-              {category.products.map((product) => (
+              {category.products.map((product: Product) => (
                 <View key={product.barcode} style={styles.dealCard}>
                   <ProductCard
                     product={product}
@@ -654,37 +574,514 @@ export default function HomeScreen() {
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </Animated.View>
         ))}
 
-        {/* FEATURED PRODUCTS */}
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            FEATURED PRODUCTS GRID
+        ═══════════════════════════════════════════════════════════════════════════ */}
         {featuredProducts.length > 0 && (
-          <View style={styles.section}>
+          <Animated.View
+            style={[
+              styles.section,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t.products.featured}</Text>
+              <View style={styles.sectionTitleRow}>
+                <View style={styles.crownIcon}>
+                  <Ionicons name="trophy" size={13} color={Colors.accentYellow} />
+                </View>
+                <Text style={styles.sectionTitle}>{t.products?.featured || "Featured Products"}</Text>
+              </View>
               <TouchableOpacity
                 style={styles.viewAllButton}
                 onPress={() => router.push("/(tabs)/categories")}
+                activeOpacity={0.8}
               >
-                <Text style={styles.viewAllText}>{t.common.seeAll}</Text>
-                <ChevronRight size={18} color={Colors.primary900} />
+                <Text style={styles.viewAllText}>{t.common?.seeAll || "See All"}</Text>
+                <ChevronRight size={15} color={Colors.primary900} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.productsGrid}>
-              {Array.isArray(featuredProducts) &&
-                featuredProducts.map((product) => (
-                  <View key={product.barcode} style={styles.productCard}>
-                    <ProductCard
-                      product={product}
-                      onPress={() => router.push(`/product/${product.barcode}`)}
-                    />
-                  </View>
-                ))}
+              {featuredProducts.slice(0, 6).map((product) => (
+                <View key={product.barcode} style={styles.productCard}>
+                  <ProductCard
+                    product={product}
+                    onPress={() => router.push(`/product/${product.barcode}`)}
+                  />
+                </View>
+              ))}
             </View>
-          </View>
+          </Animated.View>
         )}
+
+        {/* Bottom spacing for tab bar */}
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.neutralCloud,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEADER STYLES - Premium Branded Design
+  // ═══════════════════════════════════════════════════════════════════════════
+  header: {
+    overflow: "hidden",
+  },
+  headerGradient: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  brandContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  brandIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 7,
+  },
+  brandName: {
+    fontSize: 20,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+    letterSpacing: 0.3,
+  },
+  greeting: {
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    color: "rgba(255,255,255,0.88)",
+    marginBottom: 5,
+  },
+  locationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 18,
+    alignSelf: "flex-start",
+  },
+  locationText: {
+    fontSize: 11,
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralWhite,
+    marginLeft: 4,
+    marginRight: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notificationDot: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: Colors.accentRed,
+    borderWidth: 1.5,
+    borderColor: Colors.primary900,
+  },
+  cartButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.accentRed,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Colors.primary900,
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    fontSize: 9,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SEARCH BAR
+  // ═══════════════════════════════════════════════════════════════════════════
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  searchPlaceholder: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralMedium,
+    marginLeft: 10,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FEATURES STRIP
+  // ═══════════════════════════════════════════════════════════════════════════
+  featuresContainer: {
+    flexDirection: "row",
+    backgroundColor: Colors.neutralWhite,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 6,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  featureCard: {
+    flex: 1,
+    alignItems: "center",
+  },
+  featureIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 5,
+  },
+  featureTitle: {
+    fontSize: 10,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralCharcoal,
+    textAlign: "center",
+  },
+  featureSubtitle: {
+    fontSize: 9,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralMedium,
+    textAlign: "center",
+  },
+  featureDivider: {
+    width: 1,
+    height: "55%",
+    backgroundColor: Colors.neutralGray,
+    alignSelf: "center",
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CATEGORIES SECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+  categoriesSection: {
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    marginBottom: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+  },
+  categoriesScroll: {
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  categoryCard: {
+    alignItems: "center",
+    width: 76,
+  },
+  categoryIconContainer: {
+    width: 68,
+    height: 68,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 7,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  categoryName: {
+    fontSize: 11,
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralCharcoal,
+    textAlign: "center",
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIEW ALL BUTTONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary100,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  viewAllText: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.primary900,
+    marginRight: 1,
+  },
+  viewAllButtonAlt: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.accentRed,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  viewAllTextAlt: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralWhite,
+    marginRight: 1,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  section: {
+    marginTop: 14,
+  },
+  flashDealsTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  flashIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.accentOrange,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.accentRed + "14",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 9,
+    gap: 3,
+  },
+  timerText: {
+    fontSize: 9,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.accentRed,
+  },
+  dealsScroll: {
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  dealCard: {
+    width: 160,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROMO BANNER
+  // ═══════════════════════════════════════════════════════════════════════════
+  promoBanner: {
+    marginHorizontal: 16,
+    marginTop: 18,
+    borderRadius: 18,
+    overflow: "hidden",
+    shadowColor: Colors.primary900,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  promoBannerGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    position: "relative",
+    overflow: "hidden",
+  },
+  promoBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  promoBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  promoIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  promoBannerTitle: {
+    fontSize: 15,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+    marginBottom: 1,
+  },
+  promoBannerSubtitle: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: "rgba(255,255,255,0.82)",
+  },
+  promoBannerArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoBannerDecor1: {
+    position: "absolute",
+    top: -28,
+    right: -28,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  promoBannerDecor2: {
+    position: "absolute",
+    bottom: -35,
+    right: 55,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BADGES
+  // ═══════════════════════════════════════════════════════════════════════════
+  popularBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.accentOrange,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 9,
+    gap: 3,
+  },
+  popularBadgeText: {
+    fontSize: 9,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralWhite,
+  },
+  crownIcon: {
+    marginRight: 3,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PRODUCTS GRID
+  // ═══════════════════════════════════════════════════════════════════════════
+  productsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  productCard: {
+    width: (width - 44) / 2,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SKELETON LOADING
+  // ═══════════════════════════════════════════════════════════════════════════
+  skeletonHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    backgroundColor: Colors.primary900,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  skeletonHeaderLeft: {
+    flex: 1,
+  },
+  skeletonHeaderRight: {
+    flexDirection: "row",
+    gap: 7,
+  },
+  skeletonSearchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+});

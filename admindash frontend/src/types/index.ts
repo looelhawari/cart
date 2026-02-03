@@ -80,6 +80,7 @@ export interface RefreshTokenResponse {
 export type ProductAvailability = 'in_stock' | 'out_of_stock' | 'discontinued'
 
 export interface Product {
+    id?: number
     barcode: string
     name: string
     name_en?: string
@@ -98,6 +99,7 @@ export interface Product {
     category_id: number
     category?: Category
     categories?: Category[]
+    image?: string | null
     image_url: string | null
     availability_status: ProductAvailability
     is_featured: boolean

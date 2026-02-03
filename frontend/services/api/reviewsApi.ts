@@ -1,12 +1,28 @@
 import httpClient from "@/services/httpClient";
 import type { Review } from "@/types";
 
+export type RatingType = "product" | "order" | "store";
+
 export interface CreateReviewPayload {
-  product_id: number;
+  product_id?: number;
+  order_id?: number;
+  rating: number;
+  comment: string;
+  rating_type?: RatingType;
+  images?: string[];
+}
+
+export interface CreateOrderReviewPayload {
   order_id: number;
   rating: number;
   comment: string;
-  images?: string[];
+  rating_type: "order";
+}
+
+export interface CreateStoreReviewPayload {
+  rating: number;
+  comment: string;
+  rating_type: "store";
 }
 
 export interface UpdateReviewPayload {
@@ -129,5 +145,58 @@ export const canReviewProduct = async (
 ): Promise<CanReviewResponse> => {
   return await httpClient.get<CanReviewResponse>(
     `/reviews/can-review/${productId}`,
+  );
+};
+
+/**
+ * Create an order review (rating for the overall order experience)
+ */
+export const createOrderReview = async (
+  payload: CreateOrderReviewPayload,
+): Promise<SingleReviewResponse> => {
+  return await httpClient.post<SingleReviewResponse>("/reviews", {
+    ...payload,
+    rating_type: "order",
+  });
+};
+
+/**
+ * Create a store review (overall store rating)
+ */
+export const createStoreReview = async (
+  payload: CreateStoreReviewPayload,
+): Promise<SingleReviewResponse> => {
+  return await httpClient.post<SingleReviewResponse>("/reviews", {
+    ...payload,
+    rating_type: "store",
+  });
+};
+
+/**
+ * Get reviews for a specific order
+ */
+export const getOrderReviews = async (
+  orderId: string | number,
+): Promise<ReviewsResponse> => {
+  return await httpClient.get<ReviewsResponse>(`/reviews/order/${orderId}`);
+};
+
+/**
+ * Check if user can review an order (order must be delivered)
+ */
+export interface CanReviewOrderResponse {
+  success: boolean;
+  data: {
+    can_review: boolean;
+    already_reviewed: boolean;
+    order_status: string;
+  };
+}
+
+export const canReviewOrder = async (
+  orderId: string | number,
+): Promise<CanReviewOrderResponse> => {
+  return await httpClient.get<CanReviewOrderResponse>(
+    `/reviews/can-review-order/${orderId}`,
   );
 };

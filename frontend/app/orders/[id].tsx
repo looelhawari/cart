@@ -9,23 +9,13 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  ArrowLeft,
-  MapPin,
-  Clock,
-  Package,
-  Truck,
-  CheckCircle,
-  XCircle,
-  CreditCard,
-  Wallet,
-  Calendar,
-  ShoppingCart,
-} from "lucide-react-native";
+import { ArrowLeft, Package, Clock } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useResponsive } from "@/hooks/useResponsive";
 
 import { Colors } from "@/constants/Colors";
@@ -36,6 +26,7 @@ import {
   cancelOrder as cancelOrderApi,
   Order,
 } from "@/services/api/orderApi";
+import { createReview } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
@@ -49,6 +40,14 @@ export default function OrderDetailsScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+
+  // Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [rating, setRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewedProducts, setReviewedProducts] = useState<number[]>([]);
 
   // Create responsive styles
   const styles = StyleSheet.create({
@@ -563,24 +562,61 @@ export default function OrderDetailsScreen() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const handleOpenRating = (product: any) => {
+    setSelectedProduct(product);
+    setRating(0);
+    setReviewComment("");
+    setShowRatingModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedProduct || rating === 0) {
+      Alert.alert("Error", "Please select a rating");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await createReview({
+        product_id: selectedProduct.product_id,
+        order_id: Number(id),
+        rating: rating,
+        comment: reviewComment.trim() || "Great product!",
+      });
+
+      Alert.alert("Success", "Thank you for your review!");
+      setReviewedProducts(prev => [...prev, selectedProduct.product_id]);
+      setShowRatingModal(false);
+      setSelectedProduct(null);
+      setRating(0);
+      setReviewComment("");
+    } catch (error: any) {
+      console.error("Review submission error:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to submit review";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const getStatusIcon = (status: string): string => {
     switch (status) {
       case "pending":
       case "processing":
-        return Clock;
+        return "time-outline";
       case "confirmed":
       case "preparing":
-        return Package;
+        return "cube-outline";
       case "out_for_delivery":
       case "shipped":
-        return Truck;
+        return "car-outline";
       case "delivered":
-        return CheckCircle;
+        return "checkmark-circle-outline";
       case "cancelled":
       case "failed":
-        return XCircle;
+        return "close-circle-outline";
       default:
-        return Package;
+        return "cube-outline";
     }
   };
 
@@ -739,7 +775,7 @@ export default function OrderDetailsScreen() {
     );
   }
 
-  const StatusIcon = getStatusIcon(order.status);
+  const statusIconName = getStatusIcon(order.status);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -771,7 +807,7 @@ export default function OrderDetailsScreen() {
               end={{ x: 1, y: 1 }}
               style={[styles.statusBadge]}
             >
-              <StatusIcon size={16} color={getStatusColor(order.status)} />
+              <Ionicons name={statusIconName as any} size={16} color={getStatusColor(order.status)} />
               <Text
                 style={[
                   styles.statusText,
@@ -786,7 +822,7 @@ export default function OrderDetailsScreen() {
           {/* Order Meta Info */}
           <View style={styles.orderMetaRow}>
             <View style={styles.orderMetaItem}>
-              <Calendar size={14} color={Colors.neutralMedium} />
+              <Ionicons name="calendar-outline" size={14} color={Colors.neutralMedium} />
               <Text style={styles.orderMetaText}>
                 {new Date(order.created_at).toLocaleDateString("en-US", {
                   month: "short",
@@ -805,7 +841,7 @@ export default function OrderDetailsScreen() {
               </Text>
             </View>
             <View style={styles.orderMetaItem}>
-              <ShoppingCart size={14} color={Colors.neutralMedium} />
+              <Ionicons name="cart-outline" size={14} color={Colors.neutralMedium} />
               <Text style={styles.orderMetaText}>
                 {order.items?.length || 0} items
               </Text>
@@ -890,6 +926,39 @@ export default function OrderDetailsScreen() {
           )}
         </View>
 
+        {/* Rating Banner for Delivered Orders */}
+        {order.status === "delivered" && (
+          <View style={{
+            backgroundColor: Colors.accentYellow + "15",
+            marginHorizontal: Spacing.md,
+            marginTop: Spacing.md,
+            padding: Spacing.md,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: Colors.accentYellow + "40",
+          }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+              <Ionicons name="star" size={24} color={Colors.accentOrange} />
+              <Text style={{
+                fontSize: 16,
+                fontWeight: "700",
+                color: Colors.neutralCharcoal,
+                marginLeft: 8,
+              }}>
+                Rate Your Order
+              </Text>
+            </View>
+            <Text style={{ fontSize: 13, color: Colors.neutralMedium, marginBottom: 12 }}>
+              How was your experience? Tap on any product below to leave a review.
+            </Text>
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Ionicons key={star} name="star-outline" size={28} color={Colors.accentYellow} />
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Status History Timeline */}
         {order.status_history && order.status_history.length > 0 && (
           <View style={styles.section}>
@@ -936,7 +1005,7 @@ export default function OrderDetailsScreen() {
           <Text style={styles.sectionTitle}>Delivery Information</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <MapPin size={20} color={Colors.primary900} />
+              <Ionicons name="location-outline" size={20} color={Colors.primary900} />
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoLabel}>Delivery Address</Text>
                 {order.delivery_address && (
@@ -994,9 +1063,9 @@ export default function OrderDetailsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               {order.payment_method === "cod" ? (
-                <Wallet size={20} color={Colors.primary900} />
+                <Ionicons name="wallet-outline" size={20} color={Colors.primary900} />
               ) : (
-                <CreditCard size={20} color={Colors.primary900} />
+                <Ionicons name="card-outline" size={20} color={Colors.primary900} />
               )}
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoValue}>
@@ -1051,6 +1120,39 @@ export default function OrderDetailsScreen() {
                   <Text style={styles.itemName}>{item.product_name}</Text>
                   <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
                   <Text style={styles.itemSku}>SKU: {item.product_sku}</Text>
+                  {/* Rate button for delivered orders */}
+                  {order.status === "delivered" && !reviewedProducts.includes(item.product_id) && (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: Colors.primary100,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 12,
+                        marginTop: 6,
+                        alignSelf: "flex-start",
+                        gap: 4,
+                      }}
+                      onPress={() => handleOpenRating(item)}
+                    >
+                      <Ionicons name="star-outline" size={14} color={Colors.primary900} />
+                      <Text style={{ fontSize: 12, fontWeight: "600", color: Colors.primary900 }}>
+                        Rate
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {reviewedProducts.includes(item.product_id) && (
+                    <View style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginTop: 6,
+                      gap: 4,
+                    }}>
+                      <Ionicons name="checkmark-circle" size={14} color={Colors.primary700} />
+                      <Text style={{ fontSize: 12, color: Colors.primary700 }}>Reviewed</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.itemPrice}>
                   {parseFloat(item.subtotal.toString()).toFixed(2)} EGP
@@ -1121,7 +1223,7 @@ export default function OrderDetailsScreen() {
             style={styles.cancelButton}
             onPress={() => setShowCancelDialog(true)}
           >
-            <XCircle size={20} color={Colors.accentRed} />
+            <Ionicons name="close-circle-outline" size={20} color={Colors.accentRed} />
             <Text style={styles.cancelText}>Cancel Order</Text>
           </TouchableOpacity>
         </View>
@@ -1171,6 +1273,80 @@ export default function OrderDetailsScreen() {
           </View>
         </View>
       )}
+
+      {/* Rating Modal */}
+      <Modal
+        visible={showRatingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRatingModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Rate Product</Text>
+            {selectedProduct && (
+              <Text style={{ fontSize: 14, color: Colors.neutralMedium, marginBottom: 16 }}>
+                {selectedProduct.product_name}
+              </Text>
+            )}
+
+            {/* Star Rating */}
+            <View style={{ flexDirection: "row", justifyContent: "center", marginBottom: 20, gap: 8 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setRating(star)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={star <= rating ? "star" : "star-outline"}
+                    size={36}
+                    color={star <= rating ? Colors.accentOrange : Colors.neutralGray}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={{ fontSize: 14, color: Colors.neutralMedium, marginBottom: 8 }}>
+              Write a review (optional)
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Share your experience with this product..."
+              placeholderTextColor={Colors.neutralGray}
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              multiline
+              numberOfLines={4}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setShowRatingModal(false);
+                  setSelectedProduct(null);
+                  setRating(0);
+                  setReviewComment("");
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: Colors.primary900 }]}
+                onPress={handleSubmitReview}
+                disabled={submittingReview || rating === 0}
+              >
+                {submittingReview ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Text style={styles.modalButtonTextPrimary}>Submit Review</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

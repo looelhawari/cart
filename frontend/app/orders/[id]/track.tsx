@@ -13,13 +13,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowLeft,
-  Phone,
   MessageSquare,
-  MapPin,
   Package,
   Clock,
-  Star,
 } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 
 import Colors from '@/constants/Colors';
@@ -104,19 +102,19 @@ export default function OrderTrackingScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Track Order</Text>
           <Text style={styles.orderNumber}>{order.orderNumber}</Text>
         </View>
-        
+
         <View style={{ width: 40 }} />
       </View>
 
       {/* Map Placeholder */}
       <View style={styles.mapContainer}>
         <View style={styles.mapPlaceholder}>
-          <MapPin size={40} color={Colors.primary900} />
+          <Ionicons name="location" size={40} color={Colors.primary900} />
           <Text style={styles.mapText}>Live Map View</Text>
           <Text style={styles.mapSubtext}>Real-time tracking coming soon</Text>
         </View>
@@ -124,7 +122,7 @@ export default function OrderTrackingScreen() {
         {/* Delivery Location Marker */}
         <View style={[styles.locationMarker, { top: height * 0.25, left: width * 0.6 }]}>
           <View style={styles.markerDot}>
-            <MapPin size={20} color={Colors.neutralWhite} />
+            <Ionicons name="location" size={20} color={Colors.neutralWhite} />
           </View>
           <View style={styles.markerPulse} />
         </View>
@@ -160,7 +158,7 @@ export default function OrderTrackingScreen() {
             <Text style={styles.statusDetailText}>Estimated: {estimatedMinutes} min</Text>
           </View>
           <View style={styles.statusRow}>
-            <MapPin size={18} color={Colors.neutralMedium} />
+            <Ionicons name="location-outline" size={18} color={Colors.neutralMedium} />
             <Text style={styles.statusDetailText}>Distance: {distance} away</Text>
           </View>
         </View>
@@ -170,11 +168,11 @@ export default function OrderTrackingScreen() {
       <View style={styles.driverCard}>
         <View style={styles.driverInfo}>
           <Image source={{ uri: driver.photo }} style={styles.driverPhoto} />
-          
+
           <View style={styles.driverDetails}>
             <Text style={styles.driverName}>{driver.name}</Text>
             <View style={styles.driverRating}>
-              <Star size={16} color={Colors.accentYellow} fill={Colors.accentYellow} />
+              <Ionicons name="star" size={16} color={Colors.accentYellow} />
               <Text style={styles.ratingText}>{driver.rating.toFixed(1)}</Text>
             </View>
             <Text style={styles.vehicleNumber}>{driver.vehicleNumber}</Text>
@@ -186,9 +184,9 @@ export default function OrderTrackingScreen() {
               onPress={handleCall}
               activeOpacity={0.7}
             >
-              <Phone size={20} color={Colors.primary900} />
+              <Ionicons name="call" size={20} color={Colors.primary900} />
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.actionButton}
               onPress={handleMessage}
@@ -202,7 +200,7 @@ export default function OrderTrackingScreen() {
         <View style={styles.divider} />
 
         <View style={styles.deliveryAddress}>
-          <MapPin size={18} color={Colors.neutralMedium} />
+          <Ionicons name="location-outline" size={18} color={Colors.neutralMedium} />
           <Text style={styles.addressText}>{order.deliveryAddress}</Text>
         </View>
       </View>

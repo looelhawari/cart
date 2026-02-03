@@ -11,7 +11,7 @@
 export const API_CONFIG = {
   // Development URLs
   // For physical device testing on same WiFi, use local IP
-  BASE_URL: "https://cartshop.site/api/v1",
+  BASE_URL: "http://192.168.1.10:8000/api/v1",
 
   TIMEOUT: 30000, // 30 seconds
 };

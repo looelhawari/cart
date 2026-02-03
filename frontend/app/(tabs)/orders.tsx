@@ -1,572 +1,912 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  RefreshControl,
-  Image,
-  ActivityIndicator,
-  Alert,
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    FlatList,
+    RefreshControl,
+    Animated,
+    Dimensions,
+    Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Package,
-  Clock,
-  Truck,
-  CheckCircle,
-  XCircle,
-  ShoppingBag,
-  RotateCcw,
-} from "lucide-react-native";
-import { router } from "expo-router";
-import { useResponsive } from "@/hooks/useResponsive";
+import { router, useFocusEffect } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { ChevronRight } from "lucide-react-native";
 
-import Colors from "@/constants/Colors";
-import Typography from "@/constants/Typography";
-import Spacing from "@/constants/Spacing";
-import { getOrders, reorder, Order } from "@/services/api/orderApi";
 import { useStore } from "@/store";
-import { useTranslation } from "@/i18n";
-import { SkeletonLoader } from "@/components/SkeletonLoader";
-import OfflineIndicator from "@/components/OfflineIndicator";
+import Colors from "@/constants/Colors";
+import Spacing from "@/constants/Spacing";
+import { useTranslation, useLocalizedValue } from "@/i18n";
+import { GuestModal } from "@/components/GuestModal";
+import { orderApi, Order } from "@/services/api/orderApi";
 
-type TabType = "all" | "active" | "delivered" | "cancelled";
+const { width } = Dimensions.get("window");
+
+type TabType = "all" | "processing" | "delivered" | "cancelled";
 
 export default function OrdersScreen() {
-  const { t } = useTranslation();
-  const { wp, hp, isSmallDevice } = useResponsive();
-  const { user, fetchCart } = useStore();
-  const [reorderingId, setReorderingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+    const { t } = useTranslation();
+    const { getName } = useLocalizedValue();
+    const { user, cart } = useStore();
 
-  useEffect(() => {
-    if (user) {
-      fetchOrders();
+    const [userOrders, setUserOrders] = useState<Order[]>([]);
+    const [ordersLoading, setOrdersLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabType>("all");
+    const [refreshing, setRefreshing] = useState(false);
+    const [reorderingId, setReorderingId] = useState<number | null>(null);
+    const [showGuestModal, setShowGuestModal] = useState(false);
 
-      // Set up polling to refresh orders every 60 seconds
-      const pollInterval = setInterval(() => {
-        fetchOrders();
-      }, 60000); // 60 seconds
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
-      // Cleanup interval on unmount
-      return () => clearInterval(pollInterval);
-    }
-  }, [user, activeTab]);
+    const fetchOrders = async () => {
+        try {
+            setOrdersLoading(true);
+            const response = await orderApi.getOrders();
+            console.log("Orders API response:", JSON.stringify(response, null, 2));
 
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      const statusFilter = activeTab === "all" ? undefined : activeTab;
-      const response = await getOrders(statusFilter);
+            // Handle various response formats
+            let ordersData: Order[] = [];
+            if (response?.data?.orders && Array.isArray(response.data.orders)) {
+                // Response format: { success: true, data: { orders: [...], pagination: {...} } }
+                ordersData = response.data.orders;
+            } else if (response?.data?.data && Array.isArray(response.data.data)) {
+                // Paginated response: { success: true, data: { data: [...], meta: {...} } }
+                ordersData = response.data.data;
+            } else if (response?.data && Array.isArray(response.data)) {
+                // Direct array: { success: true, data: [...] }
+                ordersData = response.data;
+            } else if (Array.isArray(response)) {
+                // Just an array
+                ordersData = response;
+            }
 
-      // Backend returns { success, data: { orders: [...], pagination: {...} } }
-      // orders is an array, not a paginated object
-      const ordersData = response.data.orders || [];
-      setOrders(ordersData);
-    } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.alerts.errorOccurred);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+            console.log("Parsed orders:", ordersData.length);
+            setUserOrders(ordersData);
+        } catch (error) {
+            console.error("Failed to fetch orders:", error);
+            setUserOrders([]);
+        } finally {
+            setOrdersLoading(false);
+        }
+    };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchOrders();
-  };
+    useFocusEffect(
+        useCallback(() => {
+            if (user) {
+                fetchOrders().then(() => {
+                    Animated.timing(fadeAnim, {
+                        toValue: 1,
+                        duration: 300,
+                        useNativeDriver: true,
+                    }).start();
+                });
+            } else {
+                setUserOrders([]);
+            }
+        }, [user]),
+    );
 
-  const handleReorder = async (orderId: number, e: any) => {
-    e.stopPropagation(); // Prevent navigation to order details
+    const tabs: { key: TabType; label: string; iconName: keyof typeof Ionicons.glyphMap }[] = [
+        { key: "all", label: t.orders?.all || "All", iconName: "bag-outline" },
+        { key: "processing", label: t.orders?.active || "Active", iconName: "time-outline" },
+        { key: "delivered", label: t.orders?.delivered || "Delivered", iconName: "checkmark-circle-outline" },
+        { key: "cancelled", label: t.orders?.cancelled || "Cancelled", iconName: "close-circle-outline" },
+    ];
 
-    setReorderingId(orderId);
-    try {
-      const response = await reorder(orderId);
-      await fetchCart();
+    const handleTabChange = (tab: TabType, index: number) => {
+        setActiveTab(tab);
+        Animated.spring(tabIndicatorAnim, {
+            toValue: index * (width - 36) / 4,
+            useNativeDriver: true,
+            tension: 100,
+            friction: 10,
+        }).start();
+    };
 
-      const summary = response.data?.summary;
-      const unavailableItems = response.data?.unavailable_items || [];
+    const filteredOrders = Array.isArray(userOrders) ? userOrders.filter((order: any) => {
+        if (activeTab === "all") return true;
+        if (activeTab === "processing") {
+            return ["pending", "confirmed", "preparing", "ready", "out_for_delivery", "processing"].includes(order.status);
+        }
+        return order.status === activeTab;
+    }) : [];
 
-      if (!summary || summary.items_added > 0) {
-        const itemsAdded = summary?.items_added || 0;
-        Alert.alert(
-          t.common.success,
-          itemsAdded > 0
-            ? `${itemsAdded} ${t.orders.itemsAddedToCart}`
-            : t.orders.itemsAddedToCart,
-          [
-            { text: t.cart.continueShopping, style: "cancel" },
-            {
-              text: t.orders.viewCart,
-              onPress: () => router.push("/(tabs)/cart"),
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchOrders();
+        setRefreshing(false);
+    }, []);
+
+    const handleReorder = async (orderId: number) => {
+        setReorderingId(orderId);
+        try {
+            // Reorder by adding items to cart - simplified
+            router.push("/(tabs)/cart");
+        } catch (error) {
+            console.error("Reorder failed:", error);
+        } finally {
+            setReorderingId(null);
+        }
+    };
+
+    const getStatusConfig = (status: string) => {
+        const configs: Record<string, { color: string; bgColor: string; iconName: keyof typeof Ionicons.glyphMap; label: string }> = {
+            pending: {
+                color: Colors.accentOrange,
+                bgColor: Colors.accentOrange + "15",
+                iconName: "time-outline",
+                label: "Pending",
             },
-          ],
+            confirmed: {
+                color: Colors.primary700,
+                bgColor: Colors.primary700 + "15",
+                iconName: "checkmark-circle-outline",
+                label: "Confirmed",
+            },
+            preparing: {
+                color: "#3B82F6",
+                bgColor: "#3B82F615",
+                iconName: "cube-outline",
+                label: "Preparing",
+            },
+            ready: {
+                color: Colors.primary700,
+                bgColor: Colors.primary700 + "15",
+                iconName: "cube-outline",
+                label: "Ready",
+            },
+            out_for_delivery: {
+                color: Colors.primary800,
+                bgColor: Colors.primary800 + "15",
+                iconName: "car-outline",
+                label: "On the way",
+            },
+            processing: {
+                color: Colors.accentOrange,
+                bgColor: Colors.accentOrange + "15",
+                iconName: "time-outline",
+                label: "Processing",
+            },
+            delivered: {
+                color: Colors.primary900,
+                bgColor: Colors.primary900 + "15",
+                iconName: "checkmark-circle",
+                label: t.orders?.delivered || "Delivered",
+            },
+            cancelled: {
+                color: Colors.accentRed,
+                bgColor: Colors.accentRed + "15",
+                iconName: "close-circle",
+                label: t.orders?.cancelled || "Cancelled",
+            },
+        };
+        return configs[status] || configs.pending;
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const day = date.getDate();
+        const month = date.toLocaleString("default", { month: "short" });
+        const year = date.getFullYear();
+        return `${day} ${month} ${year}`;
+    };
+
+    // Guest state
+    if (!user) {
+        return (
+            <SafeAreaView style={styles.container} edges={["top"]}>
+                <View style={styles.header}>
+                    <LinearGradient
+                        colors={[Colors.primary900, Colors.primary800]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.headerGradient}
+                    >
+                        <View style={styles.headerTop}>
+                            <View style={styles.brandContainer}>
+                                <View style={styles.brandIcon}>
+                                    <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
+                                </View>
+                                <Text style={styles.brandName}>ElBaraka</Text>
+                            </View>
+                        </View>
+                    </LinearGradient>
+                </View>
+
+                <View style={styles.guestContainer}>
+                    <View style={styles.guestIconContainer}>
+                        <Ionicons name="cube-outline" size={60} color={Colors.neutralGray} />
+                    </View>
+                    <Text style={styles.guestTitle}>Sign In Required</Text>
+                    <Text style={styles.guestText}>Sign in to view your orders</Text>
+                    <TouchableOpacity
+                        style={styles.signInButton}
+                        onPress={() => router.push("/(auth)/login")}
+                        activeOpacity={0.9}
+                    >
+                        <LinearGradient
+                            colors={[Colors.primary700, Colors.primary900]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.signInButtonGradient}
+                        >
+                            <Text style={styles.signInButtonText}>Sign In</Text>
+                            <ChevronRight size={18} color={Colors.neutralWhite} />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         );
-      } else {
-        Alert.alert(t.orders.unavailable, t.orders.itemsUnavailable);
-      }
-    } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.orders.reorderFailed);
-    } finally {
-      setReorderingId(null);
     }
-  };
 
-  const canReorder = (status: string) => {
-    return ["delivered", "cancelled", "failed"].includes(status);
-  };
+    const renderOrder = ({ item, index }: { item: any; index: number }) => {
+        const statusConfig = getStatusConfig(item.status);
+        const orderItems = item.items?.slice(0, 3) || [];
+        const moreItems = (item.items?.length || 0) - 3;
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending":
-      case "processing":
-        return <Clock size={20} color={Colors.accentOrange} />;
-      case "confirmed":
-      case "preparing":
-        return <Package size={20} color={Colors.primary700} />;
-      case "out_for_delivery":
-      case "shipped":
-        return <Truck size={20} color={Colors.primary900} />;
-      case "delivered":
-        return <CheckCircle size={20} color={Colors.primary700} />;
-      case "cancelled":
-      case "failed":
-        return <XCircle size={20} color={Colors.accentRed} />;
-      default:
-        return <Package size={20} color={Colors.neutralMedium} />;
-    }
-  };
+        return (
+            <Animated.View
+                style={[
+                    styles.orderCard,
+                    {
+                        opacity: fadeAnim,
+                        transform: [{
+                            translateY: fadeAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [20, 0],
+                            }),
+                        }],
+                    },
+                ]}
+            >
+                {/* Order Header */}
+                <View style={styles.orderHeader}>
+                    <View style={styles.orderIdRow}>
+                        <Text style={styles.orderNumber}>#{item.id || item.order_number}</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
+                            <Ionicons name={statusConfig.iconName} size={14} color={statusConfig.color} />
+                            <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                                {statusConfig.label}
+                            </Text>
+                        </View>
+                    </View>
+                    <Text style={styles.orderDate}>{formatDate(item.created_at)}</Text>
+                </View>
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-      case "processing":
-        return Colors.accentOrange;
-      case "confirmed":
-      case "preparing":
-        return Colors.primary700;
-      case "out_for_delivery":
-      case "shipped":
-        return Colors.primary900;
-      case "delivered":
-        return Colors.primary700;
-      case "cancelled":
-      case "failed":
-        return Colors.accentRed;
-      default:
-        return Colors.neutralMedium;
-    }
-  };
+                {/* Order Items Preview */}
+                <View style={styles.itemsPreview}>
+                    <View style={styles.itemImages}>
+                        {orderItems.map((orderItem: any, idx: number) => (
+                            <View
+                                key={orderItem.id || idx}
+                                style={[
+                                    styles.itemImageContainer,
+                                    { marginLeft: idx > 0 ? -12 : 0, zIndex: 10 - idx }
+                                ]}
+                            >
+                                {orderItem.product?.image ? (
+                                    <Image
+                                        source={{ uri: orderItem.product.image }}
+                                        style={styles.itemImage}
+                                    />
+                                ) : (
+                                    <View style={styles.itemImagePlaceholder}>
+                                        <Ionicons name="cube-outline" size={16} color={Colors.neutralMedium} />
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+                        {moreItems > 0 && (
+                            <View style={[styles.moreItemsBadge, { marginLeft: -12 }]}>
+                                <Text style={styles.moreItemsText}>+{moreItems}</Text>
+                            </View>
+                        )}
+                    </View>
 
-  const styles = StyleSheet.create({
+                    <View style={styles.orderSummary}>
+                        <Text style={styles.itemsCount}>
+                            {item.items?.length || 0} items
+                        </Text>
+                        <Text style={styles.orderTotal}>
+                            {parseFloat(item.total?.toString() || "0").toFixed(2)} EGP
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Order Items List */}
+                <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.neutralLight }}>
+                    {orderItems.map((orderItem: any, idx: number) => (
+                        <View key={orderItem.id || idx} style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                            <Ionicons name="ellipse" size={6} color={Colors.neutralMedium} style={{ marginRight: 8 }} />
+                            <Text style={{ flex: 1, fontSize: 13, color: Colors.neutralCharcoal }} numberOfLines={1}>
+                                {orderItem.product_name || orderItem.product?.name || "Product"}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: Colors.neutralMedium }}>x{orderItem.quantity}</Text>
+                        </View>
+                    ))}
+                    {moreItems > 0 && (
+                        <Text style={{ fontSize: 12, color: Colors.neutralMedium, marginLeft: 14 }}>
+                            +{moreItems} more item{moreItems > 1 ? "s" : ""}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Order Actions */}
+                <View style={styles.orderActions}>
+                    <TouchableOpacity
+                        style={styles.detailsButton}
+                        onPress={() => router.push(`/orders/${item.id}` as any)}
+                    >
+                        <Text style={styles.detailsButtonText}>View Details</Text>
+                        <ChevronRight size={16} color={Colors.primary900} />
+                    </TouchableOpacity>
+
+                    {item.status === "delivered" && (
+                        <TouchableOpacity
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                backgroundColor: Colors.accentYellow + "20",
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
+                                borderRadius: 12,
+                                gap: 4,
+                            }}
+                            onPress={() => router.push(`/orders/${item.id}` as any)}
+                        >
+                            <Ionicons name="star" size={14} color={Colors.accentOrange} />
+                            <Text style={{ fontSize: 12, fontWeight: "600", color: Colors.accentOrange }}>Rate</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {(item.status === "delivered" || item.status === "cancelled") && (
+                        <TouchableOpacity
+                            style={[
+                                styles.reorderButton,
+                                reorderingId === item.id && styles.reorderButtonDisabled,
+                            ]}
+                            onPress={() => handleReorder(item.id)}
+                            disabled={reorderingId === item.id}
+                            activeOpacity={0.9}
+                        >
+                            <LinearGradient
+                                colors={reorderingId === item.id ? [Colors.neutralGray, Colors.neutralGray] : [Colors.primary700, Colors.primary900]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.reorderButtonGradient}
+                            >
+                                <Ionicons name="refresh" size={14} color={Colors.neutralWhite} />
+                                <Text style={styles.reorderButtonText}>
+                                    {reorderingId === item.id ? "..." : "Reorder"}
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </Animated.View>
+        );
+    };
+
+    const renderEmptyState = () => (
+        <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconContainer}>
+                <Ionicons name="cube-outline" size={50} color={Colors.neutralGray} />
+            </View>
+            <Text style={styles.emptyTitle}>
+                {activeTab === "all"
+                    ? "No Orders Yet"
+                    : `No ${tabs.find(tab => tab.key === activeTab)?.label} Orders`}
+            </Text>
+            <Text style={styles.emptyText}>
+                {activeTab === "all"
+                    ? "Your orders will appear here"
+                    : "No orders in this category"}
+            </Text>
+            {activeTab === "all" && (
+                <TouchableOpacity
+                    style={styles.shopButton}
+                    onPress={() => router.push("/(tabs)/categories")}
+                    activeOpacity={0.9}
+                >
+                    <LinearGradient
+                        colors={[Colors.primary700, Colors.primary900]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.shopButtonGradient}
+                    >
+                        <Text style={styles.shopButtonText}>Start Shopping</Text>
+                        <ChevronRight size={18} color={Colors.neutralWhite} />
+                    </LinearGradient>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+
+    return (
+        <SafeAreaView style={styles.container} edges={["top"]}>
+            {/* ═══════════════════════════════════════════════════════════════════════════
+          BRANDED HEADER
+      ═══════════════════════════════════════════════════════════════════════════ */}
+            <View style={styles.header}>
+                <LinearGradient
+                    colors={[Colors.primary900, Colors.primary800]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.headerGradient}
+                >
+                    <View style={styles.headerTop}>
+                        <View style={styles.brandContainer}>
+                            <View style={styles.brandIcon}>
+                                <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
+                            </View>
+                            <Text style={styles.brandName}>ElBaraka</Text>
+                        </View>
+
+                        <View style={styles.orderCountBadge}>
+                            <Ionicons name="cube-outline" size={14} color={Colors.neutralWhite} />
+                            <Text style={styles.orderCountText}>{userOrders?.length || 0}</Text>
+                        </View>
+                    </View>
+
+                    {/* Tabs */}
+                    <View style={styles.tabsContainer}>
+                        <Animated.View
+                            style={[
+                                styles.tabIndicator,
+                                {
+                                    width: (width - 36) / 4 - 4,
+                                    transform: [{ translateX: tabIndicatorAnim }]
+                                }
+                            ]}
+                        />
+                        {tabs.map((tab, index) => (
+                            <TouchableOpacity
+                                key={tab.key}
+                                style={styles.tab}
+                                onPress={() => handleTabChange(tab.key, index)}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name={tab.iconName}
+                                    size={14}
+                                    color={activeTab === tab.key ? Colors.neutralWhite : "rgba(255,255,255,0.7)"}
+                                />
+                                <Text
+                                    style={[
+                                        styles.tabText,
+                                        activeTab === tab.key && styles.tabTextActive,
+                                    ]}
+                                >
+                                    {tab.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </LinearGradient>
+            </View>
+
+            {/* ═══════════════════════════════════════════════════════════════════════════
+          ORDERS LIST
+      ═══════════════════════════════════════════════════════════════════════════ */}
+            {ordersLoading && (userOrders?.length || 0) === 0 ? (
+                <View style={styles.loadingContainer}>
+                    <View style={styles.loadingIcon}>
+                        <Ionicons name="cube-outline" size={32} color={Colors.primary900} />
+                    </View>
+                    <Text style={styles.loadingText}>Loading...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredOrders}
+                    keyExtractor={(item) => item.id?.toString()}
+                    renderItem={renderOrder}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={renderEmptyState}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={[Colors.primary900]}
+                            tintColor={Colors.primary900}
+                        />
+                    }
+                />
+            )}
+
+            <GuestModal
+                visible={showGuestModal}
+                onClose={() => setShowGuestModal(false)}
+                message="Sign in to view your orders"
+            />
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
     container: {
-      flex: 1,
-      backgroundColor: Colors.neutralCloud,
+        flex: 1,
+        backgroundColor: Colors.neutralCloud,
     },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HEADER
+    // ═══════════════════════════════════════════════════════════════════════════
     header: {
-      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
-      paddingVertical: Spacing.md,
+        overflow: "hidden",
     },
-    title: {
-      fontSize: isSmallDevice ? Typography.h2 : Typography.h1,
-      fontWeight: Typography.bold,
-      color: Colors.neutralCharcoal,
+    headerGradient: {
+        paddingHorizontal: 18,
+        paddingTop: 10,
+        paddingBottom: 14,
+        borderBottomLeftRadius: 26,
+        borderBottomRightRadius: 26,
     },
-    tabContainer: {
-      flexDirection: "row",
-      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
-      marginBottom: Spacing.md,
-      gap: isSmallDevice ? 4 : Spacing.sm,
+    headerTop: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    brandContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    brandIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 9,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 10,
+    },
+    brandName: {
+        fontSize: 22,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+        letterSpacing: 0.3,
+    },
+    orderCountBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.15)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 14,
+        gap: 6,
+    },
+    orderCountText: {
+        fontSize: 13,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TABS
+    // ═══════════════════════════════════════════════════════════════════════════
+    tabsContainer: {
+        flexDirection: "row",
+        backgroundColor: "rgba(255,255,255,0.12)",
+        borderRadius: 14,
+        padding: 3,
+        position: "relative",
+    },
+    tabIndicator: {
+        position: "absolute",
+        height: "100%",
+        backgroundColor: Colors.neutralWhite + "30",
+        borderRadius: 12,
+        top: 3,
+        left: 3,
     },
     tab: {
-      flex: 1,
-      paddingVertical: Spacing.sm,
-      borderRadius: 12,
-      alignItems: "center",
-      backgroundColor: Colors.neutralWhite,
-    },
-    activeTab: {
-      backgroundColor: Colors.primary900,
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 10,
+        gap: 4,
     },
     tabText: {
-      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
-      fontWeight: Typography.semibold,
-      color: Colors.neutralMedium,
+        fontSize: 11,
+        fontFamily: "Poppins-Medium",
+        color: "rgba(255,255,255,0.7)",
     },
-    activeTabText: {
-      color: Colors.neutralWhite,
+    tabTextActive: {
+        color: Colors.neutralWhite,
+        fontFamily: "Poppins-SemiBold",
     },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    emptyContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: Spacing.xl,
-    },
-    emptyTitle: {
-      fontSize: isSmallDevice ? Typography.h3 : Typography.h2,
-      fontWeight: Typography.bold,
-      color: Colors.neutralCharcoal,
-      marginTop: Spacing.lg,
-      marginBottom: Spacing.sm,
-    },
-    emptyText: {
-      fontSize: Typography.bodyBase,
-      color: Colors.neutralMedium,
-      textAlign: "center",
-      marginBottom: Spacing.lg,
-    },
-    shopButton: {
-      backgroundColor: Colors.primary900,
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
-      borderRadius: 16,
-      minHeight: isSmallDevice ? 44 : 50,
-    },
-    shopButtonText: {
-      fontSize: Typography.bodyLarge,
-      fontWeight: Typography.bold,
-      color: Colors.neutralWhite,
-    },
-    loginButton: {
-      backgroundColor: Colors.primary900,
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
-      borderRadius: 16,
-      minHeight: isSmallDevice ? 44 : 50,
-    },
-    loginButtonText: {
-      fontSize: Typography.bodyLarge,
-      fontWeight: Typography.bold,
-      color: Colors.neutralWhite,
-    },
-    content: {
-      flex: 1,
-      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ORDERS LIST
+    // ═══════════════════════════════════════════════════════════════════════════
+    listContent: {
+        paddingHorizontal: 16,
+        paddingTop: 18,
+        paddingBottom: 100,
     },
     orderCard: {
-      backgroundColor: Colors.neutralWhite,
-      borderRadius: 24,
-      padding: isSmallDevice ? Spacing.sm : Spacing.md,
-      marginBottom: isSmallDevice ? Spacing.sm : Spacing.md,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
+        backgroundColor: Colors.neutralWhite,
+        borderRadius: 18,
+        padding: 16,
+        marginBottom: 14,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     orderHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: Spacing.md,
+        marginBottom: 14,
     },
-    orderHeaderLeft: {
-      flex: 1,
+    orderIdRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 4,
     },
     orderNumber: {
-      fontSize: isSmallDevice ? Typography.bodyBase : Typography.bodyLarge,
-      fontWeight: Typography.bold,
-      color: Colors.neutralCharcoal,
-      marginBottom: 4,
-    },
-    orderDate: {
-      fontSize: Typography.bodyMedium,
-      color: Colors.neutralMedium,
+        fontSize: 16,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralCharcoal,
     },
     statusBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 4,
-      borderRadius: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 10,
+        gap: 5,
     },
     statusText: {
-      fontSize: Typography.bodySmall,
-      fontWeight: Typography.semibold,
+        fontSize: 11,
+        fontFamily: "Poppins-SemiBold",
     },
-    orderItems: {
-      flexDirection: "row",
-      gap: Spacing.xs,
-      marginBottom: Spacing.md,
+    orderDate: {
+        fontSize: 12,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralMedium,
     },
-    miniItem: {
-      width: isSmallDevice ? 45 : 50,
-      height: isSmallDevice ? 45 : 50,
-      borderRadius: 12,
-      overflow: "hidden",
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ITEMS PREVIEW
+    // ═══════════════════════════════════════════════════════════════════════════
+    itemsPreview: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingTop: 14,
+        paddingBottom: 14,
+        borderTopWidth: 1,
+        borderTopColor: Colors.neutralLight,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.neutralLight,
     },
-    miniImage: {
-      width: "100%",
-      height: "100%",
-      backgroundColor: Colors.neutralLight,
+    itemImages: {
+        flexDirection: "row",
+        alignItems: "center",
     },
-    moreItems: {
-      width: isSmallDevice ? 45 : 50,
-      height: isSmallDevice ? 45 : 50,
-      borderRadius: 12,
-      backgroundColor: Colors.neutralLight,
-      justifyContent: "center",
-      alignItems: "center",
+    itemImageContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: Colors.neutralWhite,
+        overflow: "hidden",
+        backgroundColor: Colors.neutralLight,
+    },
+    itemImage: {
+        width: "100%",
+        height: "100%",
+        resizeMode: "cover",
+    },
+    itemImagePlaceholder: {
+        width: "100%",
+        height: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: Colors.neutralLight,
+    },
+    moreItemsBadge: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: Colors.primary100,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: Colors.neutralWhite,
     },
     moreItemsText: {
-      fontSize: Typography.bodySmall,
-      fontWeight: Typography.bold,
-      color: Colors.neutralMedium,
+        fontSize: 11,
+        fontFamily: "Poppins-Bold",
+        color: Colors.primary900,
     },
-    orderFooter: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingTop: Spacing.sm,
-      borderTopWidth: 1,
-      borderTopColor: Colors.neutralLight,
+    orderSummary: {
+        alignItems: "flex-end",
+    },
+    itemsCount: {
+        fontSize: 12,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralMedium,
+        marginBottom: 2,
     },
     orderTotal: {
-      fontSize: isSmallDevice ? Typography.bodyBase : Typography.bodyLarge,
-      fontWeight: Typography.bold,
-      color: Colors.primary900,
+        fontSize: 16,
+        fontFamily: "Poppins-Bold",
+        color: Colors.primary900,
     },
-    viewDetails: {
-      fontSize: Typography.bodyBase,
-      fontWeight: Typography.semibold,
-      color: Colors.primary900,
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ORDER ACTIONS
+    // ═══════════════════════════════════════════════════════════════════════════
+    orderActions: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: 14,
     },
-    footerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: Spacing.sm,
+    detailsButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    detailsButtonText: {
+        fontSize: 13,
+        fontFamily: "Poppins-SemiBold",
+        color: Colors.primary900,
     },
     reorderButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      backgroundColor: Colors.primary100,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 6,
-      borderRadius: 8,
+        borderRadius: 12,
+        overflow: "hidden",
+    },
+    reorderButtonDisabled: {
+        opacity: 0.7,
+    },
+    reorderButtonGradient: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        gap: 6,
     },
     reorderButtonText: {
-      fontSize: Typography.bodySmall,
-      fontWeight: Typography.semibold,
-      color: Colors.primary900,
+        fontSize: 12,
+        fontFamily: "Poppins-SemiBold",
+        color: Colors.neutralWhite,
     },
-  });
 
-  // Early return for non-logged-in users (after styles are defined)
-  if (!user) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.emptyContainer}>
-          <Package size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>{t.orders.pleaseLogin}</Text>
-          <Text style={styles.emptyText}>{t.orders.signInToView}</Text>
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.push("/(auth)/login")}
-          >
-            <Text style={styles.loginButtonText}>{t.auth.login}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // EMPTY & LOADING STATES
+    // ═══════════════════════════════════════════════════════════════════════════
+    loadingContainer: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    loadingIcon: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: Colors.primary100,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    loadingText: {
+        fontSize: 14,
+        fontFamily: "Poppins-Medium",
+        color: Colors.neutralMedium,
+    },
+    emptyContainer: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 40,
+        paddingTop: 80,
+    },
+    emptyIconContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: Colors.neutralLight,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 20,
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralCharcoal,
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    emptyText: {
+        fontSize: 14,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralMedium,
+        textAlign: "center",
+        marginBottom: 24,
+    },
+    shopButton: {
+        borderRadius: 16,
+        overflow: "hidden",
+        shadowColor: Colors.primary900,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    shopButtonGradient: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 28,
+        paddingVertical: 14,
+        gap: 6,
+    },
+    shopButtonText: {
+        fontSize: 16,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+    },
 
-  return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t.orders.title}</Text>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        {(["all", "active", "delivered", "cancelled"] as TabType[]).map(
-          (tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.activeTab]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === tab && styles.activeTabText,
-                ]}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ),
-        )}
-      </View>
-
-      {loading ? (
-        <View style={styles.content}>
-          <OfflineIndicator />
-          {[1, 2, 3, 4].map((i) => (
-            <View
-              key={i}
-              style={[styles.orderCard, { marginBottom: Spacing.md }]}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                <SkeletonLoader width={120} height={20} borderRadius={6} />
-                <SkeletonLoader width={80} height={24} borderRadius={12} />
-              </View>
-              <View style={{ height: 8 }} />
-              <SkeletonLoader width="60%" height={16} borderRadius={4} />
-              <View style={{ height: 8 }} />
-              <SkeletonLoader width="40%" height={16} borderRadius={4} />
-              <View style={{ height: 16 }} />
-              <View style={{ flexDirection: "row", gap: Spacing.md }}>
-                <SkeletonLoader width={60} height={60} borderRadius={8} />
-                <SkeletonLoader width={60} height={60} borderRadius={8} />
-                <SkeletonLoader width={60} height={60} borderRadius={8} />
-              </View>
-              <View style={{ height: 16 }} />
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                }}
-              >
-                <SkeletonLoader width={100} height={20} borderRadius={6} />
-                <SkeletonLoader width={80} height={36} borderRadius={18} />
-              </View>
-            </View>
-          ))}
-        </View>
-      ) : orders.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <ShoppingBag size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>{t.orders.noOrdersYet}</Text>
-          <Text style={styles.emptyText}>{t.orders.startShoppingToSee}</Text>
-          <TouchableOpacity
-            style={styles.shopButton}
-            onPress={() => router.push("/(tabs)")}
-          >
-            <Text style={styles.shopButtonText}>{t.orders.startShopping}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.primary900]}
-            />
-          }
-        >
-          {orders.map((order) => (
-            <TouchableOpacity
-              key={order.id}
-              style={styles.orderCard}
-              onPress={() => router.push(`/orders/${order.id}` as any)}
-            >
-              <View style={styles.orderHeader}>
-                <View style={styles.orderHeaderLeft}>
-                  <Text style={styles.orderNumber}>{order.order_number}</Text>
-                  <Text style={styles.orderDate}>
-                    {new Date(order.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(order.status) + "20" },
-                  ]}
-                >
-                  {getStatusIcon(order.status)}
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
-                    ]}
-                  >
-                    {order.status_label}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.orderItems}>
-                {order.items?.slice(0, 2).map((item) => (
-                  <View key={item.id} style={styles.miniItem}>
-                    {item.product?.image && (
-                      <Image
-                        source={{ uri: item.product.image }}
-                        style={styles.miniImage}
-                      />
-                    )}
-                  </View>
-                ))}
-                {(order.items?.length || 0) > 2 && (
-                  <View style={styles.moreItems}>
-                    <Text style={styles.moreItemsText}>
-                      +{(order.items?.length || 0) - 2}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.orderFooter}>
-                <Text style={styles.orderTotal}>
-                  {t.orders.total}:{" "}
-                  {parseFloat(order.total.toString()).toFixed(2)}{" "}
-                  {t.common.currency}
-                </Text>
-                <View style={styles.footerActions}>
-                  {canReorder(order.status) && (
-                    <TouchableOpacity
-                      style={styles.reorderButton}
-                      onPress={(e) => handleReorder(order.id, e)}
-                      disabled={reorderingId === order.id}
-                      activeOpacity={0.7}
-                    >
-                      {reorderingId === order.id ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={Colors.primary900}
-                        />
-                      ) : (
-                        <>
-                          <RotateCcw size={14} color={Colors.primary900} />
-                          <Text style={styles.reorderButtonText}>
-                            {t.orders.reorder}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                  <Text style={styles.viewDetails}>{t.orders.details} →</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-          <View style={{ height: 20 }} />
-        </ScrollView>
-      )}
-    </SafeAreaView>
-  );
-}
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GUEST STATE
+    // ═══════════════════════════════════════════════════════════════════════════
+    guestContainer: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 40,
+    },
+    guestIconContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: Colors.neutralLight,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 20,
+    },
+    guestTitle: {
+        fontSize: 20,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralCharcoal,
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    guestText: {
+        fontSize: 14,
+        fontFamily: "Poppins-Regular",
+        color: Colors.neutralMedium,
+        textAlign: "center",
+        marginBottom: 24,
+    },
+    signInButton: {
+        borderRadius: 16,
+        overflow: "hidden",
+        shadowColor: Colors.primary900,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    signInButtonGradient: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 28,
+        paddingVertical: 14,
+        gap: 6,
+    },
+    signInButtonText: {
+        fontSize: 16,
+        fontFamily: "Poppins-Bold",
+        color: Colors.neutralWhite,
+    },
+});

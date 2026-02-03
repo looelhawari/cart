@@ -493,7 +493,7 @@ export default function ProductDetailScreen() {
           ))}
         </View>
         <Text style={styles.ratingText}>
-          {(product.rating || 0).toFixed(1)} ({product.review_count || 0}{" "}
+          {Number(product.rating || 0).toFixed(1)} ({product.review_count || 0}{" "}
           {t.products.reviews})
         </Text>
         <ChevronDown
@@ -794,7 +794,7 @@ export default function ProductDetailScreen() {
   };
 
   const renderReviewsSection = () => {
-    const averageRating = product?.rating || 0;
+    const averageRating = Number(product?.rating || 0);
     const reviewCount = reviews.length;
 
     // Calculate rating distribution
