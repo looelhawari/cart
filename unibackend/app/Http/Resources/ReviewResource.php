@@ -18,7 +18,7 @@ class ReviewResource extends JsonResource
             'id' => $this->id,
             'product_id' => $this->product_id,
             'user_id' => $this->user_id,
-            'user_name' => $this->user->name ?? 'Anonymous',
+            'user_name' => $this->user ? ($this->user->first_name . ' ' . $this->user->last_name) : 'Anonymous',
             'user_avatar' => $this->user->avatar ?? null,
             'order_id' => $this->order_id,
             'rating' => $this->rating,

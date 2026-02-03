@@ -1043,6 +1043,7 @@ class CartService
         return [
             'cart' => [
                 'id' => $cart->id,
+                'promo_code' => $cart->promo_code,
                 'items' => $items,
                 ...$totals,
             ],

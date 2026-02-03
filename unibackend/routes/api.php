@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Admin\PromotionController as AdminPromotionController;
 use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\PromoCodeController as AdminPromoCodeController;
+use App\Http\Controllers\Api\Admin\StoreSettingsController as AdminStoreSettingsController;
+use App\Http\Controllers\Api\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
@@ -32,6 +34,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\PromoCodeApiController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\StaticPageController;
+use App\Http\Controllers\Api\StoreSettingsController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
@@ -139,6 +142,14 @@ Route::prefix('v1')->group(function () {
     Route::middleware('throttle:60,1')->prefix('pages')->group(function () {
         Route::get('/', [StaticPageController::class, 'index']);
         Route::get('/{slug}', [StaticPageController::class, 'show']);
+    });
+
+    // Store settings routes (public - for mobile app) - throttled to 60 requests per minute
+    Route::middleware('throttle:60,1')->prefix('store')->group(function () {
+        Route::get('/settings', [StoreSettingsController::class, 'index']);
+        Route::get('/status', [StoreSettingsController::class, 'getStoreStatus']);
+        Route::get('/working-hours', [StoreSettingsController::class, 'getWorkingHours']);
+        Route::get('/delivery-settings', [StoreSettingsController::class, 'getDeliverySettings']);
     });
 
     // Protected routes
@@ -374,10 +385,13 @@ Route::prefix('v1')->group(function () {
             Route::prefix('products')->group(function () {
                 Route::get('/', [AdminProductController::class, 'index']);
                 Route::post('/', [AdminProductController::class, 'store']);
+                Route::get('/stock-alerts', [AdminProductController::class, 'stockAlerts']);
+                Route::post('/bulk-stock', [AdminProductController::class, 'bulkToggleStock']);
                 Route::get('/{barcode}', [AdminProductController::class, 'show']);
                 Route::put('/{barcode}', [AdminProductController::class, 'update']);
                 Route::delete('/{barcode}', [AdminProductController::class, 'destroy']);
                 Route::post('/{barcode}/upload-image', [AdminProductController::class, 'uploadImage']);
+                Route::put('/{barcode}/stock', [AdminProductController::class, 'toggleStock']);
             });
 
             // Categories Management
@@ -539,6 +553,30 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{id}/usage-history', [AdminPromoCodeController::class, 'usageHistory']);
                 Route::get('/{id}/users', [AdminPromoCodeController::class, 'users']);
                 Route::get('/{id}/user/{userId}', [AdminPromoCodeController::class, 'userUsage']);
+            });
+
+            // Store Settings Management
+            Route::prefix('store-settings')->group(function () {
+                Route::get('/', [AdminStoreSettingsController::class, 'index']);
+                Route::get('/status', [AdminStoreSettingsController::class, 'getStoreStatus']);
+                Route::put('/working-hours', [AdminStoreSettingsController::class, 'updateWorkingHours']);
+                Route::post('/toggle-closure', [AdminStoreSettingsController::class, 'toggleStoreClosure']);
+                Route::put('/setting', [AdminStoreSettingsController::class, 'updateSetting']);
+                Route::put('/settings', [AdminStoreSettingsController::class, 'updateSettings']);
+                Route::post('/clear-cache', [AdminStoreSettingsController::class, 'clearCache']);
+            });
+
+            // Reviews & Ratings Management
+            Route::prefix('reviews')->group(function () {
+                Route::get('/', [AdminReviewController::class, 'index']);
+                Route::get('/analytics', [AdminReviewController::class, 'analytics']);
+                Route::get('/order/{orderId}', [AdminReviewController::class, 'orderReviews']);
+                Route::get('/{id}', [AdminReviewController::class, 'show']);
+                Route::get('/{id}/history', [AdminReviewController::class, 'history']);
+                Route::put('/{id}/status', [AdminReviewController::class, 'updateStatus']);
+                Route::post('/{id}/respond', [AdminReviewController::class, 'respond']);
+                Route::post('/bulk-status', [AdminReviewController::class, 'bulkUpdateStatus']);
+                Route::delete('/{id}', [AdminReviewController::class, 'destroy']);
             });
         });
     });

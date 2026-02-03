@@ -21,7 +21,7 @@ class ReviewController extends Controller
     {
         $reviews = Review::where('product_id', $productId)
             ->where('status', 'approved')
-            ->with(['user:id,name'])
+            ->with(['user:id,first_name,last_name'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
@@ -33,7 +33,7 @@ class ReviewController extends Controller
      */
     public function show($id)
     {
-        $review = Review::with(['user:id,name'])->findOrFail($id);
+        $review = Review::with(['user:id,first_name,last_name'])->findOrFail($id);
         return new ReviewResource($review);
     }
 
@@ -43,7 +43,7 @@ class ReviewController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'product_id' => 'required|exists:products,id',
+            'product_id' => 'required|integer',
             'order_id' => 'required|exists:orders,id',
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'required|string|max:1000',
@@ -93,7 +93,6 @@ class ReviewController extends Controller
             'order_id' => $request->order_id,
             'rating' => $request->rating,
             'comment' => $request->comment,
-            'images' => $request->images ? json_encode($request->images) : null,
             'status' => 'pending', // Reviews need approval
         ]);
 
@@ -240,14 +239,14 @@ class ReviewController extends Controller
             ->whereHas('items', function($query) use ($productId) {
                 $query->where('product_id', $productId);
             })
-            ->select('id', 'order_number', 'delivered_at', 'updated_at')
-            ->orderBy('delivered_at', 'desc')
+            ->select('id', 'order_number', 'updated_at')
+            ->orderBy('updated_at', 'desc')
             ->get()
             ->map(function($order) {
                 return [
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
-                    'delivered_at' => $order->delivered_at ?? $order->updated_at,
+                    'delivered_at' => $order->updated_at,
                 ];
             });
 

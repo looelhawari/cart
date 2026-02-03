@@ -157,6 +157,22 @@ class Order extends Model
     }
 
     /**
+     * Get the reviews for this order
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    /**
+     * Get the order rating (overall order experience rating)
+     */
+    public function orderRating()
+    {
+        return $this->hasOne(Review::class)->where('rating_type', 'order');
+    }
+
+    /**
      * Generate unique order number
      */
     public static function generateOrderNumber(): string

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\CheckoutService;
 use App\Services\CartService;
 use App\Models\PromoCode;
+use App\Models\StoreSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -163,6 +164,20 @@ class CheckoutController extends Controller
         }
 
         try {
+            // Check if store is open for orders
+            $storeStatus = StoreSetting::isStoreOpen();
+            if (!$storeStatus['is_open']) {
+                $lang = $request->header('Accept-Language', 'en');
+                $message = $lang === 'ar' ? $storeStatus['message_ar'] : $storeStatus['message_en'];
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'reason' => $storeStatus['reason'],
+                    'store_status' => $storeStatus,
+                ], 400);
+            }
+
             // Get order and verify ownership
             $order = \App\Models\Order::findOrFail($request->order_id);
 

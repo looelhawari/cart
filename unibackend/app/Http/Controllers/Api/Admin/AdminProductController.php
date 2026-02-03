@@ -182,4 +182,92 @@ class AdminProductController extends Controller
 
         return response()->json($product->load('categories'));
     }
+
+    /**
+     * Toggle product stock status
+     */
+    public function toggleStock(Request $request, $barcode)
+    {
+        $product = Product::where('barcode', $barcode)->firstOrFail();
+        
+        $request->validate([
+            'is_in_stock' => 'required|boolean',
+        ]);
+
+        $product->update([
+            'is_in_stock' => $request->is_in_stock,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $request->is_in_stock ? 'Product marked as in stock' : 'Product marked as out of stock',
+            'data' => $product->load('categories'),
+        ]);
+    }
+
+    /**
+     * Bulk update stock status for multiple products
+     */
+    public function bulkToggleStock(Request $request)
+    {
+        $request->validate([
+            'products' => 'required|array|min:1',
+            'products.*.barcode' => 'required|exists:products,barcode',
+            'products.*.is_in_stock' => 'required|boolean',
+        ]);
+
+        $updated = [];
+        foreach ($request->products as $item) {
+            Product::where('barcode', $item['barcode'])->update([
+                'is_in_stock' => $item['is_in_stock'],
+            ]);
+            $updated[] = $item['barcode'];
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($updated) . ' products updated successfully',
+            'data' => ['updated_barcodes' => $updated],
+        ]);
+    }
+
+    /**
+     * Get products with low stock or out of stock
+     */
+    public function stockAlerts(Request $request)
+    {
+        $threshold = $request->get('threshold', 10);
+
+        $outOfStock = Product::where('is_in_stock', false)
+            ->orWhere('stock_quantity', 0)
+            ->count();
+
+        $lowStock = Product::where('stock_quantity', '>', 0)
+            ->where('stock_quantity', '<=', $threshold)
+            ->where('is_in_stock', true)
+            ->count();
+
+        $products = Product::where(function ($query) use ($threshold) {
+            $query->where('is_in_stock', false)
+                ->orWhere('stock_quantity', 0)
+                ->orWhere(function ($q) use ($threshold) {
+                    $q->where('stock_quantity', '<=', $threshold)
+                        ->where('stock_quantity', '>', 0);
+                });
+        })
+            ->with('categories')
+            ->orderBy('stock_quantity', 'asc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'out_of_stock_count' => $outOfStock,
+                'low_stock_count' => $lowStock,
+                'threshold' => $threshold,
+                'products' => $products,
+            ],
+        ]);
+    }
 }

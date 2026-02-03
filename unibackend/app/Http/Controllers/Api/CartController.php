@@ -44,7 +44,13 @@ class CartController extends Controller
                 'items_count' => $cart->items->count(),
             ]);
 
-            $cartDetails = $this->cartService->getCartDetails($cart, null);
+            // Load promo code if one is applied to the cart
+            $promoCode = null;
+            if ($cart->promo_code) {
+                $promoCode = PromoCode::where('code', $cart->promo_code)->first();
+            }
+
+            $cartDetails = $this->cartService->getCartDetails($cart, $promoCode);
 
             return response()->json([
                 'success' => true,
@@ -301,6 +307,10 @@ class CartController extends Controller
                 ], 422);
             }
 
+            // Store the promo code on the cart so it persists
+            $cart->promo_code = $promoCode->code;
+            $cart->save();
+
             $cartDetails = $this->cartService->getCartDetails($cart, $promoCode);
 
             return response()->json([
@@ -332,6 +342,10 @@ class CartController extends Controller
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
+
+            // Clear the promo code from the cart
+            $cart->promo_code = null;
+            $cart->save();
 
             $cartDetails = $this->cartService->getCartDetails($cart);
 
