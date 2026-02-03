@@ -32,13 +32,21 @@ export interface UpdateReviewPayload {
 }
 
 export interface ReviewsResponse {
-  success: boolean;
+  success?: boolean;
   data: Review[];
+  links?: {
+    first: string;
+    last: string;
+    prev: string | null;
+    next: string | null;
+  };
   meta?: {
     current_page: number;
     last_page: number;
     per_page: number;
     total: number;
+    from: number;
+    to: number;
   };
 }
 
@@ -137,6 +145,7 @@ export interface CanReviewResponse {
       order_number: string;
       delivered_at: string;
     }[];
+    existing_review?: Review;
   };
 }
 

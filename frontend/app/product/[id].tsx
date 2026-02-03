@@ -42,8 +42,10 @@ import {
   getProductReviews,
   canReviewProduct,
   createReview,
+  updateReview,
   markReviewHelpful,
   type CreateReviewPayload,
+  type UpdateReviewPayload,
   type CanReviewResponse,
 } from "@/services/api/reviewsApi";
 import type { Product, Review } from "@/types";
@@ -74,6 +76,8 @@ export default function ProductDetailScreen() {
   const [canReview, setCanReview] = useState<CanReviewResponse["data"] | null>(
     null,
   );
+  const [existingReview, setExistingReview] = useState<Review | null>(null);
+  const [isEditingReview, setIsEditingReview] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
@@ -171,8 +175,11 @@ export default function ProductDetailScreen() {
     try {
       setReviewsLoading(true);
       const response = await getProductReviews(id);
-      if (response.success) {
-        setReviews(response.data || []);
+      // Handle both wrapped response {success, data} and direct array/paginated response
+      if (response.data) {
+        setReviews(response.data);
+      } else if (Array.isArray(response)) {
+        setReviews(response);
       }
     } catch (error) {
       console.error("Failed to load reviews:", error);
@@ -187,6 +194,12 @@ export default function ProductDetailScreen() {
       const response = await canReviewProduct(id);
       if (response.success) {
         setCanReview(response.data);
+        // Store existing review if user has already reviewed
+        if (response.data.existing_review) {
+          setExistingReview(response.data.existing_review as Review);
+        } else {
+          setExistingReview(null);
+        }
         // Auto-select first eligible order
         if (response.data.eligible_orders?.length > 0) {
           setSelectedOrderId(response.data.eligible_orders[0].order_id);
@@ -194,6 +207,15 @@ export default function ProductDetailScreen() {
       }
     } catch (error) {
       console.error("Failed to check review eligibility:", error);
+    }
+  };
+
+  const handleEditReview = () => {
+    if (existingReview) {
+      setReviewRating(existingReview.rating);
+      setReviewComment(existingReview.comment || "");
+      setIsEditingReview(true);
+      setShowReviewModal(true);
     }
   };
 
@@ -220,22 +242,36 @@ export default function ProductDetailScreen() {
   }, [product, toggleFavorite, favoriteAnimValue]);
 
   const handleSubmitReview = async () => {
-    if (!selectedOrderId || !reviewComment.trim()) return;
+    if (!reviewComment.trim()) return;
 
     try {
       setSubmittingReview(true);
-      const payload: CreateReviewPayload = {
-        product_id: Number(id),
-        order_id: selectedOrderId,
-        rating: reviewRating,
-        comment: reviewComment.trim(),
-      };
 
-      await createReview(payload);
+      if (isEditingReview && existingReview) {
+        // Update existing review
+        const payload: UpdateReviewPayload = {
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+        };
+        await updateReview(existingReview.id, payload);
+        setToastMessage("Review updated successfully!");
+      } else {
+        // Create new review
+        if (!selectedOrderId) return;
+        const payload: CreateReviewPayload = {
+          product_id: Number(id),
+          order_id: selectedOrderId,
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+        };
+        await createReview(payload);
+        setToastMessage("Review submitted successfully!");
+      }
+
       setShowReviewModal(false);
       setReviewComment("");
       setReviewRating(5);
-      setToastMessage("Review submitted successfully!");
+      setIsEditingReview(false);
       setShowToast(true);
 
       // Reload reviews and eligibility
@@ -794,8 +830,9 @@ export default function ProductDetailScreen() {
   };
 
   const renderReviewsSection = () => {
-    const averageRating = Number(product?.rating || 0);
+    // Use product rating from database, but only show if there are actual reviews
     const reviewCount = reviews.length;
+    const averageRating = reviewCount > 0 ? Number(product?.rating || 0) : 0;
 
     // Calculate rating distribution
     const ratingCounts = [0, 0, 0, 0, 0];
@@ -817,7 +854,12 @@ export default function ProductDetailScreen() {
           {canReview?.can_review && (
             <TouchableOpacity
               style={styles.writeReviewButton}
-              onPress={() => setShowReviewModal(true)}
+              onPress={() => {
+                setIsEditingReview(false);
+                setReviewRating(5);
+                setReviewComment("");
+                setShowReviewModal(true);
+              }}
             >
               <Award size={16} color={Colors.neutralWhite} />
               <Text style={styles.writeReviewText}>Write Review</Text>
@@ -848,7 +890,7 @@ export default function ProductDetailScreen() {
               ))}
             </View>
             <Text style={styles.totalReviews}>
-              Based on {reviewCount} reviews
+              Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
             </Text>
           </View>
 
@@ -901,8 +943,8 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-        {/* Already Reviewed Notice */}
-        {canReview?.already_reviewed && (
+        {/* Already Reviewed Notice with Edit Button */}
+        {canReview?.already_reviewed && existingReview && (
           <View
             style={[
               styles.purchaseNotice,
@@ -917,7 +959,7 @@ export default function ProductDetailScreen() {
             >
               <Check size={20} color={Colors.neutralWhite} />
             </View>
-            <View style={styles.purchaseNoticeText}>
+            <View style={[styles.purchaseNoticeText, { flex: 1 }]}>
               <Text style={styles.purchaseNoticeTitle}>
                 You&apos;ve Already Reviewed
               </Text>
@@ -925,6 +967,12 @@ export default function ProductDetailScreen() {
                 Thank you for sharing your feedback!
               </Text>
             </View>
+            <TouchableOpacity
+              style={styles.editReviewButton}
+              onPress={handleEditReview}
+            >
+              <Text style={styles.editReviewButtonText}>Edit</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1046,14 +1094,22 @@ export default function ProductDetailScreen() {
       visible={showReviewModal}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={() => setShowReviewModal(false)}
+      onRequestClose={() => {
+        setShowReviewModal(false);
+        setIsEditingReview(false);
+      }}
     >
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={() => setShowReviewModal(false)}>
+          <TouchableOpacity onPress={() => {
+            setShowReviewModal(false);
+            setIsEditingReview(false);
+          }}>
             <X size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Write a Review</Text>
+          <Text style={styles.modalTitle}>
+            {isEditingReview ? "Edit Your Review" : "Write a Review"}
+          </Text>
           <View style={{ width: 24 }} />
         </View>
 
@@ -1072,8 +1128,8 @@ export default function ProductDetailScreen() {
             </Text>
           </View>
 
-          {/* Order Selection */}
-          {canReview?.eligible_orders &&
+          {/* Order Selection - only show when creating new review */}
+          {!isEditingReview && canReview?.eligible_orders &&
             canReview.eligible_orders.length > 1 && (
               <View style={styles.orderSelection}>
                 <Text style={styles.orderSelectionLabel}>Select Order</Text>
@@ -1184,7 +1240,9 @@ export default function ProductDetailScreen() {
             ) : (
               <>
                 <Send size={20} color={Colors.neutralWhite} />
-                <Text style={styles.submitReviewText}>Submit Review</Text>
+                <Text style={styles.submitReviewText}>
+                  {isEditingReview ? "Update Review" : "Submit Review"}
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -2026,6 +2084,17 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySmall,
     color: Colors.neutralMedium,
     marginTop: 2,
+  },
+  editReviewButton: {
+    backgroundColor: Colors.primary900,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+  },
+  editReviewButtonText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: "600",
+    color: Colors.neutralWhite,
   },
   reviewsLoading: {
     flexDirection: "row",

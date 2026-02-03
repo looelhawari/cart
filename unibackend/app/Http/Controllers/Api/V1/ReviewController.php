@@ -228,10 +228,12 @@ class ReviewController extends Controller
             ], 404);
         }
 
-        // Check if user already reviewed this product
-        $alreadyReviewed = Review::where('user_id', $user->id)
+        // Check if user already reviewed this product - get the actual review
+        $existingReview = Review::where('user_id', $user->id)
             ->where('product_id', $productId)
-            ->exists();
+            ->first();
+        
+        $alreadyReviewed = $existingReview !== null;
 
         // Get eligible orders (delivered orders containing this product that haven't been reviewed)
         $eligibleOrders = Order::where('user_id', $user->id)
@@ -253,14 +255,21 @@ class ReviewController extends Controller
         $hasPurchased = $eligibleOrders->isNotEmpty();
         $canReview = $hasPurchased && !$alreadyReviewed;
 
+        $responseData = [
+            'can_review' => $canReview,
+            'has_purchased' => $hasPurchased,
+            'already_reviewed' => $alreadyReviewed,
+            'eligible_orders' => $eligibleOrders,
+        ];
+        
+        // Include the existing review if user has already reviewed
+        if ($existingReview) {
+            $responseData['existing_review'] = new ReviewResource($existingReview);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'can_review' => $canReview,
-                'has_purchased' => $hasPurchased,
-                'already_reviewed' => $alreadyReviewed,
-                'eligible_orders' => $eligibleOrders,
-            ]
+            'data' => $responseData
         ]);
     }
 
