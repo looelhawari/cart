@@ -229,7 +229,11 @@ class AuthController extends Controller
         // Record login for security tracking and send notification if new device
         if ($this->enterpriseNotificationService) {
             try {
-                $loginRecord = UserLoginHistory::recordLogin($user->id, $request);
+                // Extract actual IP address from request
+                $ipAddress = $request->ip() ?? $request->getClientIp() ?? 'unknown';
+                $userAgent = $request->header('User-Agent');
+                
+                $loginRecord = UserLoginHistory::recordLogin($user->id, $ipAddress, $userAgent);
                 
                 if ($loginRecord && $loginRecord->is_new_device) {
                     $this->enterpriseNotificationService->notifyNewDeviceFromHistory($user->id, $loginRecord);

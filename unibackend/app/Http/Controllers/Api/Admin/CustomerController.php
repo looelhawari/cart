@@ -221,4 +221,48 @@ class CustomerController extends Controller
             
         return response()->json($logs);
     }
+
+    /**
+     * Get customer statistics for dashboard
+     */
+    public function stats(Request $request)
+    {
+        $query = User::where('role', 'customer');
+
+        // Apply date filters if provided
+        if ($request->filled('start_date')) {
+            $query->where('created_at', '>=', $request->start_date);
+        }
+        if ($request->filled('end_date')) {
+            $query->where('created_at', '<=', $request->end_date);
+        }
+
+        $totalCustomers = $query->count();
+        $activeCustomers = (clone $query)->where('is_active', true)->count();
+        $vipCustomers = (clone $query)->where('is_vip', true)->count();
+        $codRestrictedCustomers = (clone $query)->where('is_cod_restricted', true)->count();
+
+        // New customers (last 30 days)
+        $newCustomersLast30Days = User::where('role', 'customer')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->count();
+
+        // Customers with orders
+        $customersWithOrders = User::where('role', 'customer')
+            ->has('orders')
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_customers' => $totalCustomers,
+                'active_customers' => $activeCustomers,
+                'vip_customers' => $vipCustomers,
+                'cod_restricted_customers' => $codRestrictedCustomers,
+                'new_customers_last_30_days' => $newCustomersLast30Days,
+                'customers_with_orders' => $customersWithOrders,
+                'conversion_rate' => $totalCustomers > 0 ? round(($customersWithOrders / $totalCustomers) * 100, 2) : 0,
+            ]
+        ]);
+    }
 }
