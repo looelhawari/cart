@@ -120,7 +120,8 @@ export interface OrderReviews {
 export const reviewService = {
     // Get all reviews with filtering
     getReviews: async (filters?: ReviewFilters): Promise<PaginatedResponse<Review>> => {
-        return apiClient.get('/admin/reviews', filters)
+        const response = await apiClient.get<{ success: boolean; data: PaginatedResponse<Review> }>('/admin/reviews', filters)
+        return response.data
     },
 
     // Get review analytics
