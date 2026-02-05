@@ -12,6 +12,7 @@ import {
   ResetPasswordData,
   User as ApiUser,
 } from "@/services/api";
+import { TOKEN_CONFIG } from "@/config/app.config";
 import * as favoritesApi from "@/services/api/favoritesApi";
 
 interface User {
@@ -196,6 +197,7 @@ export const useStore = create<StoreState>()(
       verifyEmail: async (data: VerifyEmailData) => {
         const response = await authApi.verifyEmail(data);
 
+        // CRITICAL: Set isAuthenticated to true and persist it
         set({
           isAuthenticated: true,
           user: response.data.user,
@@ -228,17 +230,33 @@ export const useStore = create<StoreState>()(
       // Check authentication status on app startup
       checkAuthStatus: async () => {
         try {
+          // Check if we have a token first
+          const token = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+          if (!token) {
+            // No token, definitely not authenticated
+            set({
+              isAuthenticated: false,
+              user: null,
+            });
+            return;
+          }
+
+          // Try to fetch profile - this will auto-refresh token if expired
           const response = await authApi.getProfile();
           set({
             isAuthenticated: true,
             user: response.data,
           });
-        } catch (error) {
-          // Token is invalid or expired
-          set({
-            isAuthenticated: false,
-            user: null,
-          });
+        } catch (error: any) {
+          // Only clear auth if it's a token expired error
+          if (error?.error_code === "TOKEN_EXPIRED") {
+            set({
+              isAuthenticated: false,
+              user: null,
+            });
+          }
+          // For other errors (network, etc), keep existing auth state
+          // This prevents logging out users due to temporary network issues
         }
       },
 
@@ -572,7 +590,7 @@ export const useStore = create<StoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         hasCompletedOnboarding: state.hasCompletedOnboarding,
-        isAuthenticated: state.isAuthenticated,
+        isAuthenticated: state.isAuthenticated, // PERSIST authentication status
         // DO NOT persist user object - fetch from server on app start
         // user: state.user,  // REMOVED for security
         // DO NOT persist cart - always fetch from server
@@ -582,7 +600,7 @@ export const useStore = create<StoreState>()(
         paymentMethods: state.paymentMethods,
         orders: state.orders,
       }),
-      version: 2, // Increment version to trigger migration
+      version: 3, // Increment version to trigger migration
       migrate: (persistedState: any, version: number) => {
         // Migration to handle old cart structure
         if (version < 2) {
@@ -591,6 +609,14 @@ export const useStore = create<StoreState>()(
             cart: null, // Reset cart to null for API-based cart
             cartLoading: false,
             cartError: null,
+          };
+        }
+        // Version 3: Ensure isAuthenticated is properly migrated
+        if (version < 3) {
+          return {
+            ...persistedState,
+            // Keep existing isAuthenticated value if present
+            isAuthenticated: persistedState.isAuthenticated ?? false,
           };
         }
         return persistedState;

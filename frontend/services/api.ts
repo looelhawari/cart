@@ -97,10 +97,42 @@ const clearAuthData = async () => {
   ]);
 };
 
+// Track if we're currently refreshing to prevent multiple refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<AuthResponse> | null = null;
+
+// Internal refresh token function
+const internalRefreshToken = async (): Promise<AuthResponse> => {
+  const refreshToken = await AsyncStorage.getItem(
+    TOKEN_CONFIG.REFRESH_TOKEN_KEY,
+  );
+  if (!refreshToken) throw new Error("No refresh token");
+
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw data as ApiError;
+  }
+
+  await saveTokens(data.data.access_token, data.data.refresh_token);
+
+  return data as AuthResponse;
+};
+
 // Main API request function
 const apiRequest = async <T>(
   endpoint: string,
   options: RequestInit = {},
+  retryCount = 0,
 ): Promise<T> => {
   const token = await getAuthToken();
 
@@ -127,10 +159,34 @@ const apiRequest = async <T>(
 
     const data = await response.json();
 
-    // Handle token expiration
-    if (response.status === 401 && data.message?.includes("expired")) {
-      await clearAuthData();
-      throw new Error("TOKEN_EXPIRED");
+    // Handle token expiration - try to refresh
+    if (response.status === 401 && retryCount === 0) {
+      // Check if it's a token expiration issue
+      if (data.message?.includes("expired") || data.message?.includes("Unauthenticated")) {
+        try {
+          // Use shared refresh promise to prevent multiple refresh attempts
+          if (isRefreshing && refreshPromise) {
+            await refreshPromise;
+          } else {
+            isRefreshing = true;
+            refreshPromise = internalRefreshToken();
+            await refreshPromise;
+            refreshPromise = null;
+            isRefreshing = false;
+          }
+
+          // Retry the original request with new token
+          return await apiRequest<T>(endpoint, options, retryCount + 1);
+        } catch (refreshError) {
+          // Refresh failed - clear auth data and throw
+          await clearAuthData();
+          throw {
+            success: false,
+            message: "Session expired. Please login again.",
+            error_code: "TOKEN_EXPIRED",
+          } as ApiError;
+        }
+      }
     }
 
     if (!response.ok) {

@@ -24,9 +24,10 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             isHydrated: false,
             setAuth: (user, token, refreshToken) => {
+                // Only update localStorage for api-client to access
                 localStorage.setItem('auth_token', token)
                 localStorage.setItem('refresh_token', refreshToken)
-                localStorage.setItem('user', JSON.stringify(user))
+                // Zustand persist middleware will handle storing user/token in 'auth-storage'
                 set({ user, token, refreshToken, isAuthenticated: true })
             },
             setHydrated: (isHydrated) => set({ isHydrated }),
@@ -36,14 +37,12 @@ export const useAuthStore = create<AuthState>()(
                 } catch (error) {
                     console.error('Logout error:', error)
                 } finally {
-                    localStorage.removeItem('auth_token')
-                    localStorage.removeItem('refresh_token')
-                    localStorage.removeItem('user')
+                    // authService.logout already clears localStorage tokens
                     set({ user: null, token: null, refreshToken: null, isAuthenticated: false })
                 }
             },
             updateUser: (user) => {
-                localStorage.setItem('user', JSON.stringify(user))
+                // Just update store - Zustand persist will handle storage
                 set({ user })
             },
         }),
@@ -56,11 +55,30 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: state.isAuthenticated
             }),
             onRehydrateStorage: () => (state) => {
-                // Set isAuthenticated based on whether user and token exist after rehydration
-                state?.setHydrated(true)
+                // After rehydration, sync with localStorage (in case of manual changes)
+                const lsToken = localStorage.getItem('auth_token')
+                const lsRefreshToken = localStorage.getItem('refresh_token')
 
-                if (state?.user && state?.token) {
-                    state.isAuthenticated = true
+                // If localStorage has tokens but store doesn't, clear localStorage (logout)
+                // If store has tokens but localStorage doesn't, update localStorage
+                if (state) {
+                    if (state.token && state.refreshToken) {
+                        // Ensure localStorage is in sync
+                        if (lsToken !== state.token) {
+                            localStorage.setItem('auth_token', state.token)
+                        }
+                        if (lsRefreshToken !== state.refreshToken) {
+                            localStorage.setItem('refresh_token', state.refreshToken)
+                        }
+                        state.isAuthenticated = true
+                    } else if (lsToken || lsRefreshToken) {
+                        // Store cleared but localStorage not - clean up
+                        localStorage.removeItem('auth_token')
+                        localStorage.removeItem('refresh_token')
+                        state.isAuthenticated = false
+                    }
+
+                    state.setHydrated(true)
                 }
             },
         }
