@@ -47,25 +47,97 @@ class AdminReviewController extends Controller
     /**
      * Get reviews analytics
      */
-    public function analytics()
+    public function analytics(Request $request)
     {
-        $stats = [
-            'total_reviews' => Review::count(),
-            'pending_reviews' => Review::where('is_approved', false)->count(),
-            'approved_reviews' => Review::where('is_approved', true)->count(),
-            'rejected_reviews' => 0,
-            'average_rating' => round(Review::where('is_approved', true)->avg('rating'), 2),
-            'rating_distribution' => [
-                '5' => Review::where('rating', 5)->where('is_approved', true)->count(),
-                '4' => Review::where('rating', 4)->where('is_approved', true)->count(),
-                '3' => Review::where('rating', 3)->where('is_approved', true)->count(),
-                '2' => Review::where('rating', 2)->where('is_approved', true)->count(),
-                '1' => Review::where('rating', 1)->where('is_approved', true)->count(),
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+
+        $query = Review::query();
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
+        // Overview stats
+        $totalReviews = (clone $query)->count();
+        $pendingReviews = (clone $query)->where('is_approved', false)->count();
+        $approvedReviews = (clone $query)->where('is_approved', true)->count();
+        $averageRating = round((clone $query)->where('is_approved', true)->avg('rating') ?? 0, 2);
+
+        // Rating distribution
+        $ratingDistribution = [
+            '1' => (clone $query)->where('rating', 1)->count(),
+            '2' => (clone $query)->where('rating', 2)->count(),
+            '3' => (clone $query)->where('rating', 3)->count(),
+            '4' => (clone $query)->where('rating', 4)->count(),
+            '5' => (clone $query)->where('rating', 5)->count(),
+        ];
+
+        // By type (product, order, store)
+        $byType = [
+            'product' => [
+                'count' => (clone $query)->where('rating_type', 'product')->count(),
+                'average' => round((clone $query)->where('rating_type', 'product')->avg('rating') ?? 0, 2),
             ],
-            'recent_reviews' => Review::with(['user:id,first_name,last_name', 'product:barcode,name_en,name_ar'])
-                ->latest()
-                ->take(5)
-                ->get(),
+            'order' => [
+                'count' => (clone $query)->where('rating_type', 'order')->count(),
+                'average' => round((clone $query)->where('rating_type', 'order')->avg('rating') ?? 0, 2),
+            ],
+            'store' => [
+                'count' => (clone $query)->where('rating_type', 'store')->count(),
+                'average' => round((clone $query)->where('rating_type', 'store')->avg('rating') ?? 0, 2),
+            ],
+        ];
+
+        // By status
+        $byStatus = [
+            'pending' => $pendingReviews,
+            'approved' => $approvedReviews,
+            'rejected' => 0, // No rejected status in current schema
+        ];
+
+        // Trend data (last 30 days)
+        $trend = Review::select(
+                DB::raw('DATE(created_at) as date'),
+                DB::raw('COUNT(*) as count'),
+                DB::raw('ROUND(AVG(rating), 2) as average_rating')
+            )
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('date', 'asc')
+            ->get();
+
+        // Top products by review count
+        $topProducts = Review::select(
+                'product_id',
+                DB::raw('COUNT(*) as review_count'),
+                DB::raw('ROUND(AVG(rating), 2) as average_rating')
+            )
+            ->whereNotNull('product_id')
+            ->groupBy('product_id')
+            ->orderByDesc('review_count')
+            ->limit(5)
+            ->with('product:barcode,name_en,name_ar')
+            ->get();
+
+        $stats = [
+            'overview' => [
+                'total_reviews' => $totalReviews,
+                'average_rating' => $averageRating,
+                'pending_reviews' => $pendingReviews,
+                'rating_distribution' => $ratingDistribution,
+            ],
+            'by_type' => $byType,
+            'by_status' => $byStatus,
+            'trend' => $trend,
+            'top_products' => $topProducts,
+            'order_rating_rate' => $totalReviews > 0 ? round(($byType['order']['count'] / $totalReviews) * 100, 2) : 0,
+            'date_range' => [
+                'from' => $dateFrom ?? now()->subDays(30)->toDateString(),
+                'to' => $dateTo ?? now()->toDateString(),
+            ],
         ];
 
         return response()->json([
