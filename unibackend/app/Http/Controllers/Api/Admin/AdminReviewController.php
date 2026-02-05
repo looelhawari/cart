@@ -20,7 +20,7 @@ class AdminReviewController extends Controller
         $status = $request->input('status');
         $rating = $request->input('rating');
 
-        $query = Review::with(['user:id,name,email', 'product:id,name'])
+        $query = Review::with(['user:id,first_name,last_name,email', 'product:barcode,name_en,name_ar'])
             ->select('reviews.*');
 
         if ($status) {
@@ -62,7 +62,7 @@ class AdminReviewController extends Controller
                 '2' => Review::where('rating', 2)->where('is_approved', true)->count(),
                 '1' => Review::where('rating', 1)->where('is_approved', true)->count(),
             ],
-            'recent_reviews' => Review::with(['user:id,name', 'product:id,name'])
+            'recent_reviews' => Review::with(['user:id,first_name,last_name', 'product:barcode,name_en,name_ar'])
                 ->latest()
                 ->take(5)
                 ->get(),
@@ -79,7 +79,7 @@ class AdminReviewController extends Controller
      */
     public function orderReviews($orderId)
     {
-        $reviews = Review::with(['user:id,name,email', 'product:id,name'])
+        $reviews = Review::with(['user:id,first_name,last_name,email', 'product:barcode,name_en,name_ar'])
             ->where('order_id', $orderId)
             ->get();
 

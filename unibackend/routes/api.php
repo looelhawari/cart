@@ -576,10 +576,14 @@ Route::prefix('v1')->group(function () {
             Route::prefix('store-settings')->group(function () {
                 Route::get('/', [AdminStoreSettingsController::class, 'index']);
                 Route::get('/status', [AdminStoreSettingsController::class, 'getStoreStatus']);
+                Route::get('/delivery', [AdminStoreSettingsController::class, 'getDeliverySettings']);
                 Route::put('/working-hours', [AdminStoreSettingsController::class, 'updateWorkingHours']);
+                Route::put('/delivery', [AdminStoreSettingsController::class, 'updateDeliverySettings']);
                 Route::post('/toggle-closure', [AdminStoreSettingsController::class, 'toggleStoreClosure']);
                 Route::put('/setting', [AdminStoreSettingsController::class, 'updateSetting']);
                 Route::put('/settings', [AdminStoreSettingsController::class, 'updateSettings']);
+                Route::post('/settings', [AdminStoreSettingsController::class, 'createSetting']);
+                Route::delete('/settings/{key}', [AdminStoreSettingsController::class, 'deleteSetting']);
                 Route::post('/clear-cache', [AdminStoreSettingsController::class, 'clearCache']);
             });
 

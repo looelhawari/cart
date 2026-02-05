@@ -178,8 +178,8 @@ export default function ReviewsPage() {
         ]
         : []
 
-    const reviews = reviewsData?.data || []
-    const pagination = reviewsData
+    const reviews = reviewsData?.data?.data || []
+    const pagination = reviewsData?.data
 
     return (
         <div className="space-y-6">

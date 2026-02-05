@@ -60,18 +60,20 @@ export default function StoreSettingsPage() {
 
     // Initialize form from settings
     useEffect(() => {
-        if (settings?.working_hours) {
-            setOpenTime(settings.working_hours.store_open_time?.value as string || '11:00')
-            setCloseTime(settings.working_hours.store_close_time?.value as string || '00:00')
-            setAcceptOutsideHours(settings.working_hours.accept_orders_outside_hours?.value as boolean || false)
-            setIsClosedTemp(settings.working_hours.is_store_temporarily_closed?.value as boolean || false)
-            setClosureReasonEn(settings.working_hours.temporary_closure_reason_en?.value as string || '')
-            setClosureReasonAr(settings.working_hours.temporary_closure_reason_ar?.value as string || '')
+        if (settings?.grouped?.working_hours) {
+            const wh = settings.grouped.working_hours
+            setOpenTime(wh.store_open_time?.value as string || '11:00')
+            setCloseTime(wh.store_close_time?.value as string || '00:00')
+            setAcceptOutsideHours(wh.accept_orders_outside_hours?.value as boolean || false)
+            setIsClosedTemp(wh.is_store_temporarily_closed?.value as boolean || false)
+            setClosureReasonEn(wh.temporary_closure_reason_en?.value as string || '')
+            setClosureReasonAr(wh.temporary_closure_reason_ar?.value as string || '')
         }
-        if (settings?.general) {
-            setMinOrderAmount(String(settings.general.minimum_order_amount?.value || '50'))
-            setDeliveryFee(String(settings.general.delivery_fee?.value || '20'))
-            setFreeDeliveryThreshold(String(settings.general.free_delivery_threshold?.value || '200'))
+        if (settings?.grouped?.general) {
+            const gen = settings.grouped.general
+            setMinOrderAmount(String(gen.minimum_order_amount?.value || '50'))
+            setDeliveryFee(String(gen.delivery_fee?.value || '20'))
+            setFreeDeliveryThreshold(String(gen.free_delivery_threshold?.value || '200'))
         }
     }, [settings])
 
@@ -151,8 +153,8 @@ export default function StoreSettingsPage() {
 
     const handleSaveWorkingHours = () => {
         updateWorkingHoursMutation.mutate({
-            store_open_time: openTime,
-            store_close_time: closeTime,
+            open_time: openTime,
+            close_time: closeTime,
             accept_orders_outside_hours: acceptOutsideHours,
         })
     }
@@ -227,8 +229,8 @@ export default function StoreSettingsPage() {
                                 <CardTitle>{t('settings.storeStatus')}</CardTitle>
                                 <CardDescription>
                                     {storeStatus?.is_open
-                                        ? (isRTL ? storeStatus.message_ar : storeStatus.message_en)
-                                        : (isRTL ? storeStatus?.message_ar : storeStatus?.message_en)}
+                                        ? (isRTL ? storeStatus.message_ar : storeStatus.message)
+                                        : (isRTL ? storeStatus?.message_ar : storeStatus?.message)}
                                 </CardDescription>
                             </div>
                         </div>
