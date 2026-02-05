@@ -9,8 +9,9 @@
 
 // Backend API Configuration
 export const API_CONFIG = {
-  // Production URL - Your hosted backend
-  BASE_URL: "http://192.168.1.10:8000/api/v1",
+  // Development URLs
+  // For physical device testing on same WiFi, use local IP
+  BASE_URL: "https://cartshop.site/api/v1",
 
   TIMEOUT: 30000, // 30 seconds
 };
