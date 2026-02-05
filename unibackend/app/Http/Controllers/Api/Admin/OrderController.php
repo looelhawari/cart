@@ -5,11 +5,27 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\PushNotificationService;
+use App\Services\EnterpriseNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
+    protected PushNotificationService $pushNotificationService;
+    protected ?EnterpriseNotificationService $enterpriseNotificationService;
+
+    public function __construct(PushNotificationService $pushNotificationService)
+    {
+        $this->pushNotificationService = $pushNotificationService;
+        try {
+            $this->enterpriseNotificationService = app(EnterpriseNotificationService::class);
+        } catch (\Exception $e) {
+            $this->enterpriseNotificationService = null;
+        }
+    }
+
     /**
      * Display a listing of orders with filters
      */
@@ -142,6 +158,45 @@ class OrderController extends Controller
 
         $order->save();
 
+        // Send enterprise notifications for status changes
+        if ($oldStatus !== $order->status && $order->user_id && $this->enterpriseNotificationService) {
+            try {
+                switch ($order->status) {
+                    case 'confirmed':
+                        $this->enterpriseNotificationService->notifyOrderConfirmedFromOrder($order);
+                        break;
+                    case 'preparing':
+                        $this->enterpriseNotificationService->notifyOrderPreparingFromOrder($order);
+                        break;
+                    case 'out_for_delivery':
+                        $this->enterpriseNotificationService->notifyOutForDeliveryFromOrder($order);
+                        break;
+                    case 'delivered':
+                        $this->enterpriseNotificationService->notifyOrderDeliveredFromOrder($order);
+                        break;
+                    case 'cancelled':
+                        $this->enterpriseNotificationService->notifyOrderCancelledFromOrder($order, $request->cancellation_reason);
+                        break;
+                    case 'failed':
+                        $this->enterpriseNotificationService->notifyDeliveryFailedFromOrder($order, 'Delivery attempt failed');
+                        break;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to send enterprise notification', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Legacy: Send push notification for status change (fallback)
+        if ($oldStatus !== $order->status && $order->user_id) {
+            $this->pushNotificationService->sendOrderStatusNotification(
+                $order->user_id,
+                $order->id,
+                $order->order_number,
+                $order->status,
+                $request->cancellation_reason
+            );
+        }
+
         return response()->json([
             'message' => 'Order status updated successfully',
             'data' => $order,
@@ -169,6 +224,17 @@ class OrderController extends Controller
         $order->cancelled_at = now();
         $order->cancellation_reason = $request->cancellation_reason;
         $order->save();
+
+        // Send push notification for cancellation
+        if ($order->user_id) {
+            $this->pushNotificationService->sendOrderStatusNotification(
+                $order->user_id,
+                $order->id,
+                $order->order_number,
+                'cancelled',
+                $request->cancellation_reason
+            );
+        }
 
         return response()->json([
             'message' => 'Order cancelled successfully',

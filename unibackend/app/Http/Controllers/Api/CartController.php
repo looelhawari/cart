@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\CartReminder;
 use App\Models\PromoCode;
 use App\Services\CartService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class CartController extends Controller
@@ -21,6 +23,37 @@ class CartController extends Controller
     }
 
     /**
+     * Update cart reminder tracking for abandonment notifications
+     */
+    private function updateCartReminder(?int $userId, Cart $cart): void
+    {
+        if (!$userId || $cart->items->count() === 0) {
+            // Remove reminder if cart is empty or user is guest
+            if ($userId) {
+                CartReminder::where('user_id', $userId)->delete();
+            }
+            return;
+        }
+
+        try {
+            // Calculate cart total
+            $cartTotal = $cart->items->sum(fn($item) => $item->price * $item->quantity);
+            
+            CartReminder::updateOrCreate(
+                ['user_id' => $userId],
+                [
+                    'cart_item_count' => $cart->items->count(),
+                    'cart_total' => $cartTotal,
+                    'last_cart_activity' => now(),
+                    'converted' => false,
+                ]
+            );
+        } catch (\Exception $e) {
+            Log::warning('Failed to update cart reminder', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * Get cart for guest or authenticated user
      * GET /api/v1/cart
      */
@@ -30,14 +63,14 @@ class CartController extends Controller
             $userId = $request->user()?->id;
             $sessionId = $request->header('X-Session-ID');
 
-            \Log::info('🛒 [CART GET] Fetching cart', [
+            Log::info('🛒 [CART GET] Fetching cart', [
                 'user_id' => $userId,
                 'session_id' => $sessionId,
             ]);
 
             $cart = $this->cartService->getCart($userId, $sessionId);
 
-            \Log::info('🛒 [CART GET] Cart retrieved', [
+            Log::info('🛒 [CART GET] Cart retrieved', [
                 'cart_id' => $cart->id,
                 'cart_user_id' => $cart->user_id,
                 'cart_session_id' => $cart->session_id,
@@ -58,7 +91,7 @@ class CartController extends Controller
                 'session_id' => $cart->session_id, // Return session ID for guest users
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
-            \Log::error('🛒 [CART GET] Error', [
+            Log::error('🛒 [CART GET] Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -102,6 +135,9 @@ class CartController extends Controller
             );
 
             $cartDetails = $this->cartService->getCartDetails($cart->fresh(), null);
+
+            // Update cart reminder for abandonment tracking
+            $this->updateCartReminder($userId, $cart->fresh());
 
             return response()->json([
                 'success' => true,

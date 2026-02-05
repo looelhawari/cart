@@ -5,11 +5,19 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Complaint;
 use App\Models\ComplaintMessage;
+use App\Services\PushNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SupportController extends Controller
 {
+    protected PushNotificationService $pushNotificationService;
+
+    public function __construct(PushNotificationService $pushNotificationService)
+    {
+        $this->pushNotificationService = $pushNotificationService;
+    }
+
     public function index(Request $request)
     {
         $query = Complaint::query()->with(['user', 'order', 'assignedTo']);
@@ -138,6 +146,7 @@ class SupportController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $ticket = Complaint::findOrFail($id);
+        $oldStatus = $ticket->status;
 
         $validated = $request->validate([
             'status' => 'required|in:open,in_progress,awaiting_response,resolved,closed',
@@ -150,6 +159,16 @@ class SupportController extends Controller
 
         $ticket->status = $validated['status'];
         $ticket->save();
+
+        // Send push notification for status change
+        if ($oldStatus !== $ticket->status) {
+            $this->pushNotificationService->sendComplaintNotification(
+                $ticket->user_id,
+                $ticket->id,
+                $ticket->ticket_number,
+                $validated['status']
+            );
+        }
 
         return response()->json($ticket);
     }
@@ -212,6 +231,15 @@ class SupportController extends Controller
         }
         
         broadcast(new \App\Events\ComplaintMessageSent($message))->toOthers();
+
+        // Send push notification for admin reply
+        $this->pushNotificationService->sendComplaintNotification(
+            $ticket->user_id,
+            $ticket->id,
+            $ticket->ticket_number,
+            'reply',
+            $validated['message']
+        );
 
         return response()->json($message->load('user'), 201);
     }

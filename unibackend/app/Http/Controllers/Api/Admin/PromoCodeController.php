@@ -9,6 +9,7 @@ use App\Models\PromoCodeBogoRule;
 use App\Models\Product;
 use App\Models\Category;
 use App\Services\PromoCodeService;
+use App\Services\PushNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -17,10 +18,14 @@ use Illuminate\Validation\Rule;
 class PromoCodeController extends Controller
 {
     protected PromoCodeService $promoCodeService;
+    protected PushNotificationService $pushNotificationService;
 
-    public function __construct(PromoCodeService $promoCodeService)
-    {
+    public function __construct(
+        PromoCodeService $promoCodeService,
+        PushNotificationService $pushNotificationService
+    ) {
         $this->promoCodeService = $promoCodeService;
+        $this->pushNotificationService = $pushNotificationService;
     }
 
     /**
@@ -214,6 +219,33 @@ class PromoCodeController extends Controller
                 'data' => $promoCode->load(['products', 'categories', 'activeBogoRules']),
             ], 201);
         });
+    }
+
+    /**
+     * Send notification for a promo code to all users
+     */
+    public function sendNotification(Request $request, $id): JsonResponse
+    {
+        $promoCode = PromoCode::findOrFail($id);
+
+        if (!$promoCode->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot send notification for inactive promo code',
+            ], 422);
+        }
+
+        $this->pushNotificationService->sendPromoCodeNotification(
+            $promoCode->code,
+            $promoCode->type,
+            $promoCode->value,
+            new \DateTime($promoCode->valid_until)
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification sent successfully',
+        ]);
     }
 
     /**

@@ -65,17 +65,52 @@ export interface NotificationData {
   is_broadcast: boolean;
   created_at: string;
   time_ago: string;
+  // Enterprise fields
+  category?: string;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  template_code?: string;
 }
 
 export interface NotificationPreferences {
+  // Global settings
   push_enabled: boolean;
-  order_updates: boolean;
-  promotions: boolean;
-  wallet_updates: boolean;
-  complaint_updates: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string;
   quiet_hours_end: string;
+
+  // Order & Delivery
+  order_updates: boolean;
+  delivery_updates: boolean;
+  payment_alerts: boolean;
+
+  // Marketing
+  promotions: boolean;
+  flash_sales: boolean;
+  price_drops: boolean;
+
+  // Product
+  back_in_stock: boolean;
+  price_alerts: boolean;
+
+  // Cart
+  cart_reminders: boolean;
+
+  // Support
+  complaint_updates: boolean;
+  chat_messages: boolean;
+
+  // Account & Security
+  security_alerts: boolean;
+
+  // Wallet
+  wallet_updates: boolean;
+
+  // Smart/AI
+  reorder_reminders: boolean;
+
+  // System
+  system_updates: boolean;
+  marketing: boolean;
 }
 
 export interface PaginatedNotifications {
@@ -104,8 +139,9 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
   const Notifications = await loadNotificationsModule();
 
-  // Set up Android notification channel
+  // Set up Android notification channels for all categories
   if (Platform.OS === "android") {
+    // Default channel
     await Notifications.setNotificationChannelAsync("default", {
       name: "Default",
       importance: Notifications.AndroidImportance.MAX,
@@ -113,21 +149,91 @@ export async function registerForPushNotifications(): Promise<string | null> {
       lightColor: "#FF231F7C",
     });
 
+    // Order & Delivery - CRITICAL
     await Notifications.setNotificationChannelAsync("orders", {
       name: "Order Updates",
+      description: "Order status, delivery, and payment notifications",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FF231F7C",
+      lightColor: "#4CAF50",
+      enableVibrate: true,
+      showBadge: true,
     });
 
+    // Promotions & Offers - MEDIUM
     await Notifications.setNotificationChannelAsync("promotions", {
       name: "Promotions & Offers",
+      description: "Flash sales, coupons, and special offers",
       importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: "#FF9800",
+      showBadge: true,
     });
 
+    // Wallet & Payments - HIGH
     await Notifications.setNotificationChannelAsync("wallet", {
-      name: "Wallet Updates",
+      name: "Wallet & Payments",
+      description: "Wallet credits, debits, and payment updates",
       importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#2196F3",
+      enableVibrate: true,
+      showBadge: true,
+    });
+
+    // Support & Chat - HIGH
+    await Notifications.setNotificationChannelAsync("support", {
+      name: "Support & Chat",
+      description: "Support ticket updates and chat messages",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#9C27B0",
+      enableVibrate: true,
+      showBadge: true,
+    });
+
+    // Account & Security - CRITICAL
+    await Notifications.setNotificationChannelAsync("account", {
+      name: "Account & Security",
+      description: "Login alerts, password changes, and security warnings",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 500, 200, 500],
+      lightColor: "#F44336",
+      enableVibrate: true,
+      showBadge: true,
+    });
+
+    // Product Updates - LOW
+    await Notifications.setNotificationChannelAsync("product", {
+      name: "Product Updates",
+      description: "Back in stock, price drops, and new products",
+      importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: "#00BCD4",
+      showBadge: true,
+    });
+
+    // Cart Reminders - LOW
+    await Notifications.setNotificationChannelAsync("cart", {
+      name: "Cart Reminders",
+      description: "Abandoned cart and checkout reminders",
+      importance: Notifications.AndroidImportance.LOW,
+      lightColor: "#607D8B",
+    });
+
+    // System & Updates - MEDIUM
+    await Notifications.setNotificationChannelAsync("system", {
+      name: "System Updates",
+      description: "App updates, maintenance, and policy changes",
+      importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: "#795548",
+      showBadge: true,
+    });
+
+    // Smart Recommendations - LOW
+    await Notifications.setNotificationChannelAsync("smart", {
+      name: "Recommendations",
+      description: "Personalized product recommendations and reorder reminders",
+      importance: Notifications.AndroidImportance.LOW,
+      lightColor: "#673AB7",
     });
   }
 
@@ -426,7 +532,7 @@ export async function addNotificationReceivedListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => {} };
+    return { remove: () => { } };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationReceivedListener(callback);
@@ -440,7 +546,7 @@ export async function addNotificationResponseListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => {} };
+    return { remove: () => { } };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationResponseReceivedListener(callback);
@@ -466,47 +572,234 @@ export async function setBadgeCount(count: number) {
 
 /**
  * Handle notification action (when user taps notification)
+ * Supports all 70+ enterprise notification types
  */
 export function handleNotificationAction(
   data: Record<string, unknown>,
-  navigation: {
+  router: {
+    push: (href: string) => void;
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   },
 ) {
   const action = data?.action as string;
+  const actionTarget = data?.actionTarget as string;
+  const category = data?.category as string;
+  const templateCode = data?.template_code as string;
 
+  // If actionTarget is provided, use it directly
+  if (actionTarget) {
+    router.push(actionTarget);
+    return;
+  }
+
+  // Handle by category first (enterprise notification system)
+  if (category || templateCode) {
+    handleEnterpriseNotification(data, router);
+    return;
+  }
+
+  // Legacy action handling
   switch (action) {
     case "open_order":
       if (data.order_id) {
-        navigation.navigate("OrderDetails", { orderId: data.order_id });
+        router.push(`/orders/${data.order_id}`);
+      } else {
+        router.push("/orders");
       }
       break;
     case "open_promotion":
       if (data.promotion_id) {
-        navigation.navigate("PromotionDetails", {
-          promotionId: data.promotion_id,
-        });
+        router.push(`/categories?promo=${data.promotion_id}`);
+      } else {
+        router.push("/(tabs)/categories");
       }
       break;
     case "open_wallet":
-      navigation.navigate("Wallet");
+      router.push("/profile/wallet");
       break;
     case "open_complaint":
       if (data.complaint_id) {
-        navigation.navigate("ComplaintDetails", {
-          complaintId: data.complaint_id,
-        });
+        router.push(`/complaints/${data.complaint_id}`);
+      } else {
+        router.push("/complaints");
       }
       break;
     case "open_product":
       if (data.product_barcode) {
-        navigation.navigate("ProductDetails", {
-          barcode: data.product_barcode,
-        });
+        router.push(`/product/${data.product_barcode}`);
+      }
+      break;
+    case "navigate":
+      // Generic navigation with target screen
+      if (data.screen) {
+        router.push(data.screen as string);
       }
       break;
     default:
       // Default: open notifications screen
-      navigation.navigate("Notifications");
+      router.push("/notifications");
   }
 }
+
+/**
+ * Handle enterprise notification deep links by category
+ */
+function handleEnterpriseNotification(
+  data: Record<string, unknown>,
+  router: { push: (href: string) => void },
+) {
+  const category = data?.category as string;
+  const templateCode = data?.template_code as string;
+
+  // Order & Delivery notifications
+  if (category === "order" || templateCode?.startsWith("order_") || templateCode?.startsWith("payment_") || templateCode?.startsWith("delivery_") || templateCode?.startsWith("refund_") || templateCode?.startsWith("out_for_") || templateCode?.startsWith("courier_") || templateCode === "invoice_ready") {
+    if (data.order_id) {
+      router.push(`/orders/${data.order_id}`);
+    } else {
+      router.push("/orders");
+    }
+    return;
+  }
+
+  // Product notifications
+  if (category === "product" || templateCode?.startsWith("product_") || templateCode?.startsWith("new_product_")) {
+    if (data.product_id) {
+      router.push(`/product/${data.product_id}`);
+    } else if (data.category_id) {
+      router.push(`/categories/${data.category_id}`);
+    } else {
+      router.push("/(tabs)/categories");
+    }
+    return;
+  }
+
+  // Promotion & Offer notifications
+  if (category === "promo" || templateCode?.startsWith("flash_sale_") || templateCode?.startsWith("coupon_") || templateCode?.startsWith("new_offer") || templateCode?.startsWith("loyalty_") || templateCode?.startsWith("personalized_") || templateCode?.includes("_deal") || templateCode?.includes("buy_one_")) {
+    if (data.sale_id) {
+      router.push(`/flash-sale/${data.sale_id}`);
+    } else if (data.offer_id) {
+      router.push(`/offers/${data.offer_id}`);
+    } else if (data.product_id) {
+      router.push(`/product/${data.product_id}`);
+    } else {
+      router.push("/(tabs)/offers");
+    }
+    return;
+  }
+
+  // Cart notifications
+  if (category === "cart" || templateCode?.startsWith("cart_") || templateCode?.startsWith("minimum_order") || templateCode?.startsWith("free_delivery")) {
+    router.push("/cart");
+    return;
+  }
+
+  // Chat & Support notifications
+  if (category === "chat" || templateCode?.startsWith("new_support_") || templateCode?.startsWith("agent_") || templateCode?.startsWith("chat_") || templateCode?.startsWith("support_ticket_")) {
+    if (data.complaint_id) {
+      router.push(`/complaints/${data.complaint_id}`);
+    } else {
+      router.push("/complaints");
+    }
+    return;
+  }
+
+  // Account & Security notifications
+  if (category === "account" || templateCode?.startsWith("new_login_") || templateCode?.startsWith("new_device_") || templateCode?.startsWith("password_") || templateCode?.startsWith("email_") || templateCode?.startsWith("phone_") || templateCode?.startsWith("suspicious_") || templateCode?.startsWith("account_") || templateCode?.startsWith("verification_") || templateCode === "welcome") {
+    if (templateCode === "welcome" || templateCode === "account_verified") {
+      router.push("/(tabs)/home");
+    } else {
+      router.push("/profile/security");
+    }
+    return;
+  }
+
+  // Wallet & Payment notifications
+  if (category === "wallet" || templateCode?.startsWith("wallet_") || templateCode?.startsWith("cashback_") || templateCode?.startsWith("low_wallet_") || templateCode?.startsWith("card_")) {
+    router.push("/profile/wallet");
+    return;
+  }
+
+  // Address notifications
+  if (category === "address" || templateCode?.startsWith("address_") || templateCode?.startsWith("delivery_area_") || templateCode?.startsWith("service_unavailable_")) {
+    router.push("/profile/addresses");
+    return;
+  }
+
+  // System & Policy notifications
+  if (category === "system" || templateCode?.startsWith("terms_") || templateCode?.startsWith("privacy_") || templateCode?.startsWith("refund_policy_") || templateCode?.startsWith("app_update_") || templateCode?.startsWith("service_outage") || templateCode?.startsWith("maintenance_") || templateCode?.startsWith("legal_notice")) {
+    if (templateCode === "terms_updated") {
+      router.push("/terms");
+    } else if (templateCode === "privacy_updated") {
+      router.push("/privacy");
+    } else if (templateCode?.startsWith("app_update_")) {
+      // Could open app store or show update modal
+      router.push("/(tabs)/home");
+    } else {
+      router.push("/(tabs)/home");
+    }
+    return;
+  }
+
+  // Smart/AI notifications
+  if (category === "smart" || templateCode?.startsWith("reorder_") || templateCode?.startsWith("usually_buy_") || templateCode?.startsWith("forgot_something") || templateCode?.startsWith("recommended_") || templateCode?.startsWith("similar_cheaper")) {
+    if (data.product_id) {
+      router.push(`/product/${data.product_id}`);
+    } else if (data.order_id) {
+      router.push(`/orders/${data.order_id}`);
+    } else {
+      router.push("/(tabs)/home");
+    }
+    return;
+  }
+
+  // Default fallback
+  router.push("/notifications");
+}
+
+/**
+ * Get notification priority level
+ */
+export function getNotificationPriority(data: Record<string, unknown>): 'critical' | 'high' | 'medium' | 'low' {
+  const priority = data?.priority as string;
+  if (priority) {
+    return priority as 'critical' | 'high' | 'medium' | 'low';
+  }
+
+  const templateCode = data?.template_code as string;
+  const category = data?.category as string;
+
+  // Critical priority notifications
+  if (
+    templateCode?.includes('security') ||
+    templateCode?.includes('suspicious') ||
+    templateCode?.includes('account_locked') ||
+    templateCode?.includes('payment_failed') ||
+    templateCode?.includes('delivery_failed') ||
+    templateCode?.startsWith('app_update_required') ||
+    templateCode?.startsWith('service_outage')
+  ) {
+    return 'critical';
+  }
+
+  // High priority
+  if (
+    category === 'order' ||
+    category === 'chat' ||
+    templateCode?.includes('out_for_delivery') ||
+    templateCode?.includes('courier_nearby')
+  ) {
+    return 'high';
+  }
+
+  // Medium priority
+  if (
+    category === 'promo' ||
+    category === 'wallet' ||
+    templateCode?.includes('flash_sale')
+  ) {
+    return 'medium';
+  }
+
+  return 'low';
+}
+

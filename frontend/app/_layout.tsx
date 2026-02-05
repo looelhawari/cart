@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, View } from "react-native";
+import AnimatedSplash from "@/components/AnimatedSplash";
 import { useStore } from "@/store";
 import { I18nProvider } from "@/i18n";
 import {
@@ -19,6 +20,10 @@ import {
   getUnreadCount,
   isPushNotificationsSupported,
 } from "@/services/notificationService";
+import {
+  registerBackgroundNotificationTask,
+  getLastNotificationResponse,
+} from "@/services/backgroundNotificationTask";
 import {
   useFonts,
   Poppins_400Regular,
@@ -62,6 +67,23 @@ function RootLayoutNav() {
         initializePushNotifications().then((token) => {
           if (token) {
             console.log("Push notifications initialized with token:", token);
+          }
+        });
+
+        // Register background notification task
+        registerBackgroundNotificationTask();
+
+        // Check if app was opened from notification (when app was killed)
+        getLastNotificationResponse().then((response) => {
+          if (response) {
+            console.log("App opened from notification:", response);
+            const data = response.notification.request.content.data;
+            if (data) {
+              // Small delay to ensure router is ready
+              setTimeout(() => {
+                handleNotificationAction(data as Record<string, unknown>, router);
+              }, 500);
+            }
           }
         });
 
@@ -235,12 +257,18 @@ export default function RootLayout() {
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     if (fontsLoaded) {
+      // Hide the native splash screen immediately when fonts are loaded
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
+
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+  };
 
   if (!fontsLoaded) {
     return null;
@@ -251,6 +279,7 @@ export default function RootLayout() {
       <I18nProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <RootLayoutNav />
+          {showSplash && <AnimatedSplash onAnimationFinish={handleSplashFinish} />}
         </GestureHandlerRootView>
       </I18nProvider>
     </QueryClientProvider>

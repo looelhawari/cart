@@ -155,7 +155,6 @@ class PaymentMethodTest extends TestCase
         $expiredCardData = collect($cards)->firstWhere('card_last_four', '5555');
         $this->assertTrue($expiredCardData['is_expired']);
     }
-    }
 
     /** @test */
     public function it_never_returns_token_or_token_fingerprint()

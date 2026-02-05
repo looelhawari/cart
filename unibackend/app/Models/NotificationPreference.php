@@ -10,32 +10,60 @@ class NotificationPreference extends Model
 {
     protected $fillable = [
         'user_id',
+        // Global settings
         'push_enabled',
         'email_enabled',
-        'order_updates',
-        'promotions',
-        'wallet_updates',
-        'complaint_updates',
-        'price_alerts',
-        'back_in_stock',
-        'marketing',
         'quiet_hours_enabled',
         'quiet_hours_start',
         'quiet_hours_end',
         'timezone',
+        // Order & Delivery
+        'order_updates',
+        'delivery_updates',
+        'payment_alerts',
+        // Marketing
+        'promotions',
+        'flash_sales',
+        'price_drops',
+        // Product
+        'back_in_stock',
+        'price_alerts',
+        // Cart
+        'cart_reminders',
+        // Support
+        'complaint_updates',
+        'chat_messages',
+        // Account & Security
+        'security_alerts',
+        // Wallet
+        'wallet_updates',
+        // Smart/AI
+        'reorder_reminders',
+        // System
+        'system_updates',
+        'marketing',
     ];
 
     protected $casts = [
         'push_enabled' => 'boolean',
         'email_enabled' => 'boolean',
-        'order_updates' => 'boolean',
-        'promotions' => 'boolean',
-        'wallet_updates' => 'boolean',
-        'complaint_updates' => 'boolean',
-        'price_alerts' => 'boolean',
-        'back_in_stock' => 'boolean',
-        'marketing' => 'boolean',
         'quiet_hours_enabled' => 'boolean',
+        'order_updates' => 'boolean',
+        'delivery_updates' => 'boolean',
+        'payment_alerts' => 'boolean',
+        'promotions' => 'boolean',
+        'flash_sales' => 'boolean',
+        'price_drops' => 'boolean',
+        'back_in_stock' => 'boolean',
+        'price_alerts' => 'boolean',
+        'cart_reminders' => 'boolean',
+        'complaint_updates' => 'boolean',
+        'chat_messages' => 'boolean',
+        'security_alerts' => 'boolean',
+        'wallet_updates' => 'boolean',
+        'reorder_reminders' => 'boolean',
+        'system_updates' => 'boolean',
+        'marketing' => 'boolean',
     ];
 
     /**

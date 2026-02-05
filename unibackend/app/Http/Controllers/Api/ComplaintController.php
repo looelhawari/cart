@@ -10,6 +10,7 @@ use App\Models\Complaint;
 use App\Models\ComplaintAttachment;
 use App\Models\ComplaintMessage;
 use App\Services\CloudinaryService;
+use App\Services\PushNotificationService;
 use App\Services\SmartBotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,8 @@ class ComplaintController extends Controller
 {
     public function __construct(
         private CloudinaryService $cloudinaryService,
-        private SmartBotService $smartBotService
+        private SmartBotService $smartBotService,
+        private PushNotificationService $pushNotificationService
     ) {
     }
 
@@ -117,6 +119,14 @@ class ComplaintController extends Controller
             $lang = $request->header('Accept-Language', 'en');
             $lang = str_contains($lang, 'ar') ? 'ar' : 'en';
             $this->smartBotService->getWelcomeMessage($complaint, $lang);
+
+            // Send push notification confirming receipt
+            $this->pushNotificationService->sendComplaintNotification(
+                $user->id,
+                $complaint->id,
+                $complaint->ticket_number,
+                'received'
+            );
 
             return response()->json([
                 'success' => true,

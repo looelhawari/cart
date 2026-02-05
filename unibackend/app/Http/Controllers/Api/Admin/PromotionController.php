@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Promotion;
 use App\Services\PromotionService;
 use App\Services\CloudinaryService;
+use App\Services\PushNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -14,11 +15,16 @@ class PromotionController extends Controller
 {
     protected PromotionService $promotionService;
     protected CloudinaryService $cloudinaryService;
+    protected PushNotificationService $pushNotificationService;
 
-    public function __construct(PromotionService $promotionService, CloudinaryService $cloudinaryService)
-    {
+    public function __construct(
+        PromotionService $promotionService, 
+        CloudinaryService $cloudinaryService,
+        PushNotificationService $pushNotificationService
+    ) {
         $this->promotionService = $promotionService;
         $this->cloudinaryService = $cloudinaryService;
+        $this->pushNotificationService = $pushNotificationService;
     }
 
     /**
@@ -137,6 +143,18 @@ class PromotionController extends Controller
             // Apply promotion to products if active
             if ($promotion->is_currently_active) {
                 $this->promotionService->applyPromotionToProducts($promotion);
+
+                // Send push notification for new active promotion
+                if ($request->boolean('send_notification', false)) {
+                    $this->pushNotificationService->sendPromotionNotification(
+                        "🎉 {$promotion->title}",
+                        $promotion->description ?? "Check out our latest offer!",
+                        $promotion->id,
+                        "🎉 {$promotion->title_ar}",
+                        $promotion->description_ar ?? "تحقق من أحدث عروضنا!",
+                        $promotion->image_url
+                    );
+                }
             }
 
             DB::commit();

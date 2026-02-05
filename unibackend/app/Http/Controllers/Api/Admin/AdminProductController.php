@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\ProductWatchlist;
+use App\Services\EnterpriseNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -11,6 +13,17 @@ use App\Services\CloudinaryService;
 
 class AdminProductController extends Controller
 {
+    protected ?EnterpriseNotificationService $notificationService;
+
+    public function __construct()
+    {
+        try {
+            $this->notificationService = app(EnterpriseNotificationService::class);
+        } catch (\Exception $e) {
+            $this->notificationService = null;
+        }
+    }
+
     public function index(Request $request)
     {
         $query = Product::query();
@@ -92,6 +105,10 @@ class AdminProductController extends Controller
     public function update(Request $request, $barcode)
     {
         $product = Product::where('barcode', $barcode)->firstOrFail();
+        
+        // Store old values for comparison
+        $oldPrice = $product->price;
+        $wasOutOfStock = !$product->is_in_stock || $product->stock_quantity <= 0;
 
         $validated = $request->validate([
             'name_en' => 'sometimes|string|max:255',
@@ -122,6 +139,59 @@ class AdminProductController extends Controller
         }
 
         $product->update($validated);
+        $product->refresh();
+
+        // Check for price changes and back-in-stock notifications
+        if ($this->notificationService) {
+            try {
+                // Check for price drop
+                if (isset($validated['price']) && $validated['price'] < $oldPrice) {
+                    // Notify all users watching this product for price drops
+                    $watchers = ProductWatchlist::where('product_id', $product->barcode)
+                        ->where('notify_price_drop', true)
+                        ->where(function($q) use ($validated) {
+                            $q->whereNull('price_threshold')
+                              ->orWhere('price_threshold', '>=', $validated['price']);
+                        })
+                        ->get();
+                    
+                    foreach ($watchers as $watcher) {
+                        $this->notificationService->notifyProductPriceChanged(
+                            $watcher->user_id,
+                            $product->name ?? 'Product',
+                            (int) $product->barcode,
+                            (float) $oldPrice,
+                            (float) $validated['price']
+                        );
+                        ProductWatchlist::where('id', $watcher->id)
+                            ->update(['notified_price_drop' => true, 'last_notified_at' => now()]);
+                    }
+                }
+                
+                // Check for back-in-stock
+                $isNowInStock = $product->is_in_stock && $product->stock_quantity > 0;
+                if ($wasOutOfStock && $isNowInStock) {
+                    // Notify all users watching this product for stock alerts
+                    $watchers = ProductWatchlist::where('product_id', $product->barcode)
+                        ->where('notify_back_in_stock', true)
+                        ->where('notified_back_in_stock', false)
+                        ->get();
+                    
+                    foreach ($watchers as $watcher) {
+                        $this->notificationService->notifyProductBackInStock(
+                            $watcher->user_id,
+                            $product->name ?? 'Product',
+                            (int) $product->barcode,
+                            $product->image
+                        );
+                        ProductWatchlist::where('id', $watcher->id)
+                            ->update(['notified_back_in_stock' => true, 'last_notified_at' => now()]);
+                    }
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to send product notification', ['error' => $e->getMessage()]);
+            }
+        }
 
         return response()->json($product->load('categories'));
     }

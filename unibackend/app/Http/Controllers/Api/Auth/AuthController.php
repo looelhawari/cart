@@ -13,8 +13,11 @@ use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Requests\Auth\VerifyPhoneRequest;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Models\UserLoginHistory;
 use App\Services\OtpService;
 use App\Services\CartService;
+use App\Services\PushNotificationService;
+use App\Services\EnterpriseNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,11 +32,22 @@ class AuthController extends Controller
 {
     protected OtpService $otpService;
     protected CartService $cartService;
+    protected PushNotificationService $pushNotificationService;
+    protected ?EnterpriseNotificationService $enterpriseNotificationService;
 
-    public function __construct(OtpService $otpService, CartService $cartService)
-    {
+    public function __construct(
+        OtpService $otpService, 
+        CartService $cartService,
+        PushNotificationService $pushNotificationService
+    ) {
         $this->otpService = $otpService;
         $this->cartService = $cartService;
+        $this->pushNotificationService = $pushNotificationService;
+        try {
+            $this->enterpriseNotificationService = app(EnterpriseNotificationService::class);
+        } catch (\Exception $e) {
+            $this->enterpriseNotificationService = null;
+        }
     }
 
     /**
@@ -113,6 +127,9 @@ class AuthController extends Controller
         ]);
 
         $otpRecord->markAsUsed();
+
+        // Send welcome notification (will be delivered when user registers push token)
+        $this->pushNotificationService->sendWelcomeNotification($user->id, $user->first_name);
 
         // Create tokens - standard 24 hour session for new registrations
         $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addHours(24))->plainTextToken;
@@ -208,6 +225,24 @@ class AuthController extends Controller
 
         // Log successful login
         ActivityLog::log('user_logged_in', $user->id, 'User', $user->id);
+
+        // Record login for security tracking and send notification if new device
+        if ($this->enterpriseNotificationService) {
+            try {
+                $loginRecord = UserLoginHistory::recordLogin($user->id, $request);
+                
+                if ($loginRecord && $loginRecord->is_new_device) {
+                    $this->enterpriseNotificationService->notifyNewDeviceFromHistory($user->id, $loginRecord);
+                } elseif ($loginRecord && $loginRecord->is_suspicious) {
+                    $this->enterpriseNotificationService->notifySuspiciousLoginActivity($user->id, 'Unusual login pattern detected', $loginRecord->city ?? $loginRecord->country);
+                } elseif ($loginRecord) {
+                    // Regular login notification (can be disabled by user preferences)
+                    $this->enterpriseNotificationService->notifyNewLoginFromHistory($user->id, $loginRecord);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to record login or send notification', ['error' => $e->getMessage()]);
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -554,6 +589,15 @@ class AuthController extends Controller
         $user->tokens()->where('id', '!=', $currentToken->id)->delete();
 
         ActivityLog::log('password_changed', $user->id, 'User', $user->id);
+
+        // Send security notification for password change
+        if ($this->enterpriseNotificationService) {
+            try {
+                $this->enterpriseNotificationService->notifyPasswordChanged($user->id);
+            } catch (\Exception $e) {
+                Log::warning('Failed to send password change notification', ['error' => $e->getMessage()]);
+            }
+        }
 
         return response()->json([
             'success' => true,

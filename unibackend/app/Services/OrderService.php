@@ -9,15 +9,23 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\PromoCode;
 use App\Models\User;
+use App\Models\UserPurchasePattern;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class OrderService
 {
     protected CartService $cartService;
+    protected ?EnterpriseNotificationService $notificationService;
 
     public function __construct(CartService $cartService)
     {
         $this->cartService = $cartService;
+        try {
+            $this->notificationService = app(EnterpriseNotificationService::class);
+        } catch (\Exception $e) {
+            $this->notificationService = null;
+        }
     }
 
     /**
@@ -48,7 +56,7 @@ class OrderService
             // CRITICAL: Order totals NEVER recalculate after this point
             $cartTotals = $this->cartService->calculateTotals($cart, $promoCode);
 
-            \Log::info('📸 [STEP 2] ORDER SNAPSHOT - Freezing cart totals', [
+            Log::info('📸 [STEP 2] ORDER SNAPSHOT - Freezing cart totals', [
                 'cart_id' => $cart->id,
                 'cart_totals' => $cartTotals,
                 'items_count' => $cart->items->count(),
@@ -72,7 +80,7 @@ class OrderService
             $total = $cartTotals['total'];
             $promoSnapshot = $cartTotals['promo_summary'] ?? null;
 
-            \Log::info('� [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
+            Log::info('� [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
                 'subtotal' => $cartTotals['subtotal'],
                 'delivery_fee' => $deliveryFee,
                 'tax' => $tax,
@@ -101,7 +109,7 @@ class OrderService
                 'notes' => $notes,
             ]);
 
-            \Log::info('✅ [STEP 2] ORDER CREATED - Snapshot saved to database', [
+            Log::info('✅ [STEP 2] ORDER CREATED - Snapshot saved to database', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'snapshot_values' => [
@@ -178,7 +186,24 @@ class OrderService
                 $this->cartService->clearCart($cart);
             }
 
-            return $order->load(['items.product', 'deliveryAddress', 'user']);
+            // Load order with relationships
+            $order->load(['items.product', 'deliveryAddress', 'user']);
+
+            // Send enterprise notification for order placement
+            if ($this->notificationService) {
+                try {
+                    $this->notificationService->notifyOrderPlacedFromOrder($order);
+                    
+                    // Record purchase patterns for smart reorder suggestions
+                    foreach ($order->items as $item) {
+                        UserPurchasePattern::recordPurchase($userId, $item->product_id);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Failed to send order notification', ['error' => $e->getMessage()]);
+                }
+            }
+
+            return $order;
         });
     }
 
@@ -247,6 +272,15 @@ class OrderService
             //     'created_by' => $userId,
             // ]);
 
+            // Send enterprise notification for order cancellation
+            if ($this->notificationService) {
+                try {
+                    $this->notificationService->notifyOrderCancelledFromOrder($order, $reason);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to send cancellation notification', ['error' => $e->getMessage()]);
+                }
+            }
+
             return $order->fresh(['items.product', 'deliveryAddress']);
         });
     }
@@ -256,7 +290,7 @@ class OrderService
      */
     public function reorder(int $orderId, int $userId, ?string $sessionId = null): array
     {
-        \Log::info('🛒 [REORDER] Starting reorder process', [
+        Log::info('🛒 [REORDER] Starting reorder process', [
             'order_id' => $orderId,
             'user_id' => $userId,
             'session_id' => $sessionId,
@@ -269,7 +303,7 @@ class OrderService
 
         $cart = $this->cartService->getCart($userId, $sessionId);
 
-        \Log::info('🛒 [REORDER] Cart retrieved', [
+        Log::info('🛒 [REORDER] Cart retrieved', [
             'cart_id' => $cart->id,
             'existing_items' => $cart->items->count(),
             'session_id' => $cart->session_id,
@@ -303,7 +337,7 @@ class OrderService
 
         $cart->fresh('items.product');
 
-        \Log::info('✅ [REORDER] Reorder completed', [
+        Log::info('✅ [REORDER] Reorder completed', [
             'cart_id' => $cart->id,
             'items_added' => count($addedItems),
             'items_unavailable' => count($unavailableItems),

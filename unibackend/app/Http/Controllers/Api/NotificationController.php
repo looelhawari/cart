@@ -235,28 +235,73 @@ class NotificationController extends Controller
             $preferences = NotificationPreference::firstOrCreate(
                 ['user_id' => $user->id],
                 [
+                    // Global settings
                     'push_enabled' => true,
-                    'order_updates' => true,
-                    'promotions' => true,
-                    'wallet_updates' => true,
-                    'complaint_updates' => true,
+                    'email_enabled' => true,
                     'quiet_hours_enabled' => false,
                     'quiet_hours_start' => '22:00',
                     'quiet_hours_end' => '08:00',
+                    // Order & Delivery
+                    'order_updates' => true,
+                    'delivery_updates' => true,
+                    'payment_alerts' => true,
+                    // Marketing
+                    'promotions' => true,
+                    'flash_sales' => true,
+                    'price_drops' => true,
+                    // Product
+                    'back_in_stock' => true,
+                    'price_alerts' => true,
+                    // Cart
+                    'cart_reminders' => true,
+                    // Support
+                    'complaint_updates' => true,
+                    'chat_messages' => true,
+                    // Account & Security
+                    'security_alerts' => true,
+                    // Wallet
+                    'wallet_updates' => true,
+                    // Smart/AI
+                    'reorder_reminders' => true,
+                    // System
+                    'system_updates' => true,
+                    'marketing' => true,
                 ]
             );
 
             return response()->json([
                 'success' => true,
                 'data' => [
+                    // Global settings
                     'push_enabled' => $preferences->push_enabled,
-                    'order_updates' => $preferences->order_updates,
-                    'promotions' => $preferences->promotions,
-                    'wallet_updates' => $preferences->wallet_updates,
-                    'complaint_updates' => $preferences->complaint_updates,
                     'quiet_hours_enabled' => $preferences->quiet_hours_enabled,
                     'quiet_hours_start' => $preferences->quiet_hours_start,
                     'quiet_hours_end' => $preferences->quiet_hours_end,
+                    // Order & Delivery
+                    'order_updates' => $preferences->order_updates,
+                    'delivery_updates' => $preferences->delivery_updates ?? true,
+                    'payment_alerts' => $preferences->payment_alerts ?? true,
+                    // Marketing
+                    'promotions' => $preferences->promotions,
+                    'flash_sales' => $preferences->flash_sales ?? true,
+                    'price_drops' => $preferences->price_drops ?? true,
+                    // Product
+                    'back_in_stock' => $preferences->back_in_stock ?? true,
+                    'price_alerts' => $preferences->price_alerts ?? true,
+                    // Cart
+                    'cart_reminders' => $preferences->cart_reminders ?? true,
+                    // Support
+                    'complaint_updates' => $preferences->complaint_updates,
+                    'chat_messages' => $preferences->chat_messages ?? true,
+                    // Account & Security
+                    'security_alerts' => $preferences->security_alerts ?? true,
+                    // Wallet
+                    'wallet_updates' => $preferences->wallet_updates,
+                    // Smart/AI
+                    'reorder_reminders' => $preferences->reorder_reminders ?? true,
+                    // System
+                    'system_updates' => $preferences->system_updates ?? true,
+                    'marketing' => $preferences->marketing ?? true,
                 ],
             ]);
 
@@ -276,14 +321,36 @@ class NotificationController extends Controller
     {
         try {
             $validated = $request->validate([
+                // Global settings
                 'push_enabled' => 'sometimes|boolean',
-                'order_updates' => 'sometimes|boolean',
-                'promotions' => 'sometimes|boolean',
-                'wallet_updates' => 'sometimes|boolean',
-                'complaint_updates' => 'sometimes|boolean',
                 'quiet_hours_enabled' => 'sometimes|boolean',
                 'quiet_hours_start' => 'sometimes|date_format:H:i',
                 'quiet_hours_end' => 'sometimes|date_format:H:i',
+                // Order & Delivery
+                'order_updates' => 'sometimes|boolean',
+                'delivery_updates' => 'sometimes|boolean',
+                'payment_alerts' => 'sometimes|boolean',
+                // Marketing
+                'promotions' => 'sometimes|boolean',
+                'flash_sales' => 'sometimes|boolean',
+                'price_drops' => 'sometimes|boolean',
+                // Product
+                'back_in_stock' => 'sometimes|boolean',
+                'price_alerts' => 'sometimes|boolean',
+                // Cart
+                'cart_reminders' => 'sometimes|boolean',
+                // Support
+                'complaint_updates' => 'sometimes|boolean',
+                'chat_messages' => 'sometimes|boolean',
+                // Account & Security
+                'security_alerts' => 'sometimes|boolean',
+                // Wallet
+                'wallet_updates' => 'sometimes|boolean',
+                // Smart/AI
+                'reorder_reminders' => 'sometimes|boolean',
+                // System
+                'system_updates' => 'sometimes|boolean',
+                'marketing' => 'sometimes|boolean',
             ]);
 
             $user = $request->user();
@@ -297,14 +364,36 @@ class NotificationController extends Controller
                 'success' => true,
                 'message' => 'Notification preferences updated successfully',
                 'data' => [
+                    // Global settings
                     'push_enabled' => $preferences->push_enabled,
-                    'order_updates' => $preferences->order_updates,
-                    'promotions' => $preferences->promotions,
-                    'wallet_updates' => $preferences->wallet_updates,
-                    'complaint_updates' => $preferences->complaint_updates,
                     'quiet_hours_enabled' => $preferences->quiet_hours_enabled,
                     'quiet_hours_start' => $preferences->quiet_hours_start,
                     'quiet_hours_end' => $preferences->quiet_hours_end,
+                    // Order & Delivery
+                    'order_updates' => $preferences->order_updates,
+                    'delivery_updates' => $preferences->delivery_updates ?? true,
+                    'payment_alerts' => $preferences->payment_alerts ?? true,
+                    // Marketing
+                    'promotions' => $preferences->promotions,
+                    'flash_sales' => $preferences->flash_sales ?? true,
+                    'price_drops' => $preferences->price_drops ?? true,
+                    // Product
+                    'back_in_stock' => $preferences->back_in_stock ?? true,
+                    'price_alerts' => $preferences->price_alerts ?? true,
+                    // Cart
+                    'cart_reminders' => $preferences->cart_reminders ?? true,
+                    // Support
+                    'complaint_updates' => $preferences->complaint_updates,
+                    'chat_messages' => $preferences->chat_messages ?? true,
+                    // Account & Security
+                    'security_alerts' => $preferences->security_alerts ?? true,
+                    // Wallet
+                    'wallet_updates' => $preferences->wallet_updates,
+                    // Smart/AI
+                    'reorder_reminders' => $preferences->reorder_reminders ?? true,
+                    // System
+                    'system_updates' => $preferences->system_updates ?? true,
+                    'marketing' => $preferences->marketing ?? true,
                 ],
             ]);
 

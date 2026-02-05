@@ -354,6 +354,22 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/helpful', [\App\Http\Controllers\Api\V1\ReviewController::class, 'markHelpful']);
         });
 
+        // Product Watchlist endpoints (Enterprise Notifications)
+        Route::prefix('watchlist')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\WatchlistController::class, 'index']);
+            Route::post('/', [\App\Http\Controllers\Api\WatchlistController::class, 'store']);
+            Route::put('/{id}', [\App\Http\Controllers\Api\WatchlistController::class, 'update']);
+            Route::delete('/{id}', [\App\Http\Controllers\Api\WatchlistController::class, 'destroy']);
+            Route::get('/check/{productId}', [\App\Http\Controllers\Api\WatchlistController::class, 'check']);
+        });
+
+        // Flash Sales endpoints (Enterprise Notifications)
+        Route::prefix('flash-sales')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\FlashSaleController::class, 'index']);
+            Route::get('/upcoming', [\App\Http\Controllers\Api\FlashSaleController::class, 'upcoming']);
+            Route::get('/{id}', [\App\Http\Controllers\Api\FlashSaleController::class, 'show']);
+        });
+
         // Admin routes (requires admin role)
         Route::middleware(['admin', 'log.admin.activity'])->prefix('admin')->group(function () {
             // Activity Logs (legacy - for app-level logs like user registrations, logins)
@@ -549,6 +565,7 @@ Route::prefix('v1')->group(function () {
                 Route::put('/{id}', [AdminPromoCodeController::class, 'update']);
                 Route::delete('/{id}', [AdminPromoCodeController::class, 'destroy']);
                 Route::post('/{id}/duplicate', [AdminPromoCodeController::class, 'duplicate']);
+                Route::post('/{id}/send-notification', [AdminPromoCodeController::class, 'sendNotification']);
                 Route::get('/{id}/analytics', [AdminPromoCodeController::class, 'analytics']);
                 Route::get('/{id}/usage-history', [AdminPromoCodeController::class, 'usageHistory']);
                 Route::get('/{id}/users', [AdminPromoCodeController::class, 'users']);

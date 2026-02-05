@@ -7,12 +7,20 @@ use App\Models\OrderItem;
 use App\Models\User;
 use App\Models\UserWallet;
 use App\Services\OrderService;
+use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
 class RefundService
 {
+    protected PushNotificationService $pushNotificationService;
+
+    public function __construct(PushNotificationService $pushNotificationService)
+    {
+        $this->pushNotificationService = $pushNotificationService;
+    }
+
     /**
      * Refund full order amount to wallet
      *
@@ -67,6 +75,14 @@ class RefundService
             ]);
 
             app(OrderService::class)->rollbackPromoUsage($order);
+
+            // Send wallet notification
+            $this->pushNotificationService->sendRefundNotification(
+                $order->user_id,
+                $order->order_number,
+                $refundAmount,
+                'full'
+            );
 
             // Log
             Log::info('Order refunded to wallet', [
@@ -128,6 +144,14 @@ class RefundService
 
             // Mark items as refunded
             OrderItem::whereIn('id', $itemIds)->update(['refunded' => true]);
+
+            // Send wallet notification for partial refund
+            $this->pushNotificationService->sendRefundNotification(
+                $order->user_id,
+                $order->order_number,
+                $refundAmount,
+                'partial'
+            );
 
             // Log
             Log::info('Partial refund processed', [
