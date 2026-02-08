@@ -295,16 +295,16 @@ Route::prefix('v1')->group(function () {
             Route::put('/preferences', [NotificationController::class, 'updatePreferences']);
         });
 
-        // Payment endpoints (protected) - password required for payment initiation
+        // Payment endpoints (protected) - no session middleware for API (mobile/SPA)
         Route::prefix('payments')->group(function () {
             // Pre-check payment (NEW - validates Paymob BEFORE order creation)
-            Route::middleware('password.confirm')->post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
+            Route::post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
 
             // Initiate payment (creates payment record)
-            Route::middleware('password.confirm')->post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
+            Route::post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
 
             // Initiate payment with saved card (Phase 5)
-            Route::middleware('password.confirm')->post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
+            Route::post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
 
             // Check payment status for polling (per-payment query)
             Route::get('/status/{paymentId}', [PaymentController::class, 'checkStatus']);

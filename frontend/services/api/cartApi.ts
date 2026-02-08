@@ -158,7 +158,7 @@ export const clearCart = async (): Promise<{
   const token = await getAuthToken();
   const sessionId = await getSessionId();
 
-  const response = await fetch(`${API_BASE_URL}/cart`, {
+  const response = await fetch(`${API_BASE_URL}/cart/clear`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

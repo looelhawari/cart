@@ -226,11 +226,17 @@ export default function OrderDetailsScreen() {
       fontWeight: Typography.bold,
       color: Colors.neutralCharcoal,
       marginBottom: Spacing.md,
+      letterSpacing: 0.2,
     },
     timeline: {
       backgroundColor: Colors.neutralWhite,
       borderRadius: isSmallDevice ? 12 : 16,
       padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
     },
     timelineItem: {
       flexDirection: "row",
@@ -275,10 +281,16 @@ export default function OrderDetailsScreen() {
       backgroundColor: Colors.neutralWhite,
       borderRadius: isSmallDevice ? 12 : 16,
       padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
     },
     infoRow: {
       flexDirection: "row",
       gap: isSmallDevice ? Spacing.sm : Spacing.md,
+      alignItems: "flex-start",
     },
     infoTextContainer: {
       flex: 1,
@@ -308,6 +320,11 @@ export default function OrderDetailsScreen() {
       borderRadius: isSmallDevice ? 12 : 16,
       padding: isSmallDevice ? Spacing.md : Spacing.lg,
       gap: isSmallDevice ? Spacing.sm : Spacing.md,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
     },
     orderItem: {
       flexDirection: "row",
@@ -351,6 +368,11 @@ export default function OrderDetailsScreen() {
       backgroundColor: Colors.neutralWhite,
       borderRadius: isSmallDevice ? 12 : 16,
       padding: isSmallDevice ? Spacing.md : Spacing.lg,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
     },
     summaryRow: {
       flexDirection: "row",
@@ -1010,19 +1032,37 @@ export default function OrderDetailsScreen() {
                 <Text style={styles.infoLabel}>Delivery Address</Text>
                 {order.delivery_address && (
                   <View>
-                    <Text style={styles.infoValue}>
+                    <Text style={[styles.infoValue, { fontWeight: Typography.semibold }]}>
                       {order.delivery_address.recipient_name}
                     </Text>
                     <Text style={styles.infoValue}>
-                      {order.delivery_address.phone_number}
+                      {order.delivery_address.phone}
                     </Text>
                     <Text style={styles.infoValue}>
-                      {order.delivery_address.street_address}
+                      {order.delivery_address.street}
                     </Text>
+                    {(order.delivery_address.building || order.delivery_address.floor || order.delivery_address.apartment) && (
+                      <Text style={styles.infoValue}>
+                        {order.delivery_address.building
+                          ? `Bldg ${order.delivery_address.building}`
+                          : ""}
+                        {order.delivery_address.floor
+                          ? `${order.delivery_address.building ? ", " : ""}Floor ${order.delivery_address.floor}`
+                          : ""}
+                        {order.delivery_address.apartment
+                          ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}Apt ${order.delivery_address.apartment}`
+                          : ""}
+                      </Text>
+                    )}
                     <Text style={styles.infoValue}>
-                      {order.delivery_address.city},{" "}
-                      {order.delivery_address.governorate}
+                      {order.delivery_address.city}
+                      {order.delivery_address.area ? `, ${order.delivery_address.area}` : ""}
                     </Text>
+                    {order.delivery_address.landmark && (
+                      <Text style={[styles.infoValue, { fontStyle: "italic", color: Colors.neutralMedium }]}>
+                        Near: {order.delivery_address.landmark}
+                      </Text>
+                    )}
                   </View>
                 )}
               </View>
@@ -1062,15 +1102,19 @@ export default function OrderDetailsScreen() {
           <Text style={styles.sectionTitle}>Payment Method</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              {order.payment_method === "cod" ? (
+              {order.payment_method === "cod" || order.payment_method === "cash_on_delivery" ? (
                 <Ionicons name="wallet-outline" size={20} color={Colors.primary900} />
               ) : (
                 <Ionicons name="card-outline" size={20} color={Colors.primary900} />
               )}
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoValue}>
-                  {order.payment_method === "cod"
+                  {order.payment_method === "cod" || order.payment_method === "cash_on_delivery"
                     ? "Cash on Delivery"
+                    : order.payment_method === "wallet"
+                    ? "Wallet Payment"
+                    : order.payment_method === "wallet+card"
+                    ? "Wallet + Card Payment"
                     : "Card Payment"}
                 </Text>
                 <Text

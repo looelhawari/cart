@@ -11,13 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import {
-  ArrowLeft,
-  Save,
-  Home,
-  Briefcase,
-  MapPinned,
-} from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -49,7 +44,6 @@ export default function AddEditAddressScreen() {
   const [city, setCity] = useState("");
   const [area, setArea] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [notes, setNotes] = useState("");
   const [isDefault, setIsDefault] = useState(false);
 
   const getToken = async () => {
@@ -89,7 +83,6 @@ export default function AddEditAddressScreen() {
         setCity(address.city);
         setArea(address.area || "");
         setLandmark(address.landmark || "");
-        setNotes(address.notes || "");
         setIsDefault(address.is_default);
       }
     } catch (error) {
@@ -121,6 +114,8 @@ export default function AddEditAddressScreen() {
     try {
       const addressData = {
         label,
+        recipient_name: recipientName,
+        phone: phone,
         street,
         building: building || null,
         floor: floor || null,
@@ -128,7 +123,6 @@ export default function AddEditAddressScreen() {
         city,
         area: area || null,
         landmark: landmark || null,
-        notes: notes || null,
         is_default: isDefault,
       };
 
@@ -217,7 +211,7 @@ export default function AddEditAddressScreen() {
           {loading ? (
             <ActivityIndicator size="small" color={Colors.primary900} />
           ) : (
-            <Save size={20} color={Colors.primary900} />
+            <Ionicons name="checkmark" size={20} color={Colors.primary900} />
           )}
         </TouchableOpacity>
       </View>
@@ -240,7 +234,8 @@ export default function AddEditAddressScreen() {
               onPress={() => setLabel("Home")}
               activeOpacity={0.7}
             >
-              <Home
+              <Ionicons
+                name="home"
                 size={20}
                 color={
                   label === "Home" ? Colors.neutralWhite : Colors.neutralMedium
@@ -264,7 +259,8 @@ export default function AddEditAddressScreen() {
               onPress={() => setLabel("Work")}
               activeOpacity={0.7}
             >
-              <Briefcase
+              <Ionicons
+                name="briefcase"
                 size={20}
                 color={
                   label === "Work" ? Colors.neutralWhite : Colors.neutralMedium
@@ -288,7 +284,8 @@ export default function AddEditAddressScreen() {
               onPress={() => setLabel("Other")}
               activeOpacity={0.7}
             >
-              <MapPinned
+              <Ionicons
+                name="location"
                 size={20}
                 color={
                   label === "Other" ? Colors.neutralWhite : Colors.neutralMedium
@@ -309,6 +306,33 @@ export default function AddEditAddressScreen() {
         {/* Address Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.addresses.addressDetails}</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Recipient Name <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter recipient name"
+              placeholderTextColor={Colors.neutralMedium}
+              value={recipientName}
+              onChangeText={setRecipientName}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Phone Number <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter phone number"
+              placeholderTextColor={Colors.neutralMedium}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
@@ -399,19 +423,6 @@ export default function AddEditAddressScreen() {
               placeholderTextColor={Colors.neutralMedium}
               value={landmark}
               onChangeText={setLandmark}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>{t.addresses.deliveryNotes}</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder={t.addresses.enterNotes}
-              placeholderTextColor={Colors.neutralMedium}
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              numberOfLines={3}
             />
           </View>
         </View>
@@ -541,7 +552,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   required: {
-    color: Colors.error,
+    color: Colors.danger900,
   },
   input: {
     backgroundColor: Colors.neutralCloud,

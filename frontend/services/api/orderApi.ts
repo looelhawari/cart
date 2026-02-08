@@ -46,7 +46,7 @@ export interface Order {
   tax: number;
   discount: number;
   total: number;
-  payment_method: "cod" | "card";
+  payment_method: "cod" | "card" | "cash_on_delivery" | "wallet" | "wallet+card";
   payment_method_id: number | null;
   payment_status: "pending" | "completed" | "failed" | "refunded"; // STEP 4: Use 'completed' not 'paid'
   delivery_address_id: number;
@@ -66,9 +66,9 @@ export interface CreateOrderData {
   delivery_address_id: number;
   delivery_date: string;
   delivery_time_slot: string;
-  payment_method: "cod" | "card";
+  payment_method: "cod" | "card" | "cash_on_delivery";
   payment_method_id?: number;
-  delivery_notes?: string;
+  notes?: string;
   promo_code?: string;
 }
 

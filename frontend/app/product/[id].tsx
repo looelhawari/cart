@@ -11,6 +11,8 @@ import {
   TextInput,
   Modal,
   Animated,
+  Share,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -84,6 +86,8 @@ export default function ProductDetailScreen() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [favoriteAnimValue] = useState(new Animated.Value(1));
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const reviewsSectionY = React.useRef<number>(0);
 
   const {
     cart,
@@ -109,6 +113,9 @@ export default function ProductDetailScreen() {
   });
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info">(
+    "success",
+  );
 
   useEffect(() => {
     if (id) {
@@ -272,6 +279,7 @@ export default function ProductDetailScreen() {
       setReviewComment("");
       setReviewRating(5);
       setIsEditingReview(false);
+      setToastType("success");
       setShowToast(true);
 
       // Reload reviews and eligibility
@@ -279,6 +287,7 @@ export default function ProductDetailScreen() {
       checkCanReview();
     } catch (error: any) {
       console.error("Failed to submit review:", error);
+      setToastType("error");
       setToastMessage(error.message || "Failed to submit review");
       setShowToast(true);
     } finally {
@@ -371,18 +380,26 @@ export default function ProductDetailScreen() {
       } else {
         await addToCart(product.barcode, quantity);
       }
+      setToastType("success");
       setToastMessage(`${quantity} ${t.cart.itemAdded}`);
       setShowToast(true);
     } catch (error) {
       console.error("Failed to add to cart:", error);
       const err: any = error;
       const msg = err?.message || err?.error || t.products.failedToAddToCart;
+      setToastType("error");
       setToastMessage(msg);
       setShowToast(true);
     }
   };
 
   const handleBuyNow = async () => {
+    if ((product.stock_quantity || 0) <= 0 || product.is_in_stock === false) {
+      setToastType("error");
+      setToastMessage(t.products.outOfStock);
+      setShowToast(true);
+      return;
+    }
     await handleAddToCart();
     router.push("/cart");
   };
@@ -416,7 +433,42 @@ export default function ProductDetailScreen() {
             />
           </Animated.View>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => { }} style={styles.headerButton}>
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              const productName = getName(product) || "Product";
+              const productUrl = `https://elbaraka.com/product/${product.barcode}`;
+              const deepLinkUrl = `elbaraka://product/${product.barcode}`;
+
+              // Build dynamic share message with pricing info
+              let shareMessage = `🛒 ${productName}\n`;
+
+              if (promoPrice && offerPricing) {
+                const promoDiscount = Math.round(
+                  ((offerPricing.originalPrice - offerPricing.discountedPrice) /
+                    offerPricing.originalPrice) *
+                    100,
+                );
+                shareMessage += `🔥 ${promoDiscount}% OFF! Now ${offerPricing.discountedPrice.toFixed(2)} EGP (was ${offerPricing.originalPrice.toFixed(2)} EGP)\n`;
+              } else if (discount > 0) {
+                shareMessage += `💰 ${discount}% OFF! Now ${basePrice.toFixed(2)} EGP (was ${price.toFixed(2)} EGP)\n`;
+              } else {
+                shareMessage += `💰 ${basePrice.toFixed(2)} EGP\n`;
+              }
+
+              shareMessage += `\n🛍️ Shop on El Baraka!\n${productUrl}`;
+
+              await Share.share({
+                message: shareMessage,
+                title: productName,
+                url: Platform.OS === "ios" ? productUrl : undefined,
+              });
+            } catch (error) {
+              // User cancelled sharing, no action needed
+            }
+          }}
+          style={styles.headerButton}
+        >
           <Share2 size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -463,7 +515,7 @@ export default function ProductDetailScreen() {
             {
               top:
                 discount > 0 ||
-                  (offerPricing && offerPricing.discountedPrice < basePrice)
+                (offerPricing && offerPricing.discountedPrice < basePrice)
                   ? 100
                   : 60,
               backgroundColor: Colors.accentYellow,
@@ -509,7 +561,14 @@ export default function ProductDetailScreen() {
 
       {/* Rating and Reviews */}
       <TouchableOpacity
-        onPress={() => router.push(`/product/reviews/${product.barcode}`)}
+        onPress={() => {
+          if (reviewsSectionY.current > 0) {
+            scrollViewRef.current?.scrollTo({
+              y: reviewsSectionY.current,
+              animated: true,
+            });
+          }
+        }}
         style={styles.ratingRow}
       >
         <View style={styles.stars}>
@@ -603,7 +662,7 @@ export default function ProductDetailScreen() {
             {product.stock_quantity && product.stock_quantity <= 3 && (
               <View style={styles.limitedStockBadge}>
                 <Text style={styles.limitedStockText}>
-                  ⚠️ {t.products.lowStock} {" "}
+                  ⚠️ {t.products.lowStock}{" "}
                   {t.products.onlyLeft.replace(
                     "{count}",
                     product.stock_quantity.toString(),
@@ -792,22 +851,16 @@ export default function ProductDetailScreen() {
       "specs",
       "Product Details & Specifications",
       <View style={styles.specsTable}>
-        {product.weight && (
-          <View style={styles.specRow}>
-            <Text style={styles.specLabel}>Weight</Text>
-            <Text style={styles.specValue}>{product.weight}g</Text>
-          </View>
-        )}
         {product.unit && (
           <View style={styles.specRow}>
-            <Text style={styles.specLabel}>Unit</Text>
+            <Text style={styles.specLabel}>Packaging</Text>
             <Text style={styles.specValue}>{product.unit}</Text>
           </View>
         )}
-        {product.is_featured && (
+        {product.weight && (
           <View style={styles.specRow}>
-            <Text style={styles.specLabel}>Featured Product</Text>
-            <Text style={[styles.specValue, styles.featuredBadge]}>⭐ Yes</Text>
+            <Text style={styles.specLabel}>Package Weight</Text>
+            <Text style={styles.specValue}>{product.weight}g</Text>
           </View>
         )}
       </View>,
@@ -861,8 +914,7 @@ export default function ProductDetailScreen() {
                 setShowReviewModal(true);
               }}
             >
-              <Award size={16} color={Colors.neutralWhite} />
-              <Text style={styles.writeReviewText}>Write Review</Text>
+              <Plus size={20} color={Colors.neutralWhite} strokeWidth={2.5} />
             </TouchableOpacity>
           )}
         </View>
@@ -890,7 +942,7 @@ export default function ProductDetailScreen() {
               ))}
             </View>
             <Text style={styles.totalReviews}>
-              Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
+              Based on {reviewCount} review{reviewCount !== 1 ? "s" : ""}
             </Text>
           </View>
 
@@ -1101,10 +1153,12 @@ export default function ProductDetailScreen() {
     >
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={() => {
-            setShowReviewModal(false);
-            setIsEditingReview(false);
-          }}>
+          <TouchableOpacity
+            onPress={() => {
+              setShowReviewModal(false);
+              setIsEditingReview(false);
+            }}
+          >
             <X size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
           <Text style={styles.modalTitle}>
@@ -1129,7 +1183,8 @@ export default function ProductDetailScreen() {
           </View>
 
           {/* Order Selection - only show when creating new review */}
-          {!isEditingReview && canReview?.eligible_orders &&
+          {!isEditingReview &&
+            canReview?.eligible_orders &&
             canReview.eligible_orders.length > 1 && (
               <View style={styles.orderSelection}>
                 <Text style={styles.orderSelectionLabel}>Select Order</Text>
@@ -1139,7 +1194,7 @@ export default function ProductDetailScreen() {
                     style={[
                       styles.orderOption,
                       selectedOrderId === order.order_id &&
-                      styles.orderOptionSelected,
+                        styles.orderOptionSelected,
                     ]}
                     onPress={() => setSelectedOrderId(order.order_id)}
                   >
@@ -1226,7 +1281,7 @@ export default function ProductDetailScreen() {
             style={[
               styles.submitReviewButton,
               (!reviewComment.trim() || reviewComment.length < 10) &&
-              styles.submitReviewDisabled,
+                styles.submitReviewDisabled,
             ]}
             onPress={handleSubmitReview}
             disabled={
@@ -1274,12 +1329,15 @@ export default function ProductDetailScreen() {
               itemSalePrice > 0 && itemSalePrice < itemPrice
                 ? Math.round(((itemPrice - itemSalePrice) / itemPrice) * 100)
                 : 0;
+            const itemOutOfStock =
+              item.is_in_stock === false || (item.stock_quantity || 0) <= 0;
 
             return (
               <TouchableOpacity
                 key={item.barcode || item.id}
                 style={styles.relatedCard}
                 onPress={() => router.push(`/product/${item.barcode}`)}
+                activeOpacity={0.85}
               >
                 {itemDiscount > 0 && (
                   <View style={styles.relatedDiscountBadge}>
@@ -1306,6 +1364,55 @@ export default function ProductDetailScreen() {
                       </Text>
                     )}
                   </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.relatedAddToCartBtn,
+                      itemOutOfStock && styles.relatedAddToCartBtnDisabled,
+                    ]}
+                    onPress={async (e) => {
+                      e.stopPropagation();
+                      if (itemOutOfStock) {
+                        setToastType("error");
+                        setToastMessage(t.products.outOfStock);
+                        setShowToast(true);
+                        return;
+                      }
+                      try {
+                        await addToCart(item.barcode, 1);
+                        setToastType("success");
+                        setToastMessage(t.cart.itemAdded);
+                        setShowToast(true);
+                      } catch (err: any) {
+                        const msg =
+                          err?.message ||
+                          err?.error ||
+                          t.products.failedToAddToCart;
+                        setToastType("error");
+                        setToastMessage(msg);
+                        setShowToast(true);
+                      }
+                    }}
+                    disabled={itemOutOfStock}
+                  >
+                    <ShoppingCart
+                      size={18}
+                      color={
+                        itemOutOfStock
+                          ? Colors.neutralMedium
+                          : Colors.neutralWhite
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.relatedAddToCartText,
+                        itemOutOfStock && styles.relatedAddToCartTextDisabled,
+                      ]}
+                    >
+                      {itemOutOfStock
+                        ? t.products.outOfStock
+                        : t.cart.addToCart}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </TouchableOpacity>
             );
@@ -1353,6 +1460,7 @@ export default function ProductDetailScreen() {
       <OfflineIndicator />
       {renderHeader()}
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
@@ -1365,7 +1473,14 @@ export default function ProductDetailScreen() {
         {renderNutrition()}
         {renderIngredients()}
         {renderSpecs()}
-        {renderReviewsSection()}
+        <View
+          onLayout={(e) => {
+            reviewsSectionY.current = e.nativeEvent.layout.y;
+          }}
+          collapsable={false}
+        >
+          {renderReviewsSection()}
+        </View>
         {renderRelatedProducts()}
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -1374,7 +1489,7 @@ export default function ProductDetailScreen() {
       <Toast
         visible={showToast}
         message={toastMessage}
-        type="success"
+        type={toastType}
         onHide={() => setShowToast(false)}
       />
     </SafeAreaView>
@@ -1732,12 +1847,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   specsTable: {
-    gap: Spacing.sm,
+    gap: 0,
   },
   specRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutralLight,
   },
   specLabel: {
     fontSize: Typography.bodyBase,
@@ -1817,6 +1934,28 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
     fontSize: Typography.bodySmall,
     fontWeight: "bold",
+  },
+  relatedAddToCartBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: Colors.primary900,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 12,
+    marginTop: Spacing.sm,
+  },
+  relatedAddToCartBtnDisabled: {
+    backgroundColor: Colors.neutralLight,
+  },
+  relatedAddToCartText: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: "600",
+    color: Colors.neutralWhite,
+  },
+  relatedAddToCartTextDisabled: {
+    color: Colors.neutralMedium,
   },
   bottomBar: {
     position: "absolute",
@@ -1979,13 +2118,12 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   writeReviewButton: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
     backgroundColor: Colors.primary900,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   writeReviewText: {
     fontSize: Typography.bodySmall,

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -60,6 +61,7 @@ export default function CheckoutConfirmationScreen() {
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [deliveryNotes, setDeliveryNotes] = useState<string>("");
   const [accepted, setAccepted] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
@@ -176,6 +178,7 @@ export default function CheckoutConfirmationScreen() {
           delivery_time_slot: selectedSlot,
           payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
           promo_code: cart?.promo_code || undefined,
+          notes: deliveryNotes.trim() || undefined,
         });
 
         orderId = response.data.order.id;
@@ -413,6 +416,25 @@ export default function CheckoutConfirmationScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+
+        {/* Delivery Notes Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ArrowLeft size={20} color={Colors.primary900} style={{ transform: [{ rotate: '180deg' }] }} />
+            <Text style={styles.sectionTitle}>{t.checkout?.deliveryNotes || "Delivery Notes"}</Text>
+            <Text style={styles.optionalLabel}>{t.common?.optional || "(Optional)"}</Text>
+          </View>
+          <TextInput
+            style={styles.notesInput}
+            placeholder={t.checkout?.deliveryNotesPlaceholder || "Any special instructions for delivery? (e.g., ring doorbell, leave at door)"}
+            placeholderTextColor={Colors.neutralMedium}
+            value={deliveryNotes}
+            onChangeText={setDeliveryNotes}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
         </View>
 
         {/* Payment Method Summary */}
@@ -723,6 +745,22 @@ const styles = StyleSheet.create({
   },
   slotTextSelected: {
     color: Colors.primary900,
+  },
+  optionalLabel: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    fontStyle: "italic",
+    marginLeft: "auto",
+  },
+  notesInput: {
+    backgroundColor: Colors.neutralLight,
+    borderRadius: 12,
+    padding: Spacing.md,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
+    minHeight: 80,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
   },
   paymentOption: {
     flexDirection: "row",

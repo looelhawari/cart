@@ -9,6 +9,7 @@ import {
     Animated,
     Dimensions,
     Image,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -30,7 +31,7 @@ type TabType = "all" | "processing" | "delivered" | "cancelled";
 export default function OrdersScreen() {
     const { t } = useTranslation();
     const { getName } = useLocalizedValue();
-    const { user, cart } = useStore();
+    const { user, cart, addToCart } = useStore();
 
     const [userOrders, setUserOrders] = useState<Order[]>([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
@@ -125,11 +126,43 @@ export default function OrdersScreen() {
     const handleReorder = async (orderId: number) => {
         setReorderingId(orderId);
         try {
-            // Reorder by adding items to cart - simplified
-            router.push("/(tabs)/cart");
+            // Get order details with items
+            const response = await orderApi.getOrder(orderId);
+            const orderItems = response.data.order.items || [];
+            
+            if (orderItems.length === 0) {
+                Alert.alert("Error", "No items found in this order");
+                setReorderingId(null);
+                return;
+            }
+
+            // Add each item to cart
+            let addedCount = 0;
+            for (const item of orderItems) {
+                try {
+                    await addToCart(item.product_id, item.quantity);
+                    addedCount++;
+                } catch (error) {
+                    console.error(`Failed to add product ${item.product_id}:`, error);
+                }
+            }
+
+            setReorderingId(null);
+            
+            // Show success message and navigate to cart
+            Alert.alert(
+                "Success",
+                `All ${addedCount} item${addedCount > 1 ? 's' : ''} added to cart!`,
+                [
+                    {
+                        text: "Go to Cart",
+                        onPress: () => router.push("/(tabs)/cart"),
+                    },
+                ]
+            );
         } catch (error) {
             console.error("Reorder failed:", error);
-        } finally {
+            Alert.alert("Error", "Failed to reorder. Please try again.");
             setReorderingId(null);
         }
     };

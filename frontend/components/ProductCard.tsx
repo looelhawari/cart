@@ -11,13 +11,25 @@ import { getCachedImage } from "@/services/cache/imageCache";
 import { SaleBadge } from "./SaleBadge";
 import { useLocalizedValue, useTranslation } from "@/i18n";
 import { Toast } from "@/components/Toast";
+import type { ProductOfferPricing } from "@/utils/offerPricing";
 
 interface ProductCardProps {
   product: Product;
   onPress: () => void;
+  onAddToCart?: (result: {
+    success: boolean;
+    message: string;
+    type: "success" | "error";
+  }) => void;
+  offerPricing?: ProductOfferPricing | null;
 }
 
-export function ProductCard({ product, onPress }: ProductCardProps) {
+export function ProductCard({
+  product,
+  onPress,
+  onAddToCart,
+  offerPricing,
+}: ProductCardProps) {
   const { favorites, toggleFavorite, addToCart } = useStore();
   const [cachedImageUri, setCachedImageUri] = useState<string | undefined>();
   const productId = product.barcode || Number(product.id) || 0;
@@ -147,16 +159,32 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
           onPress={async (e) => {
             e.stopPropagation();
             if (isOutOfStock) {
-              setToastType("error");
-              setToastMessage(t.products.outOfStock);
-              setShowToast(true);
+              if (onAddToCart) {
+                onAddToCart({
+                  success: false,
+                  message: t.products.outOfStock,
+                  type: "error",
+                });
+              } else {
+                setToastType("error");
+                setToastMessage(t.products.outOfStock);
+                setShowToast(true);
+              }
               return;
             }
             try {
               await addToCart(productId, 1);
-              setToastType("success");
-              setToastMessage(t.cart.itemAdded);
-              setShowToast(true);
+              if (onAddToCart) {
+                onAddToCart({
+                  success: true,
+                  message: t.cart.itemAdded,
+                  type: "success",
+                });
+              } else {
+                setToastType("success");
+                setToastMessage(t.cart.itemAdded);
+                setShowToast(true);
+              }
             } catch (error: any) {
               console.error("Failed to add to cart:", error);
               const msg =
@@ -164,9 +192,13 @@ export function ProductCard({ product, onPress }: ProductCardProps) {
                 error?.error ||
                 (typeof error === "string" ? error : null) ||
                 t.products.failedToAddToCart;
-              setToastType("error");
-              setToastMessage(msg);
-              setShowToast(true);
+              if (onAddToCart) {
+                onAddToCart({ success: false, message: msg, type: "error" });
+              } else {
+                setToastType("error");
+                setToastMessage(msg);
+                setShowToast(true);
+              }
             }
           }}
           disabled={isOutOfStock}
