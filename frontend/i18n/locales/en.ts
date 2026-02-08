@@ -328,8 +328,6 @@ export default {
     languageChanged: "Language Changed",
     languageChangedMessage:
       "Language has been changed to {lang}. Some changes may require app restart.",
-    darkMode: "Dark Mode",
-    darkModeDesc: "Use dark theme (coming soon)",
     about: "About",
     appName: "ElBaraka Hypermarket",
     version: "Version",

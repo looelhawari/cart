@@ -66,12 +66,12 @@ export interface Order {
   orderNumber: string;
   date: string;
   status:
-  | "processing"
-  | "confirmed"
-  | "preparing"
-  | "out_for_delivery"
-  | "delivered"
-  | "cancelled";
+    | "processing"
+    | "confirmed"
+    | "preparing"
+    | "out_for_delivery"
+    | "delivered"
+    | "cancelled";
   subtotal: number;
   deliveryFee: number;
   discount: number;
@@ -143,16 +143,13 @@ export interface Address {
   id: number;
   user_id: number;
   label: "Home" | "Work" | "Other";
-  recipient_name: string;
-  phone: string;
   street: string;
   building?: string;
   floor?: string;
-  apartment?: string;
+  appartment?: string;
   city: string;
   area?: string;
   landmark?: string;
-  notes?: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;

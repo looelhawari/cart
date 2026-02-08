@@ -177,12 +177,10 @@ export default function CheckoutAddressScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={styles.addressName}>{address.recipient_name}</Text>
-                <Text style={styles.addressPhone}>{address.phone_number}</Text>
                 <Text style={styles.addressText}>
-                  {address.street_address}
-                  {address.building_number
-                    ? `, ${t.checkout.building} ${address.building_number}`
+                  {address.street}
+                  {address.building
+                    ? `, ${t.checkout.building} ${address.building}`
                     : ""}
                   {address.floor
                     ? `, ${t.checkout.floor} ${address.floor}`
@@ -192,8 +190,7 @@ export default function CheckoutAddressScreen() {
                     : ""}
                 </Text>
                 <Text style={styles.addressText}>
-                  {address.city}, {address.governorate}
-                  {address.postal_code ? `, ${address.postal_code}` : ""}
+                  {[address.area, address.city].filter(Boolean).join(", ")}
                 </Text>
                 {address.landmark && (
                   <Text style={styles.addressLandmark}>
@@ -397,17 +394,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     alignItems: "center",
     justifyContent: "center",
-  },
-  addressName: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 2,
-  },
-  addressPhone: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-    marginBottom: 4,
   },
   addressText: {
     fontSize: Typography.bodyBase,

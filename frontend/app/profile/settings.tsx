@@ -18,10 +18,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  Bell,
-  Globe,
-  Moon,
-  Info,
   Fingerprint,
   ShieldCheck,
   Eye,
@@ -428,30 +424,6 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={20} color="#ccc" />
             </TouchableOpacity>
 
-            <View style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <View
-                  style={[styles.iconContainer, { backgroundColor: "#F3E5F5" }]}
-                >
-                  <Ionicons name="moon" size={20} color="#9C27B0" />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>{t.settings.darkMode}</Text>
-                  <Text style={styles.settingSubtitle}>
-                    {t.settings.darkModeDesc}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
-                trackColor={{
-                  false: Colors.neutralGray,
-                  true: "#4CAF50",
-                }}
-                thumbColor={Colors.neutralWhite}
-              />
-            </View>
           </View>
 
           {/* About Section */}

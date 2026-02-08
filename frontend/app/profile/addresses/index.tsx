@@ -178,9 +178,6 @@ export default function AddressesScreen() {
       </View>
 
       <View style={styles.addressDetails}>
-        <Text style={styles.recipientName}>{address.recipient_name}</Text>
-        <Text style={styles.phone}>{address.phone}</Text>
-
         <View style={styles.addressTextContainer}>
           <MapPin
             size={16}
@@ -189,20 +186,27 @@ export default function AddressesScreen() {
           />
           <View style={styles.addressText}>
             <Text style={styles.street}>{address.street}</Text>
-            {(address.building || address.floor || address.apartment) && (
+            {(address.building || address.floor || address.appartment) && (
               <Text style={styles.detailsText}>
                 {[
-                  address.building,
-                  `${t.addresses.floorNumber} ${address.floor}`,
-                  `${t.addresses.apartmentNumber} ${address.apartment}`,
+                  address.building
+                    ? `${t.addresses.building} ${address.building}`
+                    : null,
+                  address.floor
+                    ? `${t.addresses.floorNumber} ${address.floor}`
+                    : null,
+                  address.appartment
+                    ? `${t.addresses.appartment} ${address.appartment}`
+                    : null,
                 ]
                   .filter(Boolean)
                   .join(", ")}
               </Text>
             )}
-            <Text style={styles.cityText}>
-              {[address.area, address.city].filter(Boolean).join(", ")}
-            </Text>
+            {address.area && (
+              <Text style={styles.cityText}>{address.area}</Text>
+            )}
+            <Text style={styles.cityText}>{address.city}</Text>
             {address.landmark && (
               <Text style={styles.landmarkText}>
                 {t.addresses.near} {address.landmark}
@@ -210,12 +214,6 @@ export default function AddressesScreen() {
             )}
           </View>
         </View>
-
-        {address.notes && (
-          <Text style={styles.notesText}>
-            {t.addresses.note}: {address.notes}
-          </Text>
-        )}
       </View>
 
       {!address.is_default && (
@@ -417,15 +415,6 @@ const styles = StyleSheet.create({
   addressDetails: {
     gap: Spacing.xs,
   },
-  recipientName: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-  },
-  phone: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-  },
   addressTextContainer: {
     flexDirection: "row",
     marginTop: Spacing.sm,
@@ -455,15 +444,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyMedium,
     color: Colors.primary700,
     fontStyle: "italic",
-  },
-  notesText: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-    fontStyle: "italic",
-    marginTop: Spacing.xs,
-    paddingTop: Spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutralLight,
   },
   setDefaultButton: {
     marginTop: Spacing.sm,

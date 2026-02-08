@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -20,6 +21,8 @@ import {
   Trash2,
   Heart,
   HeartOff,
+  ChevronRight,
+  CheckCircle,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -51,6 +54,10 @@ export default function FavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showAddedBanner, setShowAddedBanner] = useState(false);
+  const [addedCount, setAddedCount] = useState(0);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerSlide = useRef(new Animated.Value(-100)).current;
 
   // Load favorites from API
   const loadFavorites = useCallback(async () => {
@@ -109,6 +116,33 @@ export default function FavoritesScreen() {
     }
   };
 
+  const showBanner = (count: number) => {
+    setAddedCount(count);
+    setShowAddedBanner(true);
+    // Slide in
+    Animated.spring(bannerSlide, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 12,
+    }).start();
+    // Auto-dismiss after 5s
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    bannerTimer.current = setTimeout(() => {
+      dismissBanner();
+    }, 5000);
+  };
+
+  const dismissBanner = () => {
+    Animated.timing(bannerSlide, {
+      toValue: -100,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowAddedBanner(false);
+    });
+  };
+
   const handleAddAllToCart = async () => {
     if (favoriteProducts.length === 0) return;
 
@@ -120,17 +154,7 @@ export default function FavoritesScreen() {
         await addToCart(Number(productId), 1);
       }
 
-      Alert.alert(
-        t.favorites.addedToCart,
-        `${favoriteProducts.length} ${t.favorites.itemsAddedToCart}`,
-        [
-          { text: t.cart.continueShopping, style: "cancel" },
-          {
-            text: t.orders.viewCart,
-            onPress: () => router.push("/(tabs)/cart"),
-          },
-        ],
-      );
+      showBanner(favoriteProducts.length);
     } catch (error) {
       console.error("Failed to add items to cart:", error);
       Alert.alert(t.common.error, t.favorites.failedToAddToCart);
@@ -272,6 +296,48 @@ export default function FavoritesScreen() {
           )}
         </View>
       </View>
+
+      {/* Added to Cart Banner */}
+      {showAddedBanner && (
+        <Animated.View
+          style={[
+            styles.addedBanner,
+            { transform: [{ translateY: bannerSlide }] },
+          ]}
+        >
+          <CheckCircle size={20} color={Colors.primary900} />
+          <Text style={styles.addedBannerText}>
+            {addedCount}{" "}
+            {addedCount === 1 ? t.favorites.itemSaved : t.favorites.itemsSaved}{" "}
+            {t.favorites.addedToCart.toLowerCase()}
+          </Text>
+          <View style={styles.addedBannerActions}>
+            <TouchableOpacity
+              style={styles.continueShopping}
+              onPress={() => {
+                dismissBanner();
+                router.back();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.continueShoppingText}>
+                {t.cart.continueShopping}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.goToCartBtn}
+              onPress={() => {
+                dismissBanner();
+                router.push("/(tabs)/cart");
+              }}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.goToCartBtnText}>{t.orders.viewCart}</Text>
+              <ChevronRight size={14} color={Colors.neutralWhite} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
 
       {favoriteProducts.length === 0 ? (
         renderEmptyState()
@@ -521,6 +587,59 @@ const styles = StyleSheet.create({
   },
   emptyButtonText: {
     fontSize: Typography.bodyBase,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
+  },
+  addedBanner: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    backgroundColor: Colors.primary900 + "10",
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.primary900 + "20",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  addedBannerText: {
+    flex: 1,
+    fontSize: Typography.bodyMedium,
+    fontWeight: Typography.semibold,
+    color: Colors.neutralCharcoal,
+    marginLeft: Spacing.xs,
+  },
+  addedBannerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: 4,
+    width: "100%",
+  },
+  continueShopping: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.primary900,
+  },
+  continueShoppingText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: Typography.bold,
+    color: Colors.primary900,
+  },
+  goToCartBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary900,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 4,
+  },
+  goToCartBtnText: {
+    fontSize: Typography.bodySmall,
     fontWeight: Typography.bold,
     color: Colors.neutralWhite,
   },

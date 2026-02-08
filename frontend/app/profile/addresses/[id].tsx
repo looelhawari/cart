@@ -35,8 +35,6 @@ export default function AddEditAddressScreen() {
   const [initialLoading, setInitialLoading] = useState(isEdit);
 
   const [label, setLabel] = useState<AddressLabel>("Home");
-  const [recipientName, setRecipientName] = useState("");
-  const [phone, setPhone] = useState(user?.phone || "");
   const [street, setStreet] = useState("");
   const [building, setBuilding] = useState("");
   const [floor, setFloor] = useState("");
@@ -74,12 +72,10 @@ export default function AddEditAddressScreen() {
       if (data.success) {
         const address = data.data;
         setLabel(address.label);
-        setRecipientName(address.recipient_name);
-        setPhone(address.phone);
         setStreet(address.street);
         setBuilding(address.building || "");
         setFloor(address.floor || "");
-        setApartment(address.apartment || "");
+        setApartment(address.appartment || address.apartment || "");
         setCity(address.city);
         setArea(address.area || "");
         setLandmark(address.landmark || "");
@@ -93,14 +89,6 @@ export default function AddEditAddressScreen() {
   };
 
   const handleSave = async () => {
-    if (!(recipientName || "").trim()) {
-      Alert.alert("Error", "Please enter recipient name");
-      return;
-    }
-    if (!(phone || "").trim()) {
-      Alert.alert("Error", "Please enter phone number");
-      return;
-    }
     if (!(street || "").trim()) {
       Alert.alert("Error", "Please enter street address");
       return;
@@ -114,12 +102,10 @@ export default function AddEditAddressScreen() {
     try {
       const addressData = {
         label,
-        recipient_name: recipientName,
-        phone: phone,
         street,
         building: building || null,
         floor: floor || null,
-        apartment: apartment || null,
+        appartment: apartment || null,
         city,
         area: area || null,
         landmark: landmark || null,
@@ -306,33 +292,6 @@ export default function AddEditAddressScreen() {
         {/* Address Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.addresses.addressDetails}</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Recipient Name <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter recipient name"
-              placeholderTextColor={Colors.neutralMedium}
-              value={recipientName}
-              onChangeText={setRecipientName}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Phone Number <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter phone number"
-              placeholderTextColor={Colors.neutralMedium}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-            />
-          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>

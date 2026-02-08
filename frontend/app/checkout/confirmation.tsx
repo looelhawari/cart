@@ -87,10 +87,9 @@ export default function CheckoutConfirmationScreen() {
       const activeSlots = slots.filter((s: any) => s.is_active !== false);
       setDeliverySlots(activeSlots);
 
-      // Auto-select tomorrow as default date
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      setSelectedDate(tomorrow.toISOString().split("T")[0]);
+      // Auto-select today as default date
+      const today = new Date();
+      setSelectedDate(today.toISOString().split("T")[0]);
 
       // Auto-select first slot
       if (activeSlots.length > 0) {
@@ -111,19 +110,21 @@ export default function CheckoutConfirmationScreen() {
   const getDateOptions = () => {
     const dates = [];
     const today = new Date();
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 0; i <= 7; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       dates.push({
         value: date.toISOString().split("T")[0],
         label:
-          i === 1
-            ? t.checkout.tomorrow
-            : date.toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            }),
+          i === 0
+            ? t.checkout?.today || "Today"
+            : i === 1
+              ? t.checkout.tomorrow
+              : date.toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                }),
       });
     }
     return dates;
@@ -155,8 +156,8 @@ export default function CheckoutConfirmationScreen() {
         Alert.alert(
           t.store?.closed || "Store Closed",
           storeStatusResponse.data.message ||
-          t.store?.cannotOrderNow ||
-          "Sorry, we are not accepting orders right now",
+            t.store?.cannotOrderNow ||
+            "Sorry, we are not accepting orders right now",
         );
         return;
       }
@@ -421,13 +422,24 @@ export default function CheckoutConfirmationScreen() {
         {/* Delivery Notes Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <ArrowLeft size={20} color={Colors.primary900} style={{ transform: [{ rotate: '180deg' }] }} />
-            <Text style={styles.sectionTitle}>{t.checkout?.deliveryNotes || "Delivery Notes"}</Text>
-            <Text style={styles.optionalLabel}>{t.common?.optional || "(Optional)"}</Text>
+            <ArrowLeft
+              size={20}
+              color={Colors.primary900}
+              style={{ transform: [{ rotate: "180deg" }] }}
+            />
+            <Text style={styles.sectionTitle}>
+              {t.checkout?.deliveryNotes || "Delivery Notes"}
+            </Text>
+            <Text style={styles.optionalLabel}>
+              {t.common?.optional || "(Optional)"}
+            </Text>
           </View>
           <TextInput
             style={styles.notesInput}
-            placeholder={t.checkout?.deliveryNotesPlaceholder || "Any special instructions for delivery? (e.g., ring doorbell, leave at door)"}
+            placeholder={
+              t.checkout?.deliveryNotesPlaceholder ||
+              "Any special instructions for delivery? (e.g., ring doorbell, leave at door)"
+            }
             placeholderTextColor={Colors.neutralMedium}
             value={deliveryNotes}
             onChangeText={setDeliveryNotes}
@@ -508,9 +520,7 @@ export default function CheckoutConfirmationScreen() {
             <View style={styles.appliedPromoContainer}>
               <View style={styles.appliedPromoContent}>
                 <View style={styles.appliedPromoInfo}>
-                  <Text style={styles.appliedPromoCode}>
-                    {cart.promo_code}
-                  </Text>
+                  <Text style={styles.appliedPromoCode}>{cart.promo_code}</Text>
                   <Text style={styles.appliedPromoDiscount}>
                     -{discount.toFixed(2)} {t.common.currency}{" "}
                     {t.checkout.saved}
@@ -545,9 +555,7 @@ export default function CheckoutConfirmationScreen() {
             </View>
             {discount > 0 && (
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>
-                  {t.checkout.discount}
-                </Text>
+                <Text style={styles.priceLabel}>{t.checkout.discount}</Text>
                 <Text style={[styles.priceValue, styles.discountText]}>
                   -{discount.toFixed(2)} {t.common.currency}
                 </Text>

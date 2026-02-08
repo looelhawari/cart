@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Platform,
   RefreshControl,
   ActivityIndicator,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,12 +19,15 @@ import {
   Tag,
   User,
   CheckCircle,
-  Wallet,
   MessageSquare,
   Bell,
   Megaphone,
   Trash2,
+  CheckCheck,
+  ChevronRight,
 } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useTranslation } from "@/i18n";
 import { Swipeable } from "react-native-gesture-handler";
@@ -41,7 +46,7 @@ import {
 } from "@/services/notificationService";
 import { useStore } from "@/store";
 
-type Tab = "all" | "order" | "promotion" | "wallet" | "complaint";
+type Tab = "all" | "order" | "promotion" | "complaint";
 
 export default function NotificationsScreen() {
   const { wp, hp, isSmallDevice } = useResponsive();
@@ -57,12 +62,19 @@ export default function NotificationsScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "all", label: t.notifications.all },
-    { key: "order", label: t.notifications.orders },
-    { key: "promotion", label: t.notifications.offers },
-    { key: "wallet", label: t.notifications.wallet || "Wallet" },
-    { key: "complaint", label: t.notifications.account },
+  const tabs: { key: Tab; label: string; icon: string }[] = [
+    { key: "all", label: t.notifications.all, icon: "notifications-outline" },
+    { key: "order", label: t.notifications.orders, icon: "bag-outline" },
+    {
+      key: "promotion",
+      label: t.notifications.offers,
+      icon: "megaphone-outline",
+    },
+    {
+      key: "complaint",
+      label: t.notifications.account,
+      icon: "chatbubble-outline",
+    },
   ];
 
   const fetchNotifications = useCallback(
@@ -162,25 +174,49 @@ export default function NotificationsScreen() {
     }
   };
 
-  const getIcon = (type: string) => {
+  const getIconConfig = (type: string) => {
     switch (type) {
       case "order":
       case "order_status":
-        return <ShoppingBag size={24} color={Colors.primary900} />;
+        return {
+          icon: <ShoppingBag size={20} color={Colors.primary900} />,
+          bgColor: Colors.primary900 + "15",
+        };
       case "promotion":
       case "broadcast":
-        return <Megaphone size={24} color={Colors.accentOrange} />;
+        return {
+          icon: <Megaphone size={20} color={Colors.accentOrange} />,
+          bgColor: Colors.accentOrange + "15",
+        };
       case "wallet":
       case "wallet_credit":
       case "wallet_refund":
-        return <Wallet size={24} color={Colors.successGreen} />;
+        return {
+          icon: (
+            <Ionicons
+              name="wallet-outline"
+              size={20}
+              color={Colors.successGreen || "#22C55E"}
+            />
+          ),
+          bgColor: (Colors.successGreen || "#22C55E") + "15",
+        };
       case "complaint":
       case "complaint_update":
-        return <MessageSquare size={24} color={Colors.primary700} />;
+        return {
+          icon: <MessageSquare size={20} color={Colors.primary700} />,
+          bgColor: Colors.primary700 + "15",
+        };
       case "welcome":
-        return <Bell size={24} color={Colors.primary900} />;
+        return {
+          icon: <Bell size={20} color={Colors.primary900} />,
+          bgColor: Colors.primary900 + "15",
+        };
       default:
-        return <CheckCircle size={24} color={Colors.primary900} />;
+        return {
+          icon: <CheckCircle size={20} color={Colors.primary900} />,
+          bgColor: Colors.primary900 + "15",
+        };
     }
   };
 
@@ -197,30 +233,52 @@ export default function NotificationsScreen() {
     );
   };
 
-  const renderNotification = ({ item }: { item: NotificationData }) => (
-    <Swipeable
-      renderRightActions={() => renderRightActions(item.id, item.is_broadcast)}
-      overshootRight={false}
-    >
-      <TouchableOpacity
-        style={[styles.notificationCard, !item.is_read && styles.unreadCard]}
-        onPress={() => handleNotificationPress(item)}
-        activeOpacity={0.7}
+  const renderNotification = ({ item }: { item: NotificationData }) => {
+    const iconConfig = getIconConfig(item.type);
+    return (
+      <Swipeable
+        renderRightActions={() =>
+          renderRightActions(item.id, item.is_broadcast)
+        }
+        overshootRight={false}
       >
-        <View style={styles.iconContainer}>{getIcon(item.type)}</View>
-        <View style={styles.contentContainer}>
-          <Text style={[styles.title, !item.is_read && styles.unreadTitle]}>
-            {item.title}
-          </Text>
-          <Text style={styles.message} numberOfLines={2}>
-            {item.message}
-          </Text>
-          <Text style={styles.timestamp}>{item.time_ago}</Text>
-        </View>
-        {!item.is_read && <View style={styles.unreadDot} />}
-      </TouchableOpacity>
-    </Swipeable>
-  );
+        <TouchableOpacity
+          style={[styles.notificationCard, !item.is_read && styles.unreadCard]}
+          onPress={() => handleNotificationPress(item)}
+          activeOpacity={0.7}
+        >
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: iconConfig.bgColor },
+            ]}
+          >
+            {iconConfig.icon}
+          </View>
+          <View style={styles.contentContainer}>
+            <View style={styles.titleRow}>
+              <Text
+                style={[styles.title, !item.is_read && styles.unreadTitle]}
+                numberOfLines={1}
+              >
+                {item.title}
+              </Text>
+              {!item.is_read && <View style={styles.unreadDot} />}
+            </View>
+            <Text style={styles.message} numberOfLines={2}>
+              {item.message}
+            </Text>
+            <Text style={styles.timestamp}>{item.time_ago}</Text>
+          </View>
+          <ChevronRight
+            size={16}
+            color={Colors.neutralGray}
+            style={{ alignSelf: "center" }}
+          />
+        </TouchableOpacity>
+      </Swipeable>
+    );
+  };
 
   const renderFooter = () => {
     if (!loadingMore) return null;
@@ -231,80 +289,120 @@ export default function NotificationsScreen() {
     );
   };
 
+  const { width } = Dimensions.get("window");
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: Colors.neutralCloud,
     },
     header: {
+      overflow: "hidden",
+    },
+    headerGradient: {
+      paddingHorizontal: 18,
+      paddingTop: 10,
+      paddingBottom: 14,
+      borderBottomLeftRadius: 26,
+      borderBottomRightRadius: 26,
+    },
+    headerTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    headerLeft: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
-      paddingVertical: Spacing.md,
-      backgroundColor: Colors.neutralWhite,
-      borderBottomWidth: 1,
-      borderBottomColor: Colors.neutralGray,
+      gap: 12,
     },
-    backButton: {
-      width: 40,
-      height: 40,
+    backBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: "rgba(255,255,255,0.18)",
       alignItems: "center",
       justifyContent: "center",
     },
     headerTitle: {
-      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontSize: 20,
       fontFamily: "Poppins_700Bold",
-      color: Colors.neutralCharcoal,
-      flex: 1,
-      textAlign: "center",
+      color: Colors.neutralWhite,
+      letterSpacing: 0.3,
+    },
+    markAllButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.15)",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+      gap: 6,
     },
     markAllText: {
-      fontSize: Typography.bodyMedium,
+      fontSize: 11,
       fontFamily: "Poppins_600SemiBold",
-      color: Colors.primary900,
+      color: Colors.neutralWhite,
+    },
+    unreadBadge: {
+      backgroundColor: Colors.accentRed || "#EF4444",
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 6,
+    },
+    unreadBadgeText: {
+      fontSize: 11,
+      fontFamily: "Poppins_700Bold",
+      color: Colors.neutralWhite,
     },
     tabsContainer: {
       flexDirection: "row",
-      backgroundColor: Colors.neutralWhite,
-      paddingHorizontal: isSmallDevice ? Spacing.md : Spacing.lg,
-      paddingVertical: Spacing.sm,
-      gap: Spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: Colors.neutralGray,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      borderRadius: 14,
+      padding: 3,
     },
     tab: {
-      paddingVertical: Spacing.sm,
-      paddingHorizontal: isSmallDevice ? Spacing.sm : Spacing.md,
-      borderRadius: 20,
+      flex: 1,
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 8,
+      borderRadius: 12,
+      gap: 2,
     },
-    activeTab: {
-      backgroundColor: Colors.primary900,
+    tabActive: {
+      backgroundColor: "rgba(255,255,255,0.25)",
     },
     tabText: {
-      fontSize: Typography.bodyMedium,
-      fontFamily: "Poppins_600SemiBold",
-      color: Colors.neutralMedium,
+      fontSize: 10,
+      fontFamily: "Poppins_500Medium",
+      color: "rgba(255,255,255,0.6)",
     },
-    activeTabText: {
+    tabTextActive: {
       color: Colors.neutralWhite,
+      fontFamily: "Poppins_600SemiBold",
     },
     listContent: {
-      padding: isSmallDevice ? Spacing.md : Spacing.lg,
-      gap: Spacing.sm,
+      padding: 16,
+      paddingBottom: 100,
+      gap: 10,
     },
     notificationCard: {
       flexDirection: "row",
       backgroundColor: Colors.neutralWhite,
       borderRadius: 16,
-      padding: isSmallDevice ? Spacing.sm : Spacing.md,
-      gap: isSmallDevice ? Spacing.sm : Spacing.md,
+      padding: 14,
+      gap: 12,
       ...Platform.select({
         ios: {
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
         },
         android: {
           elevation: 2,
@@ -312,24 +410,29 @@ export default function NotificationsScreen() {
       }),
     },
     unreadCard: {
-      backgroundColor: Colors.neutralLight,
+      backgroundColor: Colors.primary900 + "08",
       borderLeftWidth: 3,
       borderLeftColor: Colors.primary900,
     },
     iconContainer: {
-      width: isSmallDevice ? 40 : 48,
-      height: isSmallDevice ? 40 : 48,
-      borderRadius: isSmallDevice ? 20 : 24,
-      backgroundColor: Colors.neutralLight,
+      width: 44,
+      height: 44,
+      borderRadius: 14,
       alignItems: "center",
       justifyContent: "center",
     },
     contentContainer: {
       flex: 1,
-      gap: 4,
+      gap: 3,
+    },
+    titleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
     },
     title: {
-      fontSize: isSmallDevice ? Typography.bodyMedium : Typography.bodyBase,
+      flex: 1,
+      fontSize: 14,
       fontFamily: "Poppins_600SemiBold",
       color: Colors.neutralCharcoal,
     },
@@ -337,30 +440,30 @@ export default function NotificationsScreen() {
       fontFamily: "Poppins_700Bold",
     },
     message: {
-      fontSize: Typography.bodyMedium,
+      fontSize: 13,
       fontFamily: "Poppins_400Regular",
       color: Colors.neutralMedium,
-      lineHeight: 20,
+      lineHeight: 19,
     },
     timestamp: {
-      fontSize: Typography.bodySmall,
+      fontSize: 11,
       fontFamily: "Poppins_400Regular",
-      color: Colors.neutralMedium,
+      color: Colors.neutralGray,
+      marginTop: 2,
     },
     unreadDot: {
       width: 8,
       height: 8,
       borderRadius: 4,
       backgroundColor: Colors.primary900,
-      alignSelf: "center",
     },
     deleteAction: {
-      backgroundColor: Colors.accentRed || "#FF4444",
+      backgroundColor: Colors.accentRed || "#EF4444",
       justifyContent: "center",
       alignItems: "center",
       width: 70,
       borderRadius: 16,
-      marginVertical: 2,
+      marginLeft: 8,
     },
     footerLoader: {
       paddingVertical: Spacing.md,
@@ -370,25 +473,45 @@ export default function NotificationsScreen() {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: Spacing.xxl,
+      paddingHorizontal: 40,
+    },
+    loginIconContainer: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: Colors.neutralLight,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 20,
+    },
+    loginTitle: {
+      fontSize: 20,
+      fontFamily: "Poppins_700Bold",
+      color: Colors.neutralCharcoal,
+      marginBottom: 8,
     },
     loginPromptText: {
-      fontSize: Typography.bodyBase,
+      fontSize: 14,
       fontFamily: "Poppins_400Regular",
       color: Colors.neutralMedium,
       textAlign: "center",
-      marginBottom: Spacing.md,
+      marginBottom: 24,
     },
     loginButton: {
-      backgroundColor: Colors.primary900,
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: Spacing.sm,
-      borderRadius: 8,
+      borderRadius: 16,
+      overflow: "hidden",
+    },
+    loginButtonGradient: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 28,
+      paddingVertical: 14,
+      gap: 6,
     },
     loginButtonText: {
       color: Colors.neutralWhite,
-      fontFamily: "Poppins_600SemiBold",
-      fontSize: Typography.bodyBase,
+      fontFamily: "Poppins_700Bold",
+      fontSize: 16,
     },
     loadingContainer: {
       flex: 1,
@@ -399,16 +522,26 @@ export default function NotificationsScreen() {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: Spacing.xxl,
+      paddingHorizontal: 40,
+      paddingTop: 80,
+    },
+    emptyIconContainer: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: Colors.neutralLight,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 20,
     },
     emptyTitle: {
-      fontSize: isSmallDevice ? Typography.h4 : Typography.h3,
+      fontSize: 18,
       fontFamily: "Poppins_700Bold",
       color: Colors.neutralCharcoal,
-      marginBottom: Spacing.sm,
+      marginBottom: 8,
     },
     emptyText: {
-      fontSize: Typography.bodyBase,
+      fontSize: 14,
       fontFamily: "Poppins_400Regular",
       color: Colors.neutralMedium,
       textAlign: "center",
@@ -417,57 +550,83 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
+      {/* Branded Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
+        <LinearGradient
+          colors={[Colors.primary900, Colors.primary800]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
         >
-          <ArrowLeft size={24} color={Colors.neutralCharcoal} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {t.notifications.title}
-          {unreadCount > 0 && ` (${unreadCount})`}
-        </Text>
-        <TouchableOpacity
-          onPress={handleMarkAllAsRead}
-          disabled={unreadCount === 0}
-        >
-          <Text
-            style={[styles.markAllText, unreadCount === 0 && { opacity: 0.5 }]}
-          >
-            {t.notifications.markAllRead}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.headerTop}>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => router.back()}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={20} color={Colors.neutralWhite} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>{t.notifications.title}</Text>
+              {unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </View>
+            {unreadCount > 0 && (
+              <TouchableOpacity
+                style={styles.markAllButton}
+                onPress={handleMarkAllAsRead}
+                activeOpacity={0.7}
+              >
+                <CheckCheck size={14} color={Colors.neutralWhite} />
+                <Text style={styles.markAllText}>
+                  {t.notifications.markAllRead}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-            onPress={() => setActiveTab(tab.key)}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.key && styles.activeTabText,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+          {/* Tabs */}
+          <View style={styles.tabsContainer}>
+            {tabs.map((tab) => (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={tab.icon as any}
+                  size={16}
+                  color={
+                    activeTab === tab.key
+                      ? Colors.neutralWhite
+                      : "rgba(255,255,255,0.5)"
+                  }
+                />
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === tab.key && styles.tabTextActive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </LinearGradient>
       </View>
 
       {/* Content */}
       {!isAuthenticated ? (
         <View style={styles.loginPrompt}>
-          <Bell size={64} color={Colors.neutralMedium} />
-          <Text style={[styles.emptyTitle, { marginTop: Spacing.md }]}>
+          <View style={styles.loginIconContainer}>
+            <Bell size={48} color={Colors.neutralGray} />
+          </View>
+          <Text style={styles.loginTitle}>
             {t.notifications.loginRequired || "Login Required"}
           </Text>
           <Text style={styles.loginPromptText}>
@@ -477,10 +636,19 @@ export default function NotificationsScreen() {
           <TouchableOpacity
             style={styles.loginButton}
             onPress={() => router.push("/(auth)/login")}
+            activeOpacity={0.9}
           >
-            <Text style={styles.loginButtonText}>
-              {t.common?.login || "Login"}
-            </Text>
+            <LinearGradient
+              colors={[Colors.primary700, Colors.primary900]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.loginButtonGradient}
+            >
+              <Text style={styles.loginButtonText}>
+                {t.common?.login || "Login"}
+              </Text>
+              <ChevronRight size={18} color={Colors.neutralWhite} />
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       ) : loading ? (
@@ -508,8 +676,10 @@ export default function NotificationsScreen() {
         />
       ) : (
         <View style={styles.emptyState}>
-          <Bell size={64} color={Colors.neutralMedium} />
-          <Text style={[styles.emptyTitle, { marginTop: Spacing.md }]}>
+          <View style={styles.emptyIconContainer}>
+            <Bell size={48} color={Colors.neutralGray} />
+          </View>
+          <Text style={styles.emptyTitle}>
             {t.notifications.noNotifications}
           </Text>
           <Text style={styles.emptyText}>
