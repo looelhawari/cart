@@ -186,7 +186,7 @@ export default function AddressesScreen() {
           />
           <View style={styles.addressText}>
             <Text style={styles.street}>{address.street}</Text>
-            {(address.building || address.floor || address.appartment) && (
+            {(address.building || address.floor || address.apartment) && (
               <Text style={styles.detailsText}>
                 {[
                   address.building
@@ -195,8 +195,8 @@ export default function AddressesScreen() {
                   address.floor
                     ? `${t.addresses.floorNumber} ${address.floor}`
                     : null,
-                  address.appartment
-                    ? `${t.addresses.appartment} ${address.appartment}`
+                  address.apartment
+                    ? `${t.addresses.apartment} ${address.apartment}`
                     : null,
                 ]
                   .filter(Boolean)

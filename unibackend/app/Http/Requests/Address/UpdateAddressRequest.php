@@ -33,8 +33,8 @@ class UpdateAddressRequest extends FormRequest
         if ($this->has('floor')) {
             $data['floor'] = strip_tags(trim($this->floor));
         }
-        if ($this->has('appartment')) {
-            $data['appartment'] = strip_tags(trim($this->appartment));
+        if ($this->has('apartment')) {
+            $data['apartment'] = strip_tags(trim($this->apartment));
         }
         if ($this->has('city')) {
             $data['city'] = strip_tags(trim($this->city));
@@ -61,7 +61,7 @@ class UpdateAddressRequest extends FormRequest
             'street' => 'sometimes|required|string',
             'building' => 'nullable|string|max:255',
             'floor' => 'nullable|string|max:255',
-            'appartment' => 'nullable|string|max:255',
+            'apartment' => 'nullable|string|max:255',
             'city' => 'sometimes|required|string|max:100',
             'area' => 'nullable|string|max:255',
             'landmark' => 'nullable|string|max:255',

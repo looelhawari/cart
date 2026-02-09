@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Platform,
 } from "react-native";
@@ -20,6 +19,7 @@ import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
+import { Toast } from "@/components/Toast";
 
 export default function EditProfileScreen() {
   const { user, updateProfile, fetchProfile } = useStore();
@@ -29,14 +29,35 @@ export default function EditProfileScreen() {
   const [lastName, setLastName] = useState(user?.last_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
-  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
-    user?.date_of_birth ? new Date(user.date_of_birth) : null,
-  );
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(() => {
+    if (user?.date_of_birth) {
+      // Parse as local date to avoid timezone shift ("2000-01-01" parsed as UTC midnight shifts back a day in UTC+ zones)
+      const parts = user.date_of_birth.split("-");
+      return new Date(
+        parseInt(parts[0]),
+        parseInt(parts[1]) - 1,
+        parseInt(parts[2]),
+      );
+    }
+    return null;
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "other" | null>(
     user?.gender || null,
   );
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error" | "info";
+  }>({ visible: false, message: "", type: "success" });
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" = "success",
+  ) => {
+    setToast({ visible: true, message, type });
+  };
 
   const handleSave = async () => {
     if (
@@ -45,7 +66,7 @@ export default function EditProfileScreen() {
       !email.trim() ||
       !phone.trim()
     ) {
-      Alert.alert(t.common.error, t.editProfile.fillAllFields);
+      showToast(t.editProfile.fillAllFields, "error");
       return;
     }
 
@@ -60,7 +81,11 @@ export default function EditProfileScreen() {
 
       // Only include date_of_birth if it has a value
       if (dateOfBirth) {
-        updateData.date_of_birth = dateOfBirth.toISOString().split("T")[0];
+        // Format using local date parts to avoid UTC timezone shift
+        const y = dateOfBirth.getFullYear();
+        const m = String(dateOfBirth.getMonth() + 1).padStart(2, "0");
+        const d = String(dateOfBirth.getDate()).padStart(2, "0");
+        updateData.date_of_birth = `${y}-${m}-${d}`;
       }
 
       // Only include gender if it has a value
@@ -69,15 +94,12 @@ export default function EditProfileScreen() {
       }
 
       await updateProfile(updateData);
+      await fetchProfile();
 
-      Alert.alert(t.common.success, t.editProfile.profileUpdated, [
-        { text: t.common.ok, onPress: () => router.back() },
-      ]);
+      showToast(t.editProfile.profileUpdated, "success");
+      setTimeout(() => router.back(), 1200);
     } catch (error: any) {
-      Alert.alert(
-        t.common.error,
-        error.message || t.editProfile.failedToUpdate,
-      );
+      showToast(error.message || t.editProfile.failedToUpdate, "error");
     } finally {
       setLoading(false);
     }
@@ -289,6 +311,13 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 }

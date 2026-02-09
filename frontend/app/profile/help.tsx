@@ -143,6 +143,21 @@ export default function HelpScreen() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
 
+  // Build FAQ data from translation keys
+  const FAQ_DATA = FAQ_KEYS.map((faq) => ({
+    id: faq.id,
+    category: faq.category,
+    question: (t.help.faqs as any)[faq.key]?.question || faq.key,
+    answer: (t.help.faqs as any)[faq.key]?.answer || "",
+  }));
+
+  // Build FAQ categories from translation keys
+  const FAQ_CATEGORIES = FAQ_CATEGORY_KEYS.map((cat) => ({
+    id: cat.id,
+    label: (t.help.categories as any)[cat.key] || cat.key,
+    icon: cat.icon,
+  }));
+
   const filteredFAQs = FAQ_DATA.filter((faq) => {
     const matchesCategory =
       selectedCategory === "all" || faq.category === selectedCategory;
@@ -335,7 +350,7 @@ export default function HelpScreen() {
                   style={[
                     styles.categoryChipText,
                     selectedCategory === category.id &&
-                    styles.categoryChipTextActive,
+                      styles.categoryChipTextActive,
                   ]}
                 >
                   {category.label}
@@ -448,13 +463,19 @@ export default function HelpScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Useful Links</Text>
           <View style={styles.linksCard}>
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={() => router.push("/about/terms")}
+            >
               <Ionicons name="document-text-outline" size={20} color="#666" />
               <Text style={styles.linkText}>Terms & Conditions</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
             <View style={styles.linkDivider} />
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={() => router.push("/about/privacy")}
+            >
               <Ionicons
                 name="shield-checkmark-outline"
                 size={20}
@@ -464,13 +485,19 @@ export default function HelpScreen() {
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
             <View style={styles.linkDivider} />
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={() => router.push("/about/about")}
+            >
               <Ionicons name="location-outline" size={20} color="#666" />
               <Text style={styles.linkText}>Store Locations</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
             <View style={styles.linkDivider} />
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={() => router.push("/about/about")}
+            >
               <Ionicons
                 name="information-circle-outline"
                 size={20}

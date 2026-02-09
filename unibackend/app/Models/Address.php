@@ -20,7 +20,7 @@ class Address extends Model
         'street',
         'building',
         'floor',
-        'appartment',
+        'apartment',
         'city',
         'area',
         'landmark',

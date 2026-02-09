@@ -153,10 +153,10 @@ export default function ProductDetailScreen() {
               per_page: 10,
             });
             if (relatedResponse.success) {
-              // Filter out current product and limit to 5
+              // Filter out current product and limit to 10
               const filtered = relatedResponse.data.products
                 .filter((p) => p.barcode !== response.data.product.barcode)
-                .slice(0, 5);
+                .slice(0, 10);
               setRelatedProducts(filtered);
             }
           } catch (error) {

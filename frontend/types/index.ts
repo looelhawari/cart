@@ -146,7 +146,7 @@ export interface Address {
   street: string;
   building?: string;
   floor?: string;
-  appartment?: string;
+  apartment?: string;
   city: string;
   area?: string;
   landmark?: string;

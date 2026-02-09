@@ -207,14 +207,6 @@ export default function ProfileScreen() {
       bgColor: Colors.accentRed + "15",
     },
     {
-      id: "6",
-      title: t.profile?.wallet || "Wallet",
-      icon: <Ionicons name="wallet" size={22} color="#10B981" />,
-      route: "/profile/wallet",
-      color: "#10B981",
-      bgColor: "#10B981" + "15",
-    },
-    {
       id: "7",
       title: t.profile?.myComplaints || "My Complaints",
       icon: <MessageSquare size={22} color="#F59E0B" />,

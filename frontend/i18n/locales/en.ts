@@ -795,6 +795,8 @@ export default {
     account: "Account",
     noNotifications: "No notifications",
     noNotificationsMessage: "You'll see notifications here when you have them",
+    loginRequired: "Login Required",
+    loginMessage: "Please login to view your notifications",
   },
 
   // Alerts

@@ -26,7 +26,7 @@ class OrderResource extends JsonResource
                     $snapshot['street_address'] ?? '',
                     $snapshot['building'] ?? '',
                     $snapshot['floor'] ?? '',
-                    $snapshot['appartment'] ?? '',
+                    $snapshot['apartment'] ?? '',
                     $snapshot['area'] ?? '',
                     $snapshot['city'] ?? '',
                 ]));

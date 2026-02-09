@@ -19,7 +19,7 @@ return new class extends Migration
                 $table->text('street');
                 $table->string('building')->nullable();
                 $table->string('floor')->nullable();
-                $table->string('appartment')->nullable();
+                $table->string('apartment')->nullable();
                 $table->string('city', 100);
                 $table->string('area')->nullable();
                 $table->string('landmark')->nullable();

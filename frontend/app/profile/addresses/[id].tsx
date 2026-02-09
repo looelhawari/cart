@@ -75,7 +75,7 @@ export default function AddEditAddressScreen() {
         setStreet(address.street);
         setBuilding(address.building || "");
         setFloor(address.floor || "");
-        setApartment(address.appartment || address.apartment || "");
+        setApartment(address.apartment || address.apartment || "");
         setCity(address.city);
         setArea(address.area || "");
         setLandmark(address.landmark || "");
@@ -105,7 +105,7 @@ export default function AddEditAddressScreen() {
         street,
         building: building || null,
         floor: floor || null,
-        appartment: apartment || null,
+        apartment: apartment || null,
         city,
         area: area || null,
         landmark: landmark || null,

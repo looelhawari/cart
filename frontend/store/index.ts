@@ -231,7 +231,9 @@ export const useStore = create<StoreState>()(
       checkAuthStatus: async () => {
         try {
           // Check if we have a token first
-          const token = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+          const token = await AsyncStorage.getItem(
+            TOKEN_CONFIG.ACCESS_TOKEN_KEY,
+          );
           if (!token) {
             // No token, definitely not authenticated
             set({
@@ -491,7 +493,7 @@ export const useStore = create<StoreState>()(
           id: "1",
           label: "Home",
           street: "123 Main Street",
-          appartment: "Apt 4B",
+          apartment: "Apt 4B",
           city: "Cairo",
           state: "Cairo Governorate",
           postalCode: "11511",
@@ -502,7 +504,7 @@ export const useStore = create<StoreState>()(
           id: "2",
           label: "Work",
           street: "456 Oak Avenue",
-          appartment: "Suite 12",
+          apartment: "Suite 12",
           city: "Cairo",
           state: "Cairo Governorate",
           postalCode: "11512",

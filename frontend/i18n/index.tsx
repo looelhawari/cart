@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { I18nManager } from "react-native";
+import * as Updates from "expo-updates";
 
 import en from "./locales/en";
 import ar from "./locales/ar";
@@ -73,7 +74,22 @@ export function I18nProvider({ children }: I18nProviderProps) {
     try {
       await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       setLanguageState(lang);
-      updateRTL(lang);
+
+      // Check if RTL direction needs to change
+      const needsRTL = lang === "ar";
+      const directionChanged = I18nManager.isRTL !== needsRTL;
+
+      I18nManager.allowRTL(needsRTL);
+      I18nManager.forceRTL(needsRTL);
+
+      // Reload app if direction changed — required for RTL/LTR to take effect
+      if (directionChanged) {
+        try {
+          await Updates.reloadAsync();
+        } catch {
+          // In dev mode, reloadAsync may not work — fallback is manual restart
+        }
+      }
     } catch (error) {
       console.error("Failed to save language:", error);
     }
