@@ -23,6 +23,7 @@ import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { HeroBanner } from "@/components/HeroBanner";
 import { Toast } from "@/components/Toast";
+import { getUnreadCount } from "@/services/notificationService";
 import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
 import {
   getFeaturedCategoriesWithProducts,
@@ -170,6 +171,18 @@ export default function HomeScreen() {
       0,
     ) || 0;
 
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
+  // Fetch unread notification count
+  const fetchUnreadCount = useCallback(async () => {
+    if (isAuthenticated) {
+      const count = await getUnreadCount();
+      setUnreadNotifCount(count);
+    } else {
+      setUnreadNotifCount(0);
+    }
+  }, [isAuthenticated]);
+
   const loadData = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
@@ -222,11 +235,18 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
+    fetchUnreadCount();
   }, []);
+
+  // Re-fetch unread count when screen is focused (coming back from notifications)
+  useEffect(() => {
+    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([loadData(), fetchUnreadCount()]);
     setRefreshing(false);
   };
 
@@ -409,7 +429,11 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => router.push("/notifications")}
+                onPress={() => {
+                  router.push("/notifications");
+                  // Refresh count when coming back
+                  setTimeout(fetchUnreadCount, 500);
+                }}
                 activeOpacity={0.8}
               >
                 <Ionicons
@@ -417,7 +441,13 @@ export default function HomeScreen() {
                   size={21}
                   color={Colors.neutralWhite}
                 />
-                <View style={styles.notificationDot} />
+                {unreadNotifCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -902,16 +932,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  notificationDot: {
+  notificationBadge: {
     position: "absolute",
-    top: 9,
-    right: 9,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: Colors.accentRed,
-    borderWidth: 1.5,
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
     borderColor: Colors.primary900,
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   cartButton: {
     width: 42,

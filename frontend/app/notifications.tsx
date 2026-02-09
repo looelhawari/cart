@@ -54,13 +54,22 @@ export default function NotificationsScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<"all" | "read" | "unread">(
+    "all",
+  );
 
   const fetchNotifications = useCallback(
-    async (page: number = 1, refresh: boolean = false) => {
+    async (
+      page: number = 1,
+      refresh: boolean = false,
+      filterOverride?: "all" | "read" | "unread",
+    ) => {
       if (!isAuthenticated) {
         setLoading(false);
         return;
       }
+
+      const currentFilter = filterOverride ?? activeFilter;
 
       try {
         if (page === 1) {
@@ -73,8 +82,9 @@ export default function NotificationsScreen() {
           setLoadingMore(true);
         }
 
-        // No type filter — fetch all notifications
-        const result = await getNotifications(page, 20);
+        // Pass filter to API (undefined for "all")
+        const filterParam = currentFilter === "all" ? undefined : currentFilter;
+        const result = await getNotifications(page, 20, undefined, filterParam);
 
         if (result) {
           if (page === 1) {
@@ -96,12 +106,21 @@ export default function NotificationsScreen() {
         setLoadingMore(false);
       }
     },
-    [isAuthenticated],
+    [isAuthenticated, activeFilter],
   );
 
   useEffect(() => {
     fetchNotifications(1);
   }, [fetchNotifications]);
+
+  const handleFilterChange = (filter: "all" | "read" | "unread") => {
+    if (filter === activeFilter) return;
+    setActiveFilter(filter);
+    setNotifications([]);
+    setCurrentPage(1);
+    setHasMore(true);
+    fetchNotifications(1, false, filter);
+  };
 
   const handleRefresh = () => {
     fetchNotifications(1, true);
@@ -119,6 +138,10 @@ export default function NotificationsScreen() {
     if (success) {
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      // If filtering by unread, clear the list since all are now read
+      if (activeFilter === "unread") {
+        setNotifications([]);
+      }
     }
   };
 
@@ -352,6 +375,45 @@ export default function NotificationsScreen() {
         </LinearGradient>
       </View>
 
+      {/* Filter Tabs */}
+      {isAuthenticated && !loading && (
+        <View style={styles.filterContainer}>
+          {(["all", "unread", "read"] as const).map((filter) => {
+            const isActive = activeFilter === filter;
+            const label =
+              filter === "all"
+                ? t.notifications?.all || "All"
+                : filter === "unread"
+                  ? t.notifications?.unread || "Unread"
+                  : t.notifications?.read || "Read";
+            return (
+              <TouchableOpacity
+                key={filter}
+                style={[styles.filterTab, isActive && styles.filterTabActive]}
+                onPress={() => handleFilterChange(filter)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    isActive && styles.filterTabTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+                {filter === "unread" && unreadCount > 0 && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       {/* Content */}
       {!isAuthenticated ? (
         <View style={styles.loginPrompt}>
@@ -488,6 +550,49 @@ const styles = StyleSheet.create({
   markAllText: {
     fontSize: 11,
     fontFamily: "Poppins_600SemiBold",
+    color: "#fff",
+  },
+  // ─── Filter Tabs ───
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  filterTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    gap: 6,
+  },
+  filterTabActive: {
+    backgroundColor: Colors.primary900,
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontFamily: "Poppins_500Medium",
+    color: "#6B7280",
+  },
+  filterTabTextActive: {
+    color: "#fff",
+    fontFamily: "Poppins_600SemiBold",
+  },
+  filterBadge: {
+    backgroundColor: "#EF4444",
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontFamily: "Poppins_700Bold",
     color: "#fff",
   },
   // ─── List ───

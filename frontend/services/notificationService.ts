@@ -67,7 +67,7 @@ export interface NotificationData {
   time_ago: string;
   // Enterprise fields
   category?: string;
-  priority?: 'critical' | 'high' | 'medium' | 'low';
+  priority?: "critical" | "high" | "medium" | "low";
   template_code?: string;
 }
 
@@ -339,6 +339,7 @@ export async function getNotifications(
   page: number = 1,
   perPage: number = 20,
   type?: string,
+  filter?: "read" | "unread",
 ): Promise<{
   notifications: PaginatedNotifications;
   unread_count: number;
@@ -346,6 +347,7 @@ export async function getNotifications(
   try {
     const params: Record<string, unknown> = { page, per_page: perPage };
     if (type) params.type = type;
+    if (filter) params.filter = filter;
 
     const response = await api.get("/notifications", { params });
 
@@ -532,7 +534,7 @@ export async function addNotificationReceivedListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => { } };
+    return { remove: () => {} };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationReceivedListener(callback);
@@ -546,7 +548,7 @@ export async function addNotificationResponseListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => { } };
+    return { remove: () => {} };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationResponseReceivedListener(callback);
@@ -652,7 +654,16 @@ function handleEnterpriseNotification(
   const templateCode = data?.template_code as string;
 
   // Order & Delivery notifications
-  if (category === "order" || templateCode?.startsWith("order_") || templateCode?.startsWith("payment_") || templateCode?.startsWith("delivery_") || templateCode?.startsWith("refund_") || templateCode?.startsWith("out_for_") || templateCode?.startsWith("courier_") || templateCode === "invoice_ready") {
+  if (
+    category === "order" ||
+    templateCode?.startsWith("order_") ||
+    templateCode?.startsWith("payment_") ||
+    templateCode?.startsWith("delivery_") ||
+    templateCode?.startsWith("refund_") ||
+    templateCode?.startsWith("out_for_") ||
+    templateCode?.startsWith("courier_") ||
+    templateCode === "invoice_ready"
+  ) {
     if (data.order_id) {
       router.push(`/orders/${data.order_id}`);
     } else {
@@ -662,7 +673,11 @@ function handleEnterpriseNotification(
   }
 
   // Product notifications
-  if (category === "product" || templateCode?.startsWith("product_") || templateCode?.startsWith("new_product_")) {
+  if (
+    category === "product" ||
+    templateCode?.startsWith("product_") ||
+    templateCode?.startsWith("new_product_")
+  ) {
     if (data.product_id) {
       router.push(`/product/${data.product_id}`);
     } else if (data.category_id) {
@@ -674,7 +689,16 @@ function handleEnterpriseNotification(
   }
 
   // Promotion & Offer notifications
-  if (category === "promo" || templateCode?.startsWith("flash_sale_") || templateCode?.startsWith("coupon_") || templateCode?.startsWith("new_offer") || templateCode?.startsWith("loyalty_") || templateCode?.startsWith("personalized_") || templateCode?.includes("_deal") || templateCode?.includes("buy_one_")) {
+  if (
+    category === "promo" ||
+    templateCode?.startsWith("flash_sale_") ||
+    templateCode?.startsWith("coupon_") ||
+    templateCode?.startsWith("new_offer") ||
+    templateCode?.startsWith("loyalty_") ||
+    templateCode?.startsWith("personalized_") ||
+    templateCode?.includes("_deal") ||
+    templateCode?.includes("buy_one_")
+  ) {
     if (data.sale_id) {
       router.push(`/flash-sale/${data.sale_id}`);
     } else if (data.offer_id) {
@@ -688,13 +712,24 @@ function handleEnterpriseNotification(
   }
 
   // Cart notifications
-  if (category === "cart" || templateCode?.startsWith("cart_") || templateCode?.startsWith("minimum_order") || templateCode?.startsWith("free_delivery")) {
+  if (
+    category === "cart" ||
+    templateCode?.startsWith("cart_") ||
+    templateCode?.startsWith("minimum_order") ||
+    templateCode?.startsWith("free_delivery")
+  ) {
     router.push("/cart");
     return;
   }
 
   // Chat & Support notifications
-  if (category === "chat" || templateCode?.startsWith("new_support_") || templateCode?.startsWith("agent_") || templateCode?.startsWith("chat_") || templateCode?.startsWith("support_ticket_")) {
+  if (
+    category === "chat" ||
+    templateCode?.startsWith("new_support_") ||
+    templateCode?.startsWith("agent_") ||
+    templateCode?.startsWith("chat_") ||
+    templateCode?.startsWith("support_ticket_")
+  ) {
     if (data.complaint_id) {
       router.push(`/complaints/${data.complaint_id}`);
     } else {
@@ -704,7 +739,18 @@ function handleEnterpriseNotification(
   }
 
   // Account & Security notifications
-  if (category === "account" || templateCode?.startsWith("new_login_") || templateCode?.startsWith("new_device_") || templateCode?.startsWith("password_") || templateCode?.startsWith("email_") || templateCode?.startsWith("phone_") || templateCode?.startsWith("suspicious_") || templateCode?.startsWith("account_") || templateCode?.startsWith("verification_") || templateCode === "welcome") {
+  if (
+    category === "account" ||
+    templateCode?.startsWith("new_login_") ||
+    templateCode?.startsWith("new_device_") ||
+    templateCode?.startsWith("password_") ||
+    templateCode?.startsWith("email_") ||
+    templateCode?.startsWith("phone_") ||
+    templateCode?.startsWith("suspicious_") ||
+    templateCode?.startsWith("account_") ||
+    templateCode?.startsWith("verification_") ||
+    templateCode === "welcome"
+  ) {
     if (templateCode === "welcome" || templateCode === "account_verified") {
       router.push("/(tabs)/home");
     } else {
@@ -714,19 +760,39 @@ function handleEnterpriseNotification(
   }
 
   // Wallet & Payment notifications
-  if (category === "wallet" || templateCode?.startsWith("wallet_") || templateCode?.startsWith("cashback_") || templateCode?.startsWith("low_wallet_") || templateCode?.startsWith("card_")) {
+  if (
+    category === "wallet" ||
+    templateCode?.startsWith("wallet_") ||
+    templateCode?.startsWith("cashback_") ||
+    templateCode?.startsWith("low_wallet_") ||
+    templateCode?.startsWith("card_")
+  ) {
     router.push("/profile/wallet");
     return;
   }
 
   // Address notifications
-  if (category === "address" || templateCode?.startsWith("address_") || templateCode?.startsWith("delivery_area_") || templateCode?.startsWith("service_unavailable_")) {
+  if (
+    category === "address" ||
+    templateCode?.startsWith("address_") ||
+    templateCode?.startsWith("delivery_area_") ||
+    templateCode?.startsWith("service_unavailable_")
+  ) {
     router.push("/profile/addresses");
     return;
   }
 
   // System & Policy notifications
-  if (category === "system" || templateCode?.startsWith("terms_") || templateCode?.startsWith("privacy_") || templateCode?.startsWith("refund_policy_") || templateCode?.startsWith("app_update_") || templateCode?.startsWith("service_outage") || templateCode?.startsWith("maintenance_") || templateCode?.startsWith("legal_notice")) {
+  if (
+    category === "system" ||
+    templateCode?.startsWith("terms_") ||
+    templateCode?.startsWith("privacy_") ||
+    templateCode?.startsWith("refund_policy_") ||
+    templateCode?.startsWith("app_update_") ||
+    templateCode?.startsWith("service_outage") ||
+    templateCode?.startsWith("maintenance_") ||
+    templateCode?.startsWith("legal_notice")
+  ) {
     if (templateCode === "terms_updated") {
       router.push("/terms");
     } else if (templateCode === "privacy_updated") {
@@ -741,7 +807,14 @@ function handleEnterpriseNotification(
   }
 
   // Smart/AI notifications
-  if (category === "smart" || templateCode?.startsWith("reorder_") || templateCode?.startsWith("usually_buy_") || templateCode?.startsWith("forgot_something") || templateCode?.startsWith("recommended_") || templateCode?.startsWith("similar_cheaper")) {
+  if (
+    category === "smart" ||
+    templateCode?.startsWith("reorder_") ||
+    templateCode?.startsWith("usually_buy_") ||
+    templateCode?.startsWith("forgot_something") ||
+    templateCode?.startsWith("recommended_") ||
+    templateCode?.startsWith("similar_cheaper")
+  ) {
     if (data.product_id) {
       router.push(`/product/${data.product_id}`);
     } else if (data.order_id) {
@@ -759,10 +832,12 @@ function handleEnterpriseNotification(
 /**
  * Get notification priority level
  */
-export function getNotificationPriority(data: Record<string, unknown>): 'critical' | 'high' | 'medium' | 'low' {
+export function getNotificationPriority(
+  data: Record<string, unknown>,
+): "critical" | "high" | "medium" | "low" {
   const priority = data?.priority as string;
   if (priority) {
-    return priority as 'critical' | 'high' | 'medium' | 'low';
+    return priority as "critical" | "high" | "medium" | "low";
   }
 
   const templateCode = data?.template_code as string;
@@ -770,36 +845,35 @@ export function getNotificationPriority(data: Record<string, unknown>): 'critica
 
   // Critical priority notifications
   if (
-    templateCode?.includes('security') ||
-    templateCode?.includes('suspicious') ||
-    templateCode?.includes('account_locked') ||
-    templateCode?.includes('payment_failed') ||
-    templateCode?.includes('delivery_failed') ||
-    templateCode?.startsWith('app_update_required') ||
-    templateCode?.startsWith('service_outage')
+    templateCode?.includes("security") ||
+    templateCode?.includes("suspicious") ||
+    templateCode?.includes("account_locked") ||
+    templateCode?.includes("payment_failed") ||
+    templateCode?.includes("delivery_failed") ||
+    templateCode?.startsWith("app_update_required") ||
+    templateCode?.startsWith("service_outage")
   ) {
-    return 'critical';
+    return "critical";
   }
 
   // High priority
   if (
-    category === 'order' ||
-    category === 'chat' ||
-    templateCode?.includes('out_for_delivery') ||
-    templateCode?.includes('courier_nearby')
+    category === "order" ||
+    category === "chat" ||
+    templateCode?.includes("out_for_delivery") ||
+    templateCode?.includes("courier_nearby")
   ) {
-    return 'high';
+    return "high";
   }
 
   // Medium priority
   if (
-    category === 'promo' ||
-    category === 'wallet' ||
-    templateCode?.includes('flash_sale')
+    category === "promo" ||
+    category === "wallet" ||
+    templateCode?.includes("flash_sale")
   ) {
-    return 'medium';
+    return "medium";
   }
 
-  return 'low';
+  return "low";
 }
-

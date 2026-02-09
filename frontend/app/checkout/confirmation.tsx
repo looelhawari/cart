@@ -59,6 +59,7 @@ export default function CheckoutConfirmationScreen() {
 
   const [loading, setLoading] = useState(true);
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
+  const [allSlots, setAllSlots] = useState<DeliverySlot[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [deliveryNotes, setDeliveryNotes] = useState<string>("");
@@ -85,15 +86,23 @@ export default function CheckoutConfirmationScreen() {
 
       const slots = slotsRes.data.delivery_slots || slotsRes.data.slots || [];
       const activeSlots = slots.filter((s: any) => s.is_active !== false);
-      setDeliverySlots(activeSlots);
+      setAllSlots(activeSlots);
 
       // Auto-select today as default date
       const today = new Date();
-      setSelectedDate(today.toISOString().split("T")[0]);
+      const todayStr = today.toISOString().split("T")[0];
+      setSelectedDate(todayStr);
 
-      // Auto-select first slot
-      if (activeSlots.length > 0) {
-        setSelectedSlot(activeSlots[0].slot);
+      // Filter out past slots for today
+      const currentHour = today.getHours();
+      const availableSlots = activeSlots.filter(
+        (s: DeliverySlot) => s.start_hour > currentHour,
+      );
+      setDeliverySlots(availableSlots);
+
+      // Auto-select first available slot
+      if (availableSlots.length > 0) {
+        setSelectedSlot(availableSlots[0].slot);
       }
 
       console.log("🛒 [CHECKOUT] Fetching cart in confirmation screen...");
@@ -128,6 +137,27 @@ export default function CheckoutConfirmationScreen() {
       });
     }
     return dates;
+  };
+
+  const handleDateChange = (dateValue: string) => {
+    setSelectedDate(dateValue);
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isToday = dateValue === todayStr;
+
+    if (isToday) {
+      // Filter out slots whose start_hour has already passed
+      const currentHour = new Date().getHours();
+      const available = allSlots.filter(
+        (s: DeliverySlot) => s.start_hour > currentHour,
+      );
+      setDeliverySlots(available);
+      // Auto-select first available or clear
+      setSelectedSlot(available.length > 0 ? available[0].slot : "");
+    } else {
+      // Future date — show all slots
+      setDeliverySlots(allSlots);
+      setSelectedSlot(allSlots.length > 0 ? allSlots[0].slot : "");
+    }
   };
 
   const handlePlaceOrder = async () => {
@@ -375,7 +405,7 @@ export default function CheckoutConfirmationScreen() {
                   styles.dateOption,
                   selectedDate === date.value && styles.dateOptionSelected,
                 ]}
-                onPress={() => setSelectedDate(date.value)}
+                onPress={() => handleDateChange(date.value)}
               >
                 <Text
                   style={[
@@ -396,27 +426,36 @@ export default function CheckoutConfirmationScreen() {
             <Clock size={20} color={Colors.primary900} />
             <Text style={styles.sectionTitle}>{t.checkout.deliveryTime}</Text>
           </View>
-          <View style={styles.slotGrid}>
-            {deliverySlots.map((slot) => (
-              <TouchableOpacity
-                key={slot.slot}
-                style={[
-                  styles.slotOption,
-                  selectedSlot === slot.slot && styles.slotOptionSelected,
-                ]}
-                onPress={() => setSelectedSlot(slot.slot)}
-              >
-                <Text
+          {deliverySlots.length > 0 ? (
+            <View style={styles.slotGrid}>
+              {deliverySlots.map((slot) => (
+                <TouchableOpacity
+                  key={slot.slot}
                   style={[
-                    styles.slotText,
-                    selectedSlot === slot.slot && styles.slotTextSelected,
+                    styles.slotOption,
+                    selectedSlot === slot.slot && styles.slotOptionSelected,
                   ]}
+                  onPress={() => setSelectedSlot(slot.slot)}
                 >
-                  {slot.slot}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <Text
+                    style={[
+                      styles.slotText,
+                      selectedSlot === slot.slot && styles.slotTextSelected,
+                    ]}
+                  >
+                    {slot.slot}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={{ paddingVertical: 16, alignItems: "center" }}>
+              <Text style={{ color: Colors.neutralMedium, fontSize: 14 }}>
+                {t.checkout?.noSlotsAvailable ||
+                  "No delivery slots available for this date. Please select another day."}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Delivery Notes Section */}

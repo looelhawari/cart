@@ -785,6 +785,8 @@ export default {
     title: "الإشعارات",
     markAllRead: "تحديد الكل كمقروء",
     all: "الكل",
+    read: "مقروء",
+    unread: "غير مقروء",
     orders: "الطلبات",
     offers: "العروض",
     account: "الحساب",

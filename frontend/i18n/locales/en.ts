@@ -790,6 +790,8 @@ export default {
     title: "Notifications",
     markAllRead: "Mark all read",
     all: "All",
+    read: "Read",
+    unread: "Unread",
     orders: "Orders",
     offers: "Offers",
     account: "Account",

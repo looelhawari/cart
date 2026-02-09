@@ -297,28 +297,64 @@ class CheckoutService
         return $this->cartService->validatePromoCode($code, $cart, $userId);
     }
     /**
-     * Get available delivery slots
+     * Get available delivery slots (dynamically generated from store hours)
      */
     public function getDeliverySlots(): array
     {
-        $settingsValue = DB::table('settings')
-            ->where('key', 'delivery_slots')
-            ->value('value');
+        $openTime = \App\Models\StoreSetting::getValue('store_open_time', '11:00');
+        $closeTime = \App\Models\StoreSetting::getValue('store_close_time', '00:00');
 
-        if (!$settingsValue) {
-            // Return default slots if not configured
-            return [
-                ['slot' => '9:00 AM - 12:00 PM', 'capacity' => 50, 'is_active' => true],
-                ['slot' => '12:00 PM - 3:00 PM', 'capacity' => 50, 'is_active' => true],
-                ['slot' => '3:00 PM - 6:00 PM', 'capacity' => 50, 'is_active' => true],
-                ['slot' => '6:00 PM - 9:00 PM', 'capacity' => 50, 'is_active' => true],
+        // Parse hours
+        $openHour = (int) explode(':', $openTime)[0];
+        $closeHour = (int) explode(':', $closeTime)[0];
+
+        // Handle midnight (00:00) as 24
+        if ($closeHour === 0) {
+            $closeHour = 24;
+        }
+
+        // Generate 2-hour slots within store hours
+        $slots = [];
+        for ($start = $openHour; $start + 2 <= $closeHour; $start += 2) {
+            $end = $start + 2;
+            $startFormatted = $this->formatHour($start);
+            $endFormatted = $this->formatHour($end);
+
+            $slots[] = [
+                'slot' => "{$startFormatted} - {$endFormatted}",
+                'start_hour' => $start,
+                'end_hour' => $end,
+                'capacity' => 50,
+                'is_active' => true,
             ];
         }
 
-        $slots = json_decode($settingsValue, true);
+        // If remaining time is at least 1 hour but less than 2, add a final shorter slot
+        $lastEnd = empty($slots) ? $openHour : end($slots)['end_hour'];
+        if ($closeHour - $lastEnd >= 1) {
+            $startFormatted = $this->formatHour($lastEnd);
+            $endFormatted = $this->formatHour($closeHour);
+            $slots[] = [
+                'slot' => "{$startFormatted} - {$endFormatted}",
+                'start_hour' => $lastEnd,
+                'end_hour' => $closeHour,
+                'capacity' => 50,
+                'is_active' => true,
+            ];
+        }
 
-        // Filter only active slots
-        return array_filter($slots, fn($slot) => $slot['is_active'] ?? true);
+        return $slots;
+    }
+
+    /**
+     * Format hour integer to 12-hour AM/PM string
+     */
+    private function formatHour(int $hour): string
+    {
+        if ($hour === 0 || $hour === 24) return '12:00 AM';
+        if ($hour === 12) return '12:00 PM';
+        if ($hour < 12) return $hour . ':00 AM';
+        return ($hour - 12) . ':00 PM';
     }
 
     /**
