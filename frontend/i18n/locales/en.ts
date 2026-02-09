@@ -328,8 +328,6 @@ export default {
     languageChanged: "Language Changed",
     languageChangedMessage:
       "Language has been changed to {lang}. Some changes may require app restart.",
-    darkMode: "Dark Mode",
-    darkModeDesc: "Use dark theme (coming soon)",
     about: "About",
     appName: "ElBaraka Hypermarket",
     version: "Version",
@@ -792,11 +790,15 @@ export default {
     title: "Notifications",
     markAllRead: "Mark all read",
     all: "All",
+    read: "Read",
+    unread: "Unread",
     orders: "Orders",
     offers: "Offers",
     account: "Account",
     noNotifications: "No notifications",
     noNotificationsMessage: "You'll see notifications here when you have them",
+    loginRequired: "Login Required",
+    loginMessage: "Please login to view your notifications",
   },
 
   // Alerts

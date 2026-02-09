@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Switch,
-  Alert,
   Modal,
   TextInput,
   ActivityIndicator,
@@ -17,23 +16,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  Bell,
-  Globe,
-  Moon,
-  Info,
-  Fingerprint,
-  ShieldCheck,
-  Eye,
-  EyeOff,
-  X,
-} from "lucide-react-native";
+import { Fingerprint, ShieldCheck, Eye, EyeOff, X } from "lucide-react-native";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
-import { useTranslation } from "@/i18n";
+import { useI18n } from "@/i18n";
+import { Toast } from "@/components/Toast";
 import {
   checkBiometricSupport,
   isBiometricLoginEnabled,
@@ -51,9 +41,25 @@ const LANGUAGES = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, language, setLanguage } = useI18n();
   const user = useStore((state) => state.user);
   const login = useStore((state) => state.login);
+
+  // Toast state
+  const [toastVisible, setToastVisible] = React.useState(false);
+  const [toastMessage, setToastMessage] = React.useState("");
+  const [toastType, setToastType] = React.useState<
+    "success" | "error" | "info"
+  >("success");
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" = "success",
+  ) => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
 
   // Notification settings (from user_settings table)
   const [pushNotifications, setPushNotifications] = React.useState(true);
@@ -64,7 +70,6 @@ export default function SettingsScreen() {
 
   // Preferences
   const [darkMode, setDarkMode] = React.useState(false);
-  const [language, setLanguage] = React.useState("en");
   const [showLanguageModal, setShowLanguageModal] = React.useState(false);
   const [biometricSupport, setBiometricSupport] = React.useState<BiometricType>(
     {
@@ -101,39 +106,23 @@ export default function SettingsScreen() {
       // Enable biometric - show password modal
       setShowPasswordModal(true);
     } else {
-      // Disable biometric
-      Alert.alert(
-        t.settings.disableBiometricLogin,
-        t.settings.disableBiometricConfirm.replace(
-          "{type}",
-          getBiometricTypeName(biometricSupport.type),
-        ),
-        [
-          { text: t.common.cancel, style: "cancel" },
-          {
-            text: t.settings.disable,
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await disableBiometricLogin();
-                setBiometricEnabled(false);
-                Alert.alert(t.common.success, t.settings.biometricDisabled);
-              } catch (error: any) {
-                Alert.alert(
-                  t.common.error,
-                  error.message || t.settings.failedToDisableBiometric,
-                );
-              }
-            },
-          },
-        ],
-      );
+      // Disable biometric directly
+      try {
+        await disableBiometricLogin();
+        setBiometricEnabled(false);
+        showToast(t.settings.biometricDisabled, "success");
+      } catch (error: any) {
+        showToast(
+          error.message || t.settings.failedToDisableBiometric,
+          "error",
+        );
+      }
     }
   };
 
   const handleEnableBiometric = async () => {
     if (!password || !user?.email) {
-      Alert.alert(t.common.error, t.settings.enterPassword);
+      showToast(t.settings.enterPassword, "error");
       return;
     }
 
@@ -149,18 +138,15 @@ export default function SettingsScreen() {
       setShowPasswordModal(false);
       setPassword("");
 
-      Alert.alert(
-        t.common.success,
+      showToast(
         t.login.biometricEnabled.replace(
           "{type}",
           getBiometricTypeName(biometricSupport.type),
         ),
+        "success",
       );
     } catch (error: any) {
-      Alert.alert(
-        t.common.error,
-        error.message || t.settings.failedToEnableBiometric,
-      );
+      showToast(error.message || t.settings.failedToEnableBiometric, "error");
     } finally {
       setLoading(false);
     }
@@ -169,17 +155,19 @@ export default function SettingsScreen() {
   const selectedLanguage =
     LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
 
-  const handleLanguageSelect = (langCode: string) => {
-    setLanguage(langCode);
+  const handleLanguageSelect = async (langCode: string) => {
     setShowLanguageModal(false);
-    // TODO: Integrate with i18n context to change app language
-    Alert.alert(
-      t.settings.languageChanged,
-      t.settings.languageChangedMessage.replace(
-        "{lang}",
-        LANGUAGES.find((l) => l.code === langCode)?.name || "",
-      ),
-    );
+    // Show toast only if direction won't change (same script direction)
+    // If direction changes, the app reloads so toast wouldn't be visible
+    const directionWillChange = (langCode === "ar") !== (language === "ar");
+    if (!directionWillChange) {
+      showToast(
+        LANGUAGES.find((l) => l.code === langCode)?.nativeName + " ✓" ||
+          langCode,
+        "success",
+      );
+    }
+    await setLanguage(langCode as "en" | "ar");
   };
 
   return (
@@ -427,31 +415,6 @@ export default function SettingsScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#ccc" />
             </TouchableOpacity>
-
-            <View style={styles.settingItem}>
-              <View style={styles.settingLeft}>
-                <View
-                  style={[styles.iconContainer, { backgroundColor: "#F3E5F5" }]}
-                >
-                  <Ionicons name="moon" size={20} color="#9C27B0" />
-                </View>
-                <View style={styles.settingTextContainer}>
-                  <Text style={styles.settingTitle}>{t.settings.darkMode}</Text>
-                  <Text style={styles.settingSubtitle}>
-                    {t.settings.darkModeDesc}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
-                trackColor={{
-                  false: Colors.neutralGray,
-                  true: "#4CAF50",
-                }}
-                thumbColor={Colors.neutralWhite}
-              />
-            </View>
           </View>
 
           {/* About Section */}
@@ -669,6 +632,15 @@ export default function SettingsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Toast Messages */}
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setToastVisible(false)}
+        duration={2500}
+      />
     </SafeAreaView>
   );
 }

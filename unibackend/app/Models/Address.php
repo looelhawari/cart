@@ -18,7 +18,12 @@ class Address extends Model
         'user_id',
         'label',
         'street',
+        'building',
+        'floor',
+        'apartment',
         'city',
+        'area',
+        'landmark',
         'is_default',
     ];
 

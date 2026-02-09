@@ -231,7 +231,9 @@ export const useStore = create<StoreState>()(
       checkAuthStatus: async () => {
         try {
           // Check if we have a token first
-          const token = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+          const token = await AsyncStorage.getItem(
+            TOKEN_CONFIG.ACCESS_TOKEN_KEY,
+          );
           if (!token) {
             // No token, definitely not authenticated
             set({
@@ -266,9 +268,10 @@ export const useStore = create<StoreState>()(
         token: string,
         userData?: any,
       ) => {
+        // Google sends id_token (JWT), Apple sends identity token
         const apiCall =
           provider === "google"
-            ? authApi.socialGoogle({ token })
+            ? authApi.socialGoogle({ id_token: token })
             : authApi.socialApple({ token, user: userData });
 
         const response = await apiCall;

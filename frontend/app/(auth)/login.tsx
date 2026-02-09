@@ -28,12 +28,9 @@ import {
   Lock as LockIcon,
   Fingerprint,
 } from "lucide-react-native";
-import {
-  useGoogleAuth,
-  handleGoogleResponse,
-  signInWithApple,
-  isAppleAuthAvailable,
-} from "@/services/socialAuth";
+import { useGoogleAuth, isAppleAuthAvailable } from "@/services/socialAuth";
+import * as AppleAuthentication from "expo-apple-authentication";
+import { authApi } from "@/services/api";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
 import {
   checkBiometricSupport,
@@ -55,6 +52,8 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<BiometricType>({
     available: false,
@@ -89,28 +88,91 @@ export default function LoginScreen() {
   }, [googleResponse]);
 
   const handleGoogleAuth = async () => {
+    if (googleResponse?.type !== "success") return;
+
     try {
-      setLoading(true);
-      const result = await handleGoogleResponse(googleResponse);
-      if (result) {
-        if (result.data.requires_phone_verification) {
-          router.push("/phone-verification");
-        } else {
-          router.replace("/(tabs)");
-        }
+      setGoogleLoading(true);
+
+      // Extract the id_token from Google's response
+      const idToken = googleResponse.authentication?.idToken;
+
+      if (!idToken) {
+        Alert.alert(
+          t.common.error,
+          "Google Sign-In configuration error: no ID token received. Please try again.",
+        );
+        return;
+      }
+
+      // Use store's socialLogin to properly set auth state
+      const { requiresPhoneVerification } = await socialLogin(
+        "google",
+        idToken,
+      );
+
+      if (requiresPhoneVerification) {
+        router.push("/phone-verification");
+      } else {
+        router.replace("/(tabs)");
       }
     } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.login.googleSignInFailed);
+      const message = error?.message || t.login.googleSignInFailed;
+      // Handle specific backend error codes
+      if (error?.error_code === "ACCOUNT_DEACTIVATED") {
+        Alert.alert(
+          t.common.error,
+          "Your account has been deactivated. Please contact support.",
+        );
+      } else if (error?.error_code === "SOCIAL_CONFLICT") {
+        Alert.alert(t.common.error, message);
+      } else {
+        Alert.alert(t.common.error, message);
+      }
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
   const handleAppleLogin = async () => {
     try {
-      setLoading(true);
-      const result = await signInWithApple();
-      if (result.data.requires_phone_verification) {
+      setAppleLoading(true);
+
+      // Get Apple credential (identity token JWT + user info)
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        Alert.alert(t.common.error, "No identity token received from Apple");
+        return;
+      }
+
+      // Use store's socialLogin — the authApi.socialApple will be called
+      // which sends the token + user data to backend
+      const result = await authApi.socialApple({
+        token: credential.identityToken,
+        user: {
+          name: {
+            firstName: credential.fullName?.givenName || "User",
+            lastName: credential.fullName?.familyName || "",
+          },
+        },
+      });
+
+      if (result.data?.access_token && result.data?.refresh_token) {
+        // Tokens are already saved by authApi.socialApple
+        // Update store state
+        useStore.setState({
+          isAuthenticated: true,
+          user: result.data.user,
+          pendingUser: null,
+        });
+      }
+
+      if (result.data?.requires_phone_verification) {
         router.push("/phone-verification");
       } else {
         router.replace("/(tabs)");
@@ -120,7 +182,7 @@ export default function LoginScreen() {
         Alert.alert(t.common.error, error.message || t.login.appleSignInFailed);
       }
     } finally {
-      setLoading(false);
+      setAppleLoading(false);
     }
   };
 
@@ -572,28 +634,51 @@ export default function LoginScreen() {
 
             <View style={styles.socialButtons}>
               <TouchableOpacity
-                style={[styles.socialButton, styles.googleButton]}
+                style={[
+                  styles.socialButton,
+                  styles.googleButton,
+                  (googleLoading || loading) && styles.buttonDisabled,
+                ]}
                 activeOpacity={0.8}
                 onPress={() => promptGoogleAsync()}
-                disabled={loading}
+                disabled={googleLoading || loading || appleLoading}
               >
-                <GoogleIcon size={20} />
-                <Text style={styles.googleButtonText}>
-                  {t.auth.continueWithGoogle}
-                </Text>
+                {googleLoading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={Colors.neutralCharcoal}
+                  />
+                ) : (
+                  <>
+                    <GoogleIcon size={20} />
+                    <Text style={styles.googleButtonText}>
+                      {t.auth.continueWithGoogle}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               {appleAvailable && (
                 <TouchableOpacity
-                  style={[styles.socialButton, styles.appleButton]}
+                  style={[
+                    styles.socialButton,
+                    styles.appleButton,
+                    (appleLoading || loading) && styles.buttonDisabled,
+                  ]}
                   activeOpacity={0.8}
                   onPress={handleAppleLogin}
-                  disabled={loading}
+                  disabled={appleLoading || loading || googleLoading}
                 >
-                  <AppleIcon size={20} color="#FFFFFF" />
-                  <Text style={styles.appleButtonText}>
-                    {t.auth.continueWithApple}
-                  </Text>
+                  {appleLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <AppleIcon size={20} color="#FFFFFF" />
+                      <Text style={styles.appleButtonText}>
+                        {t.auth.continueWithApple}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               )}
             </View>

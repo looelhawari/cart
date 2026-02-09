@@ -9,6 +9,7 @@ import {
   ImageBackground,
   ScrollView,
   Dimensions,
+  RefreshControl,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,12 +26,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
 import { ProductCard } from "@/components/ProductCard";
+import { Toast } from "@/components/Toast";
 import { getCategoryProducts } from "@/services/api/categoryApi";
 import type { Product, Category, SortOption, SortOrder } from "@/types";
 import { useStore } from "@/store";
 import { getCachedImage } from "@/services/cache/imageCache";
 import OfflineIndicator from "@/components/OfflineIndicator";
-import { fetchActiveOffersCached, getProductOfferPricing } from "@/utils/offerPricing";
+import {
+  fetchActiveOffersCached,
+  getProductOfferPricing,
+} from "@/utils/offerPricing";
 import type { Offer } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
@@ -49,6 +54,29 @@ export default function CategoryDetailScreen() {
   const [showSortModal, setShowSortModal] = useState(false);
   const [cachedHeroImage, setCachedHeroImage] = useState<string | undefined>();
   const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
+
+  // Pagination state for infinite scrolling
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const ITEMS_PER_PAGE = 20;
+
+  // Page-level toast state for add-to-cart feedback
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info">(
+    "info",
+  );
+
+  const handleCardAddToCart = (result: {
+    success: boolean;
+    message: string;
+    type: "success" | "error";
+  }) => {
+    setToastType(result.type);
+    setToastMessage(result.message);
+    setShowToast(true);
+  };
 
   const { cart } = useStore();
 
@@ -71,34 +99,52 @@ export default function CategoryDetailScreen() {
       });
   }, []);
 
-  // Filter changes - smooth updates without full loading state
+  // Filter changes - reset pagination and reload
   useEffect(() => {
     if (id && !loading) {
-      loadCategoryData(false);
+      setCurrentPage(1);
+      setHasMore(true);
+      loadCategoryData(false, 1);
     }
   }, [selectedSubcategoryId, sortBy, sortOrder]);
 
-  const loadCategoryData = async (isInitialLoad = false) => {
+  const loadCategoryData = async (isInitialLoad = false, page = 1) => {
     try {
       if (isInitialLoad) {
         setLoading(true);
-      } else {
+      } else if (page === 1) {
         setRefreshing(true);
       }
 
       const params: any = {
         sort_by: sortBy,
         sort_order: sortOrder,
+        page,
+        per_page: ITEMS_PER_PAGE,
       };
 
       if (selectedSubcategoryId) {
         params.subcategory_id = selectedSubcategoryId;
       }
 
-      const response = await getCategoryProducts(Number(id), params);
+      const response = await getCategoryProducts(Number(id), params, false);
       if (response.success) {
         setCategory(response.data.category);
-        setProducts(response.data.products);
+
+        if (page === 1) {
+          setProducts(response.data.products);
+        } else {
+          setProducts((prev) => [...prev, ...response.data.products]);
+        }
+
+        // Update pagination state
+        const { pagination } = response.data;
+        if (pagination) {
+          setCurrentPage(pagination.current_page);
+          setHasMore(pagination.current_page < pagination.last_page);
+        } else {
+          setHasMore(false);
+        }
 
         // Cache hero image only on initial load
         if (isInitialLoad && response.data.category.image) {
@@ -117,7 +163,20 @@ export default function CategoryDetailScreen() {
       } else {
         setRefreshing(false);
       }
+      setLoadingMore(false);
     }
+  };
+
+  const loadMoreProducts = () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    loadCategoryData(false, currentPage + 1);
+  };
+
+  const handleRefresh = () => {
+    setCurrentPage(1);
+    setHasMore(true);
+    loadCategoryData(false, 1);
   };
 
   const hasSubcategories =
@@ -311,8 +370,11 @@ export default function CategoryDetailScreen() {
     <View style={styles.productItem}>
       <ProductCard
         product={item}
-        offerPricing={getProductOfferPricing(item, activeOffers, { categoryId: Number(id) })}
+        offerPricing={getProductOfferPricing(item, activeOffers, {
+          categoryId: Number(id),
+        })}
         onPress={() => router.push(`/product/${item.barcode}`)}
+        onAddToCart={handleCardAddToCart}
       />
     </View>
   );
@@ -390,22 +452,33 @@ export default function CategoryDetailScreen() {
       {renderSortModal()}
 
       {/* Products */}
-      {refreshing ? (
-        <View style={styles.refreshingContainer}>
-          <ActivityIndicator size="small" color={Colors.primary900} />
-        </View>
-      ) : null}
-
       {products.length > 0 ? (
         <FlatList
           data={products}
           renderItem={renderProduct}
-          keyExtractor={(item) => item.barcode.toString()}
+          keyExtractor={(item, index) => `${item.barcode}-${index}`}
           numColumns={2}
           columnWrapperStyle={styles.productRow}
           contentContainerStyle={styles.productsGrid}
           showsVerticalScrollIndicator={false}
           style={{ opacity: refreshing ? 0.6 : 1 }}
+          onEndReached={loadMoreProducts}
+          onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[Colors.primary900]}
+              tintColor={Colors.primary900}
+            />
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.loadingMoreContainer}>
+                <ActivityIndicator size="small" color={Colors.primary900} />
+              </View>
+            ) : null
+          }
         />
       ) : loading ? (
         <View style={[styles.centered, { flex: 1 }]}>
@@ -416,6 +489,12 @@ export default function CategoryDetailScreen() {
           <Text style={styles.emptyText}>No products available</Text>
         </View>
       )}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -637,6 +716,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
+  },
+  loadingMoreContainer: {
+    paddingVertical: Spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
   },
   refreshingText: {
     fontSize: 13,

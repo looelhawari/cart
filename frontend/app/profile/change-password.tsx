@@ -16,7 +16,7 @@ import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { authApi } from "@/services/api";
+import { profileApi } from "@/services/api/profileApi";
 import { useTranslation } from "@/i18n";
 
 export default function ChangePasswordScreen() {
@@ -65,7 +65,7 @@ export default function ChangePasswordScreen() {
 
     setLoading(true);
     try {
-      await authApi.changePassword({
+      await profileApi.changePassword({
         current_password: currentPassword,
         password: newPassword,
         password_confirmation: confirmPassword,

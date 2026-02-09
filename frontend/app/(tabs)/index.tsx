@@ -22,8 +22,13 @@ import { ProductCard } from "@/components/ProductCard";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { HeroBanner } from "@/components/HeroBanner";
+import { Toast } from "@/components/Toast";
+import { getUnreadCount } from "@/services/notificationService";
 import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
-import { getFeaturedCategoriesWithProducts, getCategories } from "@/services/api/categoryApi";
+import {
+  getFeaturedCategoriesWithProducts,
+  getCategories,
+} from "@/services/api/categoryApi";
 import type { Product, Category } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { useTranslation, useLocalizedValue } from "@/i18n";
@@ -32,29 +37,94 @@ import { useResponsive } from "@/hooks/useResponsive";
 const { width } = Dimensions.get("window");
 
 // Category icon mapping with ElBaraka brand gradients
-const getCategoryIcon = (slug: string): { icon: keyof typeof Ionicons.glyphMap; color: string; gradient: readonly [string, string] } => {
-  const iconMap: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; gradient: readonly [string, string] }> = {
-    fruits: { icon: "nutrition-outline", color: Colors.accentOrange, gradient: ['#FFF7ED', '#FFEDD5'] as const },
-    vegetables: { icon: "leaf-outline", color: Colors.primary900, gradient: ['#F0FDF4', '#DCFCE7'] as const },
-    meat: { icon: "restaurant-outline", color: "#DC2626", gradient: ['#FEF2F2', '#FECACA'] as const },
-    dairy: { icon: "water-outline", color: "#0EA5E9", gradient: ['#F0F9FF', '#E0F2FE'] as const },
-    bakery: { icon: "pizza-outline", color: "#D97706", gradient: ['#FFFBEB', '#FEF3C7'] as const },
-    beverages: { icon: "cafe-outline", color: "#7C3AED", gradient: ['#FAF5FF', '#EDE9FE'] as const },
-    snacks: { icon: "fast-food-outline", color: "#EC4899", gradient: ['#FDF2F8', '#FCE7F3'] as const },
-    frozen: { icon: "snow-outline", color: "#06B6D4", gradient: ['#ECFEFF', '#CFFAFE'] as const },
-    cleaning: { icon: "sparkles-outline", color: "#3B82F6", gradient: ['#EFF6FF', '#DBEAFE'] as const },
-    personal: { icon: "body-outline", color: "#8B5CF6", gradient: ['#F5F3FF', '#EDE9FE'] as const },
-    grocery: { icon: "cart-outline", color: Colors.primary700, gradient: ['#F0FDF4', '#DCFCE7'] as const },
-    organic: { icon: "flower-outline", color: "#10B981", gradient: ['#ECFDF5', '#D1FAE5'] as const },
+const getCategoryIcon = (
+  slug: string,
+): {
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  gradient: readonly [string, string];
+} => {
+  const iconMap: Record<
+    string,
+    {
+      icon: keyof typeof Ionicons.glyphMap;
+      color: string;
+      gradient: readonly [string, string];
+    }
+  > = {
+    fruits: {
+      icon: "nutrition-outline",
+      color: Colors.accentOrange,
+      gradient: ["#FFF7ED", "#FFEDD5"] as const,
+    },
+    vegetables: {
+      icon: "leaf-outline",
+      color: Colors.primary900,
+      gradient: ["#F0FDF4", "#DCFCE7"] as const,
+    },
+    meat: {
+      icon: "restaurant-outline",
+      color: "#DC2626",
+      gradient: ["#FEF2F2", "#FECACA"] as const,
+    },
+    dairy: {
+      icon: "water-outline",
+      color: "#0EA5E9",
+      gradient: ["#F0F9FF", "#E0F2FE"] as const,
+    },
+    bakery: {
+      icon: "pizza-outline",
+      color: "#D97706",
+      gradient: ["#FFFBEB", "#FEF3C7"] as const,
+    },
+    beverages: {
+      icon: "cafe-outline",
+      color: "#7C3AED",
+      gradient: ["#FAF5FF", "#EDE9FE"] as const,
+    },
+    snacks: {
+      icon: "fast-food-outline",
+      color: "#EC4899",
+      gradient: ["#FDF2F8", "#FCE7F3"] as const,
+    },
+    frozen: {
+      icon: "snow-outline",
+      color: "#06B6D4",
+      gradient: ["#ECFEFF", "#CFFAFE"] as const,
+    },
+    cleaning: {
+      icon: "sparkles-outline",
+      color: "#3B82F6",
+      gradient: ["#EFF6FF", "#DBEAFE"] as const,
+    },
+    personal: {
+      icon: "body-outline",
+      color: "#8B5CF6",
+      gradient: ["#F5F3FF", "#EDE9FE"] as const,
+    },
+    grocery: {
+      icon: "cart-outline",
+      color: Colors.primary700,
+      gradient: ["#F0FDF4", "#DCFCE7"] as const,
+    },
+    organic: {
+      icon: "flower-outline",
+      color: "#10B981",
+      gradient: ["#ECFDF5", "#D1FAE5"] as const,
+    },
   };
 
-  const normalizedSlug = slug?.toLowerCase().replace(/[^a-z]/g, '') || '';
+  const normalizedSlug = slug?.toLowerCase().replace(/[^a-z]/g, "") || "";
   for (const [key, value] of Object.entries(iconMap)) {
     if (normalizedSlug.includes(key) || key.includes(normalizedSlug)) {
       return value;
     }
   }
-  return { icon: "grid-outline", color: Colors.primary900, gradient: ['#F0FDF4', '#DCFCE7'] as const };
+  return {
+    icon: "grid-outline",
+    color: Colors.primary900,
+    gradient: ["#F0FDF4", "#DCFCE7"] as const,
+  };
 };
 
 export default function HomeScreen() {
@@ -68,7 +138,26 @@ export default function HomeScreen() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [quickCategories, setQuickCategories] = useState<Category[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
-  const [categoriesWithProducts, setCategoriesWithProducts] = useState<CategoryWithProducts[]>([]);
+  const [categoriesWithProducts, setCategoriesWithProducts] = useState<
+    CategoryWithProducts[]
+  >([]);
+
+  // Page-level toast state for add-to-cart feedback
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info">(
+    "info",
+  );
+
+  const handleCardAddToCart = (result: {
+    success: boolean;
+    message: string;
+    type: "success" | "error";
+  }) => {
+    setToastType(result.type);
+    setToastMessage(result.message);
+    setShowToast(true);
+  };
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -76,18 +165,35 @@ export default function HomeScreen() {
   const scaleAnim = useRef(new Animated.Value(0.98)).current;
 
   // Calculate cart items count
-  const cartItemsCount = cart?.items?.reduce((total: number, item: any) => total + item.quantity, 0) || 0;
+  const cartItemsCount =
+    cart?.items?.reduce(
+      (total: number, item: any) => total + item.quantity,
+      0,
+    ) || 0;
+
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
+  // Fetch unread notification count
+  const fetchUnreadCount = useCallback(async () => {
+    if (isAuthenticated) {
+      const count = await getUnreadCount();
+      setUnreadNotifCount(count);
+    } else {
+      setUnreadNotifCount(0);
+    }
+  }, [isAuthenticated]);
 
   const loadData = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
 
-      const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] = await Promise.all([
-        getFeaturedCategoriesWithProducts(),
-        getCategories(),
-        getFeaturedProducts(),
-        getFlashDeals(),
-      ]);
+      const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] =
+        await Promise.all([
+          getFeaturedCategoriesWithProducts(),
+          getCategories(),
+          getFeaturedProducts(),
+          getFlashDeals(),
+        ]);
 
       if (categoriesRes.success) {
         setCategoriesWithProducts(categoriesRes.data.categories);
@@ -129,11 +235,18 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
+    fetchUnreadCount();
   }, []);
+
+  // Re-fetch unread count when screen is focused (coming back from notifications)
+  useEffect(() => {
+    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([loadData(), fetchUnreadCount()]);
     setRefreshing(false);
   };
 
@@ -216,7 +329,11 @@ export default function HomeScreen() {
               >
                 {[1, 2, 3].map((i) => (
                   <View key={i} style={styles.dealCard}>
-                    <SkeletonLoader width="100%" height={130} borderRadius={16} />
+                    <SkeletonLoader
+                      width="100%"
+                      height={130}
+                      borderRadius={16}
+                    />
                     <View style={{ height: 10 }} />
                     <SkeletonLoader width="75%" height={16} borderRadius={5} />
                     <View style={{ height: 6 }} />
@@ -232,14 +349,27 @@ export default function HomeScreen() {
   }
 
   // Fallback categories
-  const displayCategories = quickCategories.length > 0 ? quickCategories : [
-    { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
-    { id: 2, name_en: "Vegetables", name_ar: "خضروات", slug: "vegetables" },
-    { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
-    { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
-    { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
-    { id: 6, name_en: "Beverages", name_ar: "مشروبات", slug: "beverages" },
-  ] as Category[];
+  const displayCategories =
+    quickCategories.length > 0
+      ? quickCategories
+      : ([
+          { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
+          {
+            id: 2,
+            name_en: "Vegetables",
+            name_ar: "خضروات",
+            slug: "vegetables",
+          },
+          { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
+          { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
+          { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
+          {
+            id: 6,
+            name_en: "Beverages",
+            name_ar: "مشروبات",
+            slug: "beverages",
+          },
+        ] as Category[]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -253,8 +383,8 @@ export default function HomeScreen() {
           styles.header,
           {
             opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
         <LinearGradient
@@ -281,8 +411,15 @@ export default function HomeScreen() {
               </Text>
 
               {/* Location Selector */}
-              <TouchableOpacity style={styles.locationButton} activeOpacity={0.8}>
-                <Ionicons name="location" size={13} color={Colors.neutralWhite} />
+              <TouchableOpacity
+                style={styles.locationButton}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="location"
+                  size={13}
+                  color={Colors.neutralWhite}
+                />
                 <Text style={styles.locationText}>Cairo, Egypt</Text>
                 <ChevronRight size={13} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
@@ -292,11 +429,25 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => router.push("/notifications")}
+                onPress={() => {
+                  router.push("/notifications");
+                  // Refresh count when coming back
+                  setTimeout(fetchUnreadCount, 500);
+                }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="notifications" size={21} color={Colors.neutralWhite} />
-                <View style={styles.notificationDot} />
+                <Ionicons
+                  name="notifications"
+                  size={21}
+                  color={Colors.neutralWhite}
+                />
+                {unreadNotifCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -307,7 +458,9 @@ export default function HomeScreen() {
                 <Ionicons name="bag" size={21} color={Colors.neutralWhite} />
                 {cartItemsCount > 0 && (
                   <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{cartItemsCount > 9 ? '9+' : cartItemsCount}</Text>
+                    <Text style={styles.cartBadgeText}>
+                      {cartItemsCount > 9 ? "9+" : cartItemsCount}
+                    </Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -323,7 +476,9 @@ export default function HomeScreen() {
             activeOpacity={0.95}
           >
             <Ionicons name="search" size={20} color={Colors.neutralMedium} />
-            <Text style={styles.searchPlaceholder}>{t.common?.searchPlaceholder || "Search for products..."}</Text>
+            <Text style={styles.searchPlaceholder}>
+              {t.common?.searchPlaceholder || "Search for products..."}
+            </Text>
           </TouchableOpacity>
         </LinearGradient>
       </Animated.View>
@@ -348,22 +503,34 @@ export default function HomeScreen() {
             styles.featuresContainer,
             {
               opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
+              transform: [{ scale: scaleAnim }],
+            },
           ]}
         >
           <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.primary900 + "18" }]}>
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: Colors.primary900 + "18" },
+              ]}
+            >
               <Ionicons name="car" size={19} color={Colors.primary900} />
             </View>
-            <Text style={styles.featureTitle}>{t.common?.freeDelivery || "Free Delivery"}</Text>
+            <Text style={styles.featureTitle}>
+              {t.common?.freeDelivery || "Free Delivery"}
+            </Text>
             <Text style={styles.featureSubtitle}>200+ EGP</Text>
           </View>
 
           <View style={styles.featureDivider} />
 
           <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: Colors.accentOrange + "18" }]}>
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: Colors.accentOrange + "18" },
+              ]}
+            >
               <Ionicons name="time" size={19} color={Colors.accentOrange} />
             </View>
             <Text style={styles.featureTitle}>Fast Delivery</Text>
@@ -373,8 +540,17 @@ export default function HomeScreen() {
           <View style={styles.featureDivider} />
 
           <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: "#3B82F6" + "18" }]}>
-              <Ionicons name="shield-checkmark-outline" size={19} color="#3B82F6" />
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: "#3B82F6" + "18" },
+              ]}
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={19}
+                color="#3B82F6"
+              />
             </View>
             <Text style={styles.featureTitle}>Quality</Text>
             <Text style={styles.featureSubtitle}>Guaranteed</Text>
@@ -394,18 +570,22 @@ export default function HomeScreen() {
             styles.categoriesSection,
             {
               opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
+              transform: [{ translateY: slideAnim }],
+            },
           ]}
         >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t.common?.browse || "Browse Categories"}</Text>
+            <Text style={styles.sectionTitle}>
+              {t.common?.browse || "Browse Categories"}
+            </Text>
             <TouchableOpacity
               style={styles.viewAllButton}
               onPress={() => router.push("/(tabs)/categories")}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewAllText}>{t.common?.viewAll || "View All"}</Text>
+              <Text style={styles.viewAllText}>
+                {t.common?.viewAll || "View All"}
+              </Text>
               <ChevronRight size={15} color={Colors.primary900} />
             </TouchableOpacity>
           </View>
@@ -428,7 +608,11 @@ export default function HomeScreen() {
                     colors={iconInfo.gradient}
                     style={styles.categoryIconContainer}
                   >
-                    <Ionicons name={iconInfo.icon} size={26} color={iconInfo.color} />
+                    <Ionicons
+                      name={iconInfo.icon}
+                      size={26}
+                      color={iconInfo.color}
+                    />
                   </LinearGradient>
                   <Text style={styles.categoryName} numberOfLines={1}>
                     {getName(cat)}
@@ -448,16 +632,22 @@ export default function HomeScreen() {
               styles.section,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
+                transform: [{ translateY: slideAnim }],
+              },
             ]}
           >
             <View style={styles.sectionHeader}>
               <View style={styles.flashDealsTitleRow}>
                 <View style={styles.flashIcon}>
-                  <Ionicons name="flash" size={14} color={Colors.neutralWhite} />
+                  <Ionicons
+                    name="flash"
+                    size={14}
+                    color={Colors.neutralWhite}
+                  />
                 </View>
-                <Text style={styles.sectionTitle}>{t.products?.flashDeals || "Flash Deals"}</Text>
+                <Text style={styles.sectionTitle}>
+                  {t.products?.flashDeals || "Flash Deals"}
+                </Text>
                 <View style={styles.timerBadge}>
                   <Clock size={11} color={Colors.accentRed} />
                   <Text style={styles.timerText}>Ends Soon!</Text>
@@ -468,7 +658,9 @@ export default function HomeScreen() {
                 onPress={() => router.push("/deals/flash")}
                 activeOpacity={0.85}
               >
-                <Text style={styles.viewAllTextAlt}>{t.common?.viewAll || "View All"}</Text>
+                <Text style={styles.viewAllTextAlt}>
+                  {t.common?.viewAll || "View All"}
+                </Text>
                 <ChevronRight size={15} color={Colors.neutralWhite} />
               </TouchableOpacity>
             </View>
@@ -483,6 +675,7 @@ export default function HomeScreen() {
                   <ProductCard
                     product={product}
                     onPress={() => router.push(`/product/${product.barcode}`)}
+                    onAddToCart={handleCardAddToCart}
                   />
                 </View>
               ))}
@@ -507,11 +700,17 @@ export default function HomeScreen() {
             <View style={styles.promoBannerContent}>
               <View style={styles.promoBannerLeft}>
                 <View style={styles.promoIconContainer}>
-                  <Ionicons name="gift-outline" size={22} color={Colors.neutralWhite} />
+                  <Ionicons
+                    name="gift-outline"
+                    size={22}
+                    color={Colors.neutralWhite}
+                  />
                 </View>
                 <View>
                   <Text style={styles.promoBannerTitle}>Exclusive Offers</Text>
-                  <Text style={styles.promoBannerSubtitle}>Get up to 50% off fresh items</Text>
+                  <Text style={styles.promoBannerSubtitle}>
+                    Get up to 50% off fresh items
+                  </Text>
                 </View>
               </View>
               <View style={styles.promoBannerArrow}>
@@ -534,8 +733,8 @@ export default function HomeScreen() {
               styles.section,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
+                transform: [{ translateY: slideAnim }],
+              },
             ]}
           >
             <View style={styles.sectionHeader}>
@@ -543,7 +742,11 @@ export default function HomeScreen() {
                 <Text style={styles.sectionTitle}>{getName(category)}</Text>
                 {index === 0 && (
                   <View style={styles.popularBadge}>
-                    <Ionicons name="star" size={9} color={Colors.neutralWhite} />
+                    <Ionicons
+                      name="star"
+                      size={9}
+                      color={Colors.neutralWhite}
+                    />
                     <Text style={styles.popularBadgeText}>Popular</Text>
                   </View>
                 )}
@@ -570,6 +773,7 @@ export default function HomeScreen() {
                   <ProductCard
                     product={product}
                     onPress={() => router.push(`/product/${product.barcode}`)}
+                    onAddToCart={handleCardAddToCart}
                   />
                 </View>
               ))}
@@ -586,23 +790,31 @@ export default function HomeScreen() {
               styles.section,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
+                transform: [{ translateY: slideAnim }],
+              },
             ]}
           >
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <View style={styles.crownIcon}>
-                  <Ionicons name="trophy" size={13} color={Colors.accentYellow} />
+                  <Ionicons
+                    name="trophy"
+                    size={13}
+                    color={Colors.accentYellow}
+                  />
                 </View>
-                <Text style={styles.sectionTitle}>{t.products?.featured || "Featured Products"}</Text>
+                <Text style={styles.sectionTitle}>
+                  {t.products?.featured || "Featured Products"}
+                </Text>
               </View>
               <TouchableOpacity
                 style={styles.viewAllButton}
                 onPress={() => router.push("/(tabs)/categories")}
                 activeOpacity={0.8}
               >
-                <Text style={styles.viewAllText}>{t.common?.seeAll || "See All"}</Text>
+                <Text style={styles.viewAllText}>
+                  {t.common?.seeAll || "See All"}
+                </Text>
                 <ChevronRight size={15} color={Colors.primary900} />
               </TouchableOpacity>
             </View>
@@ -613,6 +825,7 @@ export default function HomeScreen() {
                   <ProductCard
                     product={product}
                     onPress={() => router.push(`/product/${product.barcode}`)}
+                    onAddToCart={handleCardAddToCart}
                   />
                 </View>
               ))}
@@ -623,6 +836,12 @@ export default function HomeScreen() {
         {/* Bottom spacing for tab bar */}
         <View style={{ height: 100 }} />
       </ScrollView>
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -713,16 +932,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  notificationDot: {
+  notificationBadge: {
     position: "absolute",
-    top: 9,
-    right: 9,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: Colors.accentRed,
-    borderWidth: 1.5,
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
     borderColor: Colors.primary900,
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    fontSize: 10,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   cartButton: {
     width: 42,

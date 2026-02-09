@@ -21,6 +21,7 @@ class NotificationController extends Controller
             $user = $request->user();
             $perPage = $request->input('per_page', 20);
             $type = $request->input('type'); // Filter by type
+            $filter = $request->input('filter'); // Filter: 'read' or 'unread'
 
             // Get personal notifications
             $personalQuery = Notification::where('user_id', $user->id);
@@ -34,16 +35,25 @@ class NotificationController extends Controller
                 $broadcastQuery->where('type', $type);
             }
 
+            // Get read broadcast IDs for this user (needed for both filter and transform)
+            $readBroadcastIds = NotificationRead::where('user_id', $user->id)
+                ->pluck('notification_id')
+                ->toArray();
+
+            // Apply read/unread filter at query level for personal notifications
+            if ($filter === 'read') {
+                $personalQuery->where('is_read', true);
+                $broadcastQuery->whereIn('id', $readBroadcastIds);
+            } elseif ($filter === 'unread') {
+                $personalQuery->where('is_read', false);
+                $broadcastQuery->whereNotIn('id', $readBroadcastIds);
+            }
+
             // Union personal and broadcast notifications
             $notifications = $personalQuery
                 ->union($broadcastQuery)
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage);
-
-            // Get read broadcast IDs for this user
-            $readBroadcastIds = NotificationRead::where('user_id', $user->id)
-                ->pluck('notification_id')
-                ->toArray();
 
             // Transform notifications
             $notifications->getCollection()->transform(function ($notification) use ($user, $readBroadcastIds) {
@@ -154,7 +164,7 @@ class NotificationController extends Controller
                     ], 404);
                 }
 
-                $notification->update(['is_read' => true]);
+                $notification->update(['is_read' => true, 'read_at' => now()]);
             }
 
             return response()->json([
@@ -183,7 +193,7 @@ class NotificationController extends Controller
                 // Mark all personal notifications as read
                 Notification::where('user_id', $user->id)
                     ->where('is_read', false)
-                    ->update(['is_read' => true]);
+                    ->update(['is_read' => true, 'read_at' => now()]);
 
                 // Get all broadcast notification IDs not yet read
                 $readBroadcastIds = NotificationRead::where('user_id', $user->id)

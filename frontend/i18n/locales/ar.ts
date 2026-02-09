@@ -785,11 +785,15 @@ export default {
     title: "الإشعارات",
     markAllRead: "تحديد الكل كمقروء",
     all: "الكل",
+    read: "مقروء",
+    unread: "غير مقروء",
     orders: "الطلبات",
     offers: "العروض",
     account: "الحساب",
     noNotifications: "لا توجد إشعارات",
     noNotificationsMessage: "ستظهر الإشعارات هنا عندما يكون لديك",
+    loginRequired: "تسجيل الدخول مطلوب",
+    loginMessage: "يرجى تسجيل الدخول لعرض الإشعارات",
   },
 
   // Alerts

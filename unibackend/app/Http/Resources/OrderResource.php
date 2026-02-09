@@ -17,10 +17,10 @@ class OrderResource extends JsonResource
         // Get delivery address from snapshot or relationship
         $deliveryAddress = '';
         if ($this->delivery_address_snapshot) {
-            $snapshot = is_array($this->delivery_address_snapshot) 
-                ? $this->delivery_address_snapshot 
+            $snapshot = is_array($this->delivery_address_snapshot)
+                ? $this->delivery_address_snapshot
                 : json_decode($this->delivery_address_snapshot, true);
-            
+
             if ($snapshot) {
                 $deliveryAddress = implode(', ', array_filter([
                     $snapshot['street_address'] ?? '',

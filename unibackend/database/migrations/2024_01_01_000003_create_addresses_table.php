@@ -16,8 +16,6 @@ return new class extends Migration
                 $table->id();
                 $table->foreignId('user_id')->constrained()->onDelete('cascade');
                 $table->string('label', 100)->comment('Home, Work, Other');
-                $table->string('recipient_name')->nullable();
-                $table->string('phone', 20)->nullable();
                 $table->text('street');
                 $table->string('building')->nullable();
                 $table->string('floor')->nullable();
@@ -25,7 +23,6 @@ return new class extends Migration
                 $table->string('city', 100);
                 $table->string('area')->nullable();
                 $table->string('landmark')->nullable();
-                $table->text('notes')->nullable();
                 $table->boolean('is_default')->default(false);
                 $table->timestamps();
 

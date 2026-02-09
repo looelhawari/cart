@@ -187,7 +187,7 @@ X-RateLimit-Reset: 1638360000
 
 **Endpoint:** `POST /api/v1/auth/verify-phone`  
 **Middleware:** `guest`  
-**Description:** Verify phone number with OTP, OTP is valid for 10 minutes. 
+**Description:** Verify phone number with OTP, OTP is valid for 10 minutes.
 
 **Request Body:**
 
@@ -348,7 +348,7 @@ When user logs in, the backend MUST execute `CartService@mergeGuestCart()`:
 
 **Endpoint:** `POST /api/v1/auth/reset-password`  
 **Middleware:** `guest`  
-**Description:** Reset password with OTP, OTP is valid for 10 minutes. 
+**Description:** Reset password with OTP, OTP is valid for 10 minutes.
 
 **Request Body:**
 
@@ -418,7 +418,7 @@ When user logs in, the backend MUST execute `CartService@mergeGuestCart()`:
   "first_name": "Ahmed",
   "last_name": "Hassan",
   "email": "ahmed@example.com",
-  "phone": "+201234567890",
+  "phone": "+201234567890"
 }
 ```
 
@@ -453,7 +453,7 @@ avatar: [file] (jpg, jpeg, png, webp - max 2MB)
 **Validation:**
 
 - File required
-- Mime types: jpg, jpeg, png, webp 
+- Mime types: jpg, jpeg, png, webp
 - Max size: 2MB (2048 KB)
 - Min dimensions: 100x100px
 
@@ -532,7 +532,7 @@ avatar: [file] (jpg, jpeg, png, webp - max 2MB)
       "id": 1,
       "label": "Home",
       "street": "123 Main Street, Apartment 4B",
-      "appartment_floor_building": "",
+      "apartment_floor_building": "",
       "nearby_landmark": "",
       "is_default": true,
       "created_at": "2025-11-01T10:00:00Z"
@@ -2052,6 +2052,7 @@ attachments[]: [file1, file2] (optional)
   ]
 }
 ```
+
 ---
 
 ## Admin Endpoints
@@ -2263,7 +2264,7 @@ POST   /api/v1/admin/tickets/{id}/assign
 - Minimum 8 characters
 - bcrypt hashing (cost 12)
 - Password reset OTP expires in 10 minutes
-- Max 3 failed login attempts before temporary lockout 
+- Max 3 failed login attempts before temporary lockout
 
 ### CORS Configuration
 

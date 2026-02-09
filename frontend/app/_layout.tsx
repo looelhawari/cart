@@ -81,7 +81,10 @@ function RootLayoutNav() {
             if (data) {
               // Small delay to ensure router is ready
               setTimeout(() => {
-                handleNotificationAction(data as Record<string, unknown>, router);
+                handleNotificationAction(
+                  data as Record<string, unknown>,
+                  router,
+                );
               }, 500);
             }
           }
@@ -226,10 +229,7 @@ function RootLayoutNav() {
       <Stack.Screen name="checkout" options={{ headerShown: false }} />
       <Stack.Screen name="profile" options={{ headerShown: false }} />
       <Stack.Screen name="orders" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="notifications"
-        options={{ headerShown: true, title: "Notifications" }}
-      />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="complaints" options={{ headerShown: false }} />
       <Stack.Screen name="categories" options={{ headerShown: false }} />
       <Stack.Screen name="about" options={{ headerShown: false }} />
@@ -279,7 +279,9 @@ export default function RootLayout() {
       <I18nProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <RootLayoutNav />
-          {showSplash && <AnimatedSplash onAnimationFinish={handleSplashFinish} />}
+          {showSplash && (
+            <AnimatedSplash onAnimationFinish={handleSplashFinish} />
+          )}
         </GestureHandlerRootView>
       </I18nProvider>
     </QueryClientProvider>

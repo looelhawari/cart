@@ -839,8 +839,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 18,
         paddingVertical: 16,
         paddingBottom: 28,
+        gap: 20,
     },
-    footerLeft: {},
+    footerLeft: {
+        flex: 1,
+    },
     footerLabel: {
         fontSize: 12,
         fontFamily: "Poppins-Regular",

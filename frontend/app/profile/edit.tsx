@@ -6,23 +6,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Image,
-  Alert,
   ActivityIndicator,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Camera, Save, Trash2 } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
+import { ArrowLeft, Save } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
-import { authApi } from "@/services/api";
 import { useTranslation } from "@/i18n";
+import { Toast } from "@/components/Toast";
 
 export default function EditProfileScreen() {
   const { user, updateProfile, fetchProfile } = useStore();
@@ -32,15 +29,35 @@ export default function EditProfileScreen() {
   const [lastName, setLastName] = useState(user?.last_name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
-  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
-    user?.date_of_birth ? new Date(user.date_of_birth) : null,
-  );
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(() => {
+    if (user?.date_of_birth) {
+      // Parse as local date to avoid timezone shift ("2000-01-01" parsed as UTC midnight shifts back a day in UTC+ zones)
+      const parts = user.date_of_birth.split("-");
+      return new Date(
+        parseInt(parts[0]),
+        parseInt(parts[1]) - 1,
+        parseInt(parts[2]),
+      );
+    }
+    return null;
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "other" | null>(
     user?.gender || null,
   );
   const [loading, setLoading] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error" | "info";
+  }>({ visible: false, message: "", type: "success" });
+
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" = "success",
+  ) => {
+    setToast({ visible: true, message, type });
+  };
 
   const handleSave = async () => {
     if (
@@ -49,7 +66,7 @@ export default function EditProfileScreen() {
       !email.trim() ||
       !phone.trim()
     ) {
-      Alert.alert(t.common.error, t.editProfile.fillAllFields);
+      showToast(t.editProfile.fillAllFields, "error");
       return;
     }
 
@@ -64,7 +81,11 @@ export default function EditProfileScreen() {
 
       // Only include date_of_birth if it has a value
       if (dateOfBirth) {
-        updateData.date_of_birth = dateOfBirth.toISOString().split("T")[0];
+        // Format using local date parts to avoid UTC timezone shift
+        const y = dateOfBirth.getFullYear();
+        const m = String(dateOfBirth.getMonth() + 1).padStart(2, "0");
+        const d = String(dateOfBirth.getDate()).padStart(2, "0");
+        updateData.date_of_birth = `${y}-${m}-${d}`;
       }
 
       // Only include gender if it has a value
@@ -73,145 +94,15 @@ export default function EditProfileScreen() {
       }
 
       await updateProfile(updateData);
+      await fetchProfile();
 
-      Alert.alert(t.common.success, t.editProfile.profileUpdated, [
-        { text: t.common.ok, onPress: () => router.back() },
-      ]);
+      showToast(t.editProfile.profileUpdated, "success");
+      setTimeout(() => router.back(), 1200);
     } catch (error: any) {
-      Alert.alert(
-        t.common.error,
-        error.message || t.editProfile.failedToUpdate,
-      );
+      showToast(error.message || t.editProfile.failedToUpdate, "error");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handlePickImage = async () => {
-    // Request permissions
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        t.editProfile.permissionRequired,
-        t.editProfile.grantCameraRollPermission,
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      await uploadAvatar(result.assets[0].uri);
-    }
-  };
-
-  const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        t.editProfile.permissionRequired,
-        t.editProfile.grantCameraPermission,
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      await uploadAvatar(result.assets[0].uri);
-    }
-  };
-
-  const uploadAvatar = async (uri: string) => {
-    setUploadingAvatar(true);
-    try {
-      // Create form data
-      const formData: any = new FormData();
-
-      // Get file extension
-      const fileExtension = uri.split(".").pop() || "jpg";
-      const fileName = `avatar_${Date.now()}.${fileExtension}`;
-
-      formData.append("avatar", {
-        uri: Platform.OS === "ios" ? uri.replace("file://", "") : uri,
-        type: `image/${fileExtension}`,
-        name: fileName,
-      } as any);
-
-      await authApi.uploadAvatar(formData);
-      await fetchProfile();
-      Alert.alert(t.common.success, t.editProfile.pictureUpdated);
-    } catch (error: any) {
-      Alert.alert(
-        t.common.error,
-        error.message || t.editProfile.failedToUpload,
-      );
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
-  const handleChangePhoto = () => {
-    Alert.alert(
-      t.editProfile.changeProfilePicture,
-      t.editProfile.chooseOption,
-      [
-        {
-          text: t.editProfile.takePhoto,
-          onPress: handleTakePhoto,
-        },
-        {
-          text: t.editProfile.chooseFromLibrary,
-          onPress: handlePickImage,
-        },
-        {
-          text: t.common.cancel,
-          style: "cancel",
-        },
-      ],
-      { cancelable: true },
-    );
-  };
-
-  const handleDeleteAvatar = async () => {
-    Alert.alert(
-      t.editProfile.deleteProfilePicture,
-      t.editProfile.confirmDeletePicture,
-      [
-        {
-          text: t.common.cancel,
-          style: "cancel",
-        },
-        {
-          text: t.common.delete,
-          style: "destructive",
-          onPress: async () => {
-            setUploadingAvatar(true);
-            try {
-              await authApi.deleteAvatar();
-              await fetchProfile();
-              Alert.alert(t.common.success, t.editProfile.pictureDeleted);
-            } catch (error: any) {
-              Alert.alert(
-                t.common.error,
-                error.message || t.editProfile.failedToDelete,
-              );
-            } finally {
-              setUploadingAvatar(false);
-            }
-          },
-        },
-      ],
-    );
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
@@ -253,43 +144,6 @@ export default function EditProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Profile Photo */}
-        <View style={styles.photoSection}>
-          <View style={styles.photoContainer}>
-            {uploadingAvatar ? (
-              <View style={styles.photoLoading}>
-                <ActivityIndicator size="large" color={Colors.primary900} />
-              </View>
-            ) : (
-              <>
-                <Image
-                  source={{
-                    uri: user?.avatar || "https://i.pravatar.cc/300?img=12",
-                  }}
-                  style={styles.photo}
-                />
-                <TouchableOpacity
-                  style={styles.photoButton}
-                  onPress={handleChangePhoto}
-                  activeOpacity={0.9}
-                >
-                  <Camera size={20} color={Colors.neutralWhite} />
-                </TouchableOpacity>
-                {user?.avatar && (
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={handleDeleteAvatar}
-                    activeOpacity={0.9}
-                  >
-                    <Trash2 size={18} color={Colors.neutralWhite} />
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </View>
-          <Text style={styles.photoLabel}>{t.editProfile.changePhoto}</Text>
-        </View>
-
         {/* Form */}
         <View style={styles.form}>
           <View style={styles.inputGroup}>
@@ -457,6 +311,13 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 }
@@ -489,64 +350,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: Spacing.xxl,
-  },
-  photoSection: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
-    backgroundColor: Colors.neutralWhite,
-    marginBottom: Spacing.lg,
-  },
-  photoContainer: {
-    position: "relative",
-    marginBottom: Spacing.sm,
-  },
-  photo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: Colors.primary900,
-  },
-  photoLoading: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.neutralLight,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 4,
-    borderColor: Colors.primary900,
-  },
-  photoButton: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary900,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: Colors.neutralWhite,
-  },
-  deleteButton: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.error,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: Colors.neutralWhite,
-  },
-  photoLabel: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.primary900,
-    fontWeight: Typography.semibold,
   },
   form: {
     paddingHorizontal: Spacing.lg,

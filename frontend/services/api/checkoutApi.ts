@@ -2,6 +2,8 @@ import { apiRequest } from "./base";
 
 export interface DeliverySlot {
   slot: string;
+  start_hour: number;
+  end_hour: number;
   capacity: number;
   is_active: boolean;
 }
