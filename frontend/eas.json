@@ -1,24 +1,41 @@
 {
     "cli": {
-        "version": ">= 5.0.0"
+        "version": ">= 5.0.0",
+        "appVersionSource": "local"
     },
     "build": {
         "development": {
             "developmentClient": true,
             "distribution": "internal",
             "android": {
-                "buildType": "apk"
+                "buildType": "apk",
+                "image": "latest"
             }
         },
         "preview": {
             "distribution": "internal",
             "android": {
-                "buildType": "apk"
+                "buildType": "apk",
+                "image": "latest"
             }
         },
         "production": {
             "android": {
-                "buildType": "app-bundle"
+                "buildType": "apk",
+                "image": "latest",
+                "gradleCommand": ":app:assembleRelease"
+            },
+            "cache": {
+                "disabled": true
+            },
+            "env": {
+                "EXPO_NO_CAPABILITY_SYNC": "1"
+            }
+        },
+        "production-aab": {
+            "android": {
+                "buildType": "app-bundle",
+                "image": "latest"
             }
         }
     },

@@ -1,4 +1,4 @@
-package app.rork.elbaraka_hypermarket_app
+package com.elbaraka.hypermarket
 
 import android.app.Application
 import android.content.res.Configuration

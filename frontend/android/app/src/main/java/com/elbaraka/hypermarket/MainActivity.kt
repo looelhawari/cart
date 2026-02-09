@@ -1,4 +1,4 @@
-package app.rork.elbaraka_hypermarket_app
+package com.elbaraka.hypermarket
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
