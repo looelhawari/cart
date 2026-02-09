@@ -52,32 +52,69 @@ export const isOffline = async (): Promise<boolean> => {
 /**
  * React hook to monitor network state
  */
+// Cached network state to avoid redundant async calls
+let _lastNetworkState: NetworkState = {
+  isConnected: true,
+  isInternetReachable: true,
+  type: Network.NetworkStateType.UNKNOWN,
+};
+let _networkCheckInProgress = false;
+let _networkListenerCount = 0;
+let _networkInterval: ReturnType<typeof setInterval> | null = null;
+
+const startNetworkPolling = () => {
+  if (_networkInterval) return;
+  // Only poll every 30 seconds — lightweight enough
+  _networkInterval = setInterval(async () => {
+    if (_networkCheckInProgress) return;
+    _networkCheckInProgress = true;
+    try {
+      _lastNetworkState = await checkNetworkState();
+    } catch { }
+    _networkCheckInProgress = false;
+  }, 30000);
+};
+
+const stopNetworkPolling = () => {
+  if (_networkInterval) {
+    clearInterval(_networkInterval);
+    _networkInterval = null;
+  }
+};
+
 export const useNetworkState = () => {
-  const [networkState, setNetworkState] = useState<NetworkState>({
-    isConnected: true,
-    isInternetReachable: true,
-    type: Network.NetworkStateType.UNKNOWN,
-  });
+  const [networkState, setNetworkState] = useState<NetworkState>(_lastNetworkState);
 
   useEffect(() => {
     let isMounted = true;
+    _networkListenerCount++;
 
-    const updateNetworkState = async () => {
-      const state = await checkNetworkState();
-      if (isMounted) {
-        setNetworkState(state);
-      }
-    };
+    // Do one initial check
+    (async () => {
+      if (_networkCheckInProgress) return;
+      _networkCheckInProgress = true;
+      try {
+        _lastNetworkState = await checkNetworkState();
+        if (isMounted) setNetworkState(_lastNetworkState);
+      } catch { }
+      _networkCheckInProgress = false;
+    })();
 
-    // Initial check
-    updateNetworkState();
+    startNetworkPolling();
 
-    // Poll network state every 5 seconds
-    const interval = setInterval(updateNetworkState, 5000);
+    // Sync from shared state every 30s
+    const sync = setInterval(() => {
+      if (isMounted) setNetworkState(_lastNetworkState);
+    }, 30000);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      clearInterval(sync);
+      _networkListenerCount--;
+      if (_networkListenerCount <= 0) {
+        _networkListenerCount = 0;
+        stopNetworkPolling();
+      }
     };
   }, []);
 

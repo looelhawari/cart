@@ -13,6 +13,7 @@ import {
   Animated,
   Share,
   Platform,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -119,9 +120,16 @@ export default function ProductDetailScreen() {
 
   useEffect(() => {
     if (id) {
-      loadProduct();
-      loadReviews();
-      checkCanReview();
+      // Defer heavy loading until navigation animation completes
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadProduct();
+        // Defer non-critical loads further
+        setTimeout(() => {
+          loadReviews();
+          checkCanReview();
+        }, 300);
+      });
+      return () => task.cancel();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -141,35 +149,35 @@ export default function ProductDetailScreen() {
       if (response.success) {
         setProduct(response.data.product);
 
-        // Load related products from the same category
+        // Load related products AND offers in parallel (not sequentially)
+        const promises: Promise<any>[] = [];
+
         if (
           response.data.product.categories &&
           response.data.product.categories.length > 0
         ) {
           const categoryId = response.data.product.categories[0].id;
-          try {
-            const relatedResponse = await getProducts({
-              category_id: categoryId,
-              per_page: 10,
-            });
-            if (relatedResponse.success) {
-              // Filter out current product and limit to 10
-              const filtered = relatedResponse.data.products
-                .filter((p) => p.barcode !== response.data.product.barcode)
-                .slice(0, 10);
-              setRelatedProducts(filtered);
-            }
-          } catch (error) {
-            console.error("Failed to load related products:", error);
-          }
+          promises.push(
+            getProducts({ category_id: categoryId, per_page: 10 })
+              .then((relatedResponse) => {
+                if (relatedResponse.success) {
+                  const filtered = relatedResponse.data.products
+                    .filter((p) => p.barcode !== response.data.product.barcode)
+                    .slice(0, 10);
+                  setRelatedProducts(filtered);
+                }
+              })
+              .catch(() => { })
+          );
         }
-      }
-      try {
-        const offers = await fetchActiveOffersCached();
-        setActiveOffers(offers);
-      } catch (error) {
-        console.error("Failed to load active offers:", error);
-        setActiveOffers([]);
+
+        promises.push(
+          fetchActiveOffersCached()
+            .then((offers) => setActiveOffers(offers))
+            .catch(() => setActiveOffers([]))
+        );
+
+        await Promise.all(promises);
       }
     } catch (error) {
       console.error("Failed to load product:", error);
@@ -447,7 +455,7 @@ export default function ProductDetailScreen() {
                 const promoDiscount = Math.round(
                   ((offerPricing.originalPrice - offerPricing.discountedPrice) /
                     offerPricing.originalPrice) *
-                    100,
+                  100,
                 );
                 shareMessage += `🔥 ${promoDiscount}% OFF! Now ${offerPricing.discountedPrice.toFixed(2)} EGP (was ${offerPricing.originalPrice.toFixed(2)} EGP)\n`;
               } else if (discount > 0) {
@@ -515,7 +523,7 @@ export default function ProductDetailScreen() {
             {
               top:
                 discount > 0 ||
-                (offerPricing && offerPricing.discountedPrice < basePrice)
+                  (offerPricing && offerPricing.discountedPrice < basePrice)
                   ? 100
                   : 60,
               backgroundColor: Colors.accentYellow,
@@ -1194,7 +1202,7 @@ export default function ProductDetailScreen() {
                     style={[
                       styles.orderOption,
                       selectedOrderId === order.order_id &&
-                        styles.orderOptionSelected,
+                      styles.orderOptionSelected,
                     ]}
                     onPress={() => setSelectedOrderId(order.order_id)}
                   >
@@ -1281,7 +1289,7 @@ export default function ProductDetailScreen() {
             style={[
               styles.submitReviewButton,
               (!reviewComment.trim() || reviewComment.length < 10) &&
-                styles.submitReviewDisabled,
+              styles.submitReviewDisabled,
             ]}
             onPress={handleSubmitReview}
             disabled={

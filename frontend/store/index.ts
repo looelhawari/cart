@@ -14,6 +14,16 @@ import {
 } from "@/services/api";
 import { TOKEN_CONFIG } from "@/config/app.config";
 import * as favoritesApi from "@/services/api/favoritesApi";
+import {
+  getCart as getCartApi,
+  addToCart as addToCartApi,
+  removeCartItem,
+  updateCartItem,
+  clearCart as clearCartApi,
+  applyPromoCode,
+  removePromoCode,
+  getSessionId,
+} from "@/services/api/cartApi";
 
 interface User {
   id: number;
@@ -315,16 +325,7 @@ export const useStore = create<StoreState>()(
       fetchCart: async () => {
         set({ cartLoading: true, cartError: null });
         try {
-          const { getCart, getSessionId } =
-            await import("@/services/api/cartApi");
-          const sessionId = await getSessionId();
-          console.log("🛒 [STORE] Fetching cart with session ID:", sessionId);
-          const response = await getCart();
-          console.log("🛒 [STORE] Cart fetched successfully:", {
-            items_count: response.data.cart?.items?.length || 0,
-            subtotal: response.data.cart?.subtotal || 0,
-            session_id: sessionId,
-          });
+          const response = await getCartApi();
           set({ cart: response.data.cart, cartLoading: false });
         } catch (error: any) {
           set({
@@ -336,14 +337,35 @@ export const useStore = create<StoreState>()(
       },
 
       addToCart: async (productId: number, quantity: number = 1) => {
-        // Don't block UI with loading state for better responsiveness
         set({ cartError: null });
+
+        // Optimistic update: immediately add to local cart for instant UI feedback
+        const currentCart = get().cart;
+        let optimisticCart = currentCart ? { ...currentCart } : null;
+
+        if (optimisticCart) {
+          const existingItem = optimisticCart.items?.find(
+            (item: any) => item.product_id === productId
+          );
+
+          if (existingItem) {
+            // Update existing item quantity
+            optimisticCart.items = optimisticCart.items?.map((item: any) =>
+              item.product_id === productId
+                ? { ...item, quantity: item.quantity + quantity }
+                : item
+            );
+          }
+
+          set({ cart: optimisticCart });
+        }
+
         try {
-          const { addToCart: addToCartApi } =
-            await import("@/services/api/cartApi");
           const response = await addToCartApi(productId, quantity);
           set({ cart: response.data.cart });
         } catch (error: any) {
+          // Revert optimistic update on error
+          set({ cart: currentCart });
           const message =
             error?.message ||
             error?.error ||
@@ -358,9 +380,7 @@ export const useStore = create<StoreState>()(
       removeFromCart: async (itemId: number) => {
         set({ cartError: null });
         try {
-          const { removeCartItem } = await import("@/services/api/cartApi");
           const response = await removeCartItem(itemId);
-          // Update cart directly from response - no need for double fetch
           set({ cart: response.data.cart });
         } catch (error: any) {
           set({
@@ -372,11 +392,24 @@ export const useStore = create<StoreState>()(
 
       updateQuantity: async (itemId: number, quantity: number) => {
         set({ cartError: null });
+
+        // Optimistic update: immediately update local cart for instant UI feedback
+        const currentCart = get().cart;
+        let optimisticCart = currentCart ? { ...currentCart } : null;
+
+        if (optimisticCart && optimisticCart.items) {
+          optimisticCart.items = optimisticCart.items.map((item: any) =>
+            item.id === itemId ? { ...item, quantity } : item
+          );
+          set({ cart: optimisticCart });
+        }
+
         try {
-          const { updateCartItem } = await import("@/services/api/cartApi");
           const response = await updateCartItem(itemId, quantity);
           set({ cart: response.data.cart });
         } catch (error: any) {
+          // Revert optimistic update on error
+          set({ cart: currentCart });
           const message =
             error?.message ||
             error?.error ||
@@ -391,8 +424,6 @@ export const useStore = create<StoreState>()(
       clearCart: async () => {
         set({ cartError: null });
         try {
-          const { clearCart: clearCartApi } =
-            await import("@/services/api/cartApi");
           await clearCartApi();
           set({ cart: null });
         } catch (error: any) {
@@ -406,7 +437,6 @@ export const useStore = create<StoreState>()(
       applyPromoCodeToCart: async (code: string) => {
         set({ cartError: null });
         try {
-          const { applyPromoCode } = await import("@/services/api/cartApi");
           const response = await applyPromoCode(code);
           set({ cart: response.data.cart });
         } catch (error: any) {
@@ -420,7 +450,6 @@ export const useStore = create<StoreState>()(
       removePromoCodeFromCart: async () => {
         set({ cartError: null });
         try {
-          const { removePromoCode } = await import("@/services/api/cartApi");
           const response = await removePromoCode();
           set({ cart: response.data.cart });
         } catch (error: any) {

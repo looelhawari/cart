@@ -47,9 +47,16 @@ export default function CartScreen() {
 
     // Animation
     const fadeAnim = useRef(new Animated.Value(0)).current;
+    const lastFetchRef = useRef<number>(0);
 
     useFocusEffect(
         useCallback(() => {
+            // Skip refetch if we fetched within the last 30 seconds
+            const now = Date.now();
+            if (now - lastFetchRef.current < 30000 && cart?.items?.length) {
+                return;
+            }
+            lastFetchRef.current = now;
             fetchCart().then(() => {
                 Animated.timing(fadeAnim, {
                     toValue: 1,

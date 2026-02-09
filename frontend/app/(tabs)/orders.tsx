@@ -10,6 +10,7 @@ import {
   Dimensions,
   Image,
   ActivityIndicator,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -58,6 +59,7 @@ export default function OrdersScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
   const goToCartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchRef = useRef<number>(0);
 
   const fetchOrders = async (page: number = 1, append: boolean = false) => {
     try {
@@ -104,15 +106,27 @@ export default function OrdersScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user) {
-        setCurrentPage(1);
-        setHasMore(true);
-        fetchOrders(1, false).then(() => {
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }).start();
+        // Skip refetch if we fetched within the last 30 seconds
+        const now = Date.now();
+        if (now - lastFetchRef.current < 30000 && userOrders.length > 0) {
+          return;
+        }
+        lastFetchRef.current = now;
+        const task = InteractionManager.runAfterInteractions(() => {
+          setCurrentPage(1);
+          setHasMore(true);
+          fetchOrders(1, false).then(() => {
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }).start();
+          });
         });
+        return () => {
+          task.cancel();
+          if (goToCartTimer.current) clearTimeout(goToCartTimer.current);
+        };
       } else {
         setUserOrders([]);
       }
@@ -133,23 +147,23 @@ export default function OrdersScreen() {
     label: string;
     iconName: keyof typeof Ionicons.glyphMap;
   }[] = [
-    { key: "all", label: t.orders?.all || "All", iconName: "bag-outline" },
-    {
-      key: "processing",
-      label: t.orders?.active || "Active",
-      iconName: "time-outline",
-    },
-    {
-      key: "delivered",
-      label: t.orders?.delivered || "Delivered",
-      iconName: "checkmark-circle-outline",
-    },
-    {
-      key: "cancelled",
-      label: t.orders?.cancelled || "Cancelled",
-      iconName: "close-circle-outline",
-    },
-  ];
+      { key: "all", label: t.orders?.all || "All", iconName: "bag-outline" },
+      {
+        key: "processing",
+        label: t.orders?.active || "Active",
+        iconName: "time-outline",
+      },
+      {
+        key: "delivered",
+        label: t.orders?.delivered || "Delivered",
+        iconName: "checkmark-circle-outline",
+      },
+      {
+        key: "cancelled",
+        label: t.orders?.cancelled || "Cancelled",
+        iconName: "close-circle-outline",
+      },
+    ];
 
   const handleTabChange = (tab: TabType, index: number) => {
     setActiveTab(tab);
@@ -163,19 +177,19 @@ export default function OrdersScreen() {
 
   const filteredOrders = Array.isArray(userOrders)
     ? userOrders.filter((order: any) => {
-        if (activeTab === "all") return true;
-        if (activeTab === "processing") {
-          return [
-            "pending",
-            "confirmed",
-            "preparing",
-            "ready",
-            "out_for_delivery",
-            "processing",
-          ].includes(order.status);
-        }
-        return order.status === activeTab;
-      })
+      if (activeTab === "all") return true;
+      if (activeTab === "processing") {
+        return [
+          "pending",
+          "confirmed",
+          "preparing",
+          "ready",
+          "out_for_delivery",
+          "processing",
+        ].includes(order.status);
+      }
+      return order.status === activeTab;
+    })
     : [];
 
   const onRefresh = useCallback(async () => {

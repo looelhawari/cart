@@ -3,10 +3,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 /**
  * API Response Cache Service
  * Caches API responses with TTL (Time To Live) for offline access
+ * Uses a fast in-memory layer + AsyncStorage for persistence
  */
 
 const CACHE_PREFIX = "@api_cache:";
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// Fast in-memory cache layer (avoids AsyncStorage serialization/deserialization)
+const memoryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
 
 interface CacheEntry<T> {
   data: T;
@@ -36,8 +40,14 @@ export const setCacheData = async <T>(
       ttl,
     };
 
+    // Always update memory cache (instant)
+    memoryCache.set(key, entry);
+
+    // Persist to AsyncStorage in background (don't await for speed)
     const cacheKey = getCacheKey(key);
-    await AsyncStorage.setItem(cacheKey, JSON.stringify(entry));
+    AsyncStorage.setItem(cacheKey, JSON.stringify(entry)).catch((error) => {
+      console.error(`Failed to persist cache for key ${key}:`, error);
+    });
   } catch (error) {
     console.error(`Failed to cache data for key ${key}:`, error);
   }
@@ -48,6 +58,18 @@ export const setCacheData = async <T>(
  */
 export const getCacheData = async <T>(key: string): Promise<T | null> => {
   try {
+    // Check memory cache first (instant, no async)
+    const memEntry = memoryCache.get(key);
+    if (memEntry) {
+      const now = Date.now();
+      if (now - memEntry.timestamp < memEntry.ttl) {
+        return memEntry.data as T;
+      }
+      // Expired in memory
+      memoryCache.delete(key);
+    }
+
+    // Fall back to AsyncStorage
     const cacheKey = getCacheKey(key);
     const cached = await AsyncStorage.getItem(cacheKey);
 
@@ -58,6 +80,8 @@ export const getCacheData = async <T>(key: string): Promise<T | null> => {
 
     // Check if cache is still valid
     if (now - entry.timestamp < entry.ttl) {
+      // Populate memory cache for next read
+      memoryCache.set(key, entry);
       return entry.data;
     }
 

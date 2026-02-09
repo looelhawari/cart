@@ -10,6 +10,7 @@ import {
     Animated,
     Dimensions,
     TextInput,
+    InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -70,9 +71,12 @@ export default function OffersScreen() {
         return () => pulse.stop();
     }, []);
 
-    // Load promotions on mount
+    // Load promotions on mount (after navigation animation)
     useEffect(() => {
-        loadPromotions();
+        const task = InteractionManager.runAfterInteractions(() => {
+            loadPromotions();
+        });
+        return () => task.cancel();
     }, []);
 
     // Filter promotions dynamically

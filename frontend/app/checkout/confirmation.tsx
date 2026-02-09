@@ -107,7 +107,6 @@ export default function CheckoutConfirmationScreen() {
 
       console.log("🛒 [CHECKOUT] Fetching cart in confirmation screen...");
       await fetchCart();
-      console.log("🛒 [CHECKOUT] Cart fetched, checking items...");
     } catch (error) {
       console.error("❌ [CHECKOUT] Error loading checkout data:", error);
       Alert.alert(t.common.error, t.checkout.failedToLoadCheckout);
@@ -130,10 +129,10 @@ export default function CheckoutConfirmationScreen() {
             : i === 1
               ? t.checkout.tomorrow
               : date.toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                }),
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              }),
       });
     }
     return dates;
@@ -186,8 +185,8 @@ export default function CheckoutConfirmationScreen() {
         Alert.alert(
           t.store?.closed || "Store Closed",
           storeStatusResponse.data.message ||
-            t.store?.cannotOrderNow ||
-            "Sorry, we are not accepting orders right now",
+          t.store?.cannotOrderNow ||
+          "Sorry, we are not accepting orders right now",
         );
         return;
       }

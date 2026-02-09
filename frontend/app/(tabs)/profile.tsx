@@ -10,6 +10,7 @@ import {
   Animated,
   Dimensions,
   TextInput,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -61,36 +62,27 @@ export default function ProfileScreen() {
       setLoading(false);
       return;
     }
-    loadProfile();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadProfile();
+    });
+    return () => task.cancel();
   }, [isAuthenticated]);
 
   const loadProfile = async () => {
     try {
       setLoading(true);
       await fetchProfile();
-      // Fetch orders for stats
+      // Fetch orders for stats - use per_page:1 and read pagination totals
       try {
-        const ordersRes = await orderApi.getOrders(undefined, 1, 100);
-        let ordersData: any[] = [];
-        if (ordersRes?.data?.orders && Array.isArray(ordersRes.data.orders)) {
-          ordersData = ordersRes.data.orders;
-        } else if (
-          ordersRes?.data?.data &&
-          Array.isArray(ordersRes.data.data)
-        ) {
-          ordersData = ordersRes.data.data;
-        } else if (ordersRes?.data && Array.isArray(ordersRes.data)) {
-          ordersData = ordersRes.data;
-        }
-        setOrdersCount(ordersData.length);
-        const spent = ordersData
-          .filter((o: any) => o.status === "delivered")
-          .reduce(
-            (sum: number, o: any) =>
-              sum + parseFloat(o.total?.toString() || "0"),
-            0,
-          );
-        setTotalSpent(spent);
+        const ordersRes = await orderApi.getOrders(undefined, 1, 1);
+        // Try to read total from pagination metadata
+        const meta = ordersRes?.data?.meta || ordersRes?.data;
+        const totalOrders = meta?.total || meta?.pagination?.total || 0;
+        setOrdersCount(totalOrders);
+        // For total spent, use the total from pagination or default to 0
+        // We can't calculate total spent from 1 order, so use a dedicated stat if available
+        const totalSpentVal = meta?.total_spent || ordersRes?.data?.total_spent || 0;
+        setTotalSpent(totalSpentVal);
       } catch (e) {
         console.error("Failed to fetch orders stats:", e);
       }

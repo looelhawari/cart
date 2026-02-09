@@ -5,8 +5,15 @@ import { Cart } from "./types";
 // Session ID management for guest carts
 const SESSION_ID_KEY = "guest_session_id";
 
+// In-memory cache for session ID
+let _cachedSessionId: string | null = null;
+
 // Helper: Get or create session ID for guest users
 export const getSessionId = async (): Promise<string> => {
+  if (_cachedSessionId) {
+    return _cachedSessionId;
+  }
+
   let sessionId = await AsyncStorage.getItem(SESSION_ID_KEY);
 
   if (!sessionId) {
@@ -22,11 +29,13 @@ export const getSessionId = async (): Promise<string> => {
     await AsyncStorage.setItem(SESSION_ID_KEY, sessionId);
   }
 
+  _cachedSessionId = sessionId;
   return sessionId;
 };
 
 // Helper: Clear session ID
 export const clearSessionId = async () => {
+  _cachedSessionId = null;
   await AsyncStorage.removeItem(SESSION_ID_KEY);
 };
 

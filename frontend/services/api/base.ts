@@ -24,15 +24,8 @@ export const getCommonHeaders = (
 // Helper: Safely parse JSON from response - handles all error cases
 export const safeResponseJson = async (response: Response): Promise<any> => {
   try {
-    // For React Native, we need to handle UTF-8 encoding properly
-    // Read as blob first, then decode as UTF-8
-    const blob = await response.blob();
-    const text = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsText(blob, "UTF-8");
-    });
+    // Use response.text() directly — much faster than blob→FileReader
+    const text = await response.text();
 
     // Check if empty
     if (!text || text.trim().length === 0) {
@@ -44,7 +37,7 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
     }
 
     // Check if response is HTML (error page)
-    if (text.trim().startsWith("<") || text.trim().startsWith("<!DOCTYPE")) {
+    if (text.charCodeAt(0) === 60 /* '<' */) {
       return {
         success: false,
         data: {},
@@ -53,9 +46,7 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
     }
 
     try {
-      // Parse the UTF-8 text as JSON
-      const data = JSON.parse(text);
-      return data;
+      return JSON.parse(text);
     } catch (parseError) {
       if (__DEV__) {
         console.error(
@@ -105,13 +96,21 @@ export const safeJsonParse = async (response: Response): Promise<any> => {
   }
 };
 
-// Helper: Get current access token
+// In-memory token cache to avoid AsyncStorage reads on every request
+let _cachedToken: string | null | undefined = undefined; // undefined = not yet loaded
+
+// Helper: Get current access token (with in-memory cache)
 export const getAuthToken = async (): Promise<string | null> => {
-  return await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+  if (_cachedToken !== undefined) {
+    return _cachedToken;
+  }
+  _cachedToken = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+  return _cachedToken;
 };
 
 // Helper: Save tokens securely
 export const saveTokens = async (accessToken: string, refreshToken: string) => {
+  _cachedToken = accessToken; // Update in-memory cache immediately
   await AsyncStorage.multiSet([
     [TOKEN_CONFIG.ACCESS_TOKEN_KEY, accessToken],
     [TOKEN_CONFIG.REFRESH_TOKEN_KEY, refreshToken],
@@ -120,6 +119,7 @@ export const saveTokens = async (accessToken: string, refreshToken: string) => {
 
 // Helper: Clear all auth data
 export const clearAuthData = async () => {
+  _cachedToken = null; // Clear in-memory cache immediately
   await AsyncStorage.multiRemove([
     TOKEN_CONFIG.ACCESS_TOKEN_KEY,
     TOKEN_CONFIG.REFRESH_TOKEN_KEY,

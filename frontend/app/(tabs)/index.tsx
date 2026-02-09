@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Dimensions,
   Animated,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -234,8 +235,12 @@ export default function HomeScreen() {
   }, [refreshing, fadeAnim, slideAnim, scaleAnim]);
 
   useEffect(() => {
-    loadData();
-    fetchUnreadCount();
+    // Defer loading until navigation animation finishes
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadData();
+      fetchUnreadCount();
+    });
+    return () => task.cancel();
   }, []);
 
   // Re-fetch unread count when screen is focused (coming back from notifications)
@@ -353,23 +358,23 @@ export default function HomeScreen() {
     quickCategories.length > 0
       ? quickCategories
       : ([
-          { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
-          {
-            id: 2,
-            name_en: "Vegetables",
-            name_ar: "خضروات",
-            slug: "vegetables",
-          },
-          { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
-          { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
-          { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
-          {
-            id: 6,
-            name_en: "Beverages",
-            name_ar: "مشروبات",
-            slug: "beverages",
-          },
-        ] as Category[]);
+        { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
+        {
+          id: 2,
+          name_en: "Vegetables",
+          name_ar: "خضروات",
+          slug: "vegetables",
+        },
+        { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
+        { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
+        { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
+        {
+          id: 6,
+          name_en: "Beverages",
+          name_ar: "مشروبات",
+          slug: "beverages",
+        },
+      ] as Category[]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

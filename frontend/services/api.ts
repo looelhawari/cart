@@ -75,13 +75,21 @@ export interface ApiError {
   error_code?: string;
 }
 
-// Helper: Get current access token
+// In-memory token cache to avoid AsyncStorage reads on every request
+let _cachedToken: string | null | undefined = undefined;
+
+// Helper: Get current access token (with in-memory cache)
 const getAuthToken = async (): Promise<string | null> => {
-  return await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+  if (_cachedToken !== undefined) {
+    return _cachedToken;
+  }
+  _cachedToken = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+  return _cachedToken;
 };
 
 // Helper: Save tokens securely
 const saveTokens = async (accessToken: string, refreshToken: string) => {
+  _cachedToken = accessToken;
   await AsyncStorage.multiSet([
     [TOKEN_CONFIG.ACCESS_TOKEN_KEY, accessToken],
     [TOKEN_CONFIG.REFRESH_TOKEN_KEY, refreshToken],
@@ -90,6 +98,7 @@ const saveTokens = async (accessToken: string, refreshToken: string) => {
 
 // Helper: Clear all auth data
 const clearAuthData = async () => {
+  _cachedToken = null;
   await AsyncStorage.multiRemove([
     TOKEN_CONFIG.ACCESS_TOKEN_KEY,
     TOKEN_CONFIG.REFRESH_TOKEN_KEY,

@@ -8,12 +8,21 @@ import {
   Tag,
 } from "lucide-react-native";
 import React from "react";
+import { View, Text, StyleSheet } from "react-native";
 
 import Colors from "@/constants/Colors";
 import { useTranslation } from "@/i18n";
+import { useStore } from "@/store";
 
 export default function TabLayout() {
   const { t } = useTranslation();
+  const { cart } = useStore();
+
+  // Calculate cart items count
+  const cartItemsCount = cart?.items?.reduce(
+    (total: number, item: any) => total + item.quantity,
+    0
+  ) || 0;
 
   return (
     <Tabs
@@ -54,7 +63,16 @@ export default function TabLayout() {
         options={{
           title: t.nav.cart,
           tabBarIcon: ({ color, size }) => (
-            <ShoppingCart size={size} color={color} />
+            <View>
+              <ShoppingCart size={size} color={color} />
+              {cartItemsCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {cartItemsCount > 99 ? '99+' : cartItemsCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />
@@ -84,3 +102,23 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -8,
+    right: -12,
+    backgroundColor: Colors.accentRed,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: Colors.neutralWhite,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+});

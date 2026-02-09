@@ -10,6 +10,7 @@ import {
   Dimensions,
   Alert,
   Animated,
+  InteractionManager,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -50,7 +51,10 @@ export default function CategoriesScreen() {
 
   useEffect(() => {
     initImageCache();
-    loadCategories();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadCategories();
+    });
+    return () => task.cancel();
   }, []);
 
   const loadCategories = async (forceRefresh = false) => {

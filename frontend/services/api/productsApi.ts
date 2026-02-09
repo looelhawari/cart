@@ -130,106 +130,64 @@ export const getProduct = async (
  * Get featured products
  */
 export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
-  try {
-    console.log(
-      "📡 Fetching featured products from:",
-      `${API_BASE_URL}/products/featured`,
-    );
+  const fetchFn = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/featured`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json",
+        },
+      });
 
-    const response = await fetch(`${API_BASE_URL}/products/featured`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        Accept: "application/json",
-      },
-    });
+      if (!response.ok) {
+        return { success: false, data: { products: [] } };
+      }
 
-    console.log(
-      "📡 Featured products response:",
-      response.status,
-      "OK:",
-      response.ok,
-    );
-
-    if (!response.ok) {
-      console.error(
-        "Featured products API error:",
-        response.status,
-        response.statusText,
-      );
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        return { success: false, data: { products: [] } };
+      }
+      return data;
+    } catch (error) {
+      console.error("getFeaturedProducts error:", error);
       return { success: false, data: { products: [] } };
     }
+  };
 
-    const data = await safeResponseJson(response);
-    console.log(
-      "📡 Featured products parsed:",
-      data.success,
-      "Count:",
-      data.data?.products?.length || 0,
-    );
-
-    if (!data.success) {
-      console.error("Featured products API returned success=false");
-      return { success: false, data: { products: [] } };
-    }
-    return data;
-  } catch (error) {
-    console.error("getFeaturedProducts error:", error);
-    return { success: false, data: { products: [] } };
-  }
+  return await networkFirstFetch("products:featured", fetchFn, 5 * 60 * 1000);
 };
 
 /**
  * Get flash deals (products on sale)
  */
 export const getFlashDeals = async (): Promise<ProductsResponse> => {
-  try {
-    console.log(
-      "📡 Fetching flash deals from:",
-      `${API_BASE_URL}/products/flash-deals`,
-    );
+  const fetchFn = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/flash-deals`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json",
+        },
+      });
 
-    const response = await fetch(`${API_BASE_URL}/products/flash-deals`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        Accept: "application/json",
-      },
-    });
+      if (!response.ok) {
+        return { success: false, data: { products: [] } };
+      }
 
-    console.log(
-      "📡 Flash deals response:",
-      response.status,
-      "OK:",
-      response.ok,
-    );
-
-    if (!response.ok) {
-      console.error(
-        "Flash deals API error:",
-        response.status,
-        response.statusText,
-      );
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        return { success: false, data: { products: [] } };
+      }
+      return data;
+    } catch (error) {
+      console.error("getFlashDeals error:", error);
       return { success: false, data: { products: [] } };
     }
+  };
 
-    const data = await safeResponseJson(response);
-    console.log(
-      "📡 Flash deals parsed:",
-      data.success,
-      "Count:",
-      data.data?.products?.length || 0,
-    );
-
-    if (!data.success) {
-      console.error("Flash deals API returned success=false");
-      return { success: false, data: { products: [] } };
-    }
-    return data;
-  } catch (error) {
-    console.error("getFlashDeals error:", error);
-    return { success: false, data: { products: [] } };
-  }
+  return await networkFirstFetch("products:flash-deals", fetchFn, 5 * 60 * 1000);
 };
 
 /**

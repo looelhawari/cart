@@ -5,9 +5,13 @@ import type {
   PromotionDetailResponse,
   PromotionProductsResponse,
 } from "@/types/promotion";
+import { networkFirstFetch } from "@/services/cache/apiCache";
+
+// In-memory cache for promotions (5 minute TTL)
+const PROMOTIONS_CACHE_TTL = 5 * 60 * 1000;
 
 /**
- * Get all active promotions
+ * Get all active promotions (with cache)
  */
 export const getPromotions = async (params?: {
   applies_to?: "all" | "category" | "products";
@@ -18,59 +22,52 @@ export const getPromotions = async (params?: {
   if (params?.category_id)
     queryParams.append("category_id", params.category_id.toString());
 
-  const url = `${API_BASE_URL}/promotions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const qs = queryParams.toString();
+  const cacheKey = `promotions_list${qs ? `_${qs}` : ''}`;
 
-  try {
+  return networkFirstFetch(cacheKey, async () => {
+    const url = `${API_BASE_URL}/promotions${qs ? `?${qs}` : ""}`;
     const response = await fetch(url, {
       method: "GET",
       headers: getCommonHeaders(),
     });
 
-    // Handle non-OK responses
     if (!response.ok) {
-      // Try to parse error message
       const text = await response.text();
       let errorMessage = "Failed to fetch promotions";
-
       try {
         const errorJson = JSON.parse(text);
         errorMessage = errorJson.message || errorMessage;
       } catch {
-        // Response wasn't JSON, might be HTML error page
         if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-          errorMessage =
-            "Server returned HTML instead of JSON. Check ngrok/backend connection.";
+          errorMessage = "Server returned HTML instead of JSON.";
         }
       }
-
-      console.error(`[Promotions API] Error ${response.status}:`, errorMessage);
       throw new Error(errorMessage);
     }
 
-    const data = await response.json();
-    return data;
-  } catch (error: any) {
-    console.error("[Promotions API] Fetch error:", error.message);
-    throw error;
-  }
+    return await response.json();
+  }, PROMOTIONS_CACHE_TTL);
 };
 
 /**
- * Get featured promotion for homepage hero banner
+ * Get featured promotion for homepage hero banner (with cache)
  */
 export const getFeaturedPromotion =
   async (): Promise<PromotionDetailResponse> => {
-    const response = await fetch(`${API_BASE_URL}/promotions/featured`, {
-      method: "GET",
-      headers: getCommonHeaders(),
-    });
+    return networkFirstFetch('promotions_featured', async () => {
+      const response = await fetch(`${API_BASE_URL}/promotions/featured`, {
+        method: "GET",
+        headers: getCommonHeaders(),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Failed to fetch featured promotion");
-    }
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch featured promotion");
+      }
 
-    return response.json();
+      return response.json();
+    }, PROMOTIONS_CACHE_TTL);
   };
 
 /**

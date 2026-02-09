@@ -52,39 +52,39 @@ export interface FeaturedCategoriesResponse {
  */
 export const getFeaturedCategoriesWithProducts =
   async (): Promise<FeaturedCategoriesResponse> => {
-    try {
-      console.log(
-        "📡 Fetching featured categories from:",
-        `${API_BASE_URL}/categories/featured-with-products`,
-      );
-
-      const response = await fetch(
-        `${API_BASE_URL}/categories/featured-with-products`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
+    const fetchFn = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/categories/featured-with-products`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
           },
-        },
-      );
+        );
 
-      console.log("📡 Featured categories response status:", response.status);
+        if (!response.ok) {
+          return { success: false, data: { categories: [] } };
+        }
 
-      if (!response.ok) {
-        console.error("Featured categories API error:", response.status);
+        const data = await safeResponseJson(response);
+        if (!data.success) {
+          return { success: false, data: { categories: [] } };
+        }
+        return data;
+      } catch (error) {
+        console.error("getFeaturedCategoriesWithProducts error:", error);
         return { success: false, data: { categories: [] } };
       }
+    };
 
-      const data = await safeResponseJson(response);
-      if (!data.success) {
-        return { success: false, data: { categories: [] } };
-      }
-      return data;
-    } catch (error) {
-      console.error("getFeaturedCategoriesWithProducts error:", error);
-      return { success: false, data: { categories: [] } };
-    }
+    return await networkFirstFetch(
+      "categories:featured-with-products",
+      fetchFn,
+      5 * 60 * 1000,
+    );
   };
 
 /**
@@ -95,8 +95,6 @@ export const getCategories = async (
 ): Promise<CategoriesResponse> => {
   const fetchFn = async () => {
     try {
-      console.log("📡 Fetching categories from:", `${API_BASE_URL}/categories`);
-
       const response = await fetch(`${API_BASE_URL}/categories`, {
         method: "GET",
         headers: {
@@ -105,32 +103,12 @@ export const getCategories = async (
         },
       });
 
-      console.log(
-        "📡 Categories response status:",
-        response.status,
-        "OK:",
-        response.ok,
-      );
-
       if (!response.ok) {
-        console.error(
-          "Categories API error:",
-          response.status,
-          response.statusText,
-        );
         return { success: false, data: { categories: [] } };
       }
 
       const data = await safeResponseJson(response);
-      console.log(
-        "📡 Categories data parsed:",
-        data.success,
-        "Count:",
-        data.data?.categories?.length || 0,
-      );
-
       if (!data.success) {
-        console.error("Categories API returned success=false");
         return { success: false, data: { categories: [] } };
       }
       return data;

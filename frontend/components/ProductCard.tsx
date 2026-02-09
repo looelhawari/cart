@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Heart } from "lucide-react-native";
 import Colors from "@/constants/Colors";
@@ -24,7 +24,7 @@ interface ProductCardProps {
   offerPricing?: ProductOfferPricing | null;
 }
 
-export function ProductCard({
+export const ProductCard = memo(function ProductCard({
   product,
   onPress,
   onAddToCart,
@@ -208,7 +208,7 @@ export function ProductCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -341,3 +341,5 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
   },
 });
+
+export default ProductCard;

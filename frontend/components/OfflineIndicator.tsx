@@ -9,7 +9,7 @@ import { useIsOnline } from "@/services/cache/networkDetector";
  * Offline Indicator Component
  * Displays a banner when the device is offline
  */
-export default function OfflineIndicator() {
+function OfflineIndicatorInner() {
   const isOnline = useIsOnline();
 
   if (isOnline) return null;
@@ -21,6 +21,9 @@ export default function OfflineIndicator() {
     </View>
   );
 }
+
+const OfflineIndicator = React.memo(OfflineIndicatorInner);
+export default OfflineIndicator;
 
 const styles = StyleSheet.create({
   container: {

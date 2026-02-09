@@ -11,6 +11,9 @@ const CACHE_DIR = `${FileSystem.cacheDirectory}images/`;
 const MAX_CACHE_SIZE = 0.5 * 1024 * 1024 * 1024; // 500MB
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
+// Fast in-memory resolved URL cache to avoid filesystem I/O on repeated calls
+const resolvedUrlCache = new Map<string, string>();
+
 interface CacheMetadata {
   url: string;
   localUri: string;
@@ -65,6 +68,12 @@ export const getCachedImage = async (
     return cleanUrl;
   }
 
+  // Fast path: check in-memory resolved cache first (no filesystem I/O)
+  const resolved = resolvedUrlCache.get(cleanUrl);
+  if (resolved) {
+    return resolved;
+  }
+
   try {
     const cacheKey = getCacheKey(cleanUrl);
     const localUri = `${CACHE_DIR}${cacheKey}`;
@@ -92,6 +101,7 @@ export const getCachedImage = async (
         timestamp: Date.now(),
         size: stat.size || 0,
       });
+      resolvedUrlCache.set(cleanUrl, localUri);
       return localUri;
     }
 
@@ -112,6 +122,7 @@ export const getCachedImage = async (
         timestamp: Date.now(),
         size: stat.size || 0,
       });
+      resolvedUrlCache.set(cleanUrl, localUri);
 
       // Clean cache if size exceeds limit
       await cleanCacheIfNeeded();
@@ -120,6 +131,7 @@ export const getCachedImage = async (
     }
 
     // Return cleaned URL if download fails
+    resolvedUrlCache.set(cleanUrl, cleanUrl);
     return cleanUrl;
   } catch (error) {
     console.error("Image cache error:", error);
