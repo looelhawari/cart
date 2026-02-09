@@ -268,9 +268,10 @@ export const useStore = create<StoreState>()(
         token: string,
         userData?: any,
       ) => {
+        // Google sends id_token (JWT), Apple sends identity token
         const apiCall =
           provider === "google"
-            ? authApi.socialGoogle({ token })
+            ? authApi.socialGoogle({ id_token: token })
             : authApi.socialApple({ token, user: userData });
 
         const response = await apiCall;

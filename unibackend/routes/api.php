@@ -67,9 +67,11 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/check-email', [AuthController::class, 'checkEmail']);
         Route::post('auth/check-phone', [AuthController::class, 'checkPhone']);
 
-        // Social authentication
-        Route::post('auth/google', [SocialAuthController::class, 'google']);
-        Route::post('auth/apple', [SocialAuthController::class, 'apple']);
+        // Social authentication (stricter rate limit: 10 attempts per minute)
+        Route::middleware('throttle:10,1')->group(function () {
+            Route::post('auth/google', [SocialAuthController::class, 'google']);
+            Route::post('auth/apple', [SocialAuthController::class, 'apple']);
+        });
     });
 
     // Refresh token (no auth required) - throttled to 60 requests per minute

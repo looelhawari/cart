@@ -56,6 +56,8 @@ export interface AuthResponse {
     refresh_token: string;
     token_type: "Bearer";
     expires_in: number;
+    requires_phone_verification?: boolean;
+    is_new_user?: boolean;
   };
 }
 

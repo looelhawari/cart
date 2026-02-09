@@ -125,9 +125,9 @@ export const authApi = {
     });
   },
 
-  // Social login with Google
-  async socialGoogle(data: { token: string }) {
-    const response = await apiRequest<AuthResponse>("/auth/social/google", {
+  // Social login with Google (sends ID token for server-side verification)
+  async socialGoogle(data: { id_token: string; push_token?: string }) {
+    const response = await apiRequest<AuthResponse>("/auth/google", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -140,8 +140,8 @@ export const authApi = {
   },
 
   // Social login with Apple
-  async socialApple(data: { token: string; user?: any }) {
-    const response = await apiRequest<AuthResponse>("/auth/social/apple", {
+  async socialApple(data: { token: string; user?: any; push_token?: string }) {
+    const response = await apiRequest<AuthResponse>("/auth/apple", {
       method: "POST",
       body: JSON.stringify(data),
     });
