@@ -28,7 +28,7 @@ import {
   Lock as LockIcon,
   Fingerprint,
 } from "lucide-react-native";
-import { useGoogleAuth, isAppleAuthAvailable } from "@/services/socialAuth";
+import { signInWithGoogle, isAppleAuthAvailable } from "@/services/socialAuth";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { authApi } from "@/services/api";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
@@ -62,10 +62,6 @@ export default function LoginScreen() {
   });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
-  // Google Auth
-  const { promptAsync: promptGoogleAsync, response: googleResponse } =
-    useGoogleAuth();
-
   // Check Apple availability and biometric support
   useEffect(() => {
     isAppleAuthAvailable().then(setAppleAvailable);
@@ -80,29 +76,13 @@ export default function LoginScreen() {
     }
   }, [biometricEnabled, biometricSupport.available]);
 
-  // Handle Google response
-  useEffect(() => {
-    if (googleResponse?.type === "success") {
-      handleGoogleAuth();
-    }
-  }, [googleResponse]);
-
+  // Google Sign-In using native SDK (no browser redirect)
   const handleGoogleAuth = async () => {
-    if (googleResponse?.type !== "success") return;
-
     try {
       setGoogleLoading(true);
 
-      // Extract the id_token from Google's response
-      const idToken = googleResponse.authentication?.idToken;
-
-      if (!idToken) {
-        Alert.alert(
-          t.common.error,
-          "Google Sign-In configuration error: no ID token received. Please try again.",
-        );
-        return;
-      }
+      // Native Google Sign-In — returns id_token directly, no redirect needed
+      const idToken = await signInWithGoogle();
 
       // Use store's socialLogin to properly set auth state
       const { requiresPhoneVerification } = await socialLogin(
@@ -116,6 +96,9 @@ export default function LoginScreen() {
         router.replace("/(tabs)");
       }
     } catch (error: any) {
+      // User cancelled — don't show error
+      if (error?.message === "CANCELLED") return;
+
       const message = error?.message || t.login.googleSignInFailed;
       // Handle specific backend error codes
       if (error?.error_code === "ACCOUNT_DEACTIVATED") {
@@ -640,7 +623,7 @@ export default function LoginScreen() {
                   (googleLoading || loading) && styles.buttonDisabled,
                 ]}
                 activeOpacity={0.8}
-                onPress={() => promptGoogleAsync()}
+                onPress={() => handleGoogleAuth()}
                 disabled={googleLoading || loading || appleLoading}
               >
                 {googleLoading ? (
