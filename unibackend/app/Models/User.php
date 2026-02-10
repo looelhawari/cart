@@ -40,6 +40,16 @@ class User extends Authenticatable
         'registration_source',
         'loyalty_points',
         'is_vip',
+        // Driver fields
+        'current_lat',
+        'current_lng',
+        'location_updated_at',
+        'is_available',
+        'assigned_zone_id',
+        'vehicle_type',
+        'vehicle_plate',
+        'total_deliveries',
+        'average_rating',
     ];
 
     /**
@@ -72,6 +82,12 @@ class User extends Authenticatable
             'is_cod_restricted' => 'boolean',
             'max_order_value' => 'decimal:2',
             'is_vip' => 'boolean',
+            'current_lat' => 'decimal:8',
+            'current_lng' => 'decimal:8',
+            'location_updated_at' => 'datetime',
+            'is_available' => 'boolean',
+            'total_deliveries' => 'integer',
+            'average_rating' => 'decimal:2',
         ];
     }
 
@@ -113,6 +129,22 @@ class User extends Authenticatable
     public function isCustomer(): bool
     {
         return $this->role === 'customer';
+    }
+
+    /**
+     * Check if user is a delivery driver.
+     */
+    public function isDriver(): bool
+    {
+        return $this->role === 'driver';
+    }
+
+    /**
+     * Get the user's assigned delivery zone (driver only).
+     */
+    public function assignedZone()
+    {
+        return $this->belongsTo(DeliveryZone::class, 'assigned_zone_id');
     }
 
     /**

@@ -436,7 +436,8 @@ class CheckoutService
     public function calculateOrderSummary(
         float $subtotal,
         ?string $promoCode = null,
-        ?int $userId = null
+        ?int $userId = null,
+        ?int $addressId = null
     ): array {
         if ($userId) {
             $cart = $this->cartService->getCart($userId);
@@ -444,10 +445,31 @@ class CheckoutService
             $subtotal = $baseTotals['subtotal'];
         }
 
-        // Calculate delivery fee
+        // Calculate delivery fee - zone-based if address has coordinates
         $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
         $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 20);
         $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0 : $defaultDeliveryFee;
+        $zoneInfo = null;
+
+        if ($addressId) {
+            $address = Address::find($addressId);
+            if ($address && $address->latitude && $address->longitude) {
+                try {
+                    $zoneService = app(DeliveryZoneService::class);
+                    $zoneFee = $zoneService->calculateDeliveryFee(
+                        $address->latitude,
+                        $address->longitude,
+                        $subtotal
+                    );
+                    if ($zoneFee['is_deliverable']) {
+                        $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0 : $zoneFee['delivery_fee'];
+                        $zoneInfo = $zoneFee;
+                    }
+                } catch (\Exception $e) {
+                    Log::debug('Zone delivery fee calc failed, using default', ['error' => $e->getMessage()]);
+                }
+            }
+        }
 
         // Calculate discount
         $discount = 0;
@@ -490,6 +512,7 @@ class CheckoutService
             'discount' => round($discount, 2),
             'total' => round($total, 2),
             'promo_code' => $promoCodeData,
+            'zone' => $zoneInfo,
         ];
     }
 }

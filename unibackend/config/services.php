@@ -42,6 +42,8 @@ return [
         // Additional client IDs for mobile ID token audience validation
         'android_client_id' => env('GOOGLE_ANDROID_CLIENT_ID'),
         'ios_client_id' => env('GOOGLE_IOS_CLIENT_ID'),
+        // Google Maps API key for geocoding / delivery zones
+        'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
     'apple' => [

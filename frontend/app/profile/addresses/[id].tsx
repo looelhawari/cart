@@ -8,19 +8,21 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, MapPin } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { API_CONFIG } from "@/config/app.config";
+import { API_CONFIG, MAP_CONFIG } from "@/config/app.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
+import MapAddressPicker from "@/components/MapAddressPicker";
 
 type AddressLabel = "Home" | "Work" | "Other";
 
@@ -43,6 +45,12 @@ export default function AddEditAddressScreen() {
   const [area, setArea] = useState("");
   const [landmark, setLandmark] = useState("");
   const [isDefault, setIsDefault] = useState(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [formattedAddress, setFormattedAddress] = useState("");
+  const [placeId, setPlaceId] = useState("");
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [zoneName, setZoneName] = useState("");
 
   const getToken = async () => {
     return await AsyncStorage.getItem("access_token");
@@ -80,6 +88,10 @@ export default function AddEditAddressScreen() {
         setArea(address.area || "");
         setLandmark(address.landmark || "");
         setIsDefault(address.is_default);
+        if (address.latitude) setLatitude(parseFloat(address.latitude));
+        if (address.longitude) setLongitude(parseFloat(address.longitude));
+        if (address.formatted_address) setFormattedAddress(address.formatted_address);
+        if (address.place_id) setPlaceId(address.place_id);
       }
     } catch (error) {
       Alert.alert("Error", "Failed to load address");
@@ -110,6 +122,10 @@ export default function AddEditAddressScreen() {
         area: area || null,
         landmark: landmark || null,
         is_default: isDefault,
+        latitude: latitude || null,
+        longitude: longitude || null,
+        formatted_address: formattedAddress || null,
+        place_id: placeId || null,
       };
 
       const url = isEdit
@@ -293,6 +309,33 @@ export default function AddEditAddressScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.addresses.addressDetails}</Text>
 
+          {/* Map Picker Button */}
+          <TouchableOpacity
+            style={styles.mapPickerButton}
+            onPress={() => setShowMapPicker(true)}
+            activeOpacity={0.7}
+          >
+            <MapPin size={20} color={Colors.primary900} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.mapPickerButtonText}>
+                {latitude
+                  ? (t.addresses?.changeLocation || "Change Location on Map")
+                  : (t.addresses?.pickFromMap || "Pick Location from Map")}
+              </Text>
+              {latitude && formattedAddress ? (
+                <Text style={styles.mapPickerAddress} numberOfLines={1}>
+                  {formattedAddress}
+                </Text>
+              ) : null}
+              {zoneName ? (
+                <Text style={styles.mapPickerZone}>
+                  ✓ {zoneName}
+                </Text>
+              ) : null}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.neutralMedium} />
+          </TouchableOpacity>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
               {t.addresses.street} <Text style={styles.required}>*</Text>
@@ -412,6 +455,38 @@ export default function AddEditAddressScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Map Picker Modal */}
+      <Modal visible={showMapPicker} animationType="slide" presentationStyle="fullScreen">
+        <MapAddressPicker
+          initialLatitude={latitude || undefined}
+          initialLongitude={longitude || undefined}
+          mapboxToken={MAP_CONFIG.MAPBOX_TOKEN}
+          onLocationSelected={(location) => {
+            setLatitude(location.latitude);
+            setLongitude(location.longitude);
+            setFormattedAddress(location.formattedAddress);
+            setPlaceId(location.placeId);
+            if (location.zone) {
+              setZoneName(location.zone.name);
+            }
+            // Auto-fill address fields from map
+            if (location.addressComponents) {
+              if (location.addressComponents.street && !street) {
+                setStreet(location.addressComponents.street);
+              }
+              if (location.addressComponents.city && !city) {
+                setCity(location.addressComponents.city);
+              }
+              if (location.addressComponents.area && !area) {
+                setArea(location.addressComponents.area);
+              }
+            }
+            setShowMapPicker(false);
+          }}
+          onClose={() => setShowMapPicker(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -584,5 +659,34 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     fontWeight: Typography.bold,
     color: Colors.neutralWhite,
+  },
+  mapPickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    backgroundColor: "#f0f7ff",
+    borderWidth: 1.5,
+    borderColor: Colors.primary900 + "40",
+    borderStyle: "dashed",
+    marginBottom: Spacing.md,
+  },
+  mapPickerButtonText: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: Typography.semibold,
+    color: Colors.primary900,
+  },
+  mapPickerAddress: {
+    fontSize: 11,
+    color: Colors.neutralMedium,
+    marginTop: 2,
+  },
+  mapPickerZone: {
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: "500" as any,
+    marginTop: 2,
   },
 });

@@ -75,6 +75,11 @@ export interface Address {
   street: string;
   city: string;
   is_default: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  formatted_address?: string | null;
+  place_id?: string | null;
+  delivery_zone_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +89,10 @@ export interface AddressData {
   street: string;
   city: string;
   is_default?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  formatted_address?: string | null;
+  place_id?: string | null;
 }
 
 export interface UpdateProfileData {

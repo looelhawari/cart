@@ -87,14 +87,17 @@ export const checkoutApi = {
   },
 
   /**
-   * Calculate order summary with promo code (if any)
+   * Calculate order summary with promo code and address (for zone-based delivery fees)
    */
-  calculateSummary: (promoCode?: string) => {
+  calculateSummary: (promoCode?: string, addressId?: number) => {
     return apiRequest<{ success: boolean; data: { summary: OrderSummary } }>(
       "/checkout/calculate",
       {
         method: "POST",
-        body: JSON.stringify({ promo_code: promoCode }),
+        body: JSON.stringify({
+          promo_code: promoCode,
+          address_id: addressId,
+        }),
       },
     );
   },

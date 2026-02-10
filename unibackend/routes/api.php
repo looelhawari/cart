@@ -36,7 +36,10 @@ use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\StaticPageController;
 use App\Http\Controllers\Api\StoreSettingsController;
 use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\DeliveryZoneController;
+use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\Admin\AdminDeliveryZoneController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -154,6 +157,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/delivery-settings', [StoreSettingsController::class, 'getDeliverySettings']);
     });
 
+    // Delivery zones routes (public - zone listing for mobile map) - throttled to 60/min
+    Route::middleware('throttle:60,1')->prefix('delivery-zones')->group(function () {
+        Route::get('/', [DeliveryZoneController::class, 'index']);
+        Route::post('/check-coverage', [DeliveryZoneController::class, 'checkCoverage']);
+        Route::post('/calculate-fee', [DeliveryZoneController::class, 'calculateDeliveryFee']);
+        Route::post('/reverse-geocode', [DeliveryZoneController::class, 'reverseGeocode']);
+    });
+
     // Protected routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -256,6 +267,23 @@ Route::prefix('v1')->group(function () {
         Route::put('addresses/{id}', [AddressController::class, 'update']);
         Route::delete('addresses/{id}', [AddressController::class, 'destroy']);
         Route::post('addresses/{id}/default', [AddressController::class, 'setDefault']);
+
+        // Delivery zone validation (authenticated - needs user's address)
+        Route::post('delivery-zones/validate-address', [DeliveryZoneController::class, 'validateAddress']);
+
+        // Driver routes (requires driver role)
+        Route::middleware('throttle:120,1')->prefix('driver')->group(function () {
+            Route::get('/dashboard', [DriverController::class, 'dashboard']);
+            Route::post('/toggle-availability', [DriverController::class, 'toggleAvailability']);
+            Route::post('/location', [DriverController::class, 'updateLocation']);
+            Route::get('/orders', [DriverController::class, 'orders']);
+            Route::get('/orders/{id}', [DriverController::class, 'orderDetails']);
+            Route::post('/orders/{id}/accept', [DriverController::class, 'acceptOrder']);
+            Route::post('/orders/{id}/pickup', [DriverController::class, 'pickupOrder']);
+            Route::post('/orders/{id}/deliver', [DriverController::class, 'deliverOrder']);
+            Route::get('/stats', [DriverController::class, 'stats']);
+        });
+
         // Payment Methods CRUD (Phase 4) - password required for deletion
         Route::prefix('payment-methods')->group(function () {
             Route::get('/', [PaymentMethodController::class, 'index']);
@@ -598,6 +626,20 @@ Route::prefix('v1')->group(function () {
                 Route::post('/{id}/respond', [AdminReviewController::class, 'respond']);
                 Route::post('/bulk-status', [AdminReviewController::class, 'bulkUpdateStatus']);
                 Route::delete('/{id}', [AdminReviewController::class, 'destroy']);
+            });
+
+            // Delivery Zones Management
+            Route::prefix('delivery-zones')->group(function () {
+                Route::get('/', [AdminDeliveryZoneController::class, 'index']);
+                Route::get('/dashboard', [AdminDeliveryZoneController::class, 'dashboard']);
+                Route::post('/', [AdminDeliveryZoneController::class, 'store']);
+                Route::post('/check-coordinate', [AdminDeliveryZoneController::class, 'checkCoordinate']);
+                Route::post('/reorder', [AdminDeliveryZoneController::class, 'reorder']);
+                Route::get('/{id}', [AdminDeliveryZoneController::class, 'show']);
+                Route::put('/{id}', [AdminDeliveryZoneController::class, 'update']);
+                Route::delete('/{id}', [AdminDeliveryZoneController::class, 'destroy']);
+                Route::post('/{id}/toggle-status', [AdminDeliveryZoneController::class, 'toggleStatus']);
+                Route::get('/{id}/analytics', [AdminDeliveryZoneController::class, 'analytics']);
             });
         });
     });

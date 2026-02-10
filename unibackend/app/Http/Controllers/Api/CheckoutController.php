@@ -116,11 +116,13 @@ class CheckoutController extends Controller
 
             $subtotal = (float) $request->input('subtotal', 0);
             $promoCode = $request->input('promo_code');
+            $addressId = $request->input('address_id');
 
             $summary = $this->checkoutService->calculateOrderSummary(
                 $subtotal,
                 $promoCode,
-                $user?->id
+                $user?->id,
+                $addressId ? (int) $addressId : null
             );
 
             return response()->json([

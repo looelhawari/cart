@@ -88,7 +88,8 @@
         "settings": "Settings",
         "contentManagement": "Content Management",
         "reviews": "Reviews & Ratings",
-        "storeSettings": "Store Settings"
+        "storeSettings": "Store Settings",
+        "deliveryZones": "Delivery Zones"
     },
     "auth": {
         "login": "Login",

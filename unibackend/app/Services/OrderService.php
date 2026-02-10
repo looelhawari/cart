@@ -6,6 +6,7 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
 // use App\Models\OrderStatusHistory; // Table not created yet
+use App\Models\Address;
 use App\Models\Product;
 use App\Models\PromoCode;
 use App\Models\User;
@@ -121,6 +122,22 @@ class OrderService
                 ],
                 'verification' => 'Order totals match cart snapshot',
             ]);
+
+            // STEP 2.5: ZONE SNAPSHOT - Freeze delivery zone info
+            try {
+                $address = Address::find($deliveryAddressId);
+                if ($address && $address->latitude && $address->longitude) {
+                    $zoneService = app(DeliveryZoneService::class);
+                    $zoneService->snapshotZoneToOrder($order, $address);
+                    Log::info('📍 [STEP 2.5] ZONE SNAPSHOT - Delivery zone attached to order', [
+                        'order_id' => $order->id,
+                        'zone_id' => $order->delivery_zone_id,
+                        'zone_name' => $order->zone_name,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Zone snapshot failed (non-critical)', ['error' => $e->getMessage()]);
+            }
 
             // Create order items from cart items
             $cart->load('items.product');

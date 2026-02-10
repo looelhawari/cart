@@ -31,6 +31,16 @@ class Order extends Model
         'refund_reason',
         'refunded_amount',
         'refunded_by',
+        // Zone & delivery tracking fields
+        'delivery_zone_id',
+        'delivery_lat',
+        'delivery_lng',
+        'zone_name',
+        'driver_id',
+        'driver_assigned_at',
+        'driver_picked_up_at',
+        'actual_delivered_at',
+        'estimated_delivery_minutes',
     ];
 
     protected $casts = [
@@ -40,13 +50,19 @@ class Order extends Model
         'tax' => 'decimal:2',
         'total' => 'decimal:2',
         'refunded_amount' => 'decimal:2',
+        'delivery_lat' => 'decimal:8',
+        'delivery_lng' => 'decimal:8',
         'delivery_date' => 'date',
         'cancelled_at' => 'datetime',
         'refunded_at' => 'datetime',
+        'driver_assigned_at' => 'datetime',
+        'driver_picked_up_at' => 'datetime',
+        'actual_delivered_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'delivery_address_snapshot' => 'array',
         'promo_code_snapshot' => 'array',
+        'estimated_delivery_minutes' => 'integer',
     ];
 
     protected $appends = ['status_label', 'payment_status_label'];
@@ -65,6 +81,22 @@ class Order extends Model
     public function deliveryAddress(): BelongsTo
     {
         return $this->belongsTo(Address::class, 'delivery_address_id');
+    }
+
+    /**
+     * Get the delivery zone
+     */
+    public function deliveryZone(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id');
+    }
+
+    /**
+     * Get the assigned driver
+     */
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'driver_id');
     }
 
     /**

@@ -25,6 +25,11 @@ export const APP_CONFIG = {
   SUPPORT_EMAIL: "support@elbaraka.com",
 };
 
+// Map Configuration (Mapbox)
+export const MAP_CONFIG = {
+  MAPBOX_TOKEN: "", // Set your Mapbox public token here
+};
+
 // Token Configuration
 export const TOKEN_CONFIG = {
   ACCESS_TOKEN_KEY: "access_token",
@@ -44,6 +49,7 @@ export const OTP_CONFIG = {
 export default {
   API_CONFIG,
   APP_CONFIG,
+  MAP_CONFIG,
   TOKEN_CONFIG,
   OTP_CONFIG,
 };

@@ -1,0 +1,267 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Order;
+use App\Models\User;
+use App\Services\DeliveryZoneService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Driver-facing controller for delivery management.
+ */
+class DriverController extends Controller
+{
+    private DeliveryZoneService $zoneService;
+
+    public function __construct(DeliveryZoneService $zoneService)
+    {
+        $this->zoneService = $zoneService;
+    }
+
+    /**
+     * Get driver dashboard (current orders, stats).
+     */
+    public function dashboard(Request $request): JsonResponse
+    {
+        $driver = $request->user();
+
+        $activeOrders = Order::where('driver_id', $driver->id)
+            ->whereNotIn('status', ['delivered', 'cancelled', 'failed'])
+            ->with(['deliveryAddress', 'user:id,first_name,last_name,phone'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $todayStats = Order::where('driver_id', $driver->id)
+            ->whereDate('created_at', today())
+            ->selectRaw('
+                COUNT(*) as total_orders,
+                SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as delivered,
+                SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled,
+                SUM(CASE WHEN status = "delivered" THEN delivery_fee ELSE 0 END) as total_earnings
+            ')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'active_orders' => $activeOrders,
+                'is_available' => $driver->is_available,
+                'assigned_zone' => $driver->assignedZone,
+                'today_stats' => [
+                    'total_orders' => (int) $todayStats->total_orders,
+                    'delivered' => (int) $todayStats->delivered,
+                    'cancelled' => (int) $todayStats->cancelled,
+                    'total_earnings' => (float) $todayStats->total_earnings,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Toggle driver availability.
+     */
+    public function toggleAvailability(Request $request): JsonResponse
+    {
+        $driver = $request->user();
+        $driver->update([
+            'is_available' => !$driver->is_available,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'is_available' => $driver->is_available,
+            ],
+            'message' => $driver->is_available ? 'You are now online' : 'You are now offline',
+        ]);
+    }
+
+    /**
+     * Update driver GPS location.
+     */
+    public function updateLocation(Request $request): JsonResponse
+    {
+        $request->validate([
+            'latitude'  => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'speed'     => 'nullable|numeric|min:0',
+            'heading'   => 'nullable|numeric|between:0,360',
+            'accuracy'  => 'nullable|numeric|min:0',
+            'order_id'  => 'nullable|exists:orders,id',
+        ]);
+
+        $driver = $request->user();
+
+        $this->zoneService->updateDriverLocation($driver, $request->latitude, $request->longitude, [
+            'order_id' => $request->order_id,
+            'speed'    => $request->speed,
+            'heading'  => $request->heading,
+            'accuracy' => $request->accuracy,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Location updated',
+        ]);
+    }
+
+    /**
+     * Get assigned orders for this driver.
+     */
+    public function orders(Request $request): JsonResponse
+    {
+        $driver = $request->user();
+        $status = $request->input('status');
+
+        $query = Order::where('driver_id', $driver->id)
+            ->with(['deliveryAddress', 'user:id,first_name,last_name,phone', 'items.product'])
+            ->orderBy('created_at', 'desc');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $orders = $query->paginate(20);
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders,
+        ]);
+    }
+
+    /**
+     * Get single order details.
+     */
+    public function orderDetails(Request $request, int $orderId): JsonResponse
+    {
+        $order = Order::where('driver_id', $request->user()->id)
+            ->with(['deliveryAddress', 'user:id,first_name,last_name,phone', 'items.product'])
+            ->findOrFail($orderId);
+
+        return response()->json([
+            'success' => true,
+            'data' => $order,
+        ]);
+    }
+
+    /**
+     * Accept an assigned order.
+     */
+    public function acceptOrder(Request $request, int $orderId): JsonResponse
+    {
+        $driver = $request->user();
+
+        $order = Order::where('id', $orderId)
+            ->where('driver_id', $driver->id)
+            ->where('status', 'confirmed')
+            ->firstOrFail();
+
+        $order->update([
+            'status' => 'preparing',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order accepted',
+            'data' => $order->fresh(),
+        ]);
+    }
+
+    /**
+     * Mark order as picked up (out for delivery).
+     */
+    public function pickupOrder(Request $request, int $orderId): JsonResponse
+    {
+        $driver = $request->user();
+
+        $order = Order::where('id', $orderId)
+            ->where('driver_id', $driver->id)
+            ->where('status', 'preparing')
+            ->firstOrFail();
+
+        $order->update([
+            'status' => 'out_for_delivery',
+            'driver_picked_up_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order picked up',
+            'data' => $order->fresh(),
+        ]);
+    }
+
+    /**
+     * Mark order as delivered.
+     */
+    public function deliverOrder(Request $request, int $orderId): JsonResponse
+    {
+        $driver = $request->user();
+
+        $order = Order::where('id', $orderId)
+            ->where('driver_id', $driver->id)
+            ->where('status', 'out_for_delivery')
+            ->firstOrFail();
+
+        DB::transaction(function () use ($order, $driver) {
+            $order->update([
+                'status' => 'delivered',
+                'actual_delivered_at' => now(),
+            ]);
+
+            // Update driver stats
+            $driver->increment('total_deliveries');
+
+            // Mark COD as payment completed
+            if ($order->payment_method === 'cash_on_delivery') {
+                $order->update(['payment_status' => 'completed']);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order delivered successfully',
+            'data' => $order->fresh(),
+        ]);
+    }
+
+    /**
+     * Get driver performance stats.
+     */
+    public function stats(Request $request): JsonResponse
+    {
+        $driver = $request->user();
+        $period = $request->input('period', '7d');
+
+        $dateFrom = match($period) {
+            '1d'  => now()->subDay(),
+            '7d'  => now()->subDays(7),
+            '30d' => now()->subDays(30),
+            'all' => null,
+            default => now()->subDays(7),
+        };
+
+        $query = Order::where('driver_id', $driver->id);
+        if ($dateFrom) {
+            $query->where('created_at', '>=', $dateFrom);
+        }
+
+        $delivered = (clone $query)->where('status', 'delivered');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_orders' => $query->count(),
+                'delivered' => $delivered->count(),
+                'cancelled' => (clone $query)->where('status', 'cancelled')->count(),
+                'total_earnings' => round($delivered->sum('delivery_fee'), 2),
+                'average_rating' => $driver->average_rating,
+                'total_deliveries_all_time' => $driver->total_deliveries,
+            ],
+        ]);
+    }
+}

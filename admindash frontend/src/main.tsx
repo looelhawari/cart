@@ -33,6 +33,7 @@ import AdminLogsPage from '@/pages/AdminLogsPage'
 import ContentManagementPage from '@/pages/content/ContentManagementPage'
 import StoreSettingsPage from '@/pages/settings/StoreSettingsPage'
 import ReviewsPage from '@/pages/reviews/ReviewsPage'
+import DeliveryZonesPage from '@/pages/delivery-zones/DeliveryZonesPage'
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -90,6 +91,8 @@ function App() {
                             <Route element={<DashboardLayout><StoreSettingsPage /></DashboardLayout>} path="/settings" />
 
                             <Route element={<DashboardLayout><ReviewsPage /></DashboardLayout>} path="/reviews" />
+
+                            <Route element={<DashboardLayout><DeliveryZonesPage /></DashboardLayout>} path="/delivery-zones" />
                         </Route>
 
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />

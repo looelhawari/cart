@@ -89,7 +89,8 @@
         "settings": "الإعدادات",
         "contentManagement": "إدارة المحتوى",
         "reviews": "التقييمات والمراجعات",
-        "storeSettings": "إعدادات المتجر"
+        "storeSettings": "إعدادات المتجر",
+        "deliveryZones": "مناطق التوصيل"
     },
     "auth": {
         "login": "تسجيل الدخول",

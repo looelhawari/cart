@@ -7,11 +7,18 @@ use App\Http\Requests\Address\StoreAddressRequest;
 use App\Http\Requests\Address\UpdateAddressRequest;
 use App\Models\Address;
 use App\Models\ActivityLog;
+use App\Services\GeoHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AddressController extends Controller
 {
+    private GeoHelper $geoHelper;
+
+    public function __construct(GeoHelper $geoHelper)
+    {
+        $this->geoHelper = $geoHelper;
+    }
     /**
      * Display a listing of the user's addresses.
      */
@@ -34,6 +41,12 @@ class AddressController extends Controller
 
         $address = $user->addresses()->create($request->validated());
 
+        // Auto-assign delivery zone based on coordinates
+        if ($address->hasCoordinates()) {
+            $this->geoHelper->autoAssignZone($address);
+            $address->refresh();
+        }
+
         // If this is the first address or marked as default, set it as default
         if ($request->input('is_default', false) || $user->addresses()->count() === 1) {
             $address->setAsDefault();
@@ -45,7 +58,7 @@ class AddressController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Address created successfully',
-            'data' => $address,
+            'data' => $address->load('deliveryZone'),
         ], 201);
     }
 
@@ -71,6 +84,13 @@ class AddressController extends Controller
         $address = $user->addresses()->findOrFail($id);
 
         $address->update($request->validated());
+
+        // Re-assign delivery zone if coordinates changed
+        if ($request->has('latitude') || $request->has('longitude')) {
+            if ($address->hasCoordinates()) {
+                $this->geoHelper->autoAssignZone($address);
+            }
+        }
 
         // If marked as default, set it as default
         if ($request->input('is_default', false)) {

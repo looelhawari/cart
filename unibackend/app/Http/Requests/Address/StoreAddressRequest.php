@@ -65,6 +65,10 @@ class StoreAddressRequest extends FormRequest
             'city' => 'required|string|max:100',
             'area' => 'nullable|string|max:255',
             'landmark' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'formatted_address' => 'nullable|string|max:500',
+            'place_id' => 'nullable|string|max:255',
             'is_default' => 'sometimes|boolean',
         ];
     }

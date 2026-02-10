@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@hookform/resolvers": "^3.3.4",
+        "@mapbox/mapbox-gl-draw": "^1.5.1",
         "@radix-ui/react-accordion": "^1.1.2",
         "@radix-ui/react-alert-dialog": "^1.0.5",
         "@radix-ui/react-avatar": "^1.0.4",
@@ -44,6 +45,7 @@
         "jspdf-autotable": "^5.0.7",
         "laravel-echo": "^2.3.0",
         "lucide-react": "^0.309.0",
+        "mapbox-gl": "^3.18.1",
         "pusher-js": "^8.4.0",
         "react": "^18.2.0",
         "react-day-picker": "^8.10.0",
@@ -60,6 +62,8 @@
         "zustand": "^4.5.0"
     },
     "devDependencies": {
+        "@types/mapbox__mapbox-gl-draw": "^1.4.9",
+        "@types/mapbox-gl": "^3.4.1",
         "@types/node": "^20.11.5",
         "@types/pusher-js": "^4.2.2",
         "@types/react": "^18.2.48",

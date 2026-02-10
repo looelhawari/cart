@@ -10,6 +10,7 @@ export * as favoritesApi from "./favoritesApi";
 export * as complaintsApi from "./complaintsApi";
 export * as storeApi from "./storeApi";
 export * as reviewsApi from "./reviewsApi";
+export { deliveryZoneApi } from "./deliveryZoneApi";
 
 // Default export for backward compatibility
 import { authApi } from "./authApi";

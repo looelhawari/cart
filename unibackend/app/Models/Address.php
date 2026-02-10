@@ -24,6 +24,11 @@ class Address extends Model
         'city',
         'area',
         'landmark',
+        'latitude',
+        'longitude',
+        'delivery_zone_id',
+        'formatted_address',
+        'place_id',
         'is_default',
     ];
 
@@ -34,6 +39,8 @@ class Address extends Model
      */
     protected $casts = [
         'is_default' => 'boolean',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -44,6 +51,22 @@ class Address extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the delivery zone for this address.
+     */
+    public function deliveryZone()
+    {
+        return $this->belongsTo(DeliveryZone::class, 'delivery_zone_id');
+    }
+
+    /**
+     * Check if address has GPS coordinates.
+     */
+    public function hasCoordinates(): bool
+    {
+        return $this->latitude !== null && $this->longitude !== null;
     }
 
     /**

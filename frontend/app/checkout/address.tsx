@@ -10,8 +10,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, MapPin, Plus, Check } from "lucide-react-native";
+import { ArrowLeft, MapPin, Plus, Check, AlertTriangle } from "lucide-react-native";
 import { getAddresses, CheckoutAddress } from "@/services/api/checkoutApi";
+import { deliveryZoneApi, type CoverageResult } from "@/services/api/deliveryZoneApi";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
@@ -25,6 +26,10 @@ export default function CheckoutAddressScreen() {
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(
     null,
   );
+  const [zoneValidation, setZoneValidation] = useState<{
+    checking: boolean;
+    result: CoverageResult | null;
+  }>({ checking: false, result: null });
 
   useEffect(() => {
     fetchAddresses();
@@ -65,11 +70,56 @@ export default function CheckoutAddressScreen() {
     }
   };
 
+  const handleSelectAddress = async (addressId: number) => {
+    setSelectedAddressId(addressId);
+
+    // Validate zone coverage for the selected address
+    try {
+      setZoneValidation({ checking: true, result: null });
+      const response = await deliveryZoneApi.validateAddress(addressId);
+      const data = response.data || response;
+      setZoneValidation({
+        checking: false,
+        result: {
+          covered: data.valid,
+          zone: data.zone,
+          delivery_fee: data.delivery_fee || 0,
+          message: data.message || "",
+        },
+      });
+    } catch (error) {
+      // If zone validation fails (e.g., API not available yet), allow checkout
+      setZoneValidation({ checking: false, result: null });
+    }
+  };
+
   const handleContinue = () => {
     if (!selectedAddressId) {
       Alert.alert(t.checkout.selectAddress, t.checkout.pleaseSelectAddress);
       return;
     }
+
+    // Warn if address is outside delivery zone (but allow to continue)
+    if (zoneValidation.result && !zoneValidation.result.covered) {
+      Alert.alert(
+        t.checkout?.outsideZoneTitle || "Outside Delivery Area",
+        t.checkout?.outsideZoneMessage || "This address may be outside our delivery area. Delivery may not be available.",
+        [
+          { text: t.common?.cancel || "Cancel", style: "cancel" },
+          {
+            text: t.checkout?.continueAnyway || "Continue Anyway",
+            onPress: () => {
+              router.push({
+                pathname: "/checkout/payment" as any,
+                params: { addressId: selectedAddressId },
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     router.push({
       pathname: "/checkout/payment" as any,
       params: { addressId: selectedAddressId },
@@ -155,9 +205,9 @@ export default function CheckoutAddressScreen() {
                 style={[
                   styles.addressCard,
                   selectedAddressId === address.id &&
-                    styles.addressCardSelected,
+                  styles.addressCardSelected,
                 ]}
-                onPress={() => setSelectedAddressId(address.id)}
+                onPress={() => handleSelectAddress(address.id)}
               >
                 <View style={styles.addressHeader}>
                   <View style={styles.addressLabelRow}>
@@ -196,6 +246,38 @@ export default function CheckoutAddressScreen() {
                   <Text style={styles.addressLandmark}>
                     {t.checkout.near}: {address.landmark}
                   </Text>
+                )}
+
+                {/* Zone validation status */}
+                {selectedAddressId === address.id && zoneValidation.checking && (
+                  <View style={styles.zoneStatusRow}>
+                    <ActivityIndicator size="small" color={Colors.primary900} />
+                    <Text style={styles.zoneCheckingText}>
+                      {t.checkout?.checkingDeliveryZone || "Checking delivery zone..."}
+                    </Text>
+                  </View>
+                )}
+                {selectedAddressId === address.id && !zoneValidation.checking && zoneValidation.result && (
+                  <View style={[
+                    styles.zoneStatusRow,
+                    zoneValidation.result.covered ? styles.zoneOkBg : styles.zoneNotOkBg,
+                  ]}>
+                    {zoneValidation.result.covered ? (
+                      <>
+                        <Check size={14} color="#16a34a" />
+                        <Text style={styles.zoneOkText}>
+                          {zoneValidation.result.zone?.name || "In zone"} — EGP {zoneValidation.result.delivery_fee} delivery
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle size={14} color="#dc2626" />
+                        <Text style={styles.zoneNotOkText}>
+                          {t.checkout?.outsideDeliveryArea || "Outside delivery area"}
+                        </Text>
+                      </>
+                    )}
+                  </View>
                 )}
               </TouchableOpacity>
             ))}
@@ -443,5 +525,34 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.neutralWhite,
+  },
+  zoneStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  zoneCheckingText: {
+    fontSize: 12,
+    color: Colors.neutralGray,
+  },
+  zoneOkBg: {
+    backgroundColor: "#f0fdf4",
+  },
+  zoneOkText: {
+    fontSize: 12,
+    color: "#16a34a",
+    fontWeight: "500" as any,
+  },
+  zoneNotOkBg: {
+    backgroundColor: "#fef2f2",
+  },
+  zoneNotOkText: {
+    fontSize: 12,
+    color: "#dc2626",
+    fontWeight: "500" as any,
   },
 });

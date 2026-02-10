@@ -21,6 +21,7 @@ import {
     FileText,
     Star,
     Settings,
+    MapPin,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -72,6 +73,12 @@ const navItems: NavItem[] = [
         titleKey: 'navigation.orders',
         href: '/orders',
         icon: ShoppingCart,
+    },
+    {
+        titleKey: 'navigation.deliveryZones',
+        href: '/delivery-zones',
+        icon: MapPin,
+        roles: ['super_admin', 'admin'],
     },
     {
         titleKey: 'navigation.support',
