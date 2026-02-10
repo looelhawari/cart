@@ -358,8 +358,22 @@ class SocialAuthController extends Controller
 
                 if ($user) {
                     // Existing social user — update avatar if changed
+                    $updateData = [];
                     if ($avatar && $user->avatar !== $avatar) {
-                        $user->update(['avatar' => $avatar]);
+                        $updateData['avatar'] = $avatar;
+                    }
+                    // Sync verification status: if provider confirms email is verified,
+                    // ensure our records reflect that.
+                    if ($emailVerified) {
+                        if (!$user->email_verified_at) {
+                            $updateData['email_verified_at'] = now();
+                        }
+                        if (!$user->is_verified) {
+                            $updateData['is_verified'] = true;
+                        }
+                    }
+                    if (!empty($updateData)) {
+                        $user->update($updateData);
                     }
                     return $user;
                 }
@@ -390,6 +404,14 @@ class SocialAuthController extends Controller
                                 $updateData['avatar'] = $avatar;
                             }
 
+                            // Sync verification: provider confirmed email ownership
+                            if (!$existingByEmail->email_verified_at) {
+                                $updateData['email_verified_at'] = now();
+                            }
+                            if (!$existingByEmail->is_verified) {
+                                $updateData['is_verified'] = true;
+                            }
+
                             $existingByEmail->update($updateData);
 
                             Log::info("Linked {$provider} to existing account", [
@@ -417,7 +439,7 @@ class SocialAuthController extends Controller
                     'email_verified_at' => $emailVerified ? now() : null,
                     'phone_verified_at' => null,
                     'is_social_only' => true,
-                    'is_verified' => false, // Not fully verified until phone is verified
+                    'is_verified' => $emailVerified, // Verified if provider confirms email
                     'is_active' => true,
                     'language' => 'en',
                     'role' => 'customer',
@@ -515,5 +537,194 @@ class SocialAuthController extends Controller
                 'is_new_user' => $isNewUser,
             ],
         ], 200);
+    }
+
+    // ─────────────────────────────────────────────────────
+    //  RELINK GOOGLE ACCOUNT (Social-Only Users)
+    // ─────────────────────────────────────────────────────
+
+    /**
+     * Relink a social-only user to a different Google account.
+     *
+     * Flow:
+     *   1. Authenticated social-only user sends the id_token from the NEW Google account.
+     *   2. We verify the token, extract the new google_id (sub) and email.
+     *   3. We ensure the new Google account is not already linked to another user.
+     *   4. We atomically update google_id and email on the current user.
+     *   5. Session tokens are preserved (user stays logged in).
+     *
+     * POST /api/v1/profile/relink-google
+     */
+    public function relinkGoogle(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+
+        // ── Guard: Only social-only users can relink ──
+        if (!$user->is_social_only) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only social-only accounts can relink their Google account. Password-based accounts should use the Change Email flow instead.',
+                'error_code' => 'NOT_SOCIAL_ONLY',
+            ], 403);
+        }
+
+        if (empty($user->google_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is not linked to a Google account.',
+                'error_code' => 'NO_GOOGLE_LINK',
+            ], 400);
+        }
+
+        // ── Verify the new Google ID token ──
+        try {
+            $payload = $this->verifyGoogleIdToken($request->id_token);
+
+            if (!$payload) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired Google token.',
+                ], 401);
+            }
+        } catch (\Exception $e) {
+            Log::error('Relink Google - token verification failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Google token verification failed.',
+            ], 401);
+        }
+
+        $newGoogleId = $payload['sub'];
+        $newEmail = $payload['email'] ?? null;
+        $emailVerified = (bool) ($payload['email_verified'] ?? false);
+        $newAvatar = $payload['picture'] ?? null;
+        $newFirstName = $payload['given_name'] ?? null;
+        $newLastName = $payload['family_name'] ?? null;
+
+        if (!$newEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The Google account must have an email address.',
+            ], 422);
+        }
+
+        if (!$emailVerified) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The Google account email must be verified.',
+                'error_code' => 'EMAIL_NOT_VERIFIED',
+            ], 403);
+        }
+
+        // ── Same account check ──
+        if ($newGoogleId === $user->google_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This is already your linked Google account.',
+                'error_code' => 'SAME_ACCOUNT',
+            ], 400);
+        }
+
+        // ── Conflict check: is the new Google ID or email already used? ──
+        $conflict = User::where(function ($q) use ($newGoogleId, $newEmail) {
+                $q->where('google_id', $newGoogleId)
+                  ->orWhere('email', strtolower($newEmail));
+            })
+            ->where('id', '!=', $user->id)
+            ->first();
+
+        if ($conflict) {
+            $reason = $conflict->google_id === $newGoogleId
+                ? 'This Google account is already linked to another user.'
+                : 'The email address of this Google account is already in use by another user.';
+
+            return response()->json([
+                'success' => false,
+                'message' => $reason,
+                'error_code' => 'RELINK_CONFLICT',
+            ], 409);
+        }
+
+        // ── Apply the relink atomically ──
+        $oldEmail = $user->email;
+        $oldGoogleId = $user->google_id;
+
+        $updateData = [
+            'google_id' => $newGoogleId,
+            'email' => strtolower($newEmail),
+            'email_verified_at' => now(),
+            'is_verified' => true,
+        ];
+
+        // Update name if provided and user hasn't customized theirs
+        if ($newFirstName) {
+            $updateData['first_name'] = $newFirstName;
+        }
+        if ($newLastName !== null) {
+            $updateData['last_name'] = $newLastName;
+        }
+        if ($newAvatar) {
+            $updateData['avatar'] = $newAvatar;
+        }
+
+        // Update full_name
+        $updateData['full_name'] = ($updateData['first_name'] ?? $user->first_name) . ' ' . ($updateData['last_name'] ?? $user->last_name);
+
+        $user->update($updateData);
+
+        // ── Log the relink ──
+        \App\Models\ActivityLog::log('google_account_relinked', $user->id, 'User', $user->id, [
+            'old_email' => $oldEmail,
+            'new_email' => strtolower($newEmail),
+            'old_google_id' => $oldGoogleId,
+            'new_google_id' => $newGoogleId,
+        ]);
+
+        Log::info("User #{$user->id} relinked Google account", [
+            'old_email' => $oldEmail,
+            'new_email' => strtolower($newEmail),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Google account relinked successfully.',
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'full_name' => $user->first_name . ' ' . $user->last_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'date_of_birth' => $user->date_of_birth?->format('Y-m-d'),
+                    'gender' => $user->gender,
+                    'avatar' => $user->avatar,
+                    'language' => $user->language,
+                    'role' => $user->role,
+                    'is_verified' => $user->is_verified,
+                    'is_social_only' => (bool) $user->is_social_only,
+                    'has_google' => !empty($user->google_id),
+                    'has_apple' => !empty($user->apple_id),
+                    'email_verified_at' => $user->email_verified_at,
+                    'registration_source' => $user->registration_source,
+                ],
+            ],
+        ]);
     }
 }

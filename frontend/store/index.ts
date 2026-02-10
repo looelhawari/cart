@@ -28,6 +28,11 @@ interface User {
   language: "en" | "ar";
   role: "customer" | "admin";
   is_verified: boolean;
+  is_social_only: boolean;
+  has_google: boolean;
+  has_apple: boolean;
+  email_verified_at: string | null;
+  registration_source: string | null;
 }
 
 interface StoreState {

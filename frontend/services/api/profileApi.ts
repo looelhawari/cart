@@ -1,5 +1,11 @@
 import { apiRequest, API_BASE_URL, getAuthToken, safeJsonParse } from "./base";
-import { UpdateProfileData, ChangePasswordData } from "./types";
+import {
+  UpdateProfileData,
+  ChangePasswordData,
+  RequestEmailChangeData,
+  VerifyEmailChangeData,
+  RelinkGoogleData,
+} from "./types";
 
 // Profile Management API
 export const profileApi = {
@@ -58,6 +64,31 @@ export const profileApi = {
   async changePassword(data: ChangePasswordData) {
     return apiRequest("/profile/change-password", {
       method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ─── Email Change (verified OTP flow) ──────────────────────────
+  // Step 1: Request OTP – requires current password + new email
+  async requestEmailChange(data: RequestEmailChangeData) {
+    return apiRequest("/profile/request-email-change", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Step 2: Verify OTP and apply the email change
+  async verifyEmailChange(data: VerifyEmailChangeData) {
+    return apiRequest("/profile/verify-email-change", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ─── Relink Google Account (social-only users) ─────────────────
+  async relinkGoogle(data: RelinkGoogleData) {
+    return apiRequest("/profile/relink-google", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },

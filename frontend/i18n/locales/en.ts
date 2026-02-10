@@ -264,6 +264,42 @@ export default {
       "Are you sure you want to delete your profile picture?",
     pictureDeleted: "Profile picture deleted",
     failedToDelete: "Failed to delete picture",
+    emailManagedByGoogle:
+      "Email is managed by your Google account and cannot be changed.",
+    changeEmail: "Change Email",
+    relinkGoogle: "Switch Google Account",
+    relinkSuccess:
+      "Google account switched successfully. Your email and profile have been updated.",
+    relinkFailed: "Failed to switch Google account. Please try again.",
+    relinkConfirm:
+      "Switch to a different Google account? Your email will change to match the new account.",
+  },
+
+  // Change Email
+  changeEmail: {
+    title: "Change Email",
+    currentEmail: "Current Email",
+    newEmail: "New Email Address",
+    enterNewEmail: "Enter your new email address",
+    confirmPassword: "Current Password",
+    enterPassword: "Enter your current password",
+    invalidEmail: "Please enter a valid email address.",
+    sameEmail: "New email must be different from your current email.",
+    securityNotice:
+      "For your security, a verification code will be sent to your new email address. You must also confirm your current password.",
+    sendCode: "Send Verification Code",
+    otpSent: "Verification code sent to your new email.",
+    requestFailed: "Failed to send verification code. Please try again.",
+    verifyTitle: "Verify Email",
+    verifySubtitle: "Enter the 6-digit code sent to {email}",
+    enterOtp: "Please enter the 6-digit verification code.",
+    resendCode: "Resend Code",
+    verify: "Verify & Change Email",
+    verifyFailed: "Invalid or expired code. Please try again.",
+    back: "Go Back",
+    successTitle: "Email Changed!",
+    successSubtitle: "Your email has been updated and verified successfully.",
+    done: "Done",
   },
 
   // Favorites

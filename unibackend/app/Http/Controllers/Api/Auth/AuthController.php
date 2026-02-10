@@ -36,7 +36,7 @@ class AuthController extends Controller
     protected ?EnterpriseNotificationService $enterpriseNotificationService;
 
     public function __construct(
-        OtpService $otpService, 
+        OtpService $otpService,
         CartService $cartService,
         PushNotificationService $pushNotificationService
     ) {
@@ -203,11 +203,11 @@ class AuthController extends Controller
 
         // Create new tokens - extend lifetime significantly for better UX
         $rememberMe = (bool) $request->input('remember_me', false);
-        
+
         // Access token: 30 days with remember_me, 7 days otherwise
         $accessTokenExpiry = $rememberMe ? Carbon::now()->addDays(30) : Carbon::now()->addDays(7);
         $accessToken = $user->createToken('access_token', ['*'], $accessTokenExpiry)->plainTextToken;
-        
+
         // Refresh token: 180 days (6 months) with remember_me, 90 days otherwise
         $refreshTokenExpiry = $rememberMe ? Carbon::now()->addDays(180) : Carbon::now()->addDays(90);
         $refreshToken = $user->createToken('refresh_token', ['refresh', $rememberMe ? 'remember' : 'standard'], $refreshTokenExpiry)->plainTextToken;
@@ -232,9 +232,9 @@ class AuthController extends Controller
                 // Extract actual IP address from request
                 $ipAddress = $request->ip() ?? $request->getClientIp() ?? 'unknown';
                 $userAgent = $request->header('User-Agent');
-                
+
                 $loginRecord = UserLoginHistory::recordLogin($user->id, $ipAddress, $userAgent);
-                
+
                 if ($loginRecord && $loginRecord->is_new_device) {
                     $this->enterpriseNotificationService->notifyNewDeviceFromHistory($user->id, $loginRecord);
                 } elseif ($loginRecord && $loginRecord->is_suspicious) {
@@ -298,7 +298,7 @@ class AuthController extends Controller
         }
 
         $user = $token->tokenable;
-        
+
         // Check if the refresh token was created with remember_me
         $wasRemembered = $token->can('remember');
 
@@ -308,7 +308,7 @@ class AuthController extends Controller
         // Create new tokens - preserve remember_me setting from original login
         $accessTokenExpiry = $wasRemembered ? Carbon::now()->addDays(7) : Carbon::now()->addHours(24);
         $accessToken = $user->createToken('access_token', ['*'], $accessTokenExpiry)->plainTextToken;
-        
+
         $refreshTokenExpiry = $wasRemembered ? Carbon::now()->addDays(90) : Carbon::now()->addDays(30);
         $refreshToken = $user->createToken('refresh_token', ['refresh', $wasRemembered ? 'remember' : 'standard'], $refreshTokenExpiry)->plainTextToken;
 
@@ -348,9 +348,16 @@ class AuthController extends Controller
                 'last_name' => $user->last_name,
                 'email' => $user->email,
                 'phone' => $user->phone,
+                'date_of_birth' => $user->date_of_birth,
+                'gender' => $user->gender,
                 'avatar' => $user->avatar,
                 'language' => $user->language,
                 'is_verified' => $user->is_verified,
+                'is_social_only' => (bool) $user->is_social_only,
+                'has_google' => !empty($user->google_id),
+                'has_apple' => !empty($user->apple_id),
+                'email_verified_at' => $user->email_verified_at,
+                'registration_source' => $user->registration_source,
                 'created_at' => $user->created_at,
                 'statistics' => $statistics,
             ],
@@ -474,6 +481,20 @@ class AuthController extends Controller
 
         $data = $request->validated();
 
+        // ─── EMAIL PROTECTION ────────────────────────────────────────────
+        // Email changes are NEVER allowed through the regular profile update.
+        // • Social-only users: email is permanently read-only.
+        // • Password users: must use the dedicated POST /profile/request-email-change flow.
+        if (isset($data['email']) && strtolower($data['email']) !== strtolower($user->email)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email cannot be changed through profile update. Use the dedicated email change flow.',
+                'error_code' => 'EMAIL_CHANGE_NOT_ALLOWED',
+            ], 403);
+        }
+        // Strip email from payload even if unchanged (defence-in-depth)
+        unset($data['email']);
+
         // Update full_name if first_name or last_name changed
         if (isset($data['first_name']) || isset($data['last_name'])) {
             $firstName = $data['first_name'] ?? $user->first_name;
@@ -499,6 +520,12 @@ class AuthController extends Controller
                     'gender' => $user->gender,
                     'avatar' => $user->avatar,
                     'language' => $user->language,
+                    'is_social_only' => (bool) $user->is_social_only,
+                    'has_google' => !empty($user->google_id),
+                    'has_apple' => !empty($user->apple_id),
+                    'email_verified_at' => $user->email_verified_at,
+                    'registration_source' => $user->registration_source,
+                    'is_verified' => $user->is_verified,
                 ],
             ],
         ]);
@@ -766,6 +793,194 @@ class AuthController extends Controller
             'data' => [
                 'confirmed_at' => now()->toISOString(),
                 'valid_for_minutes' => 30,
+            ],
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CHANGE EMAIL – Enterprise-grade verified flow
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Step 1: Request an email change.
+     * Validates current password, checks the new email is unique,
+     * then sends a 6-digit OTP to the NEW email.
+     *
+     * POST /api/v1/profile/request-email-change
+     */
+    public function requestEmailChange(Request $request): JsonResponse
+    {
+        // ── Social-only guard ──────────────────────────────────────────
+        $user = $request->user();
+
+        if ($user->is_social_only) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Social-only accounts cannot change their email address.',
+                'error_code' => 'SOCIAL_ONLY_EMAIL_LOCKED',
+            ], 403);
+        }
+
+        // ── Validation ─────────────────────────────────────────────────
+        $validator = Validator::make($request->all(), [
+            'new_email' => [
+                'required',
+                'email',
+                'max:255',
+                'different:current_email',
+                \Illuminate\Validation\Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'current_password' => 'required|string',
+        ], [
+            'new_email.required'  => 'New email address is required.',
+            'new_email.email'     => 'Please provide a valid email address.',
+            'new_email.unique'    => 'This email address is already in use.',
+            'new_email.different' => 'New email must be different from your current email.',
+            'current_password.required' => 'Current password is required for security.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // ── Password re-authentication ─────────────────────────────────
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Incorrect password.',
+                'errors' => ['current_password' => ['The provided password is incorrect.']],
+            ], 401);
+        }
+
+        // ── Rate-limit: max 3 OTPs per hour per user ──────────────────
+        $recentOtps = \App\Models\Otp::where('identifier', strtolower($request->new_email))
+            ->where('type', 'email_change')
+            ->where('created_at', '>=', Carbon::now()->subHour())
+            ->count();
+
+        if ($recentOtps >= 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many email change requests. Please try again later.',
+                'error_code' => 'EMAIL_CHANGE_RATE_LIMITED',
+            ], 429);
+        }
+
+        // ── Send OTP to the new email ──────────────────────────────────
+        $newEmail = strtolower(trim($request->new_email));
+        $otp = $this->otpService->createEmailChangeOtp($newEmail);
+        $this->otpService->sendEmail($newEmail, $otp->otp, 'Email Change Verification');
+
+        ActivityLog::log('email_change_requested', $user->id, 'User', $user->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Verification code sent to your new email address.',
+            'data' => [
+                'new_email' => $newEmail,
+                'expires_in_minutes' => 10,
+            ],
+        ]);
+    }
+
+    /**
+     * Step 2: Verify OTP and apply the email change.
+     * Checks the OTP sent to the new email, then atomically updates the user's email.
+     *
+     * POST /api/v1/profile/verify-email-change
+     */
+    public function verifyEmailChange(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->is_social_only) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Social-only accounts cannot change their email address.',
+                'error_code' => 'SOCIAL_ONLY_EMAIL_LOCKED',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'new_email' => 'required|email|max:255',
+            'otp'       => 'required|string|size:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $newEmail = strtolower(trim($request->new_email));
+
+        // ── Verify OTP ────────────────────────────────────────────────
+        $otpRecord = $this->otpService->verify($newEmail, $request->otp, 'email_change');
+
+        if (!$otpRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or expired verification code.',
+                'error_code' => 'INVALID_OTP',
+            ], 400);
+        }
+
+        // ── Re-check uniqueness right before writing ──────────────────
+        $emailTaken = User::where('email', $newEmail)
+            ->where('id', '!=', $user->id)
+            ->exists();
+
+        if ($emailTaken) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This email address is already in use.',
+                'error_code' => 'EMAIL_ALREADY_TAKEN',
+            ], 409);
+        }
+
+        // ── Apply change atomically ───────────────────────────────────
+        $oldEmail = $user->email;
+        $user->update([
+            'email'             => $newEmail,
+            'email_verified_at' => Carbon::now(), // new email is verified by OTP
+        ]);
+
+        $otpRecord->markAsUsed();
+
+        ActivityLog::log('email_changed', $user->id, 'User', $user->id, [
+            'old_email' => $oldEmail,
+            'new_email' => $newEmail,
+        ]);
+
+        Log::info("User #{$user->id} changed email from {$oldEmail} to {$newEmail}");
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Email changed successfully.',
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'date_of_birth' => $user->date_of_birth,
+                    'gender' => $user->gender,
+                    'avatar' => $user->avatar,
+                    'language' => $user->language,
+                    'is_social_only' => (bool) $user->is_social_only,
+                    'has_google' => !empty($user->google_id),
+                    'has_apple' => !empty($user->apple_id),
+                    'email_verified_at' => $user->email_verified_at,
+                    'registration_source' => $user->registration_source,
+                    'is_verified' => $user->is_verified,
+                ],
             ],
         ]);
     }

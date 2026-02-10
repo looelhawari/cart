@@ -11,7 +11,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Save } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Save,
+  Lock,
+  Mail,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 import Colors from "@/constants/Colors";
@@ -20,14 +27,17 @@ import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
 import { Toast } from "@/components/Toast";
+import { profileApi } from "@/services/api/profileApi";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 export default function EditProfileScreen() {
   const { user, updateProfile, fetchProfile } = useStore();
   const { t } = useTranslation();
 
+  const isSocialOnly = user?.is_social_only === true;
+
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
-  const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(() => {
     if (user?.date_of_birth) {
@@ -46,6 +56,7 @@ export default function EditProfileScreen() {
     user?.gender || null,
   );
   const [loading, setLoading] = useState(false);
+  const [relinkLoading, setRelinkLoading] = useState(false);
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -59,13 +70,40 @@ export default function EditProfileScreen() {
     setToast({ visible: true, message, type });
   };
 
+  const handleRelinkGoogle = async () => {
+    setRelinkLoading(true);
+    try {
+      // Trigger Google Sign-In picker to select the NEW account
+      await GoogleSignin.hasPlayServices();
+      // Sign out first to force the account picker to show
+      try {
+        await GoogleSignin.signOut();
+      } catch {}
+      const response = await GoogleSignin.signIn();
+      const idToken = response?.data?.idToken;
+
+      if (!idToken) {
+        showToast(t.editProfile.relinkFailed, "error");
+        return;
+      }
+
+      await profileApi.relinkGoogle({ id_token: idToken });
+      await fetchProfile();
+      showToast(t.editProfile.relinkSuccess, "success");
+    } catch (error: any) {
+      if (error?.code === "SIGN_IN_CANCELLED" || error?.code === "12501") {
+        // User cancelled — do nothing
+        return;
+      }
+      const msg = error?.message || t.editProfile.relinkFailed;
+      showToast(msg, "error");
+    } finally {
+      setRelinkLoading(false);
+    }
+  };
+
   const handleSave = async () => {
-    if (
-      !firstName.trim() ||
-      !lastName.trim() ||
-      !email.trim() ||
-      !phone.trim()
-    ) {
+    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
       showToast(t.editProfile.fillAllFields, "error");
       return;
     }
@@ -75,7 +113,6 @@ export default function EditProfileScreen() {
       const updateData: any = {
         first_name: firstName,
         last_name: lastName,
-        email,
         phone,
       };
 
@@ -169,16 +206,60 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>{t.auth.email} *</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder={t.editProfile.enterEmail}
-              placeholderTextColor={Colors.neutralMedium}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            <Text style={styles.label}>{t.auth.email}</Text>
+            <View style={styles.emailContainer}>
+              <View style={[styles.input, styles.emailInputReadOnly]}>
+                <Mail
+                  size={18}
+                  color={Colors.neutralMedium}
+                  style={{ marginRight: Spacing.xs }}
+                />
+                <Text style={styles.emailText} numberOfLines={1}>
+                  {user?.email || ""}
+                </Text>
+                {isSocialOnly && (
+                  <Lock size={16} color={Colors.neutralMedium} />
+                )}
+              </View>
+              {isSocialOnly ? (
+                <View>
+                  <Text style={styles.emailHint}>
+                    {t.editProfile.emailManagedByGoogle}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.relinkButton}
+                    onPress={handleRelinkGoogle}
+                    activeOpacity={0.7}
+                    disabled={relinkLoading}
+                  >
+                    {relinkLoading ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={Colors.primary900}
+                      />
+                    ) : (
+                      <>
+                        <RefreshCw size={16} color={Colors.primary900} />
+                        <Text style={styles.relinkText}>
+                          {t.editProfile.relinkGoogle}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.changeEmailButton}
+                  onPress={() => router.push("/profile/change-email" as any)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.changeEmailText}>
+                    {t.editProfile.changeEmail}
+                  </Text>
+                  <ChevronRight size={16} color={Colors.primary900} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -283,16 +364,18 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          {/* Change Password Button */}
-          <TouchableOpacity
-            style={styles.changePasswordButton}
-            onPress={() => router.push("/profile/change-password" as any)}
-            activeOpacity={0.9}
-          >
-            <Text style={styles.changePasswordText}>
-              {t.settings.changePassword}
-            </Text>
-          </TouchableOpacity>
+          {/* Change Password Button – hidden for social-only (no password) */}
+          {!isSocialOnly && (
+            <TouchableOpacity
+              style={styles.changePasswordButton}
+              onPress={() => router.push("/profile/change-password" as any)}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.changePasswordText}>
+                {t.settings.changePassword}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Save Button */}
           <TouchableOpacity
@@ -316,7 +399,7 @@ export default function EditProfileScreen() {
         visible={toast.visible}
         message={toast.message}
         type={toast.type}
-        onDismiss={() => setToast((prev) => ({ ...prev, visible: false }))}
+        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
     </SafeAreaView>
   );
@@ -417,6 +500,52 @@ const styles = StyleSheet.create({
   changePasswordText: {
     fontSize: Typography.bodyBase,
     fontWeight: Typography.bold,
+    color: Colors.primary900,
+  },
+  emailContainer: {
+    gap: Spacing.xs,
+  },
+  emailInputReadOnly: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.neutralCloud,
+    borderColor: Colors.neutralLight,
+  },
+  emailText: {
+    flex: 1,
+    fontSize: Typography.bodyBase,
+    color: Colors.neutralCharcoal,
+  },
+  emailHint: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    fontStyle: "italic",
+    marginTop: 2,
+    paddingHorizontal: Spacing.xs,
+  },
+  changeEmailButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: Spacing.sm,
+  },
+  changeEmailText: {
+    fontSize: Typography.bodyBase,
+    fontWeight: Typography.semibold,
+    color: Colors.primary900,
+  },
+  relinkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    marginTop: 4,
+  },
+  relinkText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: Typography.semibold,
     color: Colors.primary900,
   },
   saveButton: {

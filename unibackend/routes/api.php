@@ -249,6 +249,16 @@ Route::prefix('v1')->group(function () {
         Route::put('profile/change-password', [AuthController::class, 'changePassword']);
         Route::post('profile/avatar', [AuthController::class, 'uploadAvatar']);
 
+        // Email change - verified OTP flow (password users only)
+        Route::post('profile/request-email-change', [AuthController::class, 'requestEmailChange'])
+            ->middleware('throttle:5,1'); // max 5 requests per minute
+        Route::post('profile/verify-email-change', [AuthController::class, 'verifyEmailChange'])
+            ->middleware('throttle:10,1');
+
+        // Relink Google account (social-only users)
+        Route::post('profile/relink-google', [SocialAuthController::class, 'relinkGoogle'])
+            ->middleware('throttle:5,1');
+
         // Address management endpoints
         Route::get('addresses', [AddressController::class, 'index']);
         Route::post('addresses', [AddressController::class, 'store']);
