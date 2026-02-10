@@ -10,6 +10,7 @@ use App\Services\CartService;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
@@ -160,6 +161,149 @@ class OrderController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * Get live tracking data for an order
+     * GET /api/v1/orders/{id}/tracking
+     */
+    public function tracking(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $order = $this->orderService->getOrder($id, $user->id);
+
+            // Build tracking response
+            $trackingData = [
+                'order_id'     => $order->id,
+                'order_number' => $order->order_number,
+                'status'       => $order->status,
+                'status_label' => $order->status_label,
+
+                // Timeline with timestamps
+                'timeline' => [
+                    [
+                        'status'    => 'pending',
+                        'label'     => 'Order Placed',
+                        'completed' => true,
+                        'time'      => $order->created_at?->toIso8601String(),
+                    ],
+                    [
+                        'status'    => 'confirmed',
+                        'label'     => 'Order Confirmed',
+                        'completed' => in_array($order->status, ['confirmed', 'preparing', 'out_for_delivery', 'delivered']),
+                        'time'      => null, // From status_history if available
+                    ],
+                    [
+                        'status'    => 'preparing',
+                        'label'     => 'Preparing Your Order',
+                        'completed' => in_array($order->status, ['preparing', 'out_for_delivery', 'delivered']),
+                        'time'      => null,
+                    ],
+                    [
+                        'status'    => 'out_for_delivery',
+                        'label'     => 'Out for Delivery',
+                        'completed' => in_array($order->status, ['out_for_delivery', 'delivered']),
+                        'time'      => $order->driver_picked_up_at?->toIso8601String(),
+                    ],
+                    [
+                        'status'    => 'delivered',
+                        'label'     => 'Delivered',
+                        'completed' => $order->status === 'delivered',
+                        'time'      => $order->actual_delivered_at?->toIso8601String(),
+                    ],
+                ],
+
+                // Delivery location
+                'delivery' => [
+                    'lat'             => (float) $order->delivery_lat,
+                    'lng'             => (float) $order->delivery_lng,
+                    'zone_name'       => $order->zone_name,
+                    'address'         => $order->deliveryAddress ? [
+                        'street'   => $order->deliveryAddress->street,
+                        'city'     => $order->deliveryAddress->city,
+                        'area'     => $order->deliveryAddress->area,
+                        'building' => $order->deliveryAddress->building,
+                        'floor'    => $order->deliveryAddress->floor,
+                        'apartment' => $order->deliveryAddress->apartment,
+                    ] : null,
+                    'estimated_minutes' => $order->estimated_delivery_minutes,
+                ],
+
+                // Driver info (only if assigned)
+                'driver' => null,
+            ];
+
+            // If driver is assigned, include driver data + live location
+            if ($order->driver_id) {
+                $driver = $order->driver;
+                $trackingData['driver'] = [
+                    'id'         => $driver->id,
+                    'name'       => trim(($driver->first_name ?? '') . ' ' . ($driver->last_name ?? '')),
+                    'phone'      => $driver->phone,
+                    'photo'      => $driver->profile_photo,
+                    'rating'     => (float) ($driver->average_rating ?? 0),
+                    'location'   => [
+                        'lat'     => (float) ($driver->current_lat ?? 0),
+                        'lng'     => (float) ($driver->current_lng ?? 0),
+                        'heading' => null,
+                        'updated_at' => $driver->location_updated_at?->toIso8601String(),
+                    ],
+                    'assigned_at'  => $order->driver_assigned_at?->toIso8601String(),
+                    'picked_up_at' => $order->driver_picked_up_at?->toIso8601String(),
+                ];
+
+                // Get latest heading from location history
+                $latestLocation = DB::table('driver_location_history')
+                    ->where('driver_id', $driver->id)
+                    ->where('order_id', $order->id)
+                    ->orderByDesc('recorded_at')
+                    ->first();
+
+                if ($latestLocation) {
+                    $trackingData['driver']['location']['heading'] = (float) $latestLocation->heading;
+                }
+            }
+
+            // Calculate ETA
+            if ($order->status === 'out_for_delivery' && $order->estimated_delivery_minutes) {
+                $pickupTime = $order->driver_picked_up_at ?? now();
+                $eta = $pickupTime->copy()->addMinutes($order->estimated_delivery_minutes);
+                $minutesRemaining = max(0, (int) now()->diffInMinutes($eta, false));
+
+                $trackingData['eta'] = [
+                    'estimated_arrival' => $eta->toIso8601String(),
+                    'minutes_remaining' => $minutesRemaining,
+                    'total_minutes'     => $order->estimated_delivery_minutes,
+                ];
+            } else {
+                $trackingData['eta'] = null;
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => $trackingData,
+            ], 200, [], JSON_UNESCAPED_UNICODE);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve tracking data',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
     }
 

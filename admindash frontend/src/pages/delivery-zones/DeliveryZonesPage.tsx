@@ -72,6 +72,15 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
+// Fix leaflet-draw 1.0.4 bug: readableArea references undefined `type` variable
+if (L.GeometryUtil && (L.GeometryUtil as any).readableArea) {
+    const origReadableArea = (L.GeometryUtil as any).readableArea;
+    (L.GeometryUtil as any).readableArea = function (area: number, isMetric?: any, precision?: any) {
+        if (typeof isMetric === 'undefined') isMetric = true
+        return origReadableArea.call(this, area, isMetric, precision)
+    }
+}
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const ZONE_COLORS = [
@@ -143,7 +152,7 @@ export default function DeliveryZonesPage() {
         city: '',
         area: '',
         delivery_fee: 0,
-        min_order_amount: 0,
+        minimum_order: 0,
         estimated_delivery_time: '30-45 min',
         max_delivery_time_minutes: 60,
         is_active: true,
@@ -279,7 +288,7 @@ export default function DeliveryZonesPage() {
             draw: {
                 polygon: {
                     allowIntersection: false,
-                    showArea: true,
+                    showArea: false,
                     shapeOptions: { color: '#4CAF50', weight: 2, fillOpacity: 0.3 },
                 },
                 polyline: false,
@@ -417,7 +426,7 @@ export default function DeliveryZonesPage() {
             city: '',
             area: '',
             delivery_fee: 0,
-            min_order_amount: 0,
+            minimum_order: 0,
             estimated_delivery_time: '30-45 min',
             max_delivery_time_minutes: 60,
             is_active: true,
@@ -427,7 +436,10 @@ export default function DeliveryZonesPage() {
             surge_multiplier: 1.0,
             max_concurrent_orders: 50,
         })
+        setActiveTab('map')
         setIsFormOpen(true)
+        // Let the map resize after layout changes
+        setTimeout(() => mapRef.current?.invalidateSize(), 100)
     }
 
     const openEditForm = (zone: DeliveryZone) => {
@@ -439,7 +451,7 @@ export default function DeliveryZonesPage() {
             city: zone.city,
             area: zone.area,
             delivery_fee: zone.delivery_fee,
-            min_order_amount: zone.min_order_amount,
+            minimum_order: zone.minimum_order,
             estimated_delivery_time: zone.estimated_delivery_time || '',
             max_delivery_time_minutes: zone.max_delivery_time_minutes,
             is_active: zone.is_active,
@@ -449,7 +461,10 @@ export default function DeliveryZonesPage() {
             surge_multiplier: zone.surge_multiplier || 1.0,
             max_concurrent_orders: zone.max_concurrent_orders || 50,
         })
+        setActiveTab('map')
         setIsFormOpen(true)
+        // Let the map resize after layout changes
+        setTimeout(() => mapRef.current?.invalidateSize(), 100)
 
         // Zoom to zone
         if (mapRef.current && zone.polygon_coordinates?.length) {
@@ -507,13 +522,16 @@ export default function DeliveryZonesPage() {
         if (mapRef.current && mapReady) {
             renderZonePolygons(mapRef.current, zones)
         }
+
+        // Let the map resize after layout changes back
+        setTimeout(() => mapRef.current?.invalidateSize(), 100)
     }
 
     const handleSubmit = () => {
-        if (!formData.name || !formData.city || !formData.area) {
+        if (!formData.name || !formData.city || formData.delivery_fee === undefined || (formData.polygon_coordinates?.length || 0) < 3) {
             toast({
-                title: isRTL ? 'بيانات مفقودة' : 'Missing fields',
-                description: isRTL ? 'الرجاء ملء الاسم والمدينة والمنطقة' : 'Please fill in name, city, and area',
+                title: isRTL ? 'بيانات مفقودة' : 'Missing required fields',
+                description: isRTL ? 'الرجاء ملء الاسم والمدينة ورسم المنطقة وتحديد رسوم التوصيل' : 'Please fill in name, city, draw the zone, and set delivery fee',
                 variant: 'destructive',
             })
             return
@@ -552,7 +570,7 @@ export default function DeliveryZonesPage() {
         // Programmatically start polygon drawing
         const handler = new (L.Draw as any).Polygon(mapRef.current, {
             allowIntersection: false,
-            showArea: true,
+            showArea: false,
             shapeOptions: {
                 color: formData.color || '#4CAF50',
                 weight: 2,
@@ -674,7 +692,7 @@ export default function DeliveryZonesPage() {
             {activeTab === 'map' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                     {/* Map */}
-                    <div className="lg:col-span-3">
+                    <div className={cn(isFormOpen ? "lg:col-span-2" : "lg:col-span-3")}>
                         <Card className="overflow-hidden">
                             <div
                                 ref={mapContainerRef}
@@ -684,39 +702,54 @@ export default function DeliveryZonesPage() {
                         </Card>
                     </div>
 
-                    {/* Zone Sidebar */}
-                    <div className="lg:col-span-1">
-                        <Card className="h-[600px] flex flex-col">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium">
-                                    {isRTL ? 'المناطق' : 'Zones'} ({zones.length})
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex-1 overflow-y-auto space-y-2 p-3">
-                                {zonesLoading ? (
-                                    <div className="flex items-center justify-center h-32">
-                                        <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-                                    </div>
-                                ) : zones.length === 0 ? (
-                                    <div className="text-center py-8 text-muted-foreground text-sm">
-                                        {isRTL ? 'لا توجد مناطق بعد' : 'No zones yet'}
-                                    </div>
-                                ) : (
-                                    zones.map(zone => (
-                                        <ZoneSidebarCard
-                                            key={zone.id}
-                                            zone={zone}
-                                            isSelected={selectedZoneId === zone.id}
-                                            isRTL={isRTL}
-                                            onFocus={() => focusZone(zone)}
-                                            onEdit={() => openEditForm(zone)}
-                                            onToggle={() => toggleMutation.mutate(zone.id)}
-                                            onDelete={() => setDeleteZone(zone)}
-                                        />
-                                    ))
-                                )}
-                            </CardContent>
-                        </Card>
+                    {/* Right Panel: Form (when open) or Zone Sidebar */}
+                    <div className={cn(isFormOpen ? "lg:col-span-2" : "lg:col-span-1")}>
+                        {isFormOpen ? (
+                            <ZoneFormPanel
+                                onClose={closeForm}
+                                formData={formData}
+                                setFormData={setFormData}
+                                onSubmit={handleSubmit}
+                                isEditing={!!editingZone}
+                                isSubmitting={createMutation.isPending || updateMutation.isPending}
+                                isRTL={isRTL}
+                                onStartDrawing={startDrawing}
+                                onClearPolygon={clearPolygon}
+                                mapReady={mapReady}
+                            />
+                        ) : (
+                            <Card className="h-[600px] flex flex-col">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-medium">
+                                        {isRTL ? 'المناطق' : 'Zones'} ({zones.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex-1 overflow-y-auto space-y-2 p-3">
+                                    {zonesLoading ? (
+                                        <div className="flex items-center justify-center h-32">
+                                            <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                                        </div>
+                                    ) : zones.length === 0 ? (
+                                        <div className="text-center py-8 text-muted-foreground text-sm">
+                                            {isRTL ? 'لا توجد مناطق بعد' : 'No zones yet'}
+                                        </div>
+                                    ) : (
+                                        zones.map(zone => (
+                                            <ZoneSidebarCard
+                                                key={zone.id}
+                                                zone={zone}
+                                                isSelected={selectedZoneId === zone.id}
+                                                isRTL={isRTL}
+                                                onFocus={() => focusZone(zone)}
+                                                onEdit={() => openEditForm(zone)}
+                                                onToggle={() => toggleMutation.mutate(zone.id)}
+                                                onDelete={() => setDeleteZone(zone)}
+                                            />
+                                        ))
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 </div>
             ) : (
@@ -731,21 +764,6 @@ export default function DeliveryZonesPage() {
                     formatCurrency={formatCurrency}
                 />
             )}
-
-            {/* Create/Edit Form Dialog */}
-            <ZoneFormDialog
-                isOpen={isFormOpen}
-                onClose={closeForm}
-                formData={formData}
-                setFormData={setFormData}
-                onSubmit={handleSubmit}
-                isEditing={!!editingZone}
-                isSubmitting={createMutation.isPending || updateMutation.isPending}
-                isRTL={isRTL}
-                onStartDrawing={startDrawing}
-                onClearPolygon={clearPolygon}
-                mapReady={mapReady}
-            />
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!deleteZone} onOpenChange={() => setDeleteZone(null)}>
@@ -923,7 +941,7 @@ function ZoneListView({
                                         </td>
                                         <td className="px-4 py-3 text-sm text-muted-foreground">{zone.city} - {zone.area}</td>
                                         <td className="px-4 py-3 text-sm text-center font-medium">{formatCurrency(zone.delivery_fee)}</td>
-                                        <td className="px-4 py-3 text-sm text-center">{formatCurrency(zone.min_order_amount)}</td>
+                                        <td className="px-4 py-3 text-sm text-center">{formatCurrency(zone.minimum_order)}</td>
                                         <td className="px-4 py-3 text-sm text-center">{zone.estimated_delivery_time || '-'}</td>
                                         <td className="px-4 py-3 text-center">
                                             {zone.polygon_coordinates?.length ? (
@@ -956,10 +974,10 @@ function ZoneListView({
     )
 }
 
-function ZoneFormDialog({
-    isOpen, onClose, formData, setFormData, onSubmit, isEditing, isSubmitting, isRTL, onStartDrawing, onClearPolygon, mapReady,
+function ZoneFormPanel({
+    onClose, formData, setFormData, onSubmit, isEditing, isSubmitting, isRTL, onStartDrawing, onClearPolygon, mapReady,
 }: {
-    isOpen: boolean; onClose: () => void; formData: CreateDeliveryZoneData
+    onClose: () => void; formData: CreateDeliveryZoneData
     setFormData: React.Dispatch<React.SetStateAction<CreateDeliveryZoneData>>
     onSubmit: () => void; isEditing: boolean; isSubmitting: boolean; isRTL: boolean
     onStartDrawing: () => void; onClearPolygon: () => void; mapReady: boolean
@@ -969,118 +987,111 @@ function ZoneFormDialog({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>
+        <Card className="h-[600px] flex flex-col">
+            <CardHeader className="pb-2 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold">
                         {isEditing
                             ? (isRTL ? 'تعديل منطقة التوصيل' : 'Edit Delivery Zone')
                             : (isRTL ? 'إنشاء منطقة توصيل جديدة' : 'Create Delivery Zone')}
-                    </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-6 py-4">
-                    {/* Basic Info */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'المعلومات الأساسية' : 'Basic Information'}</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><Label>{isRTL ? 'الاسم (إنجليزي)' : 'Name (English)'} *</Label><Input value={formData.name} onChange={(e) => handleChange('name', e.target.value)} placeholder="e.g. Maadi Zone" /></div>
-                            <div><Label>{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label><Input value={formData.name_ar || ''} onChange={(e) => handleChange('name_ar', e.target.value)} placeholder="مثال: منطقة المعادي" dir="rtl" /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><Label>{isRTL ? 'المدينة' : 'City'} *</Label><Input value={formData.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="e.g. Cairo" /></div>
-                            <div><Label>{isRTL ? 'المنطقة' : 'Area'} *</Label><Input value={formData.area} onChange={(e) => handleChange('area', e.target.value)} placeholder="e.g. Maadi" /></div>
-                        </div>
-                        <div><Label>{isRTL ? 'الوصف' : 'Description'}</Label><Textarea value={formData.description || ''} onChange={(e) => handleChange('description', e.target.value)} placeholder={isRTL ? 'وصف اختياري...' : 'Optional description...'} rows={2} /></div>
+                    </CardTitle>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>✕</Button>
+                </div>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto space-y-4 p-4 pt-0">
+                {/* Basic Info */}
+                <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">{isRTL ? 'المعلومات الأساسية' : 'Basic Info'}</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><Label className="text-xs">{isRTL ? 'الاسم' : 'Name'} *</Label><Input className="h-8 text-sm" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} placeholder="e.g. Maadi" /></div>
+                        <div><Label className="text-xs">{isRTL ? 'عربي' : 'Arabic'}</Label><Input className="h-8 text-sm" value={formData.name_ar || ''} onChange={(e) => handleChange('name_ar', e.target.value)} placeholder="المعادي" dir="rtl" /></div>
                     </div>
-
-                    {/* Pricing & Delivery */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'التسعير والتوصيل' : 'Pricing & Delivery'}</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><Label>{isRTL ? 'رسوم التوصيل (EGP)' : 'Delivery Fee (EGP)'}</Label><Input type="number" min={0} step={0.01} value={formData.delivery_fee} onChange={(e) => handleChange('delivery_fee', parseFloat(e.target.value) || 0)} /></div>
-                            <div><Label>{isRTL ? 'الحد الأدنى للطلب (EGP)' : 'Min Order Amount (EGP)'}</Label><Input type="number" min={0} step={0.01} value={formData.min_order_amount} onChange={(e) => handleChange('min_order_amount', parseFloat(e.target.value) || 0)} /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><Label>{isRTL ? 'وقت التوصيل المقدّر' : 'Estimated Delivery Time'}</Label><Input value={formData.estimated_delivery_time || ''} onChange={(e) => handleChange('estimated_delivery_time', e.target.value)} placeholder="e.g. 30-45 min" /></div>
-                            <div><Label>{isRTL ? 'أقصى وقت للتوصيل (دقيقة)' : 'Max Delivery Time (min)'}</Label><Input type="number" min={0} value={formData.max_delivery_time_minutes || 60} onChange={(e) => handleChange('max_delivery_time_minutes', parseInt(e.target.value) || 60)} /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><Label>{isRTL ? 'معامل الزيادة' : 'Surge Multiplier'}</Label><Input type="number" min={1} max={5} step={0.1} value={formData.surge_multiplier || 1.0} onChange={(e) => handleChange('surge_multiplier', parseFloat(e.target.value) || 1.0)} /></div>
-                            <div><Label>{isRTL ? 'أقصى عدد طلبات متزامنة' : 'Max Concurrent Orders'}</Label><Input type="number" min={1} value={formData.max_concurrent_orders || 50} onChange={(e) => handleChange('max_concurrent_orders', parseInt(e.target.value) || 50)} /></div>
-                        </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><Label className="text-xs">{isRTL ? 'المدينة' : 'City'} *</Label><Input className="h-8 text-sm" value={formData.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="Cairo" /></div>
+                        <div><Label className="text-xs">{isRTL ? 'المنطقة' : 'Area'}</Label><Input className="h-8 text-sm" value={formData.area} onChange={(e) => handleChange('area', e.target.value)} placeholder="Maadi" /></div>
                     </div>
+                    <div><Label className="text-xs">{isRTL ? 'الوصف' : 'Description'}</Label><Textarea className="text-sm" value={formData.description || ''} onChange={(e) => handleChange('description', e.target.value)} rows={2} /></div>
+                </div>
 
-                    {/* Polygon */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'حدود المنطقة على الخريطة' : 'Zone Boundary on Map'}</h3>
-                        {mapReady ? (
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-3">
-                                    <Button type="button" variant="outline" size="sm" onClick={onStartDrawing}>
-                                        <MapIcon className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                                        {formData.polygon_coordinates?.length ? (isRTL ? 'إعادة رسم' : 'Redraw') : (isRTL ? 'رسم حدود المنطقة' : 'Draw Zone Boundary')}
-                                    </Button>
-                                    {formData.polygon_coordinates?.length ? (
-                                        <Button type="button" variant="ghost" size="sm" onClick={onClearPolygon}>{isRTL ? 'مسح' : 'Clear'}</Button>
-                                    ) : null}
-                                </div>
-                                {formData.polygon_coordinates?.length ? (
-                                    <p className="text-xs text-green-600 flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />{formData.polygon_coordinates.length} {isRTL ? 'نقطة محددة' : 'points defined'}
-                                    </p>
-                                ) : (
-                                    <p className="text-xs text-muted-foreground">{isRTL ? 'انقر على "رسم حدود المنطقة" ثم ارسم المضلع على الخريطة' : 'Click "Draw Zone Boundary" then draw the polygon on the map'}</p>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="text-xs text-muted-foreground">{isRTL ? 'جارِ تحميل الخريطة...' : 'Loading map...'}</p>
-                        )}
+                {/* Pricing */}
+                <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">{isRTL ? 'التسعير' : 'Pricing'}</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><Label className="text-xs">{isRTL ? 'رسوم التوصيل' : 'Delivery Fee'} (EGP)</Label><Input className="h-8 text-sm" type="number" min={0} step={0.01} value={formData.delivery_fee} onChange={(e) => handleChange('delivery_fee', parseFloat(e.target.value) || 0)} /></div>
+                        <div><Label className="text-xs">{isRTL ? 'الحد الأدنى' : 'Min Order'} (EGP)</Label><Input className="h-8 text-sm" type="number" min={0} step={0.01} value={formData.minimum_order} onChange={(e) => handleChange('minimum_order', parseFloat(e.target.value) || 0)} /></div>
                     </div>
-
-                    {/* Appearance */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'المظهر' : 'Appearance'}</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>{isRTL ? 'لون المنطقة' : 'Zone Color'}</Label>
-                                <div className="flex items-center gap-2 mt-1.5">
-                                    <input type="color" value={formData.color || '#4CAF50'} onChange={(e) => handleChange('color', e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0" />
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {ZONE_COLORS.slice(0, 8).map(color => (
-                                            <button key={color} type="button" className={cn('w-6 h-6 rounded-full border-2 transition-transform hover:scale-110', formData.color === color ? 'border-gray-800 scale-110' : 'border-transparent')} style={{ backgroundColor: color }} onClick={() => handleChange('color', color)} />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <Label>{isRTL ? 'الشفافية' : 'Opacity'} ({((formData.opacity || 0.3) * 100).toFixed(0)}%)</Label>
-                                <input type="range" min={0.1} max={0.8} step={0.05} value={formData.opacity || 0.3} onChange={(e) => handleChange('opacity', parseFloat(e.target.value))} className="w-full mt-2" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Active Toggle */}
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                            <p className="text-sm font-medium">{isRTL ? 'المنطقة نشطة' : 'Zone Active'}</p>
-                            <p className="text-xs text-muted-foreground">{isRTL ? 'المناطق غير النشطة لن تقبل طلبات' : 'Inactive zones will not accept orders'}</p>
-                        </div>
-                        <Switch checked={formData.is_active} onCheckedChange={(checked) => handleChange('is_active', checked)} />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><Label className="text-xs">{isRTL ? 'وقت التوصيل' : 'Est. Time'}</Label><Input className="h-8 text-sm" value={formData.estimated_delivery_time || ''} onChange={(e) => handleChange('estimated_delivery_time', e.target.value)} placeholder="30-45 min" /></div>
+                        <div><Label className="text-xs">{isRTL ? 'أقصى وقت (د)' : 'Max Time (min)'}</Label><Input className="h-8 text-sm" type="number" min={0} value={formData.max_delivery_time_minutes || 60} onChange={(e) => handleChange('max_delivery_time_minutes', parseInt(e.target.value) || 60)} /></div>
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                    <Button onClick={onSubmit} disabled={isSubmitting} className="bg-elbaraka-primary hover:bg-elbaraka-primary/90">
-                        {isSubmitting ? (
-                            <><RefreshCw className={cn("h-4 w-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />{isRTL ? 'جارِ الحفظ...' : 'Saving...'}</>
-                        ) : (
-                            isEditing ? (isRTL ? 'تحديث المنطقة' : 'Update Zone') : (isRTL ? 'إنشاء المنطقة' : 'Create Zone')
-                        )}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                {/* Zone Boundary - Drawing */}
+                <div className="space-y-2">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">{isRTL ? 'حدود المنطقة' : 'Zone Boundary'}</h3>
+                    {mapReady ? (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={onStartDrawing}>
+                                    <MapIcon className={cn("h-3.5 w-3.5", isRTL ? "ml-1.5" : "mr-1.5")} />
+                                    {formData.polygon_coordinates?.length ? (isRTL ? 'إعادة رسم' : 'Redraw') : (isRTL ? 'رسم الحدود' : 'Draw Boundary')}
+                                </Button>
+                                {formData.polygon_coordinates?.length ? (
+                                    <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={onClearPolygon}>{isRTL ? 'مسح' : 'Clear'}</Button>
+                                ) : null}
+                            </div>
+                            {formData.polygon_coordinates?.length ? (
+                                <p className="text-xs text-green-600 flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />{formData.polygon_coordinates.length} {isRTL ? 'نقطة' : 'points defined'} ✓
+                                </p>
+                            ) : (
+                                <p className="text-xs text-amber-600 flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />{isRTL ? 'انقر على "رسم الحدود" ثم ارسم على الخريطة ←' : 'Click "Draw Boundary" then draw on the map ←'}
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">{isRTL ? 'جارِ تحميل الخريطة...' : 'Loading map...'}</p>
+                    )}
+                </div>
+
+                {/* Appearance */}
+                <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">{isRTL ? 'المظهر' : 'Appearance'}</h3>
+                    <div className="flex items-center gap-2">
+                        <input type="color" value={formData.color || '#4CAF50'} onChange={(e) => handleChange('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0" />
+                        <div className="flex flex-wrap gap-1">
+                            {ZONE_COLORS.slice(0, 8).map(color => (
+                                <button key={color} type="button" className={cn('w-5 h-5 rounded-full border-2 transition-transform hover:scale-110', formData.color === color ? 'border-gray-800 scale-110' : 'border-transparent')} style={{ backgroundColor: color }} onClick={() => handleChange('color', color)} />
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <Label className="text-xs">{isRTL ? 'الشفافية' : 'Opacity'} ({((formData.opacity || 0.3) * 100).toFixed(0)}%)</Label>
+                        <input type="range" min={0.1} max={0.8} step={0.05} value={formData.opacity || 0.3} onChange={(e) => handleChange('opacity', parseFloat(e.target.value))} className="w-full" />
+                    </div>
+                </div>
+
+                {/* Active Toggle */}
+                <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div>
+                        <p className="text-xs font-medium">{isRTL ? 'نشطة' : 'Active'}</p>
+                    </div>
+                    <Switch checked={formData.is_active} onCheckedChange={(checked) => handleChange('is_active', checked)} />
+                </div>
+            </CardContent>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 flex items-center justify-end gap-2 p-3 border-t">
+                <Button variant="outline" size="sm" onClick={onClose}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                <Button size="sm" onClick={onSubmit} disabled={isSubmitting} className="bg-elbaraka-primary hover:bg-elbaraka-primary/90">
+                    {isSubmitting ? (
+                        <><RefreshCw className={cn("h-3.5 w-3.5 animate-spin", isRTL ? "ml-1.5" : "mr-1.5")} />{isRTL ? 'حفظ...' : 'Saving...'}</>
+                    ) : (
+                        isEditing ? (isRTL ? 'تحديث' : 'Update Zone') : (isRTL ? 'إنشاء' : 'Create Zone')
+                    )}
+                </Button>
+            </div>
+        </Card>
     )
 }

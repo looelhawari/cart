@@ -595,6 +595,32 @@ export default {
     reorderFailed: "Failed to reorder",
   },
 
+  // Tracking
+  tracking: {
+    title: "Track Order",
+    live: "LIVE",
+    estimatedArrival: "Estimated Arrival",
+    arrivingNow: "Arriving now",
+    min: "min",
+    trackingUnavailable: "Tracking Unavailable",
+    couldNotLoad: "Could not load tracking data",
+    tryAgain: "Try Again",
+    loadingTracking: "Loading tracking...",
+    yourDeliveryDriver: "Your delivery driver",
+    orderStatus: "Order Status",
+    deliveryDetails: "Delivery Details",
+    deliveringTo: "Delivering to",
+    deliveryZone: "Delivery Zone",
+    trackOrder: "Track Order",
+    callDriver: "Call Driver",
+    // Timeline steps
+    orderPlaced: "Order Placed",
+    orderConfirmed: "Order Confirmed",
+    preparingOrder: "Preparing Your Order",
+    outForDelivery: "Out for Delivery",
+    delivered: "Delivered",
+  },
+
   // Cart
   cart: {
     title: "My Cart",
@@ -706,6 +732,13 @@ export default {
     updated: "updated",
     added: "added",
     failedToSave: "Failed to save address",
+    // Map picker
+    locationPermissionDenied: "Location permission denied. Please enable it in settings.",
+    pleaseSelectLocation: "Please select a location on the map",
+    pickLocation: "Pick Location",
+    moveMapToSelect: "Move the map to select a location",
+    outsideDeliveryZone: "Outside delivery area",
+    confirmLocation: "Confirm Location",
   },
 
   // Welcome

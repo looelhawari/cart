@@ -8,16 +8,18 @@ export interface DeliveryZoneInfo {
     city: string;
     area: string;
     delivery_fee: number;
-    min_order_amount: number;
+    minimum_order: number;
     estimated_delivery_time: string | null;
     max_delivery_time_minutes: number;
+    distance_from_center_km?: number;
     is_active: boolean;
     color: string;
     polygon_coordinates: { lat: number; lng: number }[] | null;
 }
 
 export interface CoverageResult {
-    covered: boolean;
+    is_covered: boolean;
+    covered: boolean; // alias for is_covered
     zone: DeliveryZoneInfo | null;
     delivery_fee: number;
     message: string;

@@ -1100,18 +1100,18 @@ export default function OrderDetailsScreen() {
                     {(order.delivery_address.building ||
                       order.delivery_address.floor ||
                       order.delivery_address.apartment) && (
-                      <Text style={styles.infoValue}>
-                        {order.delivery_address.building
-                          ? `Bldg ${order.delivery_address.building}`
-                          : ""}
-                        {order.delivery_address.floor
-                          ? `${order.delivery_address.building ? ", " : ""}Floor ${order.delivery_address.floor}`
-                          : ""}
-                        {order.delivery_address.apartment
-                          ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}Apt ${order.delivery_address.apartment}`
-                          : ""}
-                      </Text>
-                    )}
+                        <Text style={styles.infoValue}>
+                          {order.delivery_address.building
+                            ? `Bldg ${order.delivery_address.building}`
+                            : ""}
+                          {order.delivery_address.floor
+                            ? `${order.delivery_address.building ? ", " : ""}Floor ${order.delivery_address.floor}`
+                            : ""}
+                          {order.delivery_address.apartment
+                            ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}Apt ${order.delivery_address.apartment}`
+                            : ""}
+                        </Text>
+                      )}
                     <Text style={styles.infoValue}>
                       {order.delivery_address.city}
                       {order.delivery_address.area
@@ -1168,7 +1168,7 @@ export default function OrderDetailsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               {order.payment_method === "cod" ||
-              order.payment_method === "cash_on_delivery" ? (
+                order.payment_method === "cash_on_delivery" ? (
                 <Ionicons
                   name="wallet-outline"
                   size={20}
@@ -1184,7 +1184,7 @@ export default function OrderDetailsScreen() {
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoValue}>
                   {order.payment_method === "cod" ||
-                  order.payment_method === "cash_on_delivery"
+                    order.payment_method === "cash_on_delivery"
                     ? "Cash on Delivery"
                     : order.payment_method === "wallet"
                       ? "Wallet Payment"
@@ -1355,19 +1355,41 @@ export default function OrderDetailsScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      {canCancelOrder(order.status) && (
+      {!["delivered", "cancelled", "failed"].includes(order.status) && (
         <View style={styles.footer}>
+          {/* Track Order button for active orders */}
           <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => setShowCancelDialog(true)}
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              backgroundColor: Colors.primary900,
+              paddingVertical: 14,
+              borderRadius: 16,
+            }}
+            onPress={() => router.push(`/orders/tracking?id=${order.id}` as any)}
           >
-            <Ionicons
-              name="close-circle-outline"
-              size={20}
-              color={Colors.accentRed}
-            />
-            <Text style={styles.cancelText}>Cancel Order</Text>
+            <Ionicons name="navigate" size={18} color="#fff" />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>
+              Track Order
+            </Text>
           </TouchableOpacity>
+
+          {canCancelOrder(order.status) && (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowCancelDialog(true)}
+            >
+              <Ionicons
+                name="close-circle-outline"
+                size={20}
+                color={Colors.accentRed}
+              />
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

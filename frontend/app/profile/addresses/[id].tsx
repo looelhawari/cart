@@ -51,6 +51,8 @@ export default function AddEditAddressScreen() {
   const [placeId, setPlaceId] = useState("");
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [zoneName, setZoneName] = useState("");
+  const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
+  const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
 
   const getToken = async () => {
     return await AsyncStorage.getItem("access_token");
@@ -328,8 +330,16 @@ export default function AddEditAddressScreen() {
                 </Text>
               ) : null}
               {zoneName ? (
-                <Text style={styles.mapPickerZone}>
-                  ✓ {zoneName}
+                <View>
+                  <Text style={styles.mapPickerZone}>
+                    ✓ {zoneName}
+                    {deliveryFee !== null && ` • EGP ${deliveryFee} delivery`}
+                    {estimatedTime && ` • ${estimatedTime}`}
+                  </Text>
+                </View>
+              ) : latitude ? (
+                <Text style={styles.mapPickerZoneWarning}>
+                  ⚠ Outside delivery area
                 </Text>
               ) : null}
             </View>
@@ -468,6 +478,12 @@ export default function AddEditAddressScreen() {
             setPlaceId(location.placeId);
             if (location.zone) {
               setZoneName(location.zone.name);
+              setDeliveryFee(location.zone.delivery_fee);
+              setEstimatedTime(location.zone.estimated_delivery_time);
+            } else {
+              setZoneName("");
+              setDeliveryFee(null);
+              setEstimatedTime(null);
             }
             // Auto-fill address fields from map
             if (location.addressComponents) {
@@ -685,6 +701,12 @@ const styles = StyleSheet.create({
   mapPickerZone: {
     fontSize: 11,
     color: "#16a34a",
+    fontWeight: "500" as any,
+    marginTop: 2,
+  },
+  mapPickerZoneWarning: {
+    fontSize: 11,
+    color: "#dc2626",
     fontWeight: "500" as any,
     marginTop: 2,
   },

@@ -306,6 +306,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::post('/', [OrderController::class, 'store']);
             Route::get('/{id}', [OrderController::class, 'show']);
+            Route::get('/{id}/tracking', [OrderController::class, 'tracking']);
             Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
         });

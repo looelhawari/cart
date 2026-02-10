@@ -21,3 +21,10 @@ Broadcast::channel('complaints.{id}', function ($user, $id) {
     
     return $isOwner || $isAdmin; 
 });
+
+// Order tracking channel — only order owner or admin can listen
+Broadcast::channel('order.{orderId}.tracking', function ($user, $orderId) {
+    $order = \App\Models\Order::find($orderId);
+    if (!$order) return false;
+    return (int) $user->id === (int) $order->user_id || $user->isAdmin();
+});

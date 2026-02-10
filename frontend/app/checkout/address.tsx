@@ -267,6 +267,7 @@ export default function CheckoutAddressScreen() {
                         <Check size={14} color="#16a34a" />
                         <Text style={styles.zoneOkText}>
                           {zoneValidation.result.zone?.name || "In zone"} — EGP {zoneValidation.result.delivery_fee} delivery
+                          {zoneValidation.result.zone?.estimated_delivery_time && ` • ${zoneValidation.result.zone.estimated_delivery_time}`}
                         </Text>
                       </>
                     ) : (

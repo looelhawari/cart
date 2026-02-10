@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
+// @ts-ignore — lucide-react-native types not resolved under bundler moduleResolution
 import { MapPin, Navigation, X, Check } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import { deliveryZoneApi, type CoverageResult } from "@/services/api/deliveryZoneApi";
@@ -113,7 +114,7 @@ export default function MapAddressPicker({
                 );
                 const data = response.data || response;
                 setZoneInfo(data.zone);
-                setIsInZone(data.covered);
+                setIsInZone(data.is_covered ?? data.covered ?? false);
             } catch (error) {
                 // Silently fail — zone check is non-critical
                 setZoneInfo(null);
@@ -441,21 +442,37 @@ export default function MapAddressPicker({
                         <Text style={styles.zoneChecking}>Checking delivery zone...</Text>
                     </View>
                 ) : isInZone !== null ? (
-                    <View style={[styles.zoneRow, isInZone ? styles.zoneOk : styles.zoneNotOk]}>
+                    <View style={isInZone ? styles.zoneOk : styles.zoneNotOk}>
                         {isInZone ? (
                             <>
-                                <Check size={14} color="#16a34a" />
-                                <Text style={styles.zoneOkText}>
-                                    {zoneInfo?.name || "Delivery zone"} — EGP {zoneInfo?.delivery_fee || 0} delivery fee
-                                </Text>
+                                <View style={styles.zoneRow}>
+                                    <Check size={14} color="#16a34a" />
+                                    <Text style={styles.zoneOkText}>
+                                        {zoneInfo?.name || "Delivery zone"} — EGP {zoneInfo?.delivery_fee || 0} delivery fee
+                                    </Text>
+                                </View>
+                                {(zoneInfo?.estimated_delivery_time || zoneInfo?.distance_from_center_km) && (
+                                    <View style={styles.zoneDetailsRow}>
+                                        {zoneInfo?.estimated_delivery_time && (
+                                            <Text style={styles.zoneDetailText}>
+                                                🕐 {zoneInfo.estimated_delivery_time}
+                                            </Text>
+                                        )}
+                                        {zoneInfo?.distance_from_center_km && (
+                                            <Text style={styles.zoneDetailText}>
+                                                📍 {zoneInfo.distance_from_center_km.toFixed(1)} km away
+                                            </Text>
+                                        )}
+                                    </View>
+                                )}
                             </>
                         ) : (
-                            <>
+                            <View style={styles.zoneRow}>
                                 <X size={14} color="#dc2626" />
                                 <Text style={styles.zoneNotOkText}>
                                     {t?.addresses?.outsideDeliveryZone || "Outside delivery area"}
                                 </Text>
-                            </>
+                            </View>
                         )}
                     </View>
                 ) : null}
@@ -566,14 +583,32 @@ const styles = StyleSheet.create({
     },
     zoneOk: {
         backgroundColor: "#f0fdf4",
+        borderRadius: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
     },
     zoneOkText: {
         fontSize: 12,
         color: "#16a34a",
         fontWeight: "500",
     },
+    zoneDetailsRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingTop: 4,
+        marginLeft: 20,
+    },
+    zoneDetailText: {
+        fontSize: 11,
+        color: "#16a34a",
+        fontWeight: "400",
+    },
     zoneNotOk: {
         backgroundColor: "#fef2f2",
+        borderRadius: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
     },
     zoneNotOkText: {
         fontSize: 12,

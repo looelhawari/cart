@@ -24,7 +24,7 @@ export interface DeliveryZone {
     city: string
     area: string
     delivery_fee: number
-    min_order_amount: number
+    minimum_order: number
     estimated_delivery_time: string | null
     max_delivery_time_minutes: number
     is_active: boolean
@@ -65,9 +65,9 @@ export interface CreateDeliveryZoneData {
     name_ar?: string
     description?: string
     city: string
-    area: string
+    area?: string
     delivery_fee: number
-    min_order_amount: number
+    minimum_order?: number
     estimated_delivery_time?: string
     max_delivery_time_minutes?: number
     is_active?: boolean

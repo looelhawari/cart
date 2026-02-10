@@ -593,6 +593,31 @@ export default {
     reorderFailed: "فشل إعادة الطلب",
   },
 
+  // Tracking
+  tracking: {
+    title: "تتبع الطلب",
+    live: "مباشر",
+    estimatedArrival: "الوصول المتوقع",
+    arrivingNow: "يصل الآن",
+    min: "دقيقة",
+    trackingUnavailable: "التتبع غير متاح",
+    couldNotLoad: "تعذر تحميل بيانات التتبع",
+    tryAgain: "حاول مرة أخرى",
+    loadingTracking: "جاري تحميل التتبع...",
+    yourDeliveryDriver: "سائق التوصيل الخاص بك",
+    orderStatus: "حالة الطلب",
+    deliveryDetails: "تفاصيل التوصيل",
+    deliveringTo: "التوصيل إلى",
+    deliveryZone: "منطقة التوصيل",
+    trackOrder: "تتبع الطلب",
+    callDriver: "اتصل بالسائق",
+    orderPlaced: "تم تقديم الطلب",
+    orderConfirmed: "تم تأكيد الطلب",
+    preparingOrder: "جاري تحضير طلبك",
+    outForDelivery: "في الطريق إليك",
+    delivered: "تم التوصيل",
+  },
+
   // Cart
   cart: {
     title: "سلة التسوق",
@@ -705,6 +730,13 @@ export default {
     updated: "تحديث",
     added: "إضافة",
     failedToSave: "فشل حفظ العنوان",
+    // Map picker
+    locationPermissionDenied: "تم رفض إذن الموقع. يرجى تفعيله من الإعدادات.",
+    pleaseSelectLocation: "يرجى تحديد موقع على الخريطة",
+    pickLocation: "اختر الموقع",
+    moveMapToSelect: "حرّك الخريطة لتحديد الموقع",
+    outsideDeliveryZone: "خارج منطقة التوصيل",
+    confirmLocation: "تأكيد الموقع",
   },
 
   // Welcome

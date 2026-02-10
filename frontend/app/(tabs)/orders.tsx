@@ -473,6 +473,32 @@ export default function OrdersScreen() {
             <ChevronRight size={16} color={Colors.primary900} />
           </TouchableOpacity>
 
+          {["pending", "confirmed", "preparing", "out_for_delivery", "processing"].includes(item.status) && (
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Colors.primary900 + "12",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 12,
+                gap: 4,
+              }}
+              onPress={() => router.push(`/orders/tracking?id=${item.id}` as any)}
+            >
+              <Ionicons name="navigate" size={14} color={Colors.primary900} />
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "600",
+                  color: Colors.primary900,
+                }}
+              >
+                Track
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {item.status === "delivered" && (
             <TouchableOpacity
               style={{
