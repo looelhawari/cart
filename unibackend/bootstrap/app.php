@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'force.json' => \App\Http\Middleware\ForceJsonResponse::class,
             'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'driver' => \App\Http\Middleware\DriverMiddleware::class,
             'password.confirm' => \App\Http\Middleware\RequirePasswordConfirmation::class,
             'log.admin.activity' => \App\Http\Middleware\LogAdminActivity::class,
             'gzip' => \App\Http\Middleware\GzipCompress::class,

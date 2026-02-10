@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\PushNotificationService;
 use App\Services\EnterpriseNotificationService;
+use App\Services\DeliveryZoneService;
+use App\Events\OrderStatusUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,10 +17,12 @@ class OrderController extends Controller
 {
     protected PushNotificationService $pushNotificationService;
     protected ?EnterpriseNotificationService $enterpriseNotificationService;
+    protected DeliveryZoneService $deliveryZoneService;
 
-    public function __construct(PushNotificationService $pushNotificationService)
+    public function __construct(PushNotificationService $pushNotificationService, DeliveryZoneService $deliveryZoneService)
     {
         $this->pushNotificationService = $pushNotificationService;
+        $this->deliveryZoneService = $deliveryZoneService;
         try {
             $this->enterpriseNotificationService = app(EnterpriseNotificationService::class);
         } catch (\Exception $e) {
@@ -157,6 +161,21 @@ class OrderController extends Controller
         }
 
         $order->save();
+
+        // Auto-assign nearest driver when order is confirmed
+        if ($order->status === 'confirmed' && $oldStatus !== 'confirmed' && !$order->driver_id) {
+            $this->deliveryZoneService->assignDriver($order);
+            $order->refresh();
+        }
+
+        // Broadcast real-time status update to customer
+        if ($oldStatus !== $order->status) {
+            try {
+                broadcast(new OrderStatusUpdated($order->load('driver')))->toOthers();
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast order status update', ['error' => $e->getMessage()]);
+            }
+        }
 
         // Send enterprise notifications for status changes
         if ($oldStatus !== $order->status && $order->user_id && $this->enterpriseNotificationService) {

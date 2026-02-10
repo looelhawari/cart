@@ -50,6 +50,7 @@ function RootLayoutNav() {
   const router = useRouter();
   const pathname = usePathname();
   const isAuthenticated = useStore((state) => state.isAuthenticated);
+  const user = useStore((state) => state.user);
   const hasCompletedOnboarding = useStore(
     (state) => state.hasCompletedOnboarding,
   );
@@ -210,6 +211,8 @@ function RootLayoutNav() {
           router.replace("/onboarding");
         } else if (!isAuthenticated) {
           router.replace("/welcome");
+        } else if (isAuthenticated && user?.role === "driver") {
+          router.replace("/driver");
         } else {
           router.replace("/(tabs)");
         }
@@ -231,6 +234,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="driver" options={{ headerShown: false }} />
       <Stack.Screen
         name="search"
         options={{ presentation: "modal", headerShown: true, title: "Search" }}

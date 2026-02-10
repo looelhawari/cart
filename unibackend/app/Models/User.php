@@ -148,6 +148,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Orders assigned to this driver.
+     */
+    public function driverOrders()
+    {
+        return $this->hasMany(Order::class, 'driver_id');
+    }
+
+    /**
      * Get the user's addresses.
      */
     public function addresses()

@@ -36,7 +36,7 @@ interface User {
   gender: "male" | "female" | "other" | null;
   avatar: string | null;
   language: "en" | "ar";
-  role: "customer" | "admin";
+  role: "customer" | "admin" | "driver";
   is_verified: boolean;
 }
 

@@ -22,6 +22,7 @@ import {
     Star,
     Settings,
     MapPin,
+    Truck,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -78,6 +79,12 @@ const navItems: NavItem[] = [
         titleKey: 'navigation.deliveryZones',
         href: '/delivery-zones',
         icon: MapPin,
+        roles: ['super_admin', 'admin'],
+    },
+    {
+        titleKey: 'navigation.drivers',
+        href: '/drivers',
+        icon: Truck,
         roles: ['super_admin', 'admin'],
     },
     {

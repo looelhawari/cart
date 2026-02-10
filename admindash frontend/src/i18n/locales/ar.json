@@ -90,7 +90,8 @@
         "contentManagement": "إدارة المحتوى",
         "reviews": "التقييمات والمراجعات",
         "storeSettings": "إعدادات المتجر",
-        "deliveryZones": "مناطق التوصيل"
+        "deliveryZones": "مناطق التوصيل",
+        "drivers": "السائقين"
     },
     "auth": {
         "login": "تسجيل الدخول",

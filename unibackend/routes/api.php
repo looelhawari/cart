@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\DeliveryZoneController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\Admin\AdminDeliveryZoneController;
+use App\Http\Controllers\Api\Admin\AdminDriverController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -272,7 +273,8 @@ Route::prefix('v1')->group(function () {
         Route::post('delivery-zones/validate-address', [DeliveryZoneController::class, 'validateAddress']);
 
         // Driver routes (requires driver role)
-        Route::middleware('throttle:120,1')->prefix('driver')->group(function () {
+        Route::middleware(['driver', 'throttle:120,1'])->prefix('driver')->group(function () {
+            Route::post('/orders/{id}/reject', [DriverController::class, 'rejectOrder']);
             Route::get('/dashboard', [DriverController::class, 'dashboard']);
             Route::post('/toggle-availability', [DriverController::class, 'toggleAvailability']);
             Route::post('/location', [DriverController::class, 'updateLocation']);
@@ -642,6 +644,21 @@ Route::prefix('v1')->group(function () {
                 Route::post('/{id}/toggle-status', [AdminDeliveryZoneController::class, 'toggleStatus']);
                 Route::get('/{id}/analytics', [AdminDeliveryZoneController::class, 'analytics']);
             });
+
+            // Driver Management
+            Route::prefix('drivers')->group(function () {
+                Route::get('/', [AdminDriverController::class, 'index']);
+                Route::get('/available', [AdminDriverController::class, 'availableDrivers']);
+                Route::get('/locations', [AdminDriverController::class, 'locations']);
+                Route::get('/performance', [AdminDriverController::class, 'performance']);
+                Route::post('/', [AdminDriverController::class, 'store']);
+                Route::get('/{id}', [AdminDriverController::class, 'show']);
+                Route::put('/{id}', [AdminDriverController::class, 'update']);
+                Route::delete('/{id}', [AdminDriverController::class, 'destroy']);
+            });
+
+            // Assign driver to order
+            Route::post('/orders/{orderId}/assign-driver', [AdminDriverController::class, 'assignDriverToOrder']);
         });
     });
 

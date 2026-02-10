@@ -264,4 +264,39 @@ class DriverController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Reject an assigned order — triggers reassignment to next nearest driver.
+     */
+    public function rejectOrder(Request $request, int $orderId): JsonResponse
+    {
+        $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $driver = $request->user();
+
+        $order = Order::where('id', $orderId)
+            ->where('driver_id', $driver->id)
+            ->where('status', 'confirmed')
+            ->firstOrFail();
+
+        // Unassign current driver
+        $order->update([
+            'driver_id' => null,
+            'driver_assigned_at' => null,
+        ]);
+
+        // Try to reassign to next nearest available driver (excluding this one)
+        $newDriver = $this->zoneService->assignDriver($order);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order rejected',
+            'data' => [
+                'reassigned' => $newDriver !== null,
+                'new_driver_name' => $newDriver ? trim($newDriver->first_name . ' ' . $newDriver->last_name) : null,
+            ],
+        ]);
+    }
 }

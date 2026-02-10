@@ -89,7 +89,8 @@
         "contentManagement": "Content Management",
         "reviews": "Reviews & Ratings",
         "storeSettings": "Store Settings",
-        "deliveryZones": "Delivery Zones"
+        "deliveryZones": "Delivery Zones",
+        "drivers": "Drivers"
     },
     "auth": {
         "login": "Login",
