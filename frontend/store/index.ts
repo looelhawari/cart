@@ -57,9 +57,7 @@ interface StoreState {
     provider: "google" | "apple",
     token: string,
     userData?: any,
-  ) => Promise<{ requiresPhoneVerification: boolean }>;
-  sendPhoneOtp: (phone: string) => Promise<void>;
-  verifyPhoneOtp: (phone: string, otp: string) => Promise<void>;
+  ) => Promise<void>;
 
   // Cart (integrated with backend)
   cart: any | null;
@@ -229,11 +227,10 @@ export const useStore = create<StoreState>()(
 
       // Check authentication status on app startup
       checkAuthStatus: async () => {
+        // Read token outside try/catch so it's accessible in the catch block
+        const token = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+
         try {
-          // Check if we have a token first
-          const token = await AsyncStorage.getItem(
-            TOKEN_CONFIG.ACCESS_TOKEN_KEY,
-          );
           if (!token) {
             // No token, definitely not authenticated
             set({
@@ -250,12 +247,24 @@ export const useStore = create<StoreState>()(
             user: response.data,
           });
         } catch (error: any) {
-          // Only clear auth if it's a token expired error
+          // Only clear auth if it's a definitive token expired error.
+          // IMPORTANT: Do NOT clear on generic 401s — a concurrent
+          // socialLogin may have revoked the old token and issued a new one.
+          // Clearing here would wipe the NEW valid tokens.
           if (error?.error_code === "TOKEN_EXPIRED") {
-            set({
-              isAuthenticated: false,
-              user: null,
-            });
+            // Double-check: re-read the token from AsyncStorage.
+            // If a socialLogin ran concurrently, a fresh token may now exist.
+            const freshToken = await AsyncStorage.getItem(
+              TOKEN_CONFIG.ACCESS_TOKEN_KEY,
+            );
+            if (!freshToken || freshToken === token) {
+              // Token hasn't changed — it's genuinely expired
+              set({
+                isAuthenticated: false,
+                user: null,
+              });
+            }
+            // else: a new token was written by socialLogin — keep auth state
           }
           // For other errors (network, etc), keep existing auth state
           // This prevents logging out users due to temporary network issues
@@ -281,26 +290,6 @@ export const useStore = create<StoreState>()(
           user: response.data.user,
           pendingUser: null,
         });
-
-        return {
-          requiresPhoneVerification:
-            response.data.requires_phone_verification || false,
-        };
-      },
-
-      sendPhoneOtp: async (phone: string) => {
-        await authApi.sendPhoneOtp({ phone });
-      },
-
-      verifyPhoneOtp: async (phone: string, otp: string) => {
-        const response = await authApi.verifyPhoneOtp({ phone, otp });
-
-        // Update user with verified phone
-        set((state) => ({
-          user: state.user
-            ? { ...state.user, ...response.data.user }
-            : response.data.user,
-        }));
       },
 
       // Cart (integrated with backend API)

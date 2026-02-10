@@ -46,7 +46,16 @@ export async function signInWithGoogle(): Promise<string> {
     // Check if Google Play Services are available (Android only)
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-    // Perform native Google Sign-In
+    // Always sign out first to force the account picker to appear.
+    // Without this, the SDK returns the cached session silently —
+    // no picker is shown and the id_token may be stale/expired.
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // Ignore sign-out errors — first-time users won't have a session
+    }
+
+    // Perform native Google Sign-In — account picker will now always appear
     const response = await GoogleSignin.signIn();
 
     // Extract the id_token from the response

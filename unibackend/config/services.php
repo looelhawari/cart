@@ -63,4 +63,10 @@ return [
         'currency' => env('PAYMOB_CURRENCY', 'EGP'),
     ],
 
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'verify_service_sid' => env('TWILIO_VERIFY_SERVICE_SID'),
+    ],
+
 ];

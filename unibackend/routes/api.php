@@ -320,10 +320,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/recharge', [WalletController::class, 'recharge']);
         });
 
-        // Phone verification for social login users
-        Route::post('auth/send-phone-otp', [SocialAuthController::class, 'sendPhoneOtp']);
-        Route::post('auth/verify-phone-otp', [SocialAuthController::class, 'verifyPhoneOtp']);
-
         // Favorites endpoints
         Route::prefix('favorites')->group(function () {
             Route::get('/', [FavoriteController::class, 'index']);

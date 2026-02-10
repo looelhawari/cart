@@ -757,29 +757,6 @@ export default {
     continueShopping: "متابعة التسوق",
   },
 
-  // Phone Verification
-  phoneVerification: {
-    verifyPhone: "تحقق من هاتفك",
-    enterCode: "أدخل رمز التحقق",
-    needPhoneForDelivery: "نحتاج رقم هاتفك لتحديثات التوصيل 🚚",
-    sentCodeTo: "أرسلنا رمزاً مكوناً من 6 أرقام إلى {phone}",
-    phoneNumber: "رقم الهاتف",
-    sendCode: "إرسال الرمز",
-    verificationCode: "رمز التحقق",
-    verify: "تحقق",
-    didntReceiveCode: "لم تستلم الرمز؟",
-    resendIn: "إعادة الإرسال في {seconds} ث",
-    resend: "إعادة الإرسال",
-    changePhone: "تغيير رقم الهاتف",
-    enterValidPhone: "الرجاء إدخال رقم هاتف صحيح",
-    otpSent: "تم إرسال رمز التحقق إلى رقم هاتفك",
-    failedToSendOtp: "فشل إرسال رمز التحقق",
-    enterSixDigitCode: "الرجاء إدخال الرمز المكون من 6 أرقام",
-    successTitle: "نجح! 🎉",
-    phoneVerified: "تم التحقق من رقم هاتفك. مرحباً بك في البركة!",
-    invalidOtp: "رمز تحقق غير صحيح",
-  },
-
   // Notifications
   notifications: {
     title: "الإشعارات",

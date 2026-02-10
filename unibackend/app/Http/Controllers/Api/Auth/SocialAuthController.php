@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Otp;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -488,14 +487,9 @@ class SocialAuthController extends Controller
         $accessToken = $user->createToken('mobile-app', ['*'], now()->addHours(24))->plainTextToken;
         $refreshToken = $user->createToken('refresh-token', ['refresh', 'standard'], now()->addDays(30))->plainTextToken;
 
-        // Determine if phone verification is required
-        $requiresPhoneVerification = is_null($user->phone_verified_at);
-
         return response()->json([
             'success' => true,
-            'message' => $requiresPhoneVerification
-                ? 'Login successful. Please verify your phone number.'
-                : 'Login successful',
+            'message' => 'Login successful',
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -519,128 +513,6 @@ class SocialAuthController extends Controller
                 'token_type' => 'Bearer',
                 'expires_in' => 86400, // 24 hours
                 'is_new_user' => $isNewUser,
-                'requires_phone_verification' => $requiresPhoneVerification,
-            ],
-        ], 200);
-    }
-
-    // ─────────────────────────────────────────────────────
-    //  PHONE OTP (for social login users)
-    // ─────────────────────────────────────────────────────
-
-    /**
-     * Send SMS OTP for phone verification (social login users)
-     */
-    public function sendPhoneOtp(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'phone' => ['required', 'string', 'regex:/^\+?[0-9]{10,15}$/', 'unique:users,phone,' . $request->user()->id],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $user = $request->user();
-        $phone = preg_replace('/[^0-9+]/', '', $request->phone);
-
-        // Generate 6-digit OTP
-        $otpCode = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-
-        // Delete old OTPs
-        Otp::where('identifier', $phone)->where('type', 'phone_verification')->delete();
-
-        // Create new OTP (10 min expiry)
-        Otp::create([
-            'identifier' => $phone,
-            'otp' => $otpCode,
-            'type' => 'phone_verification',
-            'expires_at' => now()->addMinutes(10),
-        ]);
-
-        // TODO: Send SMS using Twilio/Vonage
-        Log::info("SMS OTP sent to {$phone}: {$otpCode}");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'OTP sent successfully to ' . $phone,
-            'data' => [
-                'phone' => $phone,
-                'otp_sent' => true,
-                'expires_in' => 600,
-            ],
-        ], 200);
-    }
-
-    /**
-     * Verify phone OTP for social login users
-     */
-    public function verifyPhoneOtp(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'phone' => ['required', 'string', 'regex:/^\+?[0-9]{10,15}$/'],
-            'otp' => ['required', 'string', 'size:6'],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $user = $request->user();
-        $phone = preg_replace('/[^0-9+]/', '', $request->phone);
-
-        $otp = Otp::where('identifier', $phone)
-            ->where('type', 'phone_verification')
-            ->where('otp', $request->otp)
-            ->where('expires_at', '>', now())
-            ->first();
-
-        if (!$otp) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid or expired OTP',
-            ], 401);
-        }
-
-        $user->update([
-            'phone' => $phone,
-            'phone_verified_at' => now(),
-            'is_verified' => true,
-        ]);
-
-        $otp->delete();
-
-        Log::info('Phone verified for social user', [
-            'user_id' => $user->id,
-            'phone' => $phone,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Phone verified successfully',
-            'data' => [
-                'user' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'full_name' => $user->first_name . ' ' . $user->last_name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'avatar' => $user->avatar,
-                    'language' => $user->language,
-                    'role' => $user->role,
-                    'is_verified' => $user->is_verified,
-                    'email_verified_at' => $user->email_verified_at,
-                    'phone_verified_at' => $user->phone_verified_at,
-                ],
             ],
         ], 200);
     }

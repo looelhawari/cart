@@ -762,29 +762,6 @@ export default {
     continueShopping: "Continue Shopping",
   },
 
-  // Phone Verification
-  phoneVerification: {
-    verifyPhone: "Verify Your Phone",
-    enterCode: "Enter Verification Code",
-    needPhoneForDelivery: "We need your phone number for delivery updates 🚚",
-    sentCodeTo: "We sent a 6-digit code to {phone}",
-    phoneNumber: "Phone Number",
-    sendCode: "Send Code",
-    verificationCode: "Verification Code",
-    verify: "Verify",
-    didntReceiveCode: "Didn't receive the code?",
-    resendIn: "Resend in {seconds}s",
-    resend: "Resend",
-    changePhone: "Change Phone Number",
-    enterValidPhone: "Please enter a valid phone number",
-    otpSent: "OTP sent to your phone number",
-    failedToSendOtp: "Failed to send OTP",
-    enterSixDigitCode: "Please enter the 6-digit code",
-    successTitle: "Success! 🎉",
-    phoneVerified: "Your phone number has been verified. Welcome to ElBaraka!",
-    invalidOtp: "Invalid OTP",
-  },
-
   // Notifications
   notifications: {
     title: "Notifications",
