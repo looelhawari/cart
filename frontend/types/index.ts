@@ -13,6 +13,7 @@ export interface Product {
   image?: string;
   weight?: number;
   unit?: string;
+  packaging?: string;
   nutrition_facts?: string | object; // JSON field from database
   rating?: number;
   review_count?: number;

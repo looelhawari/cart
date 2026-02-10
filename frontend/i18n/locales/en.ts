@@ -848,6 +848,7 @@ export default {
     viewOffer: "View Offer",
     useCode: "Use Code",
     validUntil: "Valid until",
+    upToOff: "Up to {value}% OFF",
   },
 
   // Search
@@ -998,5 +999,18 @@ export default {
     howWasYourOrder: "How was your order?",
     thankYouForReview: "Thank you for your review!",
     ratingsAndReviews: "Ratings & Reviews",
+  },
+
+  // Delivery
+  delivery: {
+    areaRestrictionTitle: "Delivery Area",
+    areaRestrictionNote:
+      "We currently deliver only to Al Tagamoa and Al Rehab areas.",
+  },
+
+  // Quantity Limits
+  quantityLimit: {
+    maxPerOrder: "Maximum {{max}} units per order for this product.",
+    limitReached: "Limit Reached",
   },
 };

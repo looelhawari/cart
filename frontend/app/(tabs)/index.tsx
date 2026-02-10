@@ -400,7 +400,7 @@ export default function HomeScreen() {
                 <View style={styles.brandIcon}>
                   <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
                 </View>
-                <Text style={styles.brandName}>ElBaraka</Text>
+                <Text style={styles.brandName}>{t.nav?.home || "Home"}</Text>
               </View>
 
               {/* Personalized Greeting */}
@@ -495,6 +495,24 @@ export default function HomeScreen() {
         }
         contentContainerStyle={styles.scrollContent}
       >
+        {/* ═══════════════════════════════════════════════════════════════════════════
+            DELIVERY AREA RESTRICTION NOTE
+        ═══════════════════════════════════════════════════════════════════════════ */}
+        <View style={styles.deliveryBanner}>
+          <View style={styles.deliveryBannerIcon}>
+            <Ionicons name="location" size={16} color={Colors.primary900} />
+          </View>
+          <View style={styles.deliveryBannerTextContainer}>
+            <Text style={styles.deliveryBannerTitle}>
+              {t.delivery?.areaRestrictionTitle || "Delivery Area"}
+            </Text>
+            <Text style={styles.deliveryBannerText}>
+              {t.delivery?.areaRestrictionNote ||
+                "We currently deliver only to Al Tagamoa and Al Rehab areas."}
+            </Text>
+          </View>
+        </View>
+
         {/* ═══════════════════════════════════════════════════════════════════════════
             FEATURE HIGHLIGHTS STRIP
         ═══════════════════════════════════════════════════════════════════════════ */}
@@ -853,6 +871,46 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DELIVERY AREA BANNER
+  // ═══════════════════════════════════════════════════════════════════════════
+  deliveryBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary900 + "0D",
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary900 + "20",
+  },
+  deliveryBannerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.primary900 + "18",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  deliveryBannerTextContainer: {
+    flex: 1,
+  },
+  deliveryBannerTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.primary900,
+    marginBottom: 1,
+  },
+  deliveryBannerText: {
+    fontSize: 11,
+    color: Colors.neutralCharcoal,
+    lineHeight: 15,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

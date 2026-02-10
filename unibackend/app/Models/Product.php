@@ -19,6 +19,7 @@ class Product extends Model
         'image',
         'description_en',
         'description_ar',
+        'packaging',
         'price',
         'sale_price',
         'cost_price',

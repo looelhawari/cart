@@ -843,6 +843,7 @@ export default {
     viewOffer: "عرض التفاصيل",
     useCode: "استخدم الكود",
     validUntil: "صالح حتى",
+    upToOff: "خصم حتى {value}%",
   },
 
   // Search
@@ -993,5 +994,17 @@ export default {
     howWasYourOrder: "كيف كان طلبك؟",
     thankYouForReview: "شكراً لتقييمك!",
     ratingsAndReviews: "التقييمات والمراجعات",
+  },
+
+  // Delivery
+  delivery: {
+    areaRestrictionTitle: "منطقة التوصيل",
+    areaRestrictionNote: "نقوم حالياً بالتوصيل إلى منطقتي التجمع والرحاب فقط.",
+  },
+
+  // Quantity Limits
+  quantityLimit: {
+    maxPerOrder: "الحد الأقصى {{max}} وحدات لكل طلب لهذا المنتج.",
+    limitReached: "تم الوصول للحد الأقصى",
   },
 };
