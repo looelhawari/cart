@@ -12,21 +12,23 @@ use Illuminate\Support\Facades\Log;
  * Enterprise GeoHelper Service
  *
  * Handles all geolocation operations:
- * - Reverse geocoding (coordinates → address)
- * - Forward geocoding (address → coordinates)
+ * - Reverse geocoding (coordinates → address) via Nominatim/OSM
+ * - Forward geocoding (address → coordinates) via Nominatim/OSM
  * - Zone detection (coordinates → delivery zone)
  * - Distance calculations (Haversine)
- * - Google Maps API integration
+ * - 100% free — no API keys required
  */
 class GeoHelper
 {
-    private ?string $googleApiKey;
+    private string $nominatimUrl;
     private const CACHE_TTL = 86400; // 24 hours
     private const EARTH_RADIUS_KM = 6371;
+    private const USER_AGENT = 'ElBaraka-App/1.0 (https://elbaraka.com)';
 
     public function __construct()
     {
-        $this->googleApiKey = config('services.google.maps_api_key');
+        // Use self-hosted Nominatim if configured, otherwise public server
+        $this->nominatimUrl = config('services.nominatim.url', 'https://nominatim.openstreetmap.org');
     }
 
     // ─── Zone Detection ──────────────────────────────────────────
@@ -125,45 +127,43 @@ class GeoHelper
         return $zone;
     }
 
-    // ─── Google Maps Integration ─────────────────────────────────
+    // ─── Nominatim / OpenStreetMap Integration (Free) ─────────────
 
     /**
      * Reverse geocode coordinates to a human-readable address.
+     * Uses Nominatim (OpenStreetMap) — free, no API key required.
      */
     public function reverseGeocode(float $lat, float $lng): ?array
     {
-        if (!$this->googleApiKey) {
-            Log::warning('Google Maps API key not configured');
-            return null;
-        }
-
         $cacheKey = "geocode:reverse:{$lat}:{$lng}";
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($lat, $lng) {
             try {
-                $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
-                    'latlng' => "{$lat},{$lng}",
-                    'key' => $this->googleApiKey,
-                    'language' => 'en',
-                    'result_type' => 'street_address|route|neighborhood|sublocality',
+                $response = Http::withHeaders([
+                    'User-Agent' => self::USER_AGENT,
+                ])->get($this->nominatimUrl . '/reverse', [
+                    'format' => 'json',
+                    'lat' => $lat,
+                    'lon' => $lng,
+                    'addressdetails' => 1,
+                    'accept-language' => 'en,ar',
+                    'zoom' => 18,
                 ]);
 
                 if (!$response->successful()) {
-                    Log::error('Google Geocode API failed', ['status' => $response->status()]);
+                    Log::error('Nominatim reverse geocode failed', ['status' => $response->status()]);
                     return null;
                 }
 
                 $data = $response->json();
 
-                if ($data['status'] !== 'OK' || empty($data['results'])) {
+                if (empty($data) || isset($data['error'])) {
                     return null;
                 }
 
-                $result = $data['results'][0];
-
                 return [
-                    'formatted_address' => $result['formatted_address'] ?? null,
-                    'place_id' => $result['place_id'] ?? null,
-                    'components' => $this->parseAddressComponents($result['address_components'] ?? []),
+                    'formatted_address' => $data['display_name'] ?? null,
+                    'place_id' => ($data['osm_type'] ?? '') . ':' . ($data['osm_id'] ?? ''),
+                    'components' => $this->parseNominatimAddress($data['address'] ?? []),
                 ];
             } catch (\Exception $e) {
                 Log::error('Reverse geocode failed', ['error' => $e->getMessage()]);
@@ -174,46 +174,42 @@ class GeoHelper
 
     /**
      * Forward geocode an address string to coordinates.
+     * Uses Nominatim (OpenStreetMap) — free, no API key required.
      */
     public function forwardGeocode(string $address): ?array
     {
-        if (!$this->googleApiKey) {
-            return null;
-        }
-
         $cacheKey = 'geocode:forward:' . md5($address);
         return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($address) {
             try {
-                $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
-                    'address' => $address,
-                    'key' => $this->googleApiKey,
-                    'region' => 'eg', // Egypt bias
-                    'language' => 'en',
+                $response = Http::withHeaders([
+                    'User-Agent' => self::USER_AGENT,
+                ])->get($this->nominatimUrl . '/search', [
+                    'format' => 'json',
+                    'q' => $address,
+                    'limit' => 1,
+                    'addressdetails' => 1,
+                    'accept-language' => 'en,ar',
+                    'countrycodes' => 'eg', // Egypt bias
                 ]);
 
                 if (!$response->successful()) {
                     return null;
                 }
 
-                $data = $response->json();
+                $results = $response->json();
 
-                if ($data['status'] !== 'OK' || empty($data['results'])) {
+                if (empty($results)) {
                     return null;
                 }
 
-                $result = $data['results'][0];
-                $location = $result['geometry']['location'] ?? null;
-
-                if (!$location) {
-                    return null;
-                }
+                $result = $results[0];
 
                 return [
-                    'latitude' => $location['lat'],
-                    'longitude' => $location['lng'],
-                    'formatted_address' => $result['formatted_address'] ?? null,
-                    'place_id' => $result['place_id'] ?? null,
-                    'components' => $this->parseAddressComponents($result['address_components'] ?? []),
+                    'latitude' => (float) $result['lat'],
+                    'longitude' => (float) $result['lon'],
+                    'formatted_address' => $result['display_name'] ?? null,
+                    'place_id' => ($result['osm_type'] ?? '') . ':' . ($result['osm_id'] ?? ''),
+                    'components' => $this->parseNominatimAddress($result['address'] ?? []),
                 ];
             } catch (\Exception $e) {
                 Log::error('Forward geocode failed', ['error' => $e->getMessage()]);
@@ -223,51 +219,20 @@ class GeoHelper
     }
 
     /**
-     * Parse Google Maps address components into structured data.
+     * Parse Nominatim address object into structured data.
      */
-    private function parseAddressComponents(array $components): array
+    private function parseNominatimAddress(array $addr): array
     {
-        $parsed = [
-            'street_number' => null,
-            'street' => null,
-            'neighborhood' => null,
-            'city' => null,
-            'area' => null,
-            'governorate' => null,
-            'country' => null,
-            'postal_code' => null,
+        return [
+            'street_number' => $addr['house_number'] ?? null,
+            'street' => $addr['road'] ?? $addr['pedestrian'] ?? $addr['footway'] ?? null,
+            'neighborhood' => $addr['neighbourhood'] ?? $addr['quarter'] ?? $addr['suburb'] ?? null,
+            'city' => $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? null,
+            'area' => $addr['suburb'] ?? $addr['district'] ?? $addr['county'] ?? null,
+            'governorate' => $addr['state'] ?? $addr['governorate'] ?? null,
+            'country' => $addr['country'] ?? null,
+            'postal_code' => $addr['postcode'] ?? null,
         ];
-
-        foreach ($components as $component) {
-            $types = $component['types'] ?? [];
-
-            if (in_array('street_number', $types)) {
-                $parsed['street_number'] = $component['long_name'];
-            }
-            if (in_array('route', $types)) {
-                $parsed['street'] = $component['long_name'];
-            }
-            if (in_array('neighborhood', $types) || in_array('sublocality_level_1', $types)) {
-                $parsed['neighborhood'] = $component['long_name'];
-            }
-            if (in_array('locality', $types)) {
-                $parsed['city'] = $component['long_name'];
-            }
-            if (in_array('sublocality', $types)) {
-                $parsed['area'] = $component['long_name'];
-            }
-            if (in_array('administrative_area_level_1', $types)) {
-                $parsed['governorate'] = $component['long_name'];
-            }
-            if (in_array('country', $types)) {
-                $parsed['country'] = $component['long_name'];
-            }
-            if (in_array('postal_code', $types)) {
-                $parsed['postal_code'] = $component['long_name'];
-            }
-        }
-
-        return $parsed;
     }
 
     // ─── Distance & Utility ──────────────────────────────────────

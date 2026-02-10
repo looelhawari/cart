@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { API_CONFIG, MAP_CONFIG } from "@/config/app.config";
+import { API_CONFIG } from "@/config/app.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
@@ -461,7 +461,6 @@ export default function AddEditAddressScreen() {
         <MapAddressPicker
           initialLatitude={latitude || undefined}
           initialLongitude={longitude || undefined}
-          mapboxToken={MAP_CONFIG.MAPBOX_TOKEN}
           onLocationSelected={(location) => {
             setLatitude(location.latitude);
             setLongitude(location.longitude);

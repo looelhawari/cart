@@ -25,9 +25,10 @@ export const APP_CONFIG = {
   SUPPORT_EMAIL: "support@elbaraka.com",
 };
 
-// Map Configuration (Mapbox)
+// Map Configuration (Leaflet + OpenStreetMap - 100% free, no API keys)
 export const MAP_CONFIG = {
-  MAPBOX_TOKEN: "", // Set your Mapbox public token here
+  // Optional: Self-hosted Nominatim URL for geocoding (falls back to public server)
+  NOMINATIM_URL: 'https://nominatim.openstreetmap.org',
 };
 
 // Token Configuration

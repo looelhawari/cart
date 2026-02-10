@@ -31,19 +31,20 @@ interface MapAddressPickerProps {
         };
     }) => void;
     onClose: () => void;
-    mapboxToken?: string;
 }
 
 // Default center: Cairo
 const DEFAULT_LAT = 30.0444;
 const DEFAULT_LNG = 31.2357;
 
+// Nominatim public server (free, no API key needed)
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org";
+
 export default function MapAddressPicker({
     initialLatitude,
     initialLongitude,
     onLocationSelected,
     onClose,
-    mapboxToken = "",
 }: MapAddressPickerProps) {
     const { t } = useTranslation();
     const webViewRef = useRef<WebView>(null);
@@ -175,25 +176,25 @@ export default function MapAddressPicker({
     const initLng = initialLongitude || DEFAULT_LNG;
     const initZoom = initialLatitude ? 16 : 12;
 
-    // HTML for embedded Mapbox GL JS map
+    // ── Leaflet + OpenStreetMap + Nominatim WebView HTML ─────────────────
     const mapHtml = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #map { width: 100%; height: 100%; }
     .center-pin {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -100%);
-      z-index: 10; pointer-events: none;
+      z-index: 1000; pointer-events: none;
       font-size: 36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
     }
     .search-box {
-      position: absolute; top: 10px; left: 10px; right: 10px; z-index: 5;
+      position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000;
     }
     .search-box input {
       width: 100%; padding: 12px 16px; border: none; border-radius: 8px;
@@ -205,7 +206,7 @@ export default function MapAddressPicker({
       background: white; border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       max-height: 200px; overflow-y: auto;
-      display: none; z-index: 6;
+      display: none; z-index: 1001;
     }
     .search-results.active { display: block; }
     .search-result-item {
@@ -214,64 +215,54 @@ export default function MapAddressPicker({
     }
     .search-result-item:active { background: #f0f0f0; }
     .search-result-item:last-child { border-bottom: none; }
-    .mapboxgl-ctrl-attrib { display: none !important; }
+    .leaflet-control-attribution { display: none !important; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="center-pin">📍</div>
-  ${mapboxToken ? `
   <div class="search-box">
     <input id="searchInput" type="text" placeholder="Search address..." autocomplete="off" />
     <div id="searchResults" class="search-results"></div>
   </div>
-  ` : ''}
 
   <script>
-    mapboxgl.accessToken = '${mapboxToken}';
-
-    const map = new mapboxgl.Map({
-      container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [${initLng}, ${initLat}],
+    var map = L.map('map', {
+      center: [${initLat}, ${initLng}],
       zoom: ${initZoom},
-      attributionControl: false,
+      zoomControl: false,
+      attributionControl: false
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
+    // OpenStreetMap tiles — completely free, no API key
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
 
-    let debounceTimer = null;
+    // Add zoom control bottom-right
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Reverse geocode via Mapbox Geocoding API
+    var debounceTimer = null;
+    var NOMINATIM = '${NOMINATIM_URL}';
+
+    // Reverse geocode via Nominatim (free, no API key)
     function reverseGeocode(lat, lng) {
-      fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + lng + ',' + lat + '.json?access_token=' + mapboxgl.accessToken + '&language=en,ar&types=address,poi,place,locality,neighborhood')
+      var url = NOMINATIM + '/reverse?format=json&lat=' + lat + '&lon=' + lng +
+        '&addressdetails=1&accept-language=en,ar&zoom=18';
+
+      fetch(url, { headers: { 'User-Agent': 'ElBaraka-App/1.0' } })
         .then(function(res) { return res.json(); })
         .then(function(data) {
-          var address = '';
-          var placeId = '';
+          var address = data.display_name || '';
+          var placeId = (data.osm_type || '') + ':' + (data.osm_id || '');
           var components = { street: '', city: '', area: '', governorate: '' };
 
-          if (data.features && data.features.length > 0) {
-            var feat = data.features[0];
-            address = feat.place_name || '';
-            placeId = feat.id || '';
-
-            // Extract address components from context
-            var ctx = feat.context || [];
-            ctx.forEach(function(c) {
-              if (c.id.startsWith('neighborhood') || c.id.startsWith('locality')) {
-                components.area = c.text;
-              } else if (c.id.startsWith('place')) {
-                components.city = c.text;
-              } else if (c.id.startsWith('region')) {
-                components.governorate = c.text;
-              }
-            });
-
-            // Street from main feature text
-            if (feat.text) {
-              components.street = feat.text;
-            }
+          if (data.address) {
+            var a = data.address;
+            components.street = a.road || a.pedestrian || a.footway || '';
+            components.city = a.city || a.town || a.village || '';
+            components.area = a.suburb || a.neighbourhood || a.quarter || a.district || '';
+            components.governorate = a.state || a.governorate || '';
           }
 
           window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -280,7 +271,7 @@ export default function MapAddressPicker({
             lng: lng,
             address: address,
             placeId: placeId,
-            addressComponents: components,
+            addressComponents: components
           }));
         })
         .catch(function() {
@@ -290,90 +281,91 @@ export default function MapAddressPicker({
             lng: lng,
             address: '',
             placeId: '',
-            addressComponents: {},
+            addressComponents: {}
           }));
         });
     }
 
-    // When map moves, reverse geocode the center
+    // When map stops moving, reverse geocode the center
     map.on('moveend', function() {
       var center = map.getCenter();
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function() {
         reverseGeocode(center.lat, center.lng);
-      }, 300);
+      }, 400);
     });
 
-    // Click to select
+    // Click to re-center
     map.on('click', function(e) {
-      map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 16) });
+      map.flyTo(e.latlng, Math.max(map.getZoom(), 16));
     });
 
     // Signal ready
-    map.on('load', function() {
+    map.whenReady(function() {
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady' }));
       ${initialLatitude ? `reverseGeocode(${initLat}, ${initLng});` : ''}
     });
 
     function moveToLocation(lat, lng) {
-      map.flyTo({ center: [lng, lat], zoom: 16, duration: 1000 });
+      map.flyTo([lat, lng], 16, { duration: 1 });
     }
 
-    // Search functionality via Mapbox Geocoding
+    // ── Search via Nominatim ────────────────────────────────────
     var searchInput = document.getElementById('searchInput');
     var searchResults = document.getElementById('searchResults');
     var searchDebounce = null;
 
-    if (searchInput) {
-      searchInput.addEventListener('input', function() {
-        var query = searchInput.value.trim();
-        if (searchDebounce) clearTimeout(searchDebounce);
+    searchInput.addEventListener('input', function() {
+      var query = searchInput.value.trim();
+      if (searchDebounce) clearTimeout(searchDebounce);
 
-        if (query.length < 2) {
-          searchResults.classList.remove('active');
-          return;
-        }
+      if (query.length < 2) {
+        searchResults.classList.remove('active');
+        return;
+      }
 
-        searchDebounce = setTimeout(function() {
-          var center = map.getCenter();
-          fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(query) + '.json?access_token=' + mapboxgl.accessToken + '&proximity=' + center.lng + ',' + center.lat + '&language=en,ar&limit=5&types=address,poi,place,locality,neighborhood')
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-              searchResults.innerHTML = '';
-              if (data.features && data.features.length > 0) {
-                data.features.forEach(function(feat) {
-                  var item = document.createElement('div');
-                  item.className = 'search-result-item';
-                  item.textContent = feat.place_name;
-                  item.addEventListener('click', function() {
-                    searchInput.value = feat.place_name;
-                    searchResults.classList.remove('active');
-                    var coords = feat.center; // [lng, lat]
-                    map.flyTo({ center: coords, zoom: 16, duration: 1000 });
-                  });
-                  searchResults.appendChild(item);
+      searchDebounce = setTimeout(function() {
+        var center = map.getCenter();
+        var url = NOMINATIM + '/search?format=json&q=' + encodeURIComponent(query) +
+          '&limit=5&addressdetails=1&accept-language=en,ar' +
+          '&viewbox=' + (center.lng - 0.5) + ',' + (center.lat + 0.5) + ',' + (center.lng + 0.5) + ',' + (center.lat - 0.5) +
+          '&bounded=0';
+
+        fetch(url, { headers: { 'User-Agent': 'ElBaraka-App/1.0' } })
+          .then(function(res) { return res.json(); })
+          .then(function(results) {
+            searchResults.innerHTML = '';
+            if (results && results.length > 0) {
+              results.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'search-result-item';
+                div.textContent = item.display_name;
+                div.addEventListener('click', function() {
+                  searchInput.value = item.display_name;
+                  searchResults.classList.remove('active');
+                  var lat = parseFloat(item.lat);
+                  var lng = parseFloat(item.lon);
+                  map.flyTo([lat, lng], 16, { duration: 1 });
                 });
-                searchResults.classList.add('active');
-              } else {
-                searchResults.classList.remove('active');
-              }
-            })
-            .catch(function() {
+                searchResults.appendChild(div);
+              });
+              searchResults.classList.add('active');
+            } else {
               searchResults.classList.remove('active');
-            });
-        }, 350);
-      });
+            }
+          })
+          .catch(function() {
+            searchResults.classList.remove('active');
+          });
+      }, 400);
+    });
 
-      // Hide results on blur
-      searchInput.addEventListener('blur', function() {
-        setTimeout(function() { searchResults.classList.remove('active'); }, 200);
-      });
-      searchInput.addEventListener('focus', function() {
-        if (searchResults.children.length > 0) {
-          searchResults.classList.add('active');
-        }
-      });
-    }
+    searchInput.addEventListener('blur', function() {
+      setTimeout(function() { searchResults.classList.remove('active'); }, 200);
+    });
+    searchInput.addEventListener('focus', function() {
+      if (searchResults.children.length > 0) searchResults.classList.add('active');
+    });
   </script>
 </body>
 </html>

@@ -58,10 +58,19 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-import mapboxgl from 'mapbox-gl'
-import MapboxDraw from '@mapbox/mapbox-gl-draw'
-import 'mapbox-gl/dist/mapbox-gl.css'
-import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import 'leaflet-draw'
+import 'leaflet-draw/dist/leaflet.draw.css'
+
+// Fix Leaflet default marker icon path bug with bundlers (Vite/Webpack)
+// @ts-ignore
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -71,40 +80,32 @@ const ZONE_COLORS = [
     '#795548', '#607D8B', '#F44336', '#009688', '#673AB7',
 ]
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
-
-// Default center: Cairo, Egypt  [lng, lat] for Mapbox
-const DEFAULT_CENTER: [number, number] = [31.2357, 30.0444]
+// Default center: Cairo, Egypt — [lat, lng] for Leaflet
+const DEFAULT_CENTER: L.LatLngTuple = [30.0444, 31.2357]
 const DEFAULT_ZOOM = 11
+
+// Free tile layers
+const TILE_LAYERS = {
+    street: {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    },
+    satellite: {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attribution: '&copy; Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP',
+    },
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Convert our Coordinate[] (lat/lng) to GeoJSON Polygon ring [lng, lat][] */
-function coordsToGeoJSON(coords: Coordinate[]): [number, number][] {
-    const ring = coords.map(c => [c.lng, c.lat] as [number, number])
-    // Close the ring if not already closed
-    if (ring.length > 0) {
-        const first = ring[0]
-        const last = ring[ring.length - 1]
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-            ring.push([...first] as [number, number])
-        }
-    }
-    return ring
+/** Convert our Coordinate[] (lat/lng objects) to Leaflet LatLng tuples */
+function coordsToLatLngs(coords: Coordinate[]): L.LatLngTuple[] {
+    return coords.map(c => [c.lat, c.lng] as L.LatLngTuple)
 }
 
-/** Convert GeoJSON ring [lng, lat][] back to Coordinate[] (lat/lng) */
-function geoJSONToCoords(ring: number[][]): Coordinate[] {
-    // Remove the closing coord if present
-    const coords = ring.map(p => ({ lat: p[1], lng: p[0] }))
-    if (coords.length > 1) {
-        const first = coords[0]
-        const last = coords[coords.length - 1]
-        if (first.lat === last.lat && first.lng === last.lng) {
-            coords.pop()
-        }
-    }
-    return coords
+/** Convert Leaflet LatLng[] back to our Coordinate[] */
+function latLngsToCoords(latLngs: L.LatLng[]): Coordinate[] {
+    return latLngs.map(ll => ({ lat: ll.lat, lng: ll.lng }))
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -127,11 +128,12 @@ export default function DeliveryZonesPage() {
 
     // Map refs
     const mapContainerRef = useRef<HTMLDivElement>(null)
-    const mapRef = useRef<mapboxgl.Map | null>(null)
-    const drawRef = useRef<MapboxDraw | null>(null)
-    const popupRef = useRef<mapboxgl.Popup | null>(null)
+    const mapRef = useRef<L.Map | null>(null)
+    const drawnItemsRef = useRef<L.FeatureGroup | null>(null)
+    const drawControlRef = useRef<L.Control.Draw | null>(null)
+    const zoneLayersRef = useRef<Map<number, L.Polygon>>(new Map())
     const isDrawingMode = useRef(false)
-    const zonesRenderedRef = useRef<Set<number>>(new Set())
+    const activeDrawHandlerRef = useRef<any>(null)
 
     // Form state
     const [formData, setFormData] = useState<CreateDeliveryZoneData>({
@@ -229,242 +231,175 @@ export default function DeliveryZonesPage() {
         },
     })
 
-    // ── Mapbox Initialization ───────────────────────────────────────────────
+    // ── Leaflet Map Initialization ──────────────────────────────────────────
 
     useEffect(() => {
-        if (!MAPBOX_TOKEN || !mapContainerRef.current || mapRef.current) return
+        if (!mapContainerRef.current || mapRef.current) return
         if (activeTab !== 'map') return
 
-        mapboxgl.accessToken = MAPBOX_TOKEN
-
-        const map = new mapboxgl.Map({
-            container: mapContainerRef.current,
-            style: 'mapbox://styles/mapbox/streets-v12',
+        const map = L.map(mapContainerRef.current, {
             center: DEFAULT_CENTER,
             zoom: DEFAULT_ZOOM,
-            attributionControl: true,
+            zoomControl: false,
         })
 
-        // Navigation controls
-        map.addControl(new mapboxgl.NavigationControl(), 'top-right')
-        map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
+        // Street tiles (default)
+        const streetLayer = L.tileLayer(TILE_LAYERS.street.url, {
+            attribution: TILE_LAYERS.street.attribution,
+            maxZoom: 19,
+        }).addTo(map)
 
-        // Drawing tool (hidden by default, activated programmatically)
-        const draw = new MapboxDraw({
-            displayControlsDefault: false,
-            controls: {},
-            defaultMode: 'simple_select',
-            styles: [
-                // Polygon fill
-                {
-                    id: 'gl-draw-polygon-fill',
-                    type: 'fill',
-                    filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-                    paint: {
-                        'fill-color': '#4CAF50',
-                        'fill-outline-color': '#4CAF50',
-                        'fill-opacity': 0.3,
-                    },
-                },
-                // Polygon outline
-                {
-                    id: 'gl-draw-polygon-stroke-active',
-                    type: 'line',
-                    filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
-                    layout: { 'line-cap': 'round', 'line-join': 'round' },
-                    paint: { 'line-color': '#4CAF50', 'line-width': 2 },
-                },
-                // Vertex points
-                {
-                    id: 'gl-draw-polygon-and-line-vertex-active',
-                    type: 'circle',
-                    filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-                    paint: {
-                        'circle-radius': 6,
-                        'circle-color': '#fff',
-                        'circle-stroke-color': '#4CAF50',
-                        'circle-stroke-width': 2,
-                    },
-                },
-                // Midpoints
-                {
-                    id: 'gl-draw-polygon-midpoint',
-                    type: 'circle',
-                    filter: ['all', ['==', 'meta', 'midpoint'], ['==', '$type', 'Point']],
-                    paint: { 'circle-radius': 4, 'circle-color': '#4CAF50', 'circle-opacity': 0.7 },
-                },
-            ],
+        // Satellite tiles
+        const satelliteLayer = L.tileLayer(TILE_LAYERS.satellite.url, {
+            attribution: TILE_LAYERS.satellite.attribution,
+            maxZoom: 18,
         })
-        map.addControl(draw, 'top-left')
-        drawRef.current = draw
 
-        // Listen for draw events
-        const handleDrawCreate = (e: any) => {
+        // Layer switcher (street / satellite)
+        L.control.layers(
+            { 'Street': streetLayer, 'Satellite': satelliteLayer },
+            undefined,
+            { position: 'topright' }
+        ).addTo(map)
+
+        // Zoom controls
+        L.control.zoom({ position: 'topright' }).addTo(map)
+
+        // Scale bar
+        L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map)
+
+        // Feature group to hold drawn polygons
+        const drawnItems = new L.FeatureGroup()
+        map.addLayer(drawnItems)
+        drawnItemsRef.current = drawnItems
+
+        // Build Draw control (kept in ref, added/removed as needed)
+        const drawControl = new L.Control.Draw({
+            position: 'topleft',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    shapeOptions: { color: '#4CAF50', weight: 2, fillOpacity: 0.3 },
+                },
+                polyline: false,
+                circle: false,
+                rectangle: false,
+                marker: false,
+                circlemarker: false,
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: false,
+            },
+        })
+        drawControlRef.current = drawControl
+
+        // Draw CREATED handler
+        map.on(L.Draw.Event.CREATED, (e: any) => {
             if (!isDrawingMode.current) return
-            const features = e.features
-            if (features.length > 0 && features[0].geometry.type === 'Polygon') {
-                const ring = features[0].geometry.coordinates[0]
-                const coords = geoJSONToCoords(ring)
-                setFormData(prev => ({ ...prev, polygon_coordinates: coords }))
-            }
-        }
+            const layer = e.layer as L.Polygon
 
-        const handleDrawUpdate = (e: any) => {
-            if (!isDrawingMode.current) return
-            const features = e.features
-            if (features.length > 0 && features[0].geometry.type === 'Polygon') {
-                const ring = features[0].geometry.coordinates[0]
-                const coords = geoJSONToCoords(ring)
-                setFormData(prev => ({ ...prev, polygon_coordinates: coords }))
-            }
-        }
+            drawnItems.clearLayers()
+            drawnItems.addLayer(layer)
 
-        map.on('draw.create', handleDrawCreate)
-        map.on('draw.update', handleDrawUpdate)
-
-        map.on('load', () => {
-            setMapReady(true)
+            const latLngs = layer.getLatLngs()[0] as L.LatLng[]
+            const coords = latLngsToCoords(latLngs)
+            setFormData(prev => ({ ...prev, polygon_coordinates: coords }))
         })
 
+        // Draw EDITED handler
+        map.on(L.Draw.Event.EDITED, (e: any) => {
+            if (!isDrawingMode.current) return
+            const layers = (e as any).layers as L.LayerGroup
+            layers.eachLayer((layer: any) => {
+                const latLngs = (layer as L.Polygon).getLatLngs()[0] as L.LatLng[]
+                const coords = latLngsToCoords(latLngs)
+                setFormData(prev => ({ ...prev, polygon_coordinates: coords }))
+            })
+        })
+
+        map.whenReady(() => setMapReady(true))
         mapRef.current = map
 
         return () => {
             map.remove()
             mapRef.current = null
-            drawRef.current = null
-            zonesRenderedRef.current.clear()
+            drawnItemsRef.current = null
+            drawControlRef.current = null
+            zoneLayersRef.current.clear()
+            activeDrawHandlerRef.current = null
             setMapReady(false)
         }
     }, [activeTab])
 
     // ── Render Zone Polygons ────────────────────────────────────────────────
 
-    const renderZonePolygons = useCallback((map: mapboxgl.Map, zonesToRender: DeliveryZone[]) => {
-        // Clean up ALL existing zone layers/sources
-        const style = map.getStyle()
-        if (style?.layers) {
-            style.layers.forEach(layer => {
-                if (layer.id.startsWith('zone-fill-') || layer.id.startsWith('zone-line-')) {
-                    try { map.removeLayer(layer.id) } catch { /* ignore */ }
-                }
-            })
-        }
-        if (style?.sources) {
-            Object.keys(style.sources).forEach(src => {
-                if (src.startsWith('zone-source-')) {
-                    try { map.removeSource(src) } catch { /* ignore */ }
-                }
-            })
-        }
-        zonesRenderedRef.current.clear()
+    const renderZonePolygons = useCallback((map: L.Map, zonesToRender: DeliveryZone[]) => {
+        // Clear existing zone polygons
+        zoneLayersRef.current.forEach(layer => {
+            try { map.removeLayer(layer) } catch { /* ignore */ }
+        })
+        zoneLayersRef.current.clear()
 
-        const bounds = new mapboxgl.LngLatBounds()
+        const bounds = L.latLngBounds([])
         let hasBounds = false
 
         zonesToRender.forEach(zone => {
             if (!zone.polygon_coordinates || zone.polygon_coordinates.length < 3) return
 
-            const ring = coordsToGeoJSON(zone.polygon_coordinates)
-            const sourceId = `zone-source-${zone.id}`
-            const fillLayerId = `zone-fill-${zone.id}`
-            const lineLayerId = `zone-line-${zone.id}`
+            const latLngs = coordsToLatLngs(zone.polygon_coordinates)
             const color = zone.color || '#4CAF50'
-            const fillOpacity = zone.is_active ? (zone.opacity || 0.3) : 0.1
-            const strokeOpacity = zone.is_active ? 1.0 : 0.4
+            const fillOp = zone.is_active ? (zone.opacity || 0.3) : 0.1
+            const strokeOp = zone.is_active ? 1.0 : 0.4
 
-            map.addSource(sourceId, {
-                type: 'geojson',
-                data: {
-                    type: 'Feature',
-                    properties: {
-                        id: zone.id,
-                        name: zone.name,
-                        city: zone.city,
-                        area: zone.area,
-                        delivery_fee: zone.delivery_fee,
-                        is_active: zone.is_active,
-                        orders_count: zone.orders_count,
-                    },
-                    geometry: {
-                        type: 'Polygon',
-                        coordinates: [ring],
-                    },
-                },
-            })
+            const polygon = L.polygon(latLngs, {
+                color,
+                weight: selectedZoneId === zone.id ? 3 : 2,
+                fillColor: color,
+                fillOpacity: selectedZoneId === zone.id ? fillOp + 0.15 : fillOp,
+                opacity: strokeOp,
+            }).addTo(map)
 
-            map.addLayer({
-                id: fillLayerId,
-                type: 'fill',
-                source: sourceId,
-                paint: {
-                    'fill-color': color,
-                    'fill-opacity': selectedZoneId === zone.id ? fillOpacity + 0.15 : fillOpacity,
-                },
-            })
+            // Popup
+            polygon.bindPopup(`
+                <div style="min-width:200px;font-family:system-ui;line-height:1.5">
+                    <h3 style="margin:0 0 6px;font-size:15px;font-weight:600">${zone.name}</h3>
+                    <p style="margin:0 0 3px;color:#666;font-size:13px">${zone.city} — ${zone.area}</p>
+                    <p style="margin:0 0 3px;font-size:13px"><b>${isRTL ? 'رسوم التوصيل' : 'Delivery Fee'}:</b> EGP ${zone.delivery_fee}</p>
+                    <p style="margin:0 0 3px;font-size:13px"><b>${isRTL ? 'الحالة' : 'Status'}:</b>
+                        <span style="color:${zone.is_active ? '#4CAF50' : '#F44336'}">${zone.is_active ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'متوقف' : 'Inactive')}</span>
+                    </p>
+                    ${zone.orders_count !== undefined ? `<p style="margin:0;font-size:13px"><b>${isRTL ? 'الطلبات' : 'Orders'}:</b> ${zone.orders_count}</p>` : ''}
+                </div>
+            `, { maxWidth: 300 })
 
-            map.addLayer({
-                id: lineLayerId,
-                type: 'line',
-                source: sourceId,
-                paint: {
-                    'line-color': color,
-                    'line-width': selectedZoneId === zone.id ? 3 : 2,
-                    'line-opacity': strokeOpacity,
-                },
-            })
+            // Hover
+            polygon.on('mouseover', () => polygon.setStyle({ fillOpacity: fillOp + 0.15, weight: 3 }))
+            polygon.on('mouseout', () => polygon.setStyle({
+                fillOpacity: selectedZoneId === zone.id ? fillOp + 0.15 : fillOp,
+                weight: selectedZoneId === zone.id ? 3 : 2,
+            }))
 
-            // Hover effect
-            map.on('mouseenter', fillLayerId, () => {
-                map.getCanvas().style.cursor = 'pointer'
-                map.setPaintProperty(fillLayerId, 'fill-opacity', fillOpacity + 0.15)
-            })
-            map.on('mouseleave', fillLayerId, () => {
-                map.getCanvas().style.cursor = ''
-                map.setPaintProperty(fillLayerId, 'fill-opacity',
-                    selectedZoneId === zone.id ? fillOpacity + 0.15 : fillOpacity)
-            })
+            // Click
+            polygon.on('click', () => setSelectedZoneId(zone.id))
 
-            // Click → Popup
-            map.on('click', fillLayerId, (e) => {
-                if (popupRef.current) popupRef.current.remove()
-
-                const popupContent = `
-                    <div style="min-width:200px;font-family:system-ui">
-                        <h3 style="margin:0 0 8px;font-size:16px;font-weight:600">${zone.name}</h3>
-                        <p style="margin:0 0 4px;color:#666">${zone.city} - ${zone.area}</p>
-                        <p style="margin:0 0 4px"><b>${isRTL ? 'رسوم التوصيل' : 'Delivery Fee'}:</b> EGP ${zone.delivery_fee}</p>
-                        <p style="margin:0 0 4px"><b>${isRTL ? 'الحالة' : 'Status'}:</b> 
-                            <span style="color:${zone.is_active ? '#4CAF50' : '#F44336'}">${zone.is_active ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'متوقف' : 'Inactive')}</span>
-                        </p>
-                        ${zone.orders_count !== undefined ? `<p style="margin:0"><b>${isRTL ? 'الطلبات' : 'Orders'}:</b> ${zone.orders_count}</p>` : ''}
-                    </div>
-                `
-
-                const popup = new mapboxgl.Popup({ closeOnClick: true, maxWidth: '300px' })
-                    .setLngLat(e.lngLat)
-                    .setHTML(popupContent)
-                    .addTo(map)
-
-                popupRef.current = popup
-                setSelectedZoneId(zone.id)
-            })
-
-            // Extend bounds
-            ring.forEach(([lng, lat]) => {
-                bounds.extend([lng, lat])
+            // Bounds
+            const polyBounds = polygon.getBounds()
+            if (polyBounds.isValid()) {
+                bounds.extend(polyBounds)
                 hasBounds = true
-            })
+            }
 
-            zonesRenderedRef.current.add(zone.id)
+            zoneLayersRef.current.set(zone.id, polygon)
         })
 
-        // Fit bounds
-        if (hasBounds) {
-            map.fitBounds(bounds, { padding: 50, maxZoom: 15 })
+        if (hasBounds && bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
         }
     }, [selectedZoneId, isRTL])
 
-    // Re-render polygons when zones change
+    // Re-render when zones or selection change
     useEffect(() => {
         if (mapRef.current && mapReady && zones.length >= 0) {
             renderZonePolygons(mapRef.current, zones)
@@ -516,40 +451,35 @@ export default function DeliveryZonesPage() {
         })
         setIsFormOpen(true)
 
-        // Zoom to zone on map
+        // Zoom to zone
         if (mapRef.current && zone.polygon_coordinates?.length) {
-            const bounds = new mapboxgl.LngLatBounds()
-            zone.polygon_coordinates.forEach(c => bounds.extend([c.lng, c.lat]))
-            mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15 })
+            const latLngs = coordsToLatLngs(zone.polygon_coordinates)
+            const b = L.latLngBounds(latLngs)
+            if (b.isValid()) mapRef.current.fitBounds(b, { padding: [80, 80], maxZoom: 15 })
         }
 
-        // Load the existing polygon into draw for editing
+        // Load existing polygon into draw layer for editing
         setTimeout(() => {
-            if (drawRef.current && zone.polygon_coordinates?.length) {
+            if (drawnItemsRef.current && mapRef.current && zone.polygon_coordinates?.length) {
                 isDrawingMode.current = true
-                drawRef.current.deleteAll()
-                const ring = coordsToGeoJSON(zone.polygon_coordinates)
-                drawRef.current.add({
-                    type: 'Feature',
-                    properties: {},
-                    geometry: {
-                        type: 'Polygon',
-                        coordinates: [ring],
-                    },
-                })
-                drawRef.current.changeMode('simple_select')
+                drawnItemsRef.current.clearLayers()
 
-                // Hide the static layer for this zone while editing
-                const fillLayerId = `zone-fill-${zone.id}`
-                const lineLayerId = `zone-line-${zone.id}`
-                try {
-                    if (mapRef.current?.getLayer(fillLayerId)) {
-                        mapRef.current.setLayoutProperty(fillLayerId, 'visibility', 'none')
-                    }
-                    if (mapRef.current?.getLayer(lineLayerId)) {
-                        mapRef.current.setLayoutProperty(lineLayerId, 'visibility', 'none')
-                    }
-                } catch { /* layer may not exist */ }
+                const latLngs = coordsToLatLngs(zone.polygon_coordinates)
+                const editPoly = L.polygon(latLngs, {
+                    color: zone.color || '#4CAF50',
+                    weight: 2,
+                    fillOpacity: 0.3,
+                })
+                drawnItemsRef.current.addLayer(editPoly)
+
+                // Hide static layer for this zone while editing
+                const staticLayer = zoneLayersRef.current.get(zone.id)
+                if (staticLayer) staticLayer.setStyle({ opacity: 0, fillOpacity: 0 })
+
+                // Add draw control
+                if (drawControlRef.current) {
+                    try { mapRef.current.addControl(drawControlRef.current) } catch { /* already on map */ }
+                }
             }
         }, 200)
     }
@@ -559,24 +489,23 @@ export default function DeliveryZonesPage() {
         setEditingZone(null)
         isDrawingMode.current = false
 
-        // Clean up draw
-        if (drawRef.current) {
-            drawRef.current.deleteAll()
-            try { drawRef.current.changeMode('simple_select') } catch { /* ignore */ }
+        // Disable any active drawing handler
+        if (activeDrawHandlerRef.current) {
+            try { activeDrawHandlerRef.current.disable() } catch { /* ignore */ }
+            activeDrawHandlerRef.current = null
         }
 
-        // Restore hidden static layers
-        if (mapRef.current) {
-            try {
-                const style = mapRef.current.getStyle()
-                if (style?.layers) {
-                    style.layers.forEach(layer => {
-                        if (layer.id.startsWith('zone-fill-') || layer.id.startsWith('zone-line-')) {
-                            mapRef.current!.setLayoutProperty(layer.id, 'visibility', 'visible')
-                        }
-                    })
-                }
-            } catch { /* ignore */ }
+        // Clean drawn layer
+        if (drawnItemsRef.current) drawnItemsRef.current.clearLayers()
+
+        // Remove draw control
+        if (drawControlRef.current && mapRef.current) {
+            try { mapRef.current.removeControl(drawControlRef.current) } catch { /* ignore */ }
+        }
+
+        // Restore all zone polygons
+        if (mapRef.current && mapReady) {
+            renderZonePolygons(mapRef.current, zones)
         }
     }
 
@@ -590,13 +519,13 @@ export default function DeliveryZonesPage() {
             return
         }
 
-        // Grab latest coords from draw if in drawing mode
-        if (drawRef.current && isDrawingMode.current) {
-            const all = drawRef.current.getAll()
-            if (all.features.length > 0 && all.features[0].geometry.type === 'Polygon') {
-                const ring = (all.features[0].geometry as GeoJSON.Polygon).coordinates[0]
-                const coords = geoJSONToCoords(ring)
-                formData.polygon_coordinates = coords
+        // Pull latest polygon from drawn layer
+        if (drawnItemsRef.current && isDrawingMode.current) {
+            const layers = drawnItemsRef.current.getLayers()
+            if (layers.length > 0) {
+                const layer = layers[0] as L.Polygon
+                const latLngs = layer.getLatLngs()[0] as L.LatLng[]
+                formData.polygon_coordinates = latLngsToCoords(latLngs)
             }
         }
 
@@ -608,30 +537,50 @@ export default function DeliveryZonesPage() {
     }
 
     const startDrawing = () => {
-        if (!drawRef.current) return
+        if (!mapRef.current || !drawnItemsRef.current) return
         isDrawingMode.current = true
-        drawRef.current.deleteAll()
+
+        // Clear any existing draw
+        drawnItemsRef.current.clearLayers()
         setFormData(prev => ({ ...prev, polygon_coordinates: [] }))
-        drawRef.current.changeMode('draw_polygon')
+
+        // Add draw control
+        if (drawControlRef.current) {
+            try { mapRef.current.addControl(drawControlRef.current) } catch { /* already */ }
+        }
+
+        // Programmatically start polygon drawing
+        const handler = new (L.Draw as any).Polygon(mapRef.current, {
+            allowIntersection: false,
+            showArea: true,
+            shapeOptions: {
+                color: formData.color || '#4CAF50',
+                weight: 2,
+                fillOpacity: 0.3,
+            },
+        })
+        handler.enable()
+        activeDrawHandlerRef.current = handler
     }
 
     const clearPolygon = () => {
-        if (drawRef.current) {
-            drawRef.current.deleteAll()
+        if (activeDrawHandlerRef.current) {
+            try { activeDrawHandlerRef.current.disable() } catch { /* ignore */ }
+            activeDrawHandlerRef.current = null
         }
+        if (drawnItemsRef.current) drawnItemsRef.current.clearLayers()
         isDrawingMode.current = false
         setFormData(prev => ({ ...prev, polygon_coordinates: [] }))
     }
 
-    // Focus on a zone in the map
     const focusZone = (zone: DeliveryZone) => {
         setSelectedZoneId(zone.id)
         if (mapRef.current && zone.polygon_coordinates?.length) {
-            const bounds = new mapboxgl.LngLatBounds()
-            zone.polygon_coordinates.forEach(c => bounds.extend([c.lng, c.lat]))
-            mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15 })
+            const latLngs = coordsToLatLngs(zone.polygon_coordinates)
+            const b = L.latLngBounds(latLngs)
+            if (b.isValid()) mapRef.current.fitBounds(b, { padding: [80, 80], maxZoom: 15 })
         } else if (mapRef.current && zone.center_lat && zone.center_lng) {
-            mapRef.current.flyTo({ center: [zone.center_lng, zone.center_lat], zoom: 14 })
+            mapRef.current.setView([zone.center_lat, zone.center_lng], 14, { animate: true })
         }
         setActiveTab('map')
     }
@@ -721,7 +670,7 @@ export default function DeliveryZonesPage() {
                 </div>
             </div>
 
-            {/* Main Content: Map + Sidebar or Table */}
+            {/* Main Content */}
             {activeTab === 'map' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                     {/* Map */}
@@ -731,27 +680,11 @@ export default function DeliveryZonesPage() {
                                 ref={mapContainerRef}
                                 className="w-full"
                                 style={{ height: '600px' }}
-                            >
-                                {!MAPBOX_TOKEN && (
-                                    <div className="flex items-center justify-center h-full bg-gray-100">
-                                        <div className="text-center p-8">
-                                            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-                                            <h3 className="text-lg font-semibold mb-2">
-                                                {isRTL ? 'مفتاح Mapbox غير مضبوط' : 'Mapbox Token Not Set'}
-                                            </h3>
-                                            <p className="text-muted-foreground text-sm">
-                                                {isRTL
-                                                    ? 'أضف VITE_MAPBOX_TOKEN في ملف .env'
-                                                    : 'Add VITE_MAPBOX_TOKEN to your .env file'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                            />
                         </Card>
                     </div>
 
-                    {/* Zone Sidebar List */}
+                    {/* Zone Sidebar */}
                     <div className="lg:col-span-1">
                         <Card className="h-[600px] flex flex-col">
                             <CardHeader className="pb-3">
@@ -787,7 +720,6 @@ export default function DeliveryZonesPage() {
                     </div>
                 </div>
             ) : (
-                /* Table / List View */
                 <ZoneListView
                     zones={zones}
                     isLoading={zonesLoading}
@@ -819,9 +751,7 @@ export default function DeliveryZonesPage() {
             <AlertDialog open={!!deleteZone} onOpenChange={() => setDeleteZone(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {isRTL ? 'حذف المنطقة' : 'Delete Zone'}
-                        </AlertDialogTitle>
+                        <AlertDialogTitle>{isRTL ? 'حذف المنطقة' : 'Delete Zone'}</AlertDialogTitle>
                         <AlertDialogDescription>
                             {isRTL
                                 ? `هل أنت متأكد من حذف منطقة "${deleteZone?.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
@@ -900,21 +830,10 @@ function DashboardStats({ dashboard, isRTL }: { dashboard: DashboardOverview; is
 }
 
 function ZoneSidebarCard({
-    zone,
-    isSelected,
-    isRTL,
-    onFocus,
-    onEdit,
-    onToggle,
-    onDelete,
+    zone, isSelected, isRTL, onFocus, onEdit, onToggle, onDelete,
 }: {
-    zone: DeliveryZone
-    isSelected: boolean
-    isRTL: boolean
-    onFocus: () => void
-    onEdit: () => void
-    onToggle: () => void
-    onDelete: () => void
+    zone: DeliveryZone; isSelected: boolean; isRTL: boolean
+    onFocus: () => void; onEdit: () => void; onToggle: () => void; onDelete: () => void
 }) {
     return (
         <div
@@ -926,10 +845,7 @@ function ZoneSidebarCard({
         >
             <div className="flex items-start justify-between mb-1">
                 <div className="flex items-center gap-2">
-                    <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: zone.color || '#4CAF50' }}
-                    />
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: zone.color || '#4CAF50' }} />
                     <span className="text-sm font-medium truncate">{zone.name}</span>
                 </div>
                 <Badge variant={zone.is_active ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
@@ -956,22 +872,11 @@ function ZoneSidebarCard({
 }
 
 function ZoneListView({
-    zones,
-    isLoading,
-    isRTL,
-    onEdit,
-    onDelete,
-    onToggle,
-    onFocus,
-    formatCurrency,
+    zones, isLoading, isRTL, onEdit, onDelete, onToggle, onFocus, formatCurrency,
 }: {
-    zones: DeliveryZone[]
-    isLoading: boolean
-    isRTL: boolean
-    onEdit: (z: DeliveryZone) => void
-    onDelete: (z: DeliveryZone) => void
-    onToggle: (id: number) => void
-    onFocus: (z: DeliveryZone) => void
+    zones: DeliveryZone[]; isLoading: boolean; isRTL: boolean
+    onEdit: (z: DeliveryZone) => void; onDelete: (z: DeliveryZone) => void
+    onToggle: (id: number) => void; onFocus: (z: DeliveryZone) => void
     formatCurrency: (n: number) => string
 }) {
     if (isLoading) {
@@ -991,39 +896,19 @@ function ZoneListView({
                     <table className="w-full">
                         <thead>
                             <tr className="border-b bg-gray-50/50">
-                                <th className={cn("px-4 py-3 text-xs font-medium text-muted-foreground", isRTL ? "text-right" : "text-left")}>
-                                    {isRTL ? 'المنطقة' : 'Zone'}
-                                </th>
-                                <th className={cn("px-4 py-3 text-xs font-medium text-muted-foreground", isRTL ? "text-right" : "text-left")}>
-                                    {isRTL ? 'الموقع' : 'Location'}
-                                </th>
-                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">
-                                    {isRTL ? 'رسوم التوصيل' : 'Delivery Fee'}
-                                </th>
-                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">
-                                    {isRTL ? 'الحد الأدنى' : 'Min Order'}
-                                </th>
-                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">
-                                    {isRTL ? 'الوقت المقدّر' : 'Est. Time'}
-                                </th>
-                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">
-                                    {isRTL ? 'المناطق' : 'Polygon'}
-                                </th>
-                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">
-                                    {isRTL ? 'الحالة' : 'Status'}
-                                </th>
-                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">
-                                    {isRTL ? 'إجراءات' : 'Actions'}
-                                </th>
+                                <th className={cn("px-4 py-3 text-xs font-medium text-muted-foreground", isRTL ? "text-right" : "text-left")}>{isRTL ? 'المنطقة' : 'Zone'}</th>
+                                <th className={cn("px-4 py-3 text-xs font-medium text-muted-foreground", isRTL ? "text-right" : "text-left")}>{isRTL ? 'الموقع' : 'Location'}</th>
+                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">{isRTL ? 'رسوم التوصيل' : 'Delivery Fee'}</th>
+                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">{isRTL ? 'الحد الأدنى' : 'Min Order'}</th>
+                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">{isRTL ? 'الوقت المقدّر' : 'Est. Time'}</th>
+                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">{isRTL ? 'المناطق' : 'Polygon'}</th>
+                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">{isRTL ? 'الحالة' : 'Status'}</th>
+                                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-center">{isRTL ? 'إجراءات' : 'Actions'}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {zones.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="text-center py-12 text-muted-foreground">
-                                        {isRTL ? 'لا توجد مناطق' : 'No zones found'}
-                                    </td>
-                                </tr>
+                                <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">{isRTL ? 'لا توجد مناطق' : 'No zones found'}</td></tr>
                             ) : (
                                 zones.map(zone => (
                                     <tr key={zone.id} className="border-b hover:bg-gray-50/50 transition-colors">
@@ -1042,13 +927,9 @@ function ZoneListView({
                                         <td className="px-4 py-3 text-sm text-center">{zone.estimated_delivery_time || '-'}</td>
                                         <td className="px-4 py-3 text-center">
                                             {zone.polygon_coordinates?.length ? (
-                                                <Badge variant="default" className="text-[10px]">
-                                                    {zone.polygon_coordinates.length} pts
-                                                </Badge>
+                                                <Badge variant="default" className="text-[10px]">{zone.polygon_coordinates.length} pts</Badge>
                                             ) : (
-                                                <Badge variant="secondary" className="text-[10px]">
-                                                    {isRTL ? 'بدون' : 'None'}
-                                                </Badge>
+                                                <Badge variant="secondary" className="text-[10px]">{isRTL ? 'بدون' : 'None'}</Badge>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-center">
@@ -1058,19 +939,10 @@ function ZoneListView({
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center justify-center gap-1">
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onFocus(zone)}
-                                                    title={isRTL ? 'عرض على الخريطة' : 'View on map'}>
-                                                    <MapPin className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(zone)}>
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onToggle(zone.id)}>
-                                                    {zone.is_active ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(zone)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onFocus(zone)} title={isRTL ? 'عرض على الخريطة' : 'View on map'}><MapPin className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(zone)}><Edit className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onToggle(zone.id)}>{zone.is_active ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(zone)}><Trash2 className="h-3.5 w-3.5" /></Button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1085,29 +957,12 @@ function ZoneListView({
 }
 
 function ZoneFormDialog({
-    isOpen,
-    onClose,
-    formData,
-    setFormData,
-    onSubmit,
-    isEditing,
-    isSubmitting,
-    isRTL,
-    onStartDrawing,
-    onClearPolygon,
-    mapReady,
+    isOpen, onClose, formData, setFormData, onSubmit, isEditing, isSubmitting, isRTL, onStartDrawing, onClearPolygon, mapReady,
 }: {
-    isOpen: boolean
-    onClose: () => void
-    formData: CreateDeliveryZoneData
+    isOpen: boolean; onClose: () => void; formData: CreateDeliveryZoneData
     setFormData: React.Dispatch<React.SetStateAction<CreateDeliveryZoneData>>
-    onSubmit: () => void
-    isEditing: boolean
-    isSubmitting: boolean
-    isRTL: boolean
-    onStartDrawing: () => void
-    onClearPolygon: () => void
-    mapReady: boolean
+    onSubmit: () => void; isEditing: boolean; isSubmitting: boolean; isRTL: boolean
+    onStartDrawing: () => void; onClearPolygon: () => void; mapReady: boolean
 }) {
     const handleChange = (field: keyof CreateDeliveryZoneData, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }))
@@ -1127,209 +982,80 @@ function ZoneFormDialog({
                 <div className="space-y-6 py-4">
                     {/* Basic Info */}
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
-                            {isRTL ? 'المعلومات الأساسية' : 'Basic Information'}
-                        </h3>
+                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'المعلومات الأساسية' : 'Basic Information'}</h3>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>{isRTL ? 'الاسم (إنجليزي)' : 'Name (English)'} *</Label>
-                                <Input
-                                    value={formData.name}
-                                    onChange={(e) => handleChange('name', e.target.value)}
-                                    placeholder="e.g. Maadi Zone"
-                                />
-                            </div>
-                            <div>
-                                <Label>{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label>
-                                <Input
-                                    value={formData.name_ar || ''}
-                                    onChange={(e) => handleChange('name_ar', e.target.value)}
-                                    placeholder="مثال: منطقة المعادي"
-                                    dir="rtl"
-                                />
-                            </div>
+                            <div><Label>{isRTL ? 'الاسم (إنجليزي)' : 'Name (English)'} *</Label><Input value={formData.name} onChange={(e) => handleChange('name', e.target.value)} placeholder="e.g. Maadi Zone" /></div>
+                            <div><Label>{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label><Input value={formData.name_ar || ''} onChange={(e) => handleChange('name_ar', e.target.value)} placeholder="مثال: منطقة المعادي" dir="rtl" /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>{isRTL ? 'المدينة' : 'City'} *</Label>
-                                <Input
-                                    value={formData.city}
-                                    onChange={(e) => handleChange('city', e.target.value)}
-                                    placeholder="e.g. Cairo"
-                                />
-                            </div>
-                            <div>
-                                <Label>{isRTL ? 'المنطقة' : 'Area'} *</Label>
-                                <Input
-                                    value={formData.area}
-                                    onChange={(e) => handleChange('area', e.target.value)}
-                                    placeholder="e.g. Maadi"
-                                />
-                            </div>
+                            <div><Label>{isRTL ? 'المدينة' : 'City'} *</Label><Input value={formData.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="e.g. Cairo" /></div>
+                            <div><Label>{isRTL ? 'المنطقة' : 'Area'} *</Label><Input value={formData.area} onChange={(e) => handleChange('area', e.target.value)} placeholder="e.g. Maadi" /></div>
                         </div>
-                        <div>
-                            <Label>{isRTL ? 'الوصف' : 'Description'}</Label>
-                            <Textarea
-                                value={formData.description || ''}
-                                onChange={(e) => handleChange('description', e.target.value)}
-                                placeholder={isRTL ? 'وصف اختياري...' : 'Optional description...'}
-                                rows={2}
-                            />
-                        </div>
+                        <div><Label>{isRTL ? 'الوصف' : 'Description'}</Label><Textarea value={formData.description || ''} onChange={(e) => handleChange('description', e.target.value)} placeholder={isRTL ? 'وصف اختياري...' : 'Optional description...'} rows={2} /></div>
                     </div>
 
                     {/* Pricing & Delivery */}
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
-                            {isRTL ? 'التسعير والتوصيل' : 'Pricing & Delivery'}
-                        </h3>
+                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'التسعير والتوصيل' : 'Pricing & Delivery'}</h3>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>{isRTL ? 'رسوم التوصيل (EGP)' : 'Delivery Fee (EGP)'}</Label>
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={formData.delivery_fee}
-                                    onChange={(e) => handleChange('delivery_fee', parseFloat(e.target.value) || 0)}
-                                />
-                            </div>
-                            <div>
-                                <Label>{isRTL ? 'الحد الأدنى للطلب (EGP)' : 'Min Order Amount (EGP)'}</Label>
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={formData.min_order_amount}
-                                    onChange={(e) => handleChange('min_order_amount', parseFloat(e.target.value) || 0)}
-                                />
-                            </div>
+                            <div><Label>{isRTL ? 'رسوم التوصيل (EGP)' : 'Delivery Fee (EGP)'}</Label><Input type="number" min={0} step={0.01} value={formData.delivery_fee} onChange={(e) => handleChange('delivery_fee', parseFloat(e.target.value) || 0)} /></div>
+                            <div><Label>{isRTL ? 'الحد الأدنى للطلب (EGP)' : 'Min Order Amount (EGP)'}</Label><Input type="number" min={0} step={0.01} value={formData.min_order_amount} onChange={(e) => handleChange('min_order_amount', parseFloat(e.target.value) || 0)} /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>{isRTL ? 'وقت التوصيل المقدّر' : 'Estimated Delivery Time'}</Label>
-                                <Input
-                                    value={formData.estimated_delivery_time || ''}
-                                    onChange={(e) => handleChange('estimated_delivery_time', e.target.value)}
-                                    placeholder="e.g. 30-45 min"
-                                />
-                            </div>
-                            <div>
-                                <Label>{isRTL ? 'أقصى وقت للتوصيل (دقيقة)' : 'Max Delivery Time (min)'}</Label>
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    value={formData.max_delivery_time_minutes || 60}
-                                    onChange={(e) => handleChange('max_delivery_time_minutes', parseInt(e.target.value) || 60)}
-                                />
-                            </div>
+                            <div><Label>{isRTL ? 'وقت التوصيل المقدّر' : 'Estimated Delivery Time'}</Label><Input value={formData.estimated_delivery_time || ''} onChange={(e) => handleChange('estimated_delivery_time', e.target.value)} placeholder="e.g. 30-45 min" /></div>
+                            <div><Label>{isRTL ? 'أقصى وقت للتوصيل (دقيقة)' : 'Max Delivery Time (min)'}</Label><Input type="number" min={0} value={formData.max_delivery_time_minutes || 60} onChange={(e) => handleChange('max_delivery_time_minutes', parseInt(e.target.value) || 60)} /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>{isRTL ? 'معامل الزيادة' : 'Surge Multiplier'}</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={5}
-                                    step={0.1}
-                                    value={formData.surge_multiplier || 1.0}
-                                    onChange={(e) => handleChange('surge_multiplier', parseFloat(e.target.value) || 1.0)}
-                                />
-                            </div>
-                            <div>
-                                <Label>{isRTL ? 'أقصى عدد طلبات متزامنة' : 'Max Concurrent Orders'}</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    value={formData.max_concurrent_orders || 50}
-                                    onChange={(e) => handleChange('max_concurrent_orders', parseInt(e.target.value) || 50)}
-                                />
-                            </div>
+                            <div><Label>{isRTL ? 'معامل الزيادة' : 'Surge Multiplier'}</Label><Input type="number" min={1} max={5} step={0.1} value={formData.surge_multiplier || 1.0} onChange={(e) => handleChange('surge_multiplier', parseFloat(e.target.value) || 1.0)} /></div>
+                            <div><Label>{isRTL ? 'أقصى عدد طلبات متزامنة' : 'Max Concurrent Orders'}</Label><Input type="number" min={1} value={formData.max_concurrent_orders || 50} onChange={(e) => handleChange('max_concurrent_orders', parseInt(e.target.value) || 50)} /></div>
                         </div>
                     </div>
 
-                    {/* Polygon / Zone Area */}
+                    {/* Polygon */}
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
-                            {isRTL ? 'حدود المنطقة على الخريطة' : 'Zone Boundary on Map'}
-                        </h3>
+                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'حدود المنطقة على الخريطة' : 'Zone Boundary on Map'}</h3>
                         {mapReady ? (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-3">
                                     <Button type="button" variant="outline" size="sm" onClick={onStartDrawing}>
                                         <MapIcon className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                                        {formData.polygon_coordinates?.length
-                                            ? (isRTL ? 'إعادة رسم' : 'Redraw')
-                                            : (isRTL ? 'رسم حدود المنطقة' : 'Draw Zone Boundary')}
+                                        {formData.polygon_coordinates?.length ? (isRTL ? 'إعادة رسم' : 'Redraw') : (isRTL ? 'رسم حدود المنطقة' : 'Draw Zone Boundary')}
                                     </Button>
                                     {formData.polygon_coordinates?.length ? (
-                                        <Button type="button" variant="ghost" size="sm" onClick={onClearPolygon}>
-                                            {isRTL ? 'مسح' : 'Clear'}
-                                        </Button>
+                                        <Button type="button" variant="ghost" size="sm" onClick={onClearPolygon}>{isRTL ? 'مسح' : 'Clear'}</Button>
                                     ) : null}
                                 </div>
                                 {formData.polygon_coordinates?.length ? (
                                     <p className="text-xs text-green-600 flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />
-                                        {formData.polygon_coordinates.length} {isRTL ? 'نقطة محددة' : 'points defined'}
+                                        <MapPin className="h-3 w-3" />{formData.polygon_coordinates.length} {isRTL ? 'نقطة محددة' : 'points defined'}
                                     </p>
                                 ) : (
-                                    <p className="text-xs text-muted-foreground">
-                                        {isRTL
-                                            ? 'انقر على "رسم حدود المنطقة" ثم ارسم المضلع على الخريطة'
-                                            : 'Click "Draw Zone Boundary" then draw the polygon on the map'}
-                                    </p>
+                                    <p className="text-xs text-muted-foreground">{isRTL ? 'انقر على "رسم حدود المنطقة" ثم ارسم المضلع على الخريطة' : 'Click "Draw Zone Boundary" then draw the polygon on the map'}</p>
                                 )}
                             </div>
                         ) : (
-                            <p className="text-xs text-muted-foreground">
-                                {isRTL ? 'جارِ تحميل الخريطة...' : 'Loading map...'}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{isRTL ? 'جارِ تحميل الخريطة...' : 'Loading map...'}</p>
                         )}
                     </div>
 
                     {/* Appearance */}
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
-                            {isRTL ? 'المظهر' : 'Appearance'}
-                        </h3>
+                        <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">{isRTL ? 'المظهر' : 'Appearance'}</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <Label>{isRTL ? 'لون المنطقة' : 'Zone Color'}</Label>
                                 <div className="flex items-center gap-2 mt-1.5">
-                                    <input
-                                        type="color"
-                                        value={formData.color || '#4CAF50'}
-                                        onChange={(e) => handleChange('color', e.target.value)}
-                                        className="w-10 h-10 rounded cursor-pointer border-0"
-                                    />
+                                    <input type="color" value={formData.color || '#4CAF50'} onChange={(e) => handleChange('color', e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0" />
                                     <div className="flex flex-wrap gap-1.5">
                                         {ZONE_COLORS.slice(0, 8).map(color => (
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                className={cn(
-                                                    'w-6 h-6 rounded-full border-2 transition-transform hover:scale-110',
-                                                    formData.color === color ? 'border-gray-800 scale-110' : 'border-transparent'
-                                                )}
-                                                style={{ backgroundColor: color }}
-                                                onClick={() => handleChange('color', color)}
-                                            />
+                                            <button key={color} type="button" className={cn('w-6 h-6 rounded-full border-2 transition-transform hover:scale-110', formData.color === color ? 'border-gray-800 scale-110' : 'border-transparent')} style={{ backgroundColor: color }} onClick={() => handleChange('color', color)} />
                                         ))}
                                     </div>
                                 </div>
                             </div>
                             <div>
                                 <Label>{isRTL ? 'الشفافية' : 'Opacity'} ({((formData.opacity || 0.3) * 100).toFixed(0)}%)</Label>
-                                <input
-                                    type="range"
-                                    min={0.1}
-                                    max={0.8}
-                                    step={0.05}
-                                    value={formData.opacity || 0.3}
-                                    onChange={(e) => handleChange('opacity', parseFloat(e.target.value))}
-                                    className="w-full mt-2"
-                                />
+                                <input type="range" min={0.1} max={0.8} step={0.05} value={formData.opacity || 0.3} onChange={(e) => handleChange('opacity', parseFloat(e.target.value))} className="w-full mt-2" />
                             </div>
                         </div>
                     </div>
@@ -1338,31 +1064,17 @@ function ZoneFormDialog({
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                             <p className="text-sm font-medium">{isRTL ? 'المنطقة نشطة' : 'Zone Active'}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {isRTL ? 'المناطق غير النشطة لن تقبل طلبات' : 'Inactive zones will not accept orders'}
-                            </p>
+                            <p className="text-xs text-muted-foreground">{isRTL ? 'المناطق غير النشطة لن تقبل طلبات' : 'Inactive zones will not accept orders'}</p>
                         </div>
-                        <Switch
-                            checked={formData.is_active}
-                            onCheckedChange={(checked) => handleChange('is_active', checked)}
-                        />
+                        <Switch checked={formData.is_active} onCheckedChange={(checked) => handleChange('is_active', checked)} />
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>
-                        {isRTL ? 'إلغاء' : 'Cancel'}
-                    </Button>
-                    <Button
-                        onClick={onSubmit}
-                        disabled={isSubmitting}
-                        className="bg-elbaraka-primary hover:bg-elbaraka-primary/90"
-                    >
+                    <Button variant="outline" onClick={onClose}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                    <Button onClick={onSubmit} disabled={isSubmitting} className="bg-elbaraka-primary hover:bg-elbaraka-primary/90">
                         {isSubmitting ? (
-                            <>
-                                <RefreshCw className={cn("h-4 w-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
-                                {isRTL ? 'جارِ الحفظ...' : 'Saving...'}
-                            </>
+                            <><RefreshCw className={cn("h-4 w-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />{isRTL ? 'جارِ الحفظ...' : 'Saving...'}</>
                         ) : (
                             isEditing ? (isRTL ? 'تحديث المنطقة' : 'Update Zone') : (isRTL ? 'إنشاء المنطقة' : 'Create Zone')
                         )}
