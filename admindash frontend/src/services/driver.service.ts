@@ -2,6 +2,12 @@ import { apiClient } from '@/lib/api-client'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+interface ApiResponse<T> {
+    success: boolean
+    data: T
+    message?: string
+}
+
 export interface Driver {
     id: number
     first_name: string
@@ -25,9 +31,10 @@ export interface Driver {
     total_orders?: number
     active_orders?: number
     delivered_orders?: number
-    zone?: {
+    assigned_zone?: {
         id: number
         name: string
+        name_ar: string
     }
 }
 
@@ -44,13 +51,19 @@ export interface DriverLocation {
 
 export interface DriverPerformance {
     id: number
-    first_name: string
-    last_name: string
+    name: string
+    phone: string
+    zone?: {
+        id: number
+        name: string
+        name_ar: string
+    }
+    is_available: boolean
     total_orders: number
-    delivered_orders: number
+    delivered: number
+    earnings: number
     avg_delivery_minutes: number | null
     average_rating: number | null
-    is_available: boolean
 }
 
 export interface CreateDriverData {
@@ -94,35 +107,42 @@ export const driverService = {
         page?: number
         per_page?: number
     }): Promise<PaginatedDrivers> => {
-        return apiClient.get('/admin/drivers', { params })
+        const response = await apiClient.get<ApiResponse<PaginatedDrivers>>('/admin/drivers', { params })
+        return response.data
     },
 
     getDriver: async (id: number): Promise<Driver> => {
-        return apiClient.get(`/admin/drivers/${id}`)
+        const response = await apiClient.get<ApiResponse<{ driver: Driver; recent_orders: any[] }>>(`/admin/drivers/${id}`)
+        return response.data.driver
     },
 
     createDriver: async (data: CreateDriverData): Promise<Driver> => {
-        return apiClient.post('/admin/drivers', data)
+        const response = await apiClient.post<ApiResponse<Driver>>('/admin/drivers', data)
+        return response.data
     },
 
     updateDriver: async (id: number, data: UpdateDriverData): Promise<Driver> => {
-        return apiClient.put(`/admin/drivers/${id}`, data)
+        const response = await apiClient.put<ApiResponse<Driver>>(`/admin/drivers/${id}`, data)
+        return response.data
     },
 
     deleteDriver: async (id: number): Promise<void> => {
-        return apiClient.delete(`/admin/drivers/${id}`)
+        await apiClient.delete<ApiResponse<void>>(`/admin/drivers/${id}`)
     },
 
     getAvailableDrivers: async (): Promise<Driver[]> => {
-        return apiClient.get('/admin/drivers/available')
+        const response = await apiClient.get<ApiResponse<Driver[]>>('/admin/drivers/available')
+        return response.data
     },
 
     getDriverLocations: async (): Promise<DriverLocation[]> => {
-        return apiClient.get('/admin/drivers/locations')
+        const response = await apiClient.get<ApiResponse<DriverLocation[]>>('/admin/drivers/locations')
+        return response.data
     },
 
     getDriverPerformance: async (): Promise<DriverPerformance[]> => {
-        return apiClient.get('/admin/drivers/performance')
+        const response = await apiClient.get<ApiResponse<DriverPerformance[]>>('/admin/drivers/performance')
+        return response.data
     },
 
     assignDriverToOrder: async (orderId: number, driverId: number): Promise<any> => {

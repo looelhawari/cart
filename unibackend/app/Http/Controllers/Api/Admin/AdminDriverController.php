@@ -101,9 +101,9 @@ class AdminDriverController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string|max:20',
             'password' => 'required|string|min:8',
-            'vehicle_type' => 'nullable|string|in:motorcycle,car,bicycle',
+            'vehicle_type' => 'nullable|string|in:motorcycle,car,bicycle,van',
             'vehicle_plate' => 'nullable|string|max:20',
-            'assigned_zone_id' => 'nullable|exists:delivery_zones,id',
+            'assigned_zone_id' => 'nullable|integer|exists:delivery_zones,id',
         ]);
 
         $driver = User::create([
@@ -115,7 +115,7 @@ class AdminDriverController extends Controller
             'role' => 'driver',
             'vehicle_type' => $request->vehicle_type,
             'vehicle_plate' => $request->vehicle_plate,
-            'assigned_zone_id' => $request->assigned_zone_id,
+            'assigned_zone_id' => $request->assigned_zone_id ?: null,
             'is_available' => false,
             'email_verified_at' => now(),
         ]);
@@ -140,16 +140,21 @@ class AdminDriverController extends Controller
             'email' => 'sometimes|email|unique:users,email,' . $id,
             'phone' => 'sometimes|string|max:20',
             'password' => 'sometimes|string|min:8',
-            'vehicle_type' => 'nullable|string|in:motorcycle,car,bicycle',
+            'vehicle_type' => 'nullable|string|in:motorcycle,car,bicycle,van',
             'vehicle_plate' => 'nullable|string|max:20',
-            'assigned_zone_id' => 'nullable|exists:delivery_zones,id',
+            'assigned_zone_id' => 'nullable|integer|exists:delivery_zones,id',
             'is_available' => 'sometimes|boolean',
         ]);
 
         $data = $request->only([
             'first_name', 'last_name', 'email', 'phone',
-            'vehicle_type', 'vehicle_plate', 'assigned_zone_id', 'is_available',
+            'vehicle_type', 'vehicle_plate', 'is_available',
         ]);
+
+        // Handle assigned_zone_id explicitly
+        if ($request->has('assigned_zone_id')) {
+            $data['assigned_zone_id'] = $request->assigned_zone_id ?: null;
+        }
 
         if ($request->filled('password')) {
             $data['password'] = Hash::make($request->password);
@@ -255,7 +260,7 @@ class AdminDriverController extends Controller
         };
 
         $drivers = User::where('role', 'driver')
-            ->with('assignedZone:id,name_en,name_ar')
+            ->with('assignedZone:id,name,name_ar')
             ->get()
             ->map(function ($driver) use ($dateFrom) {
                 $orders = Order::where('driver_id', $driver->id)

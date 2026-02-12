@@ -613,7 +613,7 @@ export default function DeliveryZonesPage() {
 
     // ── Render ──────────────────────────────────────────────────────────────
 
-    const formatCurrency = (amount: number) => `EGP ${amount.toFixed(2)}`
+    const formatCurrency = (amount: number | string | null | undefined) => `EGP ${Number(amount || 0).toFixed(2)}`
 
     return (
         <div className="space-y-6">

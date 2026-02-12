@@ -25,7 +25,7 @@ import OrderTrackingMap from "@/components/OrderTrackingMap";
 import OrderStatusBar from "@/components/OrderStatusBar";
 import { useTranslation } from "@/i18n";
 
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 3000; // 3 seconds for near real-time tracking
 
 export default function OrderTrackingScreen() {
     const { id } = useLocalSearchParams();

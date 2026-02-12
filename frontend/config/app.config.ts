@@ -10,7 +10,7 @@
 // Backend API Configuration
 export const API_CONFIG = {
   // Production URL - Make sure to use production URL for release builds
-  BASE_URL: "http://192.168.1.10:8000/api/v1",
+  BASE_URL: "http://192.168.1.5:8000/api/v1",
 
   // Development URL - Uncomment for local testing
   // BASE_URL: "http://192.168.1.10:8000/api/v1",

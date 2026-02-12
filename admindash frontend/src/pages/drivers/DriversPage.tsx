@@ -251,9 +251,9 @@ export default function DriversPage() {
                                 <TableBody>
                                     {performanceData.map((p) => (
                                         <TableRow key={p.id}>
-                                            <TableCell className="font-medium">{p.first_name} {p.last_name}</TableCell>
+                                            <TableCell className="font-medium">{p.name}</TableCell>
                                             <TableCell className="text-right">{p.total_orders}</TableCell>
-                                            <TableCell className="text-right">{p.delivered_orders}</TableCell>
+                                            <TableCell className="text-right">{p.delivered}</TableCell>
                                             <TableCell className="text-right">
                                                 {p.avg_delivery_minutes ? `${Math.round(p.avg_delivery_minutes)}` : '—'}
                                             </TableCell>
@@ -261,7 +261,7 @@ export default function DriversPage() {
                                                 {p.average_rating ? (
                                                     <span className="inline-flex items-center gap-1">
                                                         <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
-                                                        {p.average_rating.toFixed(1)}
+                                                        {Number(p.average_rating).toFixed(1)}
                                                     </span>
                                                 ) : '—'}
                                             </TableCell>
@@ -373,10 +373,10 @@ export default function DriversPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                {driver.zone ? (
+                                                {driver.assigned_zone ? (
                                                     <span className="inline-flex items-center gap-1 text-sm">
                                                         <MapPin className="h-3 w-3" />
-                                                        {driver.zone.name}
+                                                        {driver.assigned_zone.name}
                                                     </span>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground">Unassigned</span>
@@ -403,7 +403,7 @@ export default function DriversPage() {
                                                 {driver.average_rating ? (
                                                     <span className="inline-flex items-center gap-1 text-sm">
                                                         <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
-                                                        {driver.average_rating.toFixed(1)}
+                                                        {Number(driver.average_rating).toFixed(1)}
                                                     </span>
                                                 ) : '—'}
                                             </TableCell>
@@ -505,7 +505,7 @@ function DriverFormDialog({
         password: '',
         vehicle_type: '',
         vehicle_plate: '',
-        assigned_zone_id: '',
+        assigned_zone_id: 'none',
     })
 
     // Sync form when dialog opens or driver changes
@@ -519,7 +519,7 @@ function DriverFormDialog({
                 password: '',
                 vehicle_type: driver.vehicle_type || '',
                 vehicle_plate: driver.vehicle_plate || '',
-                assigned_zone_id: driver.assigned_zone_id ? String(driver.assigned_zone_id) : '',
+                assigned_zone_id: driver.assigned_zone_id ? String(driver.assigned_zone_id) : 'none',
             })
         } else {
             setForm({
@@ -530,7 +530,7 @@ function DriverFormDialog({
                 password: '',
                 vehicle_type: '',
                 vehicle_plate: '',
-                assigned_zone_id: '',
+                assigned_zone_id: 'none',
             })
         }
     }
@@ -549,12 +549,15 @@ function DriverFormDialog({
 
     const handleSubmit = () => {
         const data: any = { ...form }
-        if (data.assigned_zone_id) {
+        if (data.assigned_zone_id && data.assigned_zone_id !== 'none') {
             data.assigned_zone_id = Number(data.assigned_zone_id)
         } else {
             data.assigned_zone_id = null
         }
         if (!data.password) delete data.password
+        // Don't send empty strings for optional fields
+        if (!data.vehicle_type) delete data.vehicle_type
+        if (!data.vehicle_plate) delete data.vehicle_plate
         onSubmit(data)
     }
 
@@ -657,7 +660,7 @@ function DriverFormDialog({
                                 <SelectValue placeholder="No zone assigned" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">No Zone</SelectItem>
+                                <SelectItem value="none">No Zone</SelectItem>
                                 {zones.map((z: any) => (
                                     <SelectItem key={z.id} value={String(z.id)}>
                                         {z.name}

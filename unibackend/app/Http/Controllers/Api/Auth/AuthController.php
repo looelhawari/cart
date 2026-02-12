@@ -248,22 +248,39 @@ class AuthController extends Controller
             }
         }
 
+        // Build user data
+        $userData = [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'full_name' => $user->full_name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'avatar' => $user->avatar,
+            'language' => $user->language,
+            'role' => $user->role,
+            'is_verified' => $user->is_verified,
+        ];
+
+        // Include driver-specific fields in login response
+        if ($user->role === 'driver') {
+            $user->load('assignedZone:id,name,name_ar');
+            $userData['is_available'] = (bool) $user->is_available;
+            $userData['current_lat'] = $user->current_lat;
+            $userData['current_lng'] = $user->current_lng;
+            $userData['assigned_zone_id'] = $user->assigned_zone_id;
+            $userData['vehicle_type'] = $user->vehicle_type;
+            $userData['vehicle_plate'] = $user->vehicle_plate;
+            $userData['total_deliveries'] = (int) ($user->total_deliveries ?? 0);
+            $userData['average_rating'] = $user->average_rating;
+            $userData['assigned_zone'] = $user->assignedZone;
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Login successful.',
             'data' => [
-                'user' => [
-                    'id' => $user->id,
-                    'first_name' => $user->first_name,
-                    'last_name' => $user->last_name,
-                    'full_name' => $user->full_name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'avatar' => $user->avatar,
-                    'language' => $user->language,
-                    'role' => $user->role,
-                    'is_verified' => $user->is_verified,
-                ],
+                'user' => $userData,
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'token_type' => 'Bearer',
@@ -333,27 +350,48 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        // TODO: Calculate statistics when order system is implemented
-        $statistics = [
-            'total_orders' => 0,
-            'completed_orders' => 0,
-            'total_spent' => 0.0,
+        $data = [
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'avatar' => $user->avatar,
+            'language' => $user->language,
+            'role' => $user->role,
+            'is_verified' => $user->is_verified,
+            'created_at' => $user->created_at,
         ];
+
+        // Include driver-specific fields
+        if ($user->role === 'driver') {
+            $user->load('assignedZone:id,name,name_ar');
+            $data['is_available'] = (bool) $user->is_available;
+            $data['current_lat'] = $user->current_lat;
+            $data['current_lng'] = $user->current_lng;
+            $data['assigned_zone_id'] = $user->assigned_zone_id;
+            $data['vehicle_type'] = $user->vehicle_type;
+            $data['vehicle_plate'] = $user->vehicle_plate;
+            $data['total_deliveries'] = (int) ($user->total_deliveries ?? 0);
+            $data['average_rating'] = $user->average_rating;
+            $data['assigned_zone'] = $user->assignedZone;
+            // Calculate real stats from orders
+            $data['statistics'] = [
+                'total_orders' => \App\Models\Order::where('driver_id', $user->id)->count(),
+                'completed_orders' => \App\Models\Order::where('driver_id', $user->id)->where('status', 'delivered')->count(),
+                'total_earnings' => (float) \App\Models\Order::where('driver_id', $user->id)->where('status', 'delivered')->sum('delivery_fee'),
+            ];
+        } else {
+            $data['statistics'] = [
+                'total_orders' => \App\Models\Order::where('user_id', $user->id)->count(),
+                'completed_orders' => \App\Models\Order::where('user_id', $user->id)->where('status', 'delivered')->count(),
+                'total_spent' => (float) \App\Models\Order::where('user_id', $user->id)->where('status', 'delivered')->sum('total'),
+            ];
+        }
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'avatar' => $user->avatar,
-                'language' => $user->language,
-                'is_verified' => $user->is_verified,
-                'created_at' => $user->created_at,
-                'statistics' => $statistics,
-            ],
+            'data' => $data,
         ]);
     }
 

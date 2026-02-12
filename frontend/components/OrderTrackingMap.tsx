@@ -5,43 +5,43 @@ import Colors from "@/constants/Colors";
 import type { TrackingDriver, TrackingDelivery } from "@/services/api/trackingApi";
 
 interface OrderTrackingMapProps {
-    driver: TrackingDriver | null;
-    delivery: TrackingDelivery;
-    /** Compact mode for embedded use */
-    compact?: boolean;
+  driver: TrackingDriver | null;
+  delivery: TrackingDelivery;
+  /** Compact mode for embedded use */
+  compact?: boolean;
 }
 
 export default function OrderTrackingMap({ driver, delivery, compact }: OrderTrackingMapProps) {
-    const webRef = useRef<WebView>(null);
-    const [mapReady, setMapReady] = useState(false);
+  const webRef = useRef<WebView>(null);
+  const [mapReady, setMapReady] = useState(false);
 
-    // When driver or delivery changes, push updates into the WebView
-    useEffect(() => {
-        if (!mapReady || !webRef.current) return;
+  // When driver or delivery changes, push updates into the WebView
+  useEffect(() => {
+    if (!mapReady || !webRef.current) return;
 
-        const msg = JSON.stringify({
-            type: "UPDATE_MARKERS",
-            driver: driver
-                ? {
-                    lat: driver.location.lat,
-                    lng: driver.location.lng,
-                    heading: driver.location.heading,
-                    name: driver.name,
-                }
-                : null,
-            delivery: {
-                lat: delivery.lat,
-                lng: delivery.lng,
-            },
-        });
+    const msg = JSON.stringify({
+      type: "UPDATE_MARKERS",
+      driver: driver
+        ? {
+          lat: driver.location.lat,
+          lng: driver.location.lng,
+          heading: driver.location.heading,
+          name: driver.name,
+        }
+        : null,
+      delivery: {
+        lat: delivery.lat,
+        lng: delivery.lng,
+      },
+    });
 
-        webRef.current.postMessage(msg);
-    }, [driver, delivery, mapReady]);
+    webRef.current.postMessage(msg);
+  }, [driver, delivery, mapReady]);
 
-    const centerLat = driver?.location.lat || delivery.lat || 30.0444;
-    const centerLng = driver?.location.lng || delivery.lng || 31.2357;
+  const centerLat = driver?.location.lat || delivery.lat || 30.0444;
+  const centerLng = driver?.location.lng || delivery.lng || 31.2357;
 
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -174,58 +174,58 @@ export default function OrderTrackingMap({ driver, delivery, compact }: OrderTra
 </html>
   `.trim();
 
-    return (
-        <View style={[styles.container, compact && styles.compact]}>
-            <WebView
-                ref={webRef}
-                source={{ html }}
-                style={styles.webView}
-                scrollEnabled={false}
-                nestedScrollEnabled={false}
-                javaScriptEnabled
-                originWhitelist={["*"]}
-                onMessage={(event) => {
-                    try {
-                        const data = JSON.parse(event.nativeEvent.data);
-                        if (data.type === "MAP_READY") {
-                            setMapReady(true);
-                        }
-                    } catch { }
-                }}
-            />
-            {!mapReady && (
-                <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="small" color={Colors.primary900} />
-                    <Text style={styles.loadingText}>Loading map...</Text>
-                </View>
-            )}
+  return (
+    <View style={[styles.container, compact && styles.compact]}>
+      <WebView
+        ref={webRef}
+        source={{ html }}
+        style={styles.webView}
+        scrollEnabled={false}
+        nestedScrollEnabled={false}
+        javaScriptEnabled
+        originWhitelist={["*"]}
+        onMessage={(event) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === "MAP_READY") {
+              setMapReady(true);
+            }
+          } catch { }
+        }}
+      />
+      {!mapReady && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="small" color={Colors.primary900} />
+          <Text style={styles.loadingText}>Loading map...</Text>
         </View>
-    );
+      )}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        height: 300,
-        borderRadius: 16,
-        overflow: "hidden",
-        backgroundColor: "#f0f0f0",
-    },
-    compact: {
-        height: 200,
-        borderRadius: 12,
-    },
-    webView: {
-        flex: 1,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: "#f9f9f9",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    loadingText: {
-        marginTop: 6,
-        fontSize: 12,
-        color: Colors.neutralGray,
-    },
+  container: {
+    height: 350,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#f0f0f0",
+  },
+  compact: {
+    height: 250,
+    borderRadius: 12,
+  },
+  webView: {
+    flex: 1,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#f9f9f9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: Colors.neutralGray,
+  },
 });

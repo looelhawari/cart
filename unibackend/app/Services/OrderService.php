@@ -247,7 +247,7 @@ class OrderService
     {
         return Order::where('id', $orderId)
             ->where('user_id', $userId)
-            ->with(['items.product', 'deliveryAddress'])
+            ->with(['items.product', 'deliveryAddress', 'driver:id,first_name,last_name,phone,average_rating', 'driverRating'])
             ->firstOrFail();
     }
 

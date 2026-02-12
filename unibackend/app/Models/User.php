@@ -86,6 +86,7 @@ class User extends Authenticatable
             'current_lng' => 'decimal:8',
             'location_updated_at' => 'datetime',
             'is_available' => 'boolean',
+            'assigned_zone_id' => 'integer',
             'total_deliveries' => 'integer',
             'average_rating' => 'decimal:2',
         ];

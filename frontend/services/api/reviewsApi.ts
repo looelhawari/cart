@@ -209,3 +209,56 @@ export const canReviewOrder = async (
     `/reviews/can-review-order/${orderId}`,
   );
 };
+
+// ====== Driver Rating APIs ======
+
+export interface RateDriverPayload {
+  rating: number;
+  comment?: string;
+}
+
+export interface RateDriverResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    review_id: number;
+    rating: number;
+    comment: string | null;
+  };
+}
+
+export interface CanRateDriverResponse {
+  success: boolean;
+  data: {
+    can_rate: boolean;
+    already_rated?: boolean;
+    driver?: {
+      id: number;
+      name: string | null;
+    };
+  };
+}
+
+/**
+ * Rate the driver for a delivered order
+ */
+export const rateDriver = async (
+  orderId: string | number,
+  payload: RateDriverPayload,
+): Promise<RateDriverResponse> => {
+  return await httpClient.post<RateDriverResponse>(
+    `/orders/${orderId}/rate-driver`,
+    payload,
+  );
+};
+
+/**
+ * Check if customer can rate the driver for an order
+ */
+export const canRateDriver = async (
+  orderId: string | number,
+): Promise<CanRateDriverResponse> => {
+  return await httpClient.get<CanRateDriverResponse>(
+    `/orders/${orderId}/can-rate-driver`,
+  );
+};

@@ -139,7 +139,7 @@ class DriverController extends Controller
     public function orderDetails(Request $request, int $orderId): JsonResponse
     {
         $order = Order::where('driver_id', $request->user()->id)
-            ->with(['deliveryAddress', 'user:id,first_name,last_name,phone', 'items.product'])
+            ->with(['deliveryAddress', 'user:id,first_name,last_name,phone', 'items.product', 'customerRating'])
             ->findOrFail($orderId);
 
         return response()->json([

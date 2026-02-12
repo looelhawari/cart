@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\DeliveryZoneController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\V1\RatingController;
 use App\Http\Controllers\Api\Admin\AdminDeliveryZoneController;
 use App\Http\Controllers\Api\Admin\AdminDriverController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
@@ -284,6 +285,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/orders/{id}/pickup', [DriverController::class, 'pickupOrder']);
             Route::post('/orders/{id}/deliver', [DriverController::class, 'deliverOrder']);
             Route::get('/stats', [DriverController::class, 'stats']);
+
+            // Driver rates customer
+            Route::post('/orders/{id}/rate-customer', [RatingController::class, 'rateCustomer']);
+            Route::get('/orders/{id}/can-rate-customer', [RatingController::class, 'canRateCustomer']);
         });
 
         // Payment Methods CRUD (Phase 4) - password required for deletion
@@ -311,6 +316,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}/tracking', [OrderController::class, 'tracking']);
             Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
+
+            // Customer rates driver
+            Route::post('/{id}/rate-driver', [RatingController::class, 'rateDriver']);
+            Route::get('/{id}/can-rate-driver', [RatingController::class, 'canRateDriver']);
+            Route::get('/{id}/driver-rating', [RatingController::class, 'getDriverRating']);
         });
 
         // Notification endpoints

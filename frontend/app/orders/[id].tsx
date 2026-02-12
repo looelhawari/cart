@@ -26,7 +26,7 @@ import {
   cancelOrder as cancelOrderApi,
   Order,
 } from "@/services/api/orderApi";
-import { createReview } from "@/services/api/reviewsApi";
+import { createReview, rateDriver } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { Toast } from "@/components/Toast";
@@ -49,6 +49,13 @@ export default function OrderDetailsScreen() {
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewedProducts, setReviewedProducts] = useState<number[]>([]);
+
+  // Driver rating state
+  const [showDriverRatingModal, setShowDriverRatingModal] = useState(false);
+  const [driverRating, setDriverRating] = useState(0);
+  const [driverReviewComment, setDriverReviewComment] = useState("");
+  const [submittingDriverReview, setSubmittingDriverReview] = useState(false);
+  const [driverRated, setDriverRated] = useState(false);
 
   // Toast state
   const [toastVisible, setToastVisible] = useState(false);
@@ -539,6 +546,11 @@ export default function OrderDetailsScreen() {
         const response = await getOrder(Number(id));
         const newOrder = response.data.order;
 
+        // Check if driver was already rated
+        if (newOrder.driver_rating) {
+          setDriverRated(true);
+        }
+
         // Check if status changed
         setOrder((prevOrder) => {
           if (prevOrder && newOrder.status !== prevOrder.status) {
@@ -632,6 +644,41 @@ export default function OrderDetailsScreen() {
       setToastVisible(true);
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handleSubmitDriverReview = async () => {
+    if (driverRating === 0) {
+      setToastMessage("Please select a rating");
+      setToastType("error");
+      setToastVisible(true);
+      return;
+    }
+
+    setSubmittingDriverReview(true);
+    try {
+      await rateDriver(Number(id), {
+        rating: driverRating,
+        comment: driverReviewComment.trim() || undefined,
+      });
+
+      setToastMessage("Thank you for rating the driver!");
+      setToastType("success");
+      setToastVisible(true);
+      setDriverRated(true);
+      setShowDriverRatingModal(false);
+      setDriverRating(0);
+      setDriverReviewComment("");
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to submit driver rating";
+      setToastMessage(errorMessage);
+      setToastType("error");
+      setToastVisible(true);
+    } finally {
+      setSubmittingDriverReview(false);
     }
   };
 
@@ -1028,6 +1075,78 @@ export default function OrderDetailsScreen() {
                 />
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Rate Driver Banner for Delivered Orders */}
+        {order.status === "delivered" && order.driver_id && !driverRated && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowDriverRatingModal(true)}
+            style={{
+              backgroundColor: "#eff6ff",
+              marginHorizontal: Spacing.md,
+              marginTop: Spacing.md,
+              padding: Spacing.md,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "#bfdbfe",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <Ionicons name="car-outline" size={24} color="#3b82f6" />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "700",
+                  color: Colors.neutralCharcoal,
+                  marginLeft: 8,
+                  flex: 1,
+                }}
+              >
+                Rate Your Driver
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
+            </View>
+            <Text
+              style={{
+                fontSize: 13,
+                color: Colors.neutralMedium,
+              }}
+            >
+              {order.driver
+                ? `How was your delivery by ${order.driver.first_name}? Tap to rate.`
+                : "How was your delivery experience? Tap to rate."}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Driver Already Rated Badge */}
+        {order.status === "delivered" && driverRated && (
+          <View
+            style={{
+              backgroundColor: "#f0fdf4",
+              marginHorizontal: Spacing.md,
+              marginTop: Spacing.md,
+              padding: Spacing.md,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "#bbf7d0",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+            <Text style={{ fontSize: 14, color: "#16a34a", fontWeight: "600" }}>
+              Driver rated — thank you!
+            </Text>
           </View>
         )}
 
@@ -1439,6 +1558,112 @@ export default function OrderDetailsScreen() {
       )}
 
       {/* Rating Modal */}
+
+      {/* Driver Rating Modal */}
+      <Modal
+        visible={showDriverRatingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDriverRatingModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              <Ionicons name="car-outline" size={22} color="#3b82f6" />
+              <Text style={[styles.modalTitle, { marginLeft: 8, marginBottom: 0 }]}>
+                Rate Your Driver
+              </Text>
+            </View>
+            {order?.driver && (
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: Colors.neutralMedium,
+                  marginBottom: 16,
+                }}
+              >
+                How was your delivery by {order.driver.first_name} {order.driver.last_name}?
+              </Text>
+            )}
+
+            {/* Star Rating */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                marginBottom: 20,
+                gap: 8,
+              }}
+            >
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setDriverRating(star)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={star <= driverRating ? "star" : "star-outline"}
+                    size={36}
+                    color={
+                      star <= driverRating ? Colors.accentOrange : Colors.neutralGray
+                    }
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text
+              style={{
+                fontSize: 14,
+                color: Colors.neutralMedium,
+                marginBottom: 8,
+              }}
+            >
+              Leave a comment (optional)
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="How was the delivery experience?"
+              placeholderTextColor={Colors.neutralGray}
+              value={driverReviewComment}
+              onChangeText={setDriverReviewComment}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setShowDriverRatingModal(false);
+                  setDriverRating(0);
+                  setDriverReviewComment("");
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: "#3b82f6" },
+                ]}
+                onPress={handleSubmitDriverReview}
+                disabled={submittingDriverReview || driverRating === 0}
+              >
+                {submittingDriverReview ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Text style={styles.modalButtonTextPrimary}>
+                    Submit Rating
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Product Rating Modal */}
       <Modal
         visible={showRatingModal}
         transparent

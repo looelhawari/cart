@@ -12,6 +12,7 @@ class Review extends Model
         'rating_type',
         'order_id',
         'user_id',
+        'rated_user_id',
         'product_id',
         'rating',
         'comment',
@@ -36,6 +37,14 @@ class Review extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The user being rated (driver or customer).
+     */
+    public function ratedUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rated_user_id');
     }
 
     /**
@@ -108,5 +117,21 @@ class Review extends Model
     public function scopeStoreReviews($query)
     {
         return $query->where('rating_type', 'store');
+    }
+
+    /**
+     * Scope for driver reviews (customer rates driver).
+     */
+    public function scopeDriverReviews($query)
+    {
+        return $query->where('rating_type', 'driver');
+    }
+
+    /**
+     * Scope for customer reviews (driver rates customer).
+     */
+    public function scopeCustomerReviews($query)
+    {
+        return $query->where('rating_type', 'customer');
     }
 }

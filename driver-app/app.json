@@ -1,0 +1,58 @@
+{
+    "expo": {
+        "name": "ElBaraka Driver",
+        "slug": "elbaraka-driver",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "scheme": "elbaraka-driver",
+        "userInterfaceStyle": "light",
+        "newArchEnabled": true,
+        "splash": {
+            "backgroundColor": "#16a34a"
+        },
+        "ios": {
+            "supportsTablet": false,
+            "bundleIdentifier": "com.elbaraka.driver",
+            "infoPlist": {
+                "NSLocationWhenInUseUsageDescription": "We need your location to show it to customers and help with deliveries.",
+                "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location even when the app is in the background to track deliveries.",
+                "NSLocationAlwaysUsageDescription": "We need your location to track your delivery progress.",
+                "UIBackgroundModes": [
+                    "location",
+                    "fetch"
+                ]
+            }
+        },
+        "android": {
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#16a34a"
+            },
+            "package": "com.elbaraka.driver",
+            "permissions": [
+                "ACCESS_FINE_LOCATION",
+                "ACCESS_COARSE_LOCATION",
+                "ACCESS_BACKGROUND_LOCATION",
+                "FOREGROUND_SERVICE",
+                "FOREGROUND_SERVICE_LOCATION"
+            ]
+        },
+        "plugins": [
+            "expo-router",
+            "expo-secure-store",
+            [
+                "expo-location",
+                {
+                    "locationAlwaysAndWhenInUsePermission": "Allow ElBaraka Driver to use your location to track deliveries.",
+                    "locationAlwaysPermission": "Allow ElBaraka Driver to use your location in the background for active deliveries.",
+                    "locationWhenInUsePermission": "Allow ElBaraka Driver to use your location to assign nearby orders.",
+                    "isAndroidBackgroundLocationEnabled": true,
+                    "isAndroidForegroundServiceEnabled": true
+                }
+            ],
+            "expo-asset",
+            "expo-font"
+        ]
+    }
+}

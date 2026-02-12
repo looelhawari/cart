@@ -205,6 +205,22 @@ class Order extends Model
     }
 
     /**
+     * Get the driver rating (customer rated the driver for this order)
+     */
+    public function driverRating()
+    {
+        return $this->hasOne(Review::class)->where('rating_type', 'driver');
+    }
+
+    /**
+     * Get the customer rating (driver rated the customer for this order)
+     */
+    public function customerRating()
+    {
+        return $this->hasOne(Review::class)->where('rating_type', 'customer');
+    }
+
+    /**
      * Generate unique order number
      */
     public static function generateOrderNumber(): string
