@@ -485,15 +485,15 @@ export default function AddEditAddressScreen() {
               setDeliveryFee(null);
               setEstimatedTime(null);
             }
-            // Auto-fill address fields from map
+            // Auto-fill address fields from map data
             if (location.addressComponents) {
-              if (location.addressComponents.street && !street) {
+              if (location.addressComponents.street) {
                 setStreet(location.addressComponents.street);
               }
-              if (location.addressComponents.city && !city) {
+              if (location.addressComponents.city) {
                 setCity(location.addressComponents.city);
               }
-              if (location.addressComponents.area && !area) {
+              if (location.addressComponents.area) {
                 setArea(location.addressComponents.area);
               }
             }

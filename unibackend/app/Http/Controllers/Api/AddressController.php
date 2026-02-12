@@ -41,11 +41,14 @@ class AddressController extends Controller
 
         $address = $user->addresses()->create($request->validated());
 
-        // Auto-assign delivery zone based on coordinates
-        if ($address->hasCoordinates()) {
+        // If no coordinates provided, geocode the text address to get lat/lng
+        if (!$address->hasCoordinates()) {
+            $this->geocodeAndAssignZone($address);
+        } else {
+            // Coordinates provided — just assign zone
             $this->geoHelper->autoAssignZone($address);
-            $address->refresh();
         }
+        $address->refresh();
 
         // If this is the first address or marked as default, set it as default
         if ($request->input('is_default', false) || $user->addresses()->count() === 1) {
@@ -60,6 +63,60 @@ class AddressController extends Controller
             'message' => 'Address created successfully',
             'data' => $address->load('deliveryZone'),
         ], 201);
+    }
+
+    /**
+     * Build address string from fields, forward-geocode it, save coordinates & assign zone.
+     * Uses a fallback strategy: full address → area+city → city only.
+     */
+    private function geocodeAndAssignZone(Address $address): void
+    {
+        $result = $this->geocodeAddressFields($address);
+
+        if ($result && isset($result['latitude'], $result['longitude'])) {
+            $address->update([
+                'latitude' => $result['latitude'],
+                'longitude' => $result['longitude'],
+                'formatted_address' => $address->formatted_address ?: ($result['formatted_address'] ?? null),
+                'place_id' => $address->place_id ?: ($result['place_id'] ?? null),
+            ]);
+
+            // Now assign zone with the new coordinates
+            $this->geoHelper->autoAssignZone($address);
+        }
+    }
+
+    /**
+     * Try geocoding with progressively broader queries until one succeeds.
+     */
+    private function geocodeAddressFields(Address $address): ?array
+    {
+        // Strategy 1: Full address (street + area + city)
+        $queries = [];
+        $full = array_filter([$address->street, $address->area, $address->city, 'Egypt']);
+        if (count($full) >= 3) {
+            $queries[] = implode(', ', $full);
+        }
+
+        // Strategy 2: Area + City (skip possibly vague street)
+        if ($address->area && $address->city) {
+            $queries[] = implode(', ', [$address->area, $address->city, 'Egypt']);
+        }
+
+        // Strategy 3: Just city
+        if ($address->city) {
+            $queries[] = $address->city . ', Egypt';
+        }
+
+        foreach ($queries as $query) {
+            $result = $this->geoHelper->forwardGeocode($query);
+            if ($result && isset($result['latitude'], $result['longitude'])) {
+                return $result;
+            }
+        }
+
+        return null;
+    }
     }
 
     /**
@@ -85,11 +142,12 @@ class AddressController extends Controller
 
         $address->update($request->validated());
 
-        // Re-assign delivery zone if coordinates changed
-        if ($request->has('latitude') || $request->has('longitude')) {
-            if ($address->hasCoordinates()) {
-                $this->geoHelper->autoAssignZone($address);
-            }
+        // Re-assign delivery zone
+        if ($address->hasCoordinates()) {
+            $this->geoHelper->autoAssignZone($address);
+        } else {
+            // No coordinates — geocode from text fields
+            $this->geocodeAndAssignZone($address);
         }
 
         // If marked as default, set it as default

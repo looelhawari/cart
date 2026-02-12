@@ -58,17 +58,21 @@ class StoreAddressRequest extends FormRequest
     {
         return [
             'label' => 'required|string|max:100|in:Home,Work,Other',
+            'recipient_name' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:20',
             'street' => 'required|string',
             'building' => 'nullable|string|max:255',
             'floor' => 'nullable|string|max:255',
             'apartment' => 'nullable|string|max:255',
             'city' => 'required|string|max:100',
             'area' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:20',
             'landmark' => 'nullable|string|max:255',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
             'formatted_address' => 'nullable|string|max:500',
             'place_id' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:500',
             'is_default' => 'sometimes|boolean',
         ];
     }

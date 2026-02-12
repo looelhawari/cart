@@ -66,6 +66,9 @@ export default function MapAddressPicker({
     const [zoneInfo, setZoneInfo] = useState<CoverageResult["zone"] | null>(null);
     const [isInZone, setIsInZone] = useState<boolean | null>(null);
 
+    // Counter to track zone check requests — ignore stale responses
+    const zoneRequestId = useRef(0);
+
     // Get user's current location
     const getCurrentLocation = useCallback(async () => {
         try {
@@ -101,30 +104,53 @@ export default function MapAddressPicker({
         }
     }, []);
 
-    // Check zone coverage when location changes
+    // Debounce timer for zone check
+    const zoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Check zone coverage when location settles (debounced)
     useEffect(() => {
         if (!selectedLocation) return;
 
-        const checkZone = async () => {
+        // Immediately clear stale zone status so user sees "checking" not old result
+        setZoneInfo(null);
+        setIsInZone(null);
+        setCheckingZone(true);
+
+        // Increment request ID — any older in-flight response will be ignored
+        const currentRequestId = ++zoneRequestId.current;
+
+        // Clear any pending zone check timer
+        if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
+
+        // Wait 800ms after last location change before checking zone
+        zoneCheckTimer.current = setTimeout(async () => {
             try {
-                setCheckingZone(true);
                 const response = await deliveryZoneApi.checkCoverage(
                     selectedLocation.lat,
                     selectedLocation.lng
                 );
+
+                // Only apply result if this is still the latest request
+                if (currentRequestId !== zoneRequestId.current) return;
+
                 const data = response.data || response;
                 setZoneInfo(data.zone);
                 setIsInZone(data.is_covered ?? data.covered ?? false);
             } catch (error) {
-                // Silently fail — zone check is non-critical
+                // Only apply if still the latest request
+                if (currentRequestId !== zoneRequestId.current) return;
                 setZoneInfo(null);
                 setIsInZone(null);
             } finally {
-                setCheckingZone(false);
+                if (currentRequestId === zoneRequestId.current) {
+                    setCheckingZone(false);
+                }
             }
-        };
+        }, 800);
 
-        checkZone();
+        return () => {
+            if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
+        };
     }, [selectedLocation]);
 
     // Handle messages from WebView
@@ -244,6 +270,7 @@ export default function MapAddressPicker({
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     var debounceTimer = null;
+    var isDragging = false;
     var NOMINATIM = '${NOMINATIM_URL}';
 
     // Reverse geocode via Nominatim (free, no API key)
@@ -287,13 +314,22 @@ export default function MapAddressPicker({
         });
     }
 
-    // When map stops moving, reverse geocode the center
+    // Cancel any pending geocode when user starts dragging again
+    map.on('movestart', function() {
+      isDragging = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+    });
+
+    // Only reverse geocode AFTER the user fully stops moving the map (1.5s idle)
     map.on('moveend', function() {
+      isDragging = false;
       var center = map.getCenter();
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function() {
-        reverseGeocode(center.lat, center.lng);
-      }, 400);
+        if (!isDragging) {
+          reverseGeocode(center.lat, center.lng);
+        }
+      }, 1500);
     });
 
     // Click to re-center
@@ -448,7 +484,7 @@ export default function MapAddressPicker({
                                 <View style={styles.zoneRow}>
                                     <Check size={14} color="#16a34a" />
                                     <Text style={styles.zoneOkText}>
-                                        {zoneInfo?.name || "Delivery zone"} — EGP {zoneInfo?.delivery_fee || 0} delivery fee
+                                        {(zoneInfo as any)?.zone_name || zoneInfo?.name || "Delivery zone"} — EGP {zoneInfo?.delivery_fee || 0} delivery fee
                                     </Text>
                                 </View>
                                 {(zoneInfo?.estimated_delivery_time || zoneInfo?.distance_from_center_km) && (

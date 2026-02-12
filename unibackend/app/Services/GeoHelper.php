@@ -66,13 +66,26 @@ class GeoHelper
      */
     public function validateDeliveryAddress(Address $address): array
     {
+        // If no coordinates, try to geocode from text fields with fallback
         if (!$address->latitude || !$address->longitude) {
-            return [
-                'valid' => false,
-                'reason' => 'no_coordinates',
-                'message' => 'Address does not have GPS coordinates. Please update your address with map location.',
-                'zone' => null,
-            ];
+            $result = $this->geocodeFromAddressFields($address);
+
+            if ($result && isset($result['latitude'], $result['longitude'])) {
+                $address->update([
+                    'latitude' => $result['latitude'],
+                    'longitude' => $result['longitude'],
+                    'formatted_address' => $address->formatted_address ?: ($result['formatted_address'] ?? null),
+                    'place_id' => $address->place_id ?: ($result['place_id'] ?? null),
+                ]);
+                $address->refresh();
+            } else {
+                return [
+                    'valid' => false,
+                    'reason' => 'no_coordinates',
+                    'message' => 'Could not determine location from address. Please use the map picker.',
+                    'zone' => null,
+                ];
+            }
         }
 
         $zoneInfo = $this->findZone($address->latitude, $address->longitude);
@@ -125,6 +138,42 @@ class GeoHelper
         }
 
         return $zone;
+    }
+
+    // ─── Geocode from Address Fields (Fallback Strategy) ──────────
+
+    /**
+     * Try geocoding an address using progressively broader text queries.
+     * Strategy: full street+area+city → area+city → city only.
+     */
+    public function geocodeFromAddressFields(Address $address): ?array
+    {
+        $queries = [];
+
+        // Strategy 1: Full address (street + area + city)
+        $full = array_filter([$address->street, $address->area, $address->city, 'Egypt']);
+        if (count($full) >= 3) {
+            $queries[] = implode(', ', $full);
+        }
+
+        // Strategy 2: Area + City (skip possibly vague street)
+        if ($address->area && $address->city) {
+            $queries[] = implode(', ', [$address->area, $address->city, 'Egypt']);
+        }
+
+        // Strategy 3: Just city
+        if ($address->city) {
+            $queries[] = $address->city . ', Egypt';
+        }
+
+        foreach ($queries as $query) {
+            $result = $this->forwardGeocode($query);
+            if ($result && isset($result['latitude'], $result['longitude'])) {
+                return $result;
+            }
+        }
+
+        return null;
     }
 
     // ─── Nominatim / OpenStreetMap Integration (Free) ─────────────
