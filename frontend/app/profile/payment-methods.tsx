@@ -1,13 +1,15 @@
 /**
- * Payment Methods Management Screen (Phase 5)
+ * Payment Methods Management Screen
  *
  * Located at: /profile/payment-methods
  *
  * Features:
- * - List all saved cards (including expired with disabled state)
+ * - List all saved cards with premium UI
  * - Set default card (with validation)
  * - Delete card (with confirmation)
- * - Auto-refresh after actions
+ * - Empty state with guidance
+ * - Pull-to-refresh
+ * - Skeleton loading
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -21,16 +23,27 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  ArrowLeft,
+  CreditCard,
+  Trash,
+  CheckCircle,
+  ShieldCheck,
+  Star,
+  AlertCircle,
+  Clock,
+  Info,
+} from "lucide-react-native";
 import {
   getPaymentMethods,
   setDefaultPaymentMethod,
   deletePaymentMethod,
-  formatCardDisplay,
 } from "@/services/paymentMethodsApi";
 import { PaymentMethod } from "@/types";
-import { Colors } from "@/constants/Colors";
+import Colors from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 import { Toast } from "@/components/Toast";
 import { useTranslation } from "@/i18n";
@@ -86,11 +99,10 @@ export default function PaymentMethodsScreen() {
    * Handle set default card
    */
   const handleSetDefault = async (method: PaymentMethod) => {
-    // Validate card is eligible
     if (method.is_expired) {
       Alert.alert(
         t.common.error,
-        "This card has expired. Please add a new card.",
+        "This card has expired and cannot be set as default.",
         [{ text: t.common.ok }],
       );
       return;
@@ -99,7 +111,7 @@ export default function PaymentMethodsScreen() {
     if (!method.is_verified) {
       Alert.alert(
         t.common.error,
-        "This card has not been verified yet. Please use it for a payment first.",
+        "This card is not verified yet. Use it for a payment first.",
         [{ text: t.common.ok }],
       );
       return;
@@ -113,7 +125,6 @@ export default function PaymentMethodsScreen() {
       setToastMessage(t.paymentMethods.cardSetAsDefault);
       setShowToast(true);
 
-      // Refresh list to show updated default
       await fetchPaymentMethods(false);
     } catch (error: any) {
       console.error("[PaymentMethods] Error setting default:", error);
@@ -146,15 +157,14 @@ export default function PaymentMethodsScreen() {
               const response = await deletePaymentMethod(method.id);
 
               let message = t.paymentMethods.cardDeleted;
-              if (response.data.new_default) {
-                message += `\nYour new default card is •••• ${response.data.new_default.card_last_four}`;
+              if (response.data?.new_default) {
+                message += `\nNew default: •••• ${response.data.new_default.card_last_four}`;
               }
 
               setToastType("success");
               setToastMessage(message);
               setShowToast(true);
 
-              // Refresh list
               await fetchPaymentMethods(false);
             } catch (error: any) {
               console.error("[PaymentMethods] Error deleting:", error);
@@ -177,105 +187,122 @@ export default function PaymentMethodsScreen() {
   }, []);
 
   /**
+   * Get card brand display icon
+   */
+  const getCardBrandColor = (brand: string) => {
+    switch (brand?.toLowerCase()) {
+      case "visa":
+        return "#1A1F71";
+      case "mastercard":
+        return "#EB001B";
+      case "amex":
+        return "#006FCF";
+      default:
+        return Colors.primary900;
+    }
+  };
+
+  /**
    * Render individual card item
    */
   const renderCard = ({ item }: { item: PaymentMethod }) => {
     const isActionLoading = actionLoading === item.id;
     const isDisabled = item.is_expired || !item.is_verified;
+    const brandColor = getCardBrandColor(item.card_brand);
 
     return (
       <View style={[styles.cardContainer, isDisabled && styles.cardDisabled]}>
-        {/* Card Info */}
-        <View style={styles.cardInfo}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="card-outline"
-              size={24}
-              color={isDisabled ? Colors.textSecondary : Colors.primary}
-            />
-            <Text
-              style={[styles.cardNumber, isDisabled && styles.textDisabled]}
-            >
+        {/* Default badge */}
+        {item.is_default && (
+          <View style={styles.defaultRibbon}>
+            <Star size={12} color={Colors.neutralWhite} />
+            <Text style={styles.defaultRibbonText}>Default</Text>
+          </View>
+        )}
+
+        <View style={styles.cardContent}>
+          {/* Card visual strip */}
+          <View style={[styles.cardStrip, { backgroundColor: brandColor }]}>
+            <CreditCard size={22} color={Colors.neutralWhite} />
+          </View>
+
+          {/* Card details */}
+          <View style={styles.cardDetails}>
+            <Text style={[styles.cardNumber, isDisabled && styles.textMuted]}>
               {item.masked_card}
             </Text>
-          </View>
-
-          <View style={styles.cardMeta}>
-            <Text style={[styles.cardBrand, isDisabled && styles.textDisabled]}>
-              {item.card_brand.toUpperCase()}
-            </Text>
-            {item.expires_at && (
-              <Text
-                style={[styles.expiryDate, isDisabled && styles.textDisabled]}
-              >
-                Exp: {item.expires_at}
+            <View style={styles.cardMetaRow}>
+              <Text style={[styles.cardBrand, isDisabled && styles.textMuted]}>
+                {item.card_brand?.toUpperCase()}
               </Text>
-            )}
-          </View>
+              {item.expires_at && (
+                <>
+                  <View style={styles.metaDot} />
+                  <Text
+                    style={[
+                      styles.cardExpiry,
+                      isDisabled && styles.textMuted,
+                      item.is_expired && styles.textDanger,
+                    ]}
+                  >
+                    {item.is_expired ? "Expired" : `Exp: ${item.expires_at}`}
+                  </Text>
+                </>
+              )}
+            </View>
 
-          {/* Status Badges */}
-          <View style={styles.badges}>
-            {item.is_default && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>DEFAULT</Text>
-              </View>
-            )}
-            {item.is_expired && (
-              <View style={[styles.badge, styles.badgeExpired]}>
-                <Text style={styles.badgeTextExpired}>EXPIRED</Text>
-              </View>
-            )}
-            {!item.is_verified && (
-              <View style={[styles.badge, styles.badgeUnverified]}>
-                <Text style={styles.badgeTextUnverified}>UNVERIFIED</Text>
-              </View>
-            )}
+            {/* Status badges */}
+            <View style={styles.badgesRow}>
+              {item.is_expired && (
+                <View style={[styles.badge, styles.badgeExpired]}>
+                  <Clock size={10} color={Colors.neutralWhite} />
+                  <Text style={styles.badgeText}>EXPIRED</Text>
+                </View>
+              )}
+              {!item.is_verified && (
+                <View style={[styles.badge, styles.badgeWarning]}>
+                  <AlertCircle size={10} color={Colors.neutralWhite} />
+                  <Text style={styles.badgeText}>UNVERIFIED</Text>
+                </View>
+              )}
+              {item.is_verified && !item.is_expired && (
+                <View style={[styles.badge, styles.badgeVerified]}>
+                  <CheckCircle size={10} color={Colors.neutralWhite} />
+                  <Text style={styles.badgeText}>VERIFIED</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
         {/* Actions */}
-        <View style={styles.actions}>
+        <View style={styles.cardActions}>
           {isActionLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <View style={styles.actionLoadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primary900} />
+            </View>
           ) : (
             <>
               {/* Set Default Button */}
-              {!item.is_default && (
+              {!item.is_default && !isDisabled && (
                 <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    isDisabled && styles.actionButtonDisabled,
-                  ]}
+                  style={styles.setDefaultButton}
                   onPress={() => handleSetDefault(item)}
-                  disabled={isDisabled}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color={isDisabled ? Colors.textSecondary : Colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.actionButtonText,
-                      isDisabled && styles.textDisabled,
-                    ]}
-                  >
-                    Set Default
-                  </Text>
+                  <CheckCircle size={16} color={Colors.primary900} />
+                  <Text style={styles.setDefaultText}>Set as Default</Text>
                 </TouchableOpacity>
               )}
 
               {/* Delete Button */}
               <TouchableOpacity
-                style={styles.actionButton}
+                style={styles.deleteButton}
                 onPress={() => handleDelete(item)}
+                activeOpacity={0.7}
               >
-                <Ionicons name="trash-outline" size={20} color={Colors.error} />
-                <Text
-                  style={[styles.actionButtonText, { color: Colors.error }]}
-                >
-                  Delete
-                </Text>
+                <Trash size={16} color={Colors.accentRed} />
+                <Text style={styles.deleteText}>Delete</Text>
               </TouchableOpacity>
             </>
           )}
@@ -284,93 +311,119 @@ export default function PaymentMethodsScreen() {
     );
   };
 
+  /**
+   * Render skeleton loading
+   */
+  const renderSkeleton = () => (
+    <View style={styles.skeletonContainer}>
+      {[1, 2, 3].map((i) => (
+        <View key={i} style={styles.skeletonCard}>
+          <View style={styles.skeletonContent}>
+            <SkeletonLoader width={44} height={44} borderRadius={12} />
+            <View style={{ marginLeft: Spacing.md, flex: 1 }}>
+              <SkeletonLoader width="70%" height={18} borderRadius={4} />
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width="45%" height={14} borderRadius={4} />
+              <View style={{ height: 8 }} />
+              <SkeletonLoader width={70} height={20} borderRadius={10} />
+            </View>
+          </View>
+          <View style={styles.skeletonActions}>
+            <SkeletonLoader width={110} height={34} borderRadius={10} />
+            <SkeletonLoader width={80} height={34} borderRadius={10} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <OfflineIndicator />
-        {/* Header Skeleton */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+            <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Payment Methods</Text>
-          <View style={styles.headerRight} />
+          <Text style={styles.headerTitle}>
+            {t.paymentMethods?.title || "Payment Methods"}
+          </Text>
+          <View style={{ width: 40 }} />
         </View>
-
-        <View style={{ padding: Spacing.lg }}>
-          {[1, 2, 3].map((i) => (
-            <View
-              key={i}
-              style={{
-                marginBottom: Spacing.md,
-                backgroundColor: Colors.neutralWhite,
-                borderRadius: 12,
-                padding: Spacing.md,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                <SkeletonLoader width={50} height={32} borderRadius={8} />
-                <View style={{ marginLeft: Spacing.md, flex: 1 }}>
-                  <SkeletonLoader width="60%" height={18} borderRadius={4} />
-                  <View style={{ height: 6 }} />
-                  <SkeletonLoader width="40%" height={14} borderRadius={4} />
-                </View>
-              </View>
-              <View style={{ height: 12 }} />
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                }}
-              >
-                <SkeletonLoader width={100} height={32} borderRadius={16} />
-                <SkeletonLoader width={80} height={32} borderRadius={16} />
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
+        {renderSkeleton()}
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <OfflineIndicator />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payment Methods</Text>
-        <View style={styles.headerRight} />
+        <Text style={styles.headerTitle}>
+          {t.paymentMethods?.title || "Payment Methods"}
+        </Text>
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Empty State */}
       {paymentMethods.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons
-            name="card-outline"
-            size={64}
-            color={Colors.textSecondary}
-          />
-          <Text style={styles.emptyText}>No saved cards yet</Text>
+          <View style={styles.emptyIconCircle}>
+            <CreditCard size={40} color={Colors.primary900} />
+          </View>
+          <Text style={styles.emptyTitle}>No Saved Cards</Text>
           <Text style={styles.emptySubtext}>
-            Add a card during checkout by selecting "Save this card for future
-            use"
+            When you save a card during checkout, it will appear here for quick
+            access.
           </Text>
+
+          <View style={styles.emptySteps}>
+            <View style={styles.emptyStepRow}>
+              <View style={styles.emptyStepNumber}>
+                <Text style={styles.emptyStepNumberText}>1</Text>
+              </View>
+              <Text style={styles.emptyStepText}>
+                Choose Card payment at checkout
+              </Text>
+            </View>
+            <View style={styles.emptyStepRow}>
+              <View style={styles.emptyStepNumber}>
+                <Text style={styles.emptyStepNumberText}>2</Text>
+              </View>
+              <Text style={styles.emptyStepText}>
+                {'Check "Save this card for future purchases"'}
+              </Text>
+            </View>
+            <View style={styles.emptyStepRow}>
+              <View style={styles.emptyStepNumber}>
+                <Text style={styles.emptyStepNumberText}>3</Text>
+              </View>
+              <Text style={styles.emptyStepText}>
+                Complete payment — card is saved automatically
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.emptySecurityNote}>
+            <ShieldCheck size={16} color={Colors.primary900} />
+            <Text style={styles.emptySecurityText}>
+              Cards are encrypted with AES-256 and never stored in plain text
+            </Text>
+          </View>
         </View>
       ) : (
+        /* Cards List */
         <FlatList
           data={paymentMethods}
           renderItem={renderCard}
@@ -380,24 +433,35 @@ export default function PaymentMethodsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={Colors.primary}
+              tintColor={Colors.primary900}
+              colors={[Colors.primary900]}
             />
           }
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              <Text style={styles.cardCount}>
+                {paymentMethods.length} saved card
+                {paymentMethods.length !== 1 ? "s" : ""}
+              </Text>
+            </View>
+          }
+          ListFooterComponent={
+            <View style={styles.footer}>
+              <View style={styles.footerInfo}>
+                <Info size={14} color={Colors.neutralMedium} />
+                <Text style={styles.footerText}>
+                  Expired or unverified cards cannot be set as default
+                </Text>
+              </View>
+              <View style={styles.footerSecurity}>
+                <ShieldCheck size={14} color={Colors.primary900} />
+                <Text style={styles.footerSecurityText}>
+                  All cards are encrypted with AES-256-CBC
+                </Text>
+              </View>
+            </View>
+          }
         />
-      )}
-
-      {/* Info Footer */}
-      {paymentMethods.length > 0 && (
-        <View style={styles.footer}>
-          <Ionicons
-            name="information-circle-outline"
-            size={16}
-            color={Colors.textSecondary}
-          />
-          <Text style={styles.footerText}>
-            Expired or unverified cards cannot be set as default
-          </Text>
-        </View>
       )}
 
       {/* Toast */}
@@ -407,183 +471,385 @@ export default function PaymentMethodsScreen() {
         type={toastType}
         onHide={() => setShowToast(false)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: Colors.neutralCloud,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-  },
+
+  /* ── Header ── */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: "#fff",
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.neutralWhite,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: Colors.neutralLight,
   },
+
   backButton: {
-    padding: Spacing.xs,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.neutralLight,
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: Colors.text,
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
   },
-  headerRight: {
-    width: 40, // Balance the back button
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  listContent: {
-    padding: Spacing.md,
-  },
+
+  /* ── Card Item ── */
   cardContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: Spacing.md,
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
     marginBottom: Spacing.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
+
   cardDisabled: {
-    opacity: 0.6,
+    opacity: 0.65,
   },
-  cardInfo: {
-    marginBottom: Spacing.md,
-  },
-  cardHeader: {
+
+  defaultRibbon: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  cardNumber: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginLeft: Spacing.sm,
-    color: Colors.text,
-  },
-  cardMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 32, // Align with card number
-  },
-  cardBrand: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontWeight: "500",
-  },
-  expiryDate: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginLeft: Spacing.md,
-  },
-  textDisabled: {
-    color: Colors.textSecondary,
-  },
-  badges: {
-    flexDirection: "row",
-    marginTop: Spacing.sm,
-    flexWrap: "wrap",
-  },
-  badge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.primary900,
     paddingVertical: 4,
-    borderRadius: 4,
-    marginRight: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    gap: 4,
+  },
+
+  defaultRibbonText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.neutralWhite,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  cardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+
+  cardStrip: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  cardDetails: {
+    flex: 1,
+  },
+
+  cardNumber: {
+    fontSize: Typography.bodyBase,
+    fontWeight: "700",
+    color: Colors.neutralCharcoal,
+    letterSpacing: 0.5,
+  },
+
+  cardMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+  },
+
+  cardBrand: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    fontWeight: "600",
+  },
+
+  metaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.neutralGray,
+    marginHorizontal: Spacing.xs,
+  },
+
+  cardExpiry: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+  },
+
+  textMuted: {
+    color: Colors.neutralMedium,
+  },
+
+  textDanger: {
+    color: Colors.accentRed,
+    fontWeight: "600",
+  },
+
+  badgesRow: {
+    flexDirection: "row",
     marginTop: Spacing.xs,
+    gap: 6,
   },
+
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+
   badgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
+    color: Colors.neutralWhite,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
+
   badgeExpired: {
-    backgroundColor: Colors.error,
+    backgroundColor: Colors.accentRed,
   },
-  badgeTextExpired: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
+
+  badgeWarning: {
+    backgroundColor: Colors.accentOrange,
   },
-  badgeUnverified: {
-    backgroundColor: "#ff9800",
+
+  badgeVerified: {
+    backgroundColor: Colors.primary900,
   },
-  badgeTextUnverified: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  actions: {
+
+  /* ── Actions ── */
+  cardActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    paddingTop: Spacing.sm,
-  },
-  actionButton: {
-    flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+
+  actionLoadingContainer: {
     paddingVertical: Spacing.sm,
-    marginLeft: Spacing.sm,
   },
-  actionButtonDisabled: {
-    opacity: 0.5,
-  },
-  actionButtonText: {
-    marginLeft: Spacing.xs,
-    fontSize: 14,
-    fontWeight: "500",
-    color: Colors.primary,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: Spacing.xl,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: Colors.text,
-    marginTop: Spacing.md,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    marginTop: Spacing.sm,
-  },
-  footer: {
+
+  setDefaultButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.md,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    backgroundColor: "#f0fdf4",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#dcfce7",
   },
+
+  setDefaultText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: "600",
+    color: Colors.primary900,
+  },
+
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef2f2",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#fee2e2",
+  },
+
+  deleteText: {
+    fontSize: Typography.bodySmall,
+    fontWeight: "600",
+    color: Colors.accentRed,
+  },
+
+  /* ── List ── */
+  listContent: {
+    padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
+  },
+
+  listHeader: {
+    marginBottom: Spacing.sm,
+  },
+
+  cardCount: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    fontWeight: "500",
+  },
+
+  /* ── Empty State ── */
+  emptyContainer: {
+    flex: 1,
+    padding: Spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#dcfce7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+
+  emptyTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.xs,
+  },
+
+  emptySubtext: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+  },
+
+  emptySteps: {
+    alignSelf: "stretch",
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+    marginBottom: Spacing.lg,
+  },
+
+  emptyStepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+
+  emptyStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary900,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  emptyStepNumberText: {
+    color: Colors.neutralWhite,
+    fontSize: Typography.bodySmall,
+    fontWeight: "700",
+  },
+
+  emptyStepText: {
+    flex: 1,
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralCharcoal,
+    fontWeight: "500",
+  },
+
+  emptySecurityNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 20,
+    gap: Spacing.xs,
+  },
+
+  emptySecurityText: {
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    color: Colors.primary900,
+    fontWeight: "500",
+  },
+
+  /* ── Footer ── */
+  footer: {
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+
+  footerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+
   footerText: {
-    marginLeft: Spacing.xs,
-    fontSize: 12,
-    color: Colors.textSecondary,
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+  },
+
+  footerSecurity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+
+  footerSecurityText: {
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    color: Colors.primary900,
+    fontWeight: "500",
+  },
+
+  /* ── Skeleton ── */
+  skeletonContainer: {
+    padding: Spacing.md,
+  },
+
+  skeletonCard: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+
+  skeletonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+
+  skeletonActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: Spacing.sm,
   },
 });

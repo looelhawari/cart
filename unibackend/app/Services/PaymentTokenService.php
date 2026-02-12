@@ -85,7 +85,15 @@ class PaymentTokenService
             // Check if previously deleted (restore strategy)
             $restored = PaymentMethod::findOrRestoreDeleted($userId, $tokenFingerprint);
             if ($restored) {
-                Log::info('💳 Restored previously deleted payment method', [
+                // Refresh token with fresh encrypted value from current webhook
+                $restored->update([
+                    'paymob_card_token' => $cardData['token'],
+                    'card_brand' => $cardData['brand'],
+                    'card_last_four' => $cardData['last4'],
+                    'status' => 'active',
+                    'is_verified' => true,
+                ]);
+                Log::info('💳 Restored previously deleted payment method with fresh token', [
                     'payment_method_id' => $restored->id,
                     'user_id' => $userId,
                 ]);

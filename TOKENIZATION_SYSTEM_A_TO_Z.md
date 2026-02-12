@@ -1,24 +1,40 @@
 # 🔒 El Baraka — Payment Tokenization System: A-to-Z Complete Guide
 
-> **Last Updated:** After P0/P1 Enterprise Patches + Frontend Integration Fix  
-> **Backend:** Laravel PHP 8.2 / MySQL 8.0  
-> **Frontend:** React Native (Expo Router) / TypeScript  
+> **Version:** 3.0 — Post MOTO Integration + Enterprise Hardening  
+> **Last Updated:** February 12, 2026  
+> **Backend:** Laravel PHP 8.2 / MySQL 8.0 / Sanctum Auth  
+> **Frontend:** React Native (Expo Router) / TypeScript / Zustand  
 > **Payment Gateway:** Paymob (Egypt — accept.paymob.com)  
-> **Currency:** EGP (Egyptian Pounds, stored as cents internally)
+> **Currency:** EGP (Egyptian Pounds, stored as cents internally)  
+> **Encryption:** AES-256-CBC (Laravel `Crypt` facade, APP_KEY derived)  
+> **HMAC:** SHA-512 with `hash_equals()` timing-safe comparison
 
 ---
 
 ## TABLE OF CONTENTS
 
-1. [What Is This System?](#1-what-is-this-system)
-2. [The Big Picture — Visual Flow](#2-the-big-picture--visual-flow)
-3. [Step-by-Step: New Card Payment (A→Z)](#3-step-by-step-new-card-payment-az)
-4. [Step-by-Step: Saved Card Payment (A→Z)](#4-step-by-step-saved-card-payment-az)
-5. [How Card Tokenization Works](#5-how-card-tokenization-works)
-6. [The Webhook — The Single Source of Truth](#6-the-webhook--the-single-source-of-truth)
+1. [System Overview](#1-system-overview)
+2. [Architecture Diagram — The Big Picture](#2-architecture-diagram--the-big-picture)
+3. [Payment Flows — All 4 Flows Explained](#3-payment-flows--all-4-flows-explained)
+   - 3.1 [Flow A — New Card Payment (Unified Checkout / 3DS)](#31-flow-a--new-card-payment-unified-checkout--3ds)
+   - 3.2 [Flow B — Saved Card Payment (MOTO / One-Click)](#32-flow-b--saved-card-payment-moto--one-click)
+   - 3.3 [Flow C — MOTO → 3DS Fallback](#33-flow-c--moto--3ds-fallback)
+   - 3.4 [Flow D — Cash on Delivery (COD)](#34-flow-d--cash-on-delivery-cod)
+4. [The Decision Engine — How Flow Routing Works](#4-the-decision-engine--how-flow-routing-works)
+5. [Card Tokenization Deep Dive](#5-card-tokenization-deep-dive)
+   - 5.1 [What Is a Token?](#51-what-is-a-token)
+   - 5.2 [Token Save Lifecycle (Dual Webhook Bridge)](#52-token-save-lifecycle-dual-webhook-bridge)
+   - 5.3 [Token Storage & Encryption](#53-token-storage--encryption)
+   - 5.4 [Token Deduplication](#54-token-deduplication)
+   - 5.5 [Soft-Delete Restore Strategy](#55-soft-delete-restore-strategy)
+6. [The Webhook — Single Source of Truth](#6-the-webhook--single-source-of-truth)
+   - 6.1 [HMAC Verification](#61-hmac-verification)
+   - 6.2 [Token Webhook vs Transaction Webhook](#62-token-webhook-vs-transaction-webhook)
+   - 6.3 [Webhook Processing (Atomic Lock Sequence)](#63-webhook-processing-atomic-lock-sequence)
+   - 6.4 [The Paymob Unified Checkout Quirk (is_capture Bug)](#64-the-paymob-unified-checkout-quirk-is_capture-bug)
 7. [The State Machine](#7-the-state-machine)
 8. [Polling — Read-Only Display](#8-polling--read-only-display)
-9. [The Reconciliation Safety Net](#9-the-reconciliation-safety-net)
+9. [Payment Confirmation Service](#9-payment-confirmation-service)
 10. [Payment Recovery (App Crash/Kill)](#10-payment-recovery-app-crashkill)
 11. [Security Deep Dive](#11-security-deep-dive)
 12. [Database Schema](#12-database-schema)
@@ -26,782 +42,1098 @@
 14. [File Map — Every File and Its Job](#14-file-map--every-file-and-its-job)
 15. [Environment Configuration](#15-environment-configuration)
 16. [Paymob Dashboard Configuration](#16-paymob-dashboard-configuration)
-17. [Testing Checklist](#17-testing-checklist)
-18. [Troubleshooting Guide](#18-troubleshooting-guide)
-19. [Glossary](#19-glossary)
+17. [Frontend Payment Screens](#17-frontend-payment-screens)
+18. [Complete Test Scenarios](#18-complete-test-scenarios)
+19. [Troubleshooting Guide](#19-troubleshooting-guide)
+20. [Glossary](#20-glossary)
 
 ---
 
-## 1. WHAT IS THIS SYSTEM?
+## 1. SYSTEM OVERVIEW
 
-Imagine you're buying groceries from El Baraka's mobile app. You pick items, go to checkout, and pay with your credit card. This system handles **everything** that happens from the moment you tap "Pay" until your order is confirmed.
+### What This System Does
 
-**What makes it special:**
+El Baraka's payment system handles the complete lifecycle of credit/debit card payments through Paymob (Egypt's leading payment gateway). It supports:
 
-- **Card Tokenization** — If you check "Save this card", the system securely stores a token (NOT your actual card number) so you can pay with one tap next time
-- **3DS Security** — Every card payment goes through 3D Secure verification (the bank confirmation page)
-- **Enterprise-grade safety** — Race conditions prevented, HMAC verification on every webhook, state machine enforcement, automatic reconciliation
+1. **New Card Payments** — Customer enters card details in Paymob's hosted Unified Checkout page (3DS verified)
+2. **Saved Card Payments (MOTO)** — One-click server-to-server payment using tokenized card (no UI)
+3. **Automatic 3DS Fallback** — If MOTO requires 3DS (bank/issuer policy), seamlessly falls back to Unified Checkout with saved card pre-filled
+4. **Card Tokenization** — Securely save card tokens for future one-click payments
+5. **Cash on Delivery** — No card processing, order placed immediately
 
-**The 3 payment flows:**
-| Flow | When Used | How It Works |
-|------|-----------|--------------|
-| **Unified Checkout (3DS)** | New card, first time | Opens Paymob's hosted page in a WebView |
-| **Saved Card (Tokenized)** | Returning customer | Uses stored token + may require 3DS |
-| **MOTO Fallback** | When MOTO fails | Falls back to 3DS if bank requires it |
+### Design Principles
+
+| Principle                  | Implementation                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| **Single Source of Truth** | Only the webhook handler mutates payment/order status — never the frontend, never polling    |
+| **Idempotent Webhooks**    | Duplicate webhooks are safely ignored via pessimistic row locking + status check inside lock |
+| **Token-Never-Fails**      | Card token save failures are caught and logged but NEVER break payment confirmation          |
+| **State Machine**          | All status transitions validated — illegal transitions throw `LogicException`                |
+| **Encryption at Rest**     | Card tokens encrypted with AES-256-CBC, fingerprinted with SHA-256                           |
+| **Timing-Safe HMAC**       | SHA-512 HMAC verified with `hash_equals()` — immune to timing attacks                        |
+| **Read-Only Polling**      | Frontend polling endpoint NEVER mutates database state                                       |
+| **Graceful Degradation**   | If MOTO fails → automatic 3DS fallback. If encryption key rotates → returns null (not crash) |
+
+### The 4 Payment Flows at a Glance
+
+| Flow                       | When Used                     | Customer Experience                                           | Server Behavior                                                      |
+| -------------------------- | ----------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Unified Checkout (3DS)** | New card, or forced 3DS       | Opens Paymob hosted page → enters card → 3DS OTP → success    | Backend creates Intention → gets client_secret → builds iframe URL   |
+| **MOTO (One-Click)**       | Saved card, eligible          | Taps "Pay" → instant confirmation                             | Backend creates MOTO Intention → server-to-server pay with token     |
+| **MOTO → 3DS Fallback**    | Saved card, bank requires 3DS | Taps "Pay" → redirected to Paymob (card pre-filled) → 3DS OTP | MOTO attempted → bank says 3DS needed → fallback to Unified Checkout |
+| **Cash on Delivery**       | Customer chooses COD          | Taps "Pay" → order confirmed instantly                        | No payment processing, order created with status=confirmed           |
 
 ---
 
-## 2. THE BIG PICTURE — VISUAL FLOW
+## 2. ARCHITECTURE DIAGRAM — THE BIG PICTURE
 
 ```
-┌─────────────────┐
-│   CUSTOMER       │
-│   taps "Pay"     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐     POST /payments/paymob/initiate
-│   FRONTEND       │ ──────────────────────────────────►┌──────────────┐
-│   (React Native) │                                     │   BACKEND    │
-│                   │◄──────────────────────────────────  │   (Laravel)  │
-│   Gets iframe_url │     { iframe_url, payment_id }     │              │
-└────────┬────────┘                                     │  Creates:    │
-         │                                               │  - Order     │
-         │  Opens WebView                                │  - Payment   │
-         ▼                                               │    record    │
-┌─────────────────┐                                     └──────┬───────┘
-│   WEBVIEW        │                                            │
-│   (Paymob Page)  │                                            │
-│                   │     Customer enters card details           │
-│   3DS Challenge   │     Bank verifies with OTP                │
-│                   │                                            │
-└────────┬────────┘                                            │
-         │                                                      │
-         │  Payment completes                                   │
-         │                                                      │
-         ▼                                                      │
-┌─────────────────┐     POST /paymob/processed (webhook)       │
-│   PAYMOB         │ ──────────────────────────────────────────►│
-│   (Gateway)      │     HMAC-signed callback                  │
-│                   │                                            ▼
-│   Sends webhook  │                                    ┌──────────────┐
-│   to YOUR server │                                    │  WEBHOOK     │
-└─────────────────┘                                    │  HANDLER     │
-                                                        │              │
-         ┌──────────────────────────────────────────────│  Verifies:   │
-         │                                              │  ✅ HMAC     │
-         │  Meanwhile, frontend polls every 3 seconds   │  ✅ Amount   │
-         │  GET /payments/status/{paymentId}             │  ✅ Currency │
-         │                                              │  ✅ Capture  │
-         │  (READ-ONLY — never changes anything)        │              │
-         │                                              │  Then:       │
-         ▼                                              │  🔒 Lock row │
-┌─────────────────┐                                    │  → PAID      │
-│   FRONTEND       │                                    │  → Clear cart│
-│   sees PAID      │                                    │  → Save token│
-│   → navigates to │                                    │  → Dispatch  │
-│   order-success  │                                    │    order job │
-└─────────────────┘                                    └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    CUSTOMER'S PHONE                                          │
+│                                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                │
+│  │  Payment      │───▶│ Confirmation │───▶│  WebView     │───▶│ Order        │                │
+│  │  Selection    │    │  Screen      │    │  (3DS/Pay)   │    │ Success      │                │
+│  │  (Step 2)     │    │  (Step 3)    │    │              │    │              │                │
+│  └──────────────┘    └──────┬───────┘    └──────┬───────┘    └──────────────┘                │
+│                             │                    │                                            │
+│                    ┌────────┼────────────────────┼─────────────────────┐                     │
+│                    │        │   MOTO (instant)   │  3DS (redirect)     │                     │
+│                    │        ▼                    ▼                     │                     │
+│                    │   navigate to          navigate to                │                     │
+│                    │   order-success        payment-webview            │                     │
+│                    │   + polling            + polling after            │                     │
+│                    │                        redirect back              │                     │
+│                    └──────────────────────────────────────────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+                                          │
+                          POST /payments/paymob/initiate
+                          POST /payments/paymob/initiate-with-saved-card
+                                          │
+                                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    LARAVEL BACKEND                                           │
+│                                                                                              │
+│  ┌──────────────────┐   ┌─────────────────────┐   ┌──────────────────────┐                  │
+│  │ PaymentController │──▶│ PaymentDecision     │──▶│ PaymobService         │                  │
+│  │                   │   │ Service             │   │                       │                  │
+│  │ • initiatePayment │   │                     │   │ • createIntention()   │                  │
+│  │ • initiateMoto    │   │ 8 Rules:            │   │ • createMotoIntention │                  │
+│  │ • initiateSaved   │   │ • No saved card→3DS │   │ • payWithSavedCard   │                  │
+│  │ • processedCb     │   │ • Inactive→3DS      │   │   Moto()              │                  │
+│  │ • checkStatus     │   │ • High value→3DS    │   │ • verifyHmac()       │                  │
+│  │                   │   │ • Failures→3DS      │   │ • extractCardToken   │                  │
+│  └────────┬─────────┘   │ • MOTO disabled→3DS │   │   FromIntention()    │                  │
+│           │              │ • New user→3DS      │   └──────────┬───────────┘                  │
+│           │              │ • Default→MOTO      │              │                              │
+│           │              └─────────────────────┘              │                              │
+│           │                                                    │                              │
+│           ▼                                                    │                              │
+│  ┌──────────────────┐   ┌─────────────────────┐              │                              │
+│  │ PaymentConfirm   │   │ PaymentToken         │              │                              │
+│  │ ationService     │   │ Service              │              │                              │
+│  │                   │   │                      │              │                              │
+│  │ • confirmPayment │   │ • shouldSaveCard()   │              │                              │
+│  │   → PAID         │   │ • saveCardToken()    │              │                              │
+│  │   → clear cart   │   │   → encrypt          │              │                              │
+│  │   → finalize     │   │   → fingerprint      │              │                              │
+│  │   → dispatch job │   │   → dedup            │              │                              │
+│  │ • failPayment    │   │   → restore deleted  │              │                              │
+│  │   → FAILED       │   │                      │              │                              │
+│  │   → restore stock│   └─────────────────────┘              │                              │
+│  └──────────────────┘                                         │                              │
+│                                                                │                              │
+│  ┌──────────────────────────────────────────────────────────────┘                              │
+│  │  CACHE BRIDGE (Token Webhook → Transaction Webhook)                                       │
+│  │  Cache::put("paymob_token_webhook:{orderId}", tokenData, 30min)                           │
+│  │  Cache::pull("paymob_token_webhook:{orderId}") in transaction webhook                     │
+│  └──────────────────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+                                          │
+                           Webhook POST /paymob/processed
+                                          │
+                                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    PAYMOB GATEWAY                                            │
+│                                                                                              │
+│  Sends TWO webhooks for payments with save_card:                                            │
+│  1. TOKEN webhook  — { type: "TOKEN", obj: { token, masked_pan, ... } }                     │
+│  2. TRANSACTION webhook — { type: "TRANSACTION", obj: { success, amount_cents, ... } }      │
+│                                                                                              │
+│  Integration IDs:                                                                            │
+│  • Card/3DS:  5084814    (Unified Checkout — customer enters card, 3DS verification)        │
+│  • MOTO:      5511054    (Server-to-server — no customer interaction, Risk team approved)    │
+│  • Wallet:    5084831    (Mobile wallet payments — Vodafone Cash, etc.)                      │
+│  • iFrame:    919973     (Legacy hosted page)                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. STEP-BY-STEP: NEW CARD PAYMENT (A→Z)
+## 3. PAYMENT FLOWS — ALL 4 FLOWS EXPLAINED
 
-Here is EXACTLY what happens when a customer pays with a new card. Every single step.
+### 3.1 Flow A — New Card Payment (Unified Checkout / 3DS)
 
-### STEP A — Customer taps "Pay Now"
+This is the primary flow for first-time card payments. The customer sees Paymob's hosted checkout page.
 
-**File:** `frontend/app/checkout/confirmation.tsx` (or equivalent checkout screen)
+#### Step-by-Step (A→Z)
+
+**Step A: Customer taps "Pay Now"**  
+**File:** `frontend/app/checkout/confirmation.tsx`
 
 The customer has:
 
 - Selected items in their cart
-- Entered their delivery address
-- Chosen "Credit/Debit Card" as payment method
-- Optionally checked ☑️ "Save this card for future purchases"
+- Entered their delivery address (Step 1)
+- Chosen "Card" payment and optionally "Save this card" (Step 2)
+- Reviewed order summary, selected delivery slot (Step 3)
 
-They tap the "Pay Now" button.
+They tap "Place Order".
 
-### STEP B — Frontend calls the Initiate endpoint
+**Step B: Frontend creates order + calls initiate**  
+**File:** `frontend/app/checkout/confirmation.tsx` → `handlePlaceOrder()`
 
-**File:** `frontend/services/paymentMethodsApi.ts` → `initiatePayment()`
+1. Validates: T&C accepted, address selected, date + time slot selected
+2. Checks store is currently open (real-time API check)
+3. Creates order: `POST /api/v1/orders` → gets `order_id`
+4. Calls payment initiation: `POST /api/v1/payments/paymob/initiate`
 
-The app sends a POST request:
-
-```
-POST /api/v1/payments/paymob/initiate
-Authorization: Bearer {user_token}
-
+```json
 {
   "order_id": 42,
   "payment_method": "CARD",
-  "save_card": true,           ← user wants to save card
+  "save_card": true,
   "billing_data": {
     "first_name": "Ahmed",
-    "last_name": "Mohamed",
-    "email": "ahmed@email.com",
-    "phone_number": "01012345678",
+    "last_name": "Hassan",
+    "email": "ahmed@example.com",
+    "phone_number": "+201234567890",
     "city": "Cairo",
-    "street": "123 Nile St"
+    "street": "123 Tahrir St"
   }
 }
 ```
 
-### STEP C — Backend creates Paymob Intention
-
-**File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `initiatePayment()`
+**Step C: Backend creates Paymob Intention**  
+**File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `initiatePayment()` → `initiateUnifiedCheckout()`
 
 What happens server-side:
 
-1. Validates the request (order exists, belongs to user, not already paid)
-2. Calculates amount in cents (e.g., 150.00 EGP → 15000 cents)
-3. Calls Paymob's **Intention API** (V1):
-   ```
-   POST https://accept.paymob.com/v1/intention/
-   {
-     "amount": 15000,
-     "currency": "EGP",
-     "payment_methods": [5084814],    ← Integration ID
-     "billing_data": {...},
-     "special_reference": "ORD-42-1749301234-abc123",
-     "redirection_url": "elbaraka://payment-return",
-     "notification_url": "https://your-domain.com/api/v1/paymob/processed"
-   }
-   ```
-4. Paymob returns a `client_secret` and `intention_id`
-5. Backend creates a `paymob_payments` database record:
-   ```sql
-   INSERT INTO paymob_payments (
-     order_id, user_id, paymob_order_id, amount_cents, currency,
-     status, flow, special_reference, save_card_requested,
-     paymob_intention_id
-   ) VALUES (42, 7, '...', 15000, 'EGP', 'PENDING', 'unified_3ds',
-     'ORD-42-...', 1, 'intention_abc...');
-   ```
-6. Returns response to frontend:
-   ```json
-   {
-     "success": true,
-     "data": {
-       "payment_id": 101,
-       "iframe_url": "https://accept.paymob.com/unifiedcheckout/?publicKey=...&clientSecret=...",
-       "order_id": 42,
-       "amount_cents": 15000,
-       "flow": "unified_3ds"
-     }
-   }
-   ```
+1. **Validates request**: order exists, belongs to authenticated user, no existing PAID payment
+2. **Decision engine**: `PaymentDecisionService::decidePaymentFlow()` — no saved card → returns `unified_3ds`
+3. **Builds items array**: Product items + delivery fee line item + tax line item + rounding adjustment (Paymob requires items total = amount exactly)
+4. **Generates unique IDs**:
+   - `internalOrderId` = `"ORD-42-1707753600123456"` (order ID + microsecond timestamp)
+   - `specialReference` = `"ORD-42-1707753600123456-65a1b2c3d4e5f"` (+ uniqid for uniqueness)
+5. **Creates Intention**: `POST https://accept.paymob.com/v1/intention/`
+   - `payment_methods: [5084814]` (3DS integration ID)
+   - `amount: 15000` (in cents)
+   - `currency: "EGP"`
+   - `billing_data`: customer info
+   - `items`: order line items
+   - `redirection_url`: `"elbaraka://payment-return"` (deep link back to app)
+   - `extras: { save_card: true }` (if customer opted in)
+6. **Paymob returns**: `intention_id`, `client_secret`
+7. **Builds Unified Checkout URL**: `https://accept.paymob.com/unifiedcheckout/?publicKey={publicKey}&clientSecret={clientSecret}`
+8. **Creates `paymob_payments` record**:
 
-### STEP D — Frontend opens the WebView
+```sql
+INSERT INTO paymob_payments (
+  order_id, user_id, internal_order_id, special_reference,
+  paymob_intention_id, amount_cents, currency, payment_method,
+  flow, save_card_requested, status, billing_data, integration_id
+) VALUES (
+  42, 7, 'ORD-42-1707753600123456', 'ORD-42-1707753600123456-65a1b2c3d4e5f',
+  'pi_test_abc123', 15000, 'EGP', 'CARD',
+  'unified_3ds', true, 'PENDING', '{...}', '5084814'
+);
+```
 
-**File:** `frontend/components/PaymentWebView.tsx`
+9. **Returns response to frontend**:
 
-The app opens a full-screen WebView pointing to the `iframe_url`. This is Paymob's hosted checkout page where the customer:
+```json
+{
+  "flow": "unified_3ds",
+  "payment_id": 12,
+  "order_id": 42,
+  "unified_checkout_url": "https://accept.paymob.com/unifiedcheckout/?publicKey=egy_pk_test_...&clientSecret=...",
+  "requires_redirect": true
+}
+```
+
+**Step D: Frontend opens WebView**  
+**File:** `frontend/app/payment-webview.tsx`
+
+The app navigates to the payment-webview screen with params:
+
+- `iframeUrl`: the unified checkout URL
+- `orderId`: 42
+- `paymentId`: 12
+
+The WebView loads Paymob's hosted checkout where the customer:
 
 1. Sees the order amount (150.00 EGP)
-2. Enters their card number, expiry, CVV
-3. Gets redirected to their bank's 3DS page (OTP verification)
-4. Enters the OTP from their phone
-5. Gets redirected back to Paymob's completion page
+2. Enters card number, expiry, CVV
+3. Redirected to bank's 3DS page (OTP verification)
+4. Enters OTP from their phone
+5. Redirected back via `elbaraka://payment-return`
 
-### STEP E — Frontend starts polling (read-only)
+**Step E: Frontend detects redirect + starts polling**  
+**File:** `frontend/app/payment-webview.tsx` → `handleShouldStartLoadWithRequest()`
 
-**File:** `frontend/components/PaymentWebView.tsx` → `handleNavigationStateChange()`
+When the WebView URL changes to `elbaraka://payment-return` (or ngrok fallback in dev):
 
-When the WebView URL changes to a Paymob success page (e.g., contains `acceptance/post_pay`), the frontend:
+1. **Guards**: Checks `pollingStarted.current` — prevents duplicate polling
+2. Sets `pollingStarted.current = true`
+3. Shows "Verifying payment..." overlay
+4. **Waits 2 seconds** (lets webhook arrive at backend first)
+5. **Calls `pollPaymentStatus()`**: polls `GET /api/v1/payments/status/{paymentId}` every 2 seconds, max 30 attempts (60s total)
+6. **Terminal states**: `PAID` → success modal, `FAILED` → failure modal
+7. **Timeout**: If still `PENDING` after 60s → shows "check your orders" alert
 
-1. Shows a "Processing payment..." overlay
-2. Waits 3 seconds (for webhook to arrive first)
-3. Starts polling every 3 seconds:
-   ```
-   GET /api/v1/payments/status/101
-   ```
-4. The response is **read-only** — it shows the current state but NEVER changes it:
-   ```json
-   {
-     "success": true,
-     "data": {
-       "payment_id": 101,
-       "order_id": 42,
-       "status": "PENDING",           ← hasn't been updated by webhook yet
-       "order_payment_status": null,
-       "order_status": null,
-       "paymob_status": "PROCESSED",  ← Paymob says it went through
-       "paymob_success": true,
-       "message": "Final confirmation is webhook-based. Polling is for display only."
-     }
-   }
-   ```
-
-### STEP F — Paymob sends the webhook (THE CRITICAL STEP)
-
+**Step F: Paymob sends webhooks (THE CRITICAL STEP)**  
 **File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `processedCallback()`
 
-This is the **single source of truth**. Paymob sends an HTTP POST to your server:
+For a payment with `save_card: true`, Paymob sends **TWO** webhooks (in this order):
 
-```
-POST /api/v1/paymob/processed
-Content-Type: application/json
+1. **TOKEN webhook** — arrives first:
 
+```json
 {
-  "type": "TRANSACTION",
+  "type": "TOKEN",
   "obj": {
-    "id": 987654,
-    "order": { "id": 123456 },
-    "amount_cents": 15000,
-    "currency": "EGP",
-    "success": true,
-    "is_capture": true,
-    "is_auth": false,
-    "source_data": {
-      "sub_type": "MasterCard",
-      "pan": "2346"
-    },
-    "data": {
-      "token": "encrypted_card_token_from_paymob..."
-    },
-    "hmac": "sha512_signature_here..."
+    "id": 12345,
+    "token": "tok_abc123def456...",
+    "masked_pan": "424242XXXXXX4242",
+    "merchant_id": 67890,
+    "card_subtype": "Visa",
+    "order_id": "468610688"
   }
 }
 ```
 
-What the webhook handler does (in exact order):
+2. **TRANSACTION webhook** — arrives second:
 
-1. **Extract payload** — Gets `obj` from the request
-2. **Validate HMAC** — Computes SHA-512 hash of specific fields concatenated in Paymob's documented order, compares with `hash_equals()` (timing-safe)
-3. **Amount check (stateless)** — Verifies `amount_cents` matches what we stored. **This happens BEFORE the lock** because it needs no DB mutation
-4. **Currency check** — Verifies `currency` matches what we stored (EGP)
-5. **Open DB transaction + lock the row:**
-   ```php
-   DB::transaction(function () {
-       $payment = PaymobPayment::where('paymob_order_id', $paymobOrderId)
-           ->lockForUpdate()    // ← Prevents race conditions
-           ->first();
-   ```
-6. **Idempotency check (INSIDE the lock)** — If payment is already PAID, return 200 OK immediately (duplicate webhook)
-7. **Capture/Auth check:**
-   - `is_capture = true` → Full payment captured → proceed
-   - `is_auth = true, is_capture = false` → Only authorized, not captured → call `markAsPending()` with reason
-   - `is_capture = false, is_auth = false` → Neither → mark FAILED
-8. **If captured + successful:**
-   - `$payment->transitionTo('PAID')` — State machine validates PENDING→PAID is legal
-   - Stores `paymob_transaction_id`
-   - Updates order: `payment_status = 'completed'`
-   - Clears the customer's cart
-   - Dispatches `ProcessOrderAsync` job (notifications, etc.)
-   - **Saves card token** (if `save_card_requested` was true):
-     ```php
-     $this->tokenService->saveCardToken($payment, $payload);
-     ```
-9. **If failed:**
-   - `$payment->transitionTo('FAILED')` — State machine validates PENDING→FAILED is legal
-   - Stores error message from Paymob response
-10. **Returns 200 OK** to Paymob (must respond quickly)
+```json
+{
+  "type": "TRANSACTION",
+  "obj": {
+    "id": 412532416,
+    "order": { "id": 468610688 },
+    "success": true,
+    "is_capture": true,
+    "is_auth": false,
+    "amount_cents": 15000,
+    "currency": "EGP",
+    "source_data": {
+      "pan": "424242XXXXXX4242",
+      "type": "card",
+      "sub_type": "Visa",
+      "token": "tok_abc123def456..."
+    },
+    "data": {
+      "token": { "token": "tok_abc123def456..." }
+    }
+  }
+}
+```
 
-### STEP G — Frontend poll sees "PAID"
+**Token Webhook Handling** (Step F.1):
 
-**File:** `frontend/components/PaymentWebView.tsx` → `pollPaymentStatus()` (local)
+```
+processedCallback() receives webhook
+  → Detects payload has "token" + "masked_pan" but no typical transaction data
+  → Extracts order_id from payload
+  → Cache::put("paymob_token_webhook:{orderId}", tokenData, 30 minutes)
+  → Returns 200 OK immediately
+```
 
-The next poll (within 3-30 seconds) gets:
+**Transaction Webhook Handling** (Step F.2) — see Section 6.3 for full atomic sequence.
+
+**Step G: Frontend poll sees "PAID"**  
+**File:** `frontend/app/payment-webview.tsx` → `startPolling()`
+
+Next poll (within 2-60 seconds) gets:
 
 ```json
 {
   "status": "PAID",
-  "order_payment_status": "completed"
+  "order_payment_status": "completed",
+  "order_status": "confirmed",
+  "transaction_id": "412532416",
+  "flow": "unified_3ds"
 }
 ```
 
-The frontend:
+Frontend: stops polling → shows success modal → navigates to order-success screen.
 
-1. Stops polling
-2. Clears the pending payment from AsyncStorage
-3. Refreshes the cart (should be empty now)
-4. Navigates to `/order-success` with the order ID
-
-### STEP H — Customer sees success screen ✅
-
-The order success page shows:
-
-- "Your order #42 has been confirmed!"
-- Order details, estimated delivery, etc.
-
-**That's it. A → H. Payment complete.**
+**Step H: Customer sees success screen ✅**
 
 ---
 
-## 4. STEP-BY-STEP: SAVED CARD PAYMENT (A→Z)
+### 3.2 Flow B — Saved Card Payment (MOTO / One-Click)
 
-When a customer has previously saved a card, the flow is shorter but still secure.
+When a customer has a saved card and conditions allow MOTO, the payment is processed server-to-server with no customer UI.
 
-### STEP A — Customer selects saved card
+**Step A: Customer selects saved card + taps "Pay Now"**  
+**File:** `frontend/app/checkout/payment.tsx` → selects saved card  
+**File:** `frontend/app/checkout/confirmation.tsx` → `handlePlaceOrder()`
 
-The checkout screen shows their saved cards:
+Frontend sends:
 
-```
-💳 Visa •••• 4242 (Default) ✓
-💳 Mastercard •••• 5678
-```
-
-They select one and tap "Pay Now".
-
-### STEP B — Frontend calls saved-card endpoint
-
-**File:** `frontend/services/paymentMethodsApi.ts` → `initiatePaymentWithSavedCard()`
-
-```
-POST /api/v1/payments/paymob/initiate-with-saved-card
+```json
+POST /api/v1/payments/paymob/initiate
 {
-  "order_id": 42,
-  "payment_method_id": 5,    ← ID of saved card in our DB
+  "order_id": 57,
+  "payment_method": "CARD",
+  "payment_method_id": 1,
   "billing_data": { ... }
 }
 ```
 
-### STEP C — Backend uses stored token
+**Step B: Decision engine routes to MOTO**  
+**File:** `unibackend/app/Services/PaymentDecisionService.php` → `decidePaymentFlow()`
 
-**File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `initiateSavedCardPayment()`
+Decision tree evaluates 8 rules → all pass → returns `{ flow: "moto", fallback_to_3ds: true }`.
 
-1. Finds the saved `PaymentMethod` record (ID 5)
-2. Decrypts the stored `paymob_card_token` (AES-256-CBC via Laravel's `Crypt::decrypt()`)
-3. Calls Paymob's **Token Payment API**:
-   ```
-   POST https://accept.paymob.com/api/acceptance/payments/pay
-   {
-     "source": {
-       "identifier": "decrypted_paymob_token",
-       "subtype": "TOKEN"
-     },
-     "payment_token": "auth_token_from_paymob"
-   }
-   ```
-4. Paymob may return:
-   - **Direct success** → Webhook fires, same flow as steps F-H above
-   - **3DS required** → Returns `redirect_url` for 3DS challenge → WebView opens
+**Step C: Backend creates MOTO Intention + pays server-to-server**  
+**File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `initiateMotoPayment()`
 
-### STEP D onwards — Same as New Card
+**Sub-step C.1 — Build items array:**
 
-From the WebView/webhook point onwards, the flow is identical to Steps D-H.
+```php
+$items = [];
+foreach ($order->items as $item) {
+    $items[] = [
+        'name' => $item->product->name_en ?? $item->product->name,
+        'amount' => (int) round($item->price * 100),
+        'quantity' => $item->quantity,
+    ];
+}
+
+// Add delivery fee as line item
+if ($order->delivery_fee > 0) {
+    $items[] = [
+        'name' => 'Delivery Fee',
+        'amount' => (int) round($order->delivery_fee * 100),
+        'quantity' => 1,
+    ];
+}
+
+// Add tax as line item
+if ($order->tax > 0) {
+    $items[] = [
+        'name' => 'Tax',
+        'amount' => (int) round($order->tax * 100),
+        'quantity' => 1,
+    ];
+}
+
+// Rounding adjustment (Paymob requires items total = amount exactly)
+$itemsTotal = array_sum(array_map(fn($i) => $i['amount'] * $i['quantity'], $items));
+$diff = $amountCents - $itemsTotal;
+if ($diff !== 0) {
+    $items[] = [
+        'name' => 'Adjustment',
+        'amount' => $diff,
+        'quantity' => 1,
+    ];
+}
+```
+
+**Sub-step C.2 — Create MOTO Intention:**
+
+```
+POST https://accept.paymob.com/v1/intention/
+Authorization: Token {secretKey}
+
+{
+  "amount": 21686,
+  "currency": "EGP",
+  "payment_methods": [5511054],     ← MOTO Integration ID
+  "billing_data": { ... },
+  "items": [ ... ],
+  "special_reference": "ORD-57-..."
+}
+```
+
+Paymob returns: `intention_id`, `payment_keys[0].key` (the payment token), `intention_order_id` (paymob_order_id).
+
+**Sub-step C.3 — Pay with saved card token (server-to-server):**
+
+```
+POST https://accept.paymob.com/api/acceptance/payments/pay
+
+{
+  "source": {
+    "identifier": "tok_abc123def456...",    ← Decrypted from PaymentMethod model
+    "subtype": "TOKEN"
+  },
+  "payment_token": "ZXlKaGJHY2lPaU..."    ← From MOTO Intention payment_keys[0].key
+}
+```
+
+**Sub-step C.4 — Response handling:**
+
+| Paymob Response                                        | Action                                 |
+| ------------------------------------------------------ | -------------------------------------- |
+| `success: true, pending: false, requires_3ds: false`   | MOTO succeeded → payment processing    |
+| `success: true, pending: true` or `requires_3ds: true` | Bank requires 3DS → fallback to Flow C |
+| `success: false`                                       | MOTO failed → mark payment FAILED      |
+
+**Step D: Frontend receives instant response**
+
+```json
+{
+  "flow": "moto",
+  "payment_id": 11,
+  "order_id": 57,
+  "requires_redirect": false,
+  "message": "Payment is being processed"
+}
+```
+
+Frontend: navigates directly to order-success screen with polling (no WebView needed).
+
+**Step E-H: Same as Flow A** — webhook confirms payment, poll shows PAID, success screen.
 
 ---
 
-## 5. HOW CARD TOKENIZATION WORKS
+### 3.3 Flow C — MOTO → 3DS Fallback
 
-### What is a token?
+This flow activates when MOTO is attempted but the bank/issuer requires 3DS verification.
 
-When you pay with your card (number `4111 1111 1111 1234`), Paymob generates a **token** — a random string like `tok_abc123def456...` — that represents your card. This token:
+**Trigger:** `payWithSavedCardMoto()` returns `requires_3ds: true` or `requires_redirection: true`
 
-- ✅ Can be used to charge the card again
-- ✅ Is useless without Paymob's API keys (stolen tokens can't be used)
+**What happens:**
+
+1. `PaymentController::initiateMotoPayment()` detects 3DS requirement
+2. Calls `$payment->markAsFallbackTo3DS("3DS required by issuer")`
+   - Sets `is_fallback_from_moto = true`
+   - Changes `flow` from `moto` to `unified_3ds`
+3. Creates new Unified Checkout Intention with `card_tokens` array (pre-fills saved card)
+4. Updates existing `paymob_payments` record with new intention data
+5. Returns `unified_checkout_url` to frontend
+
+**Frontend behavior:**
+
+```json
+{
+  "flow": "unified_3ds",
+  "payment_id": 11,
+  "unified_checkout_url": "https://accept.paymob.com/unifiedcheckout/?...",
+  "requires_redirect": true,
+  "message": "3DS verification required"
+}
+```
+
+Customer sees Paymob's Unified Checkout with their saved card already selected → completes 3DS → webhook fires → done.
+
+> **Important — Test Environment Behavior:** In Paymob's test environment, MOTO with test cards (4111 1111 1111 1111) will ALWAYS trigger 3DS fallback. This is expected. In production with real cards and a live MOTO integration ID (requires Risk team approval from Paymob), MOTO will work as true one-click with no UI.
+
+---
+
+### 3.4 Flow D — Cash on Delivery (COD)
+
+Simplest flow — no payment processing.
+
+1. Customer selects "Cash" on Step 2
+2. On Step 3, taps "Place Order"
+3. Order created with `payment_status: 'pending'`, `status: 'processing'`
+4. Navigates directly to order-success screen
+5. No webhooks, no polling, no Paymob interaction
+
+---
+
+## 4. THE DECISION ENGINE — HOW FLOW ROUTING WORKS
+
+**File:** `unibackend/app/Services/PaymentDecisionService.php`
+
+The decision engine is called inside `initiatePayment()` to determine whether a payment should use MOTO (one-click) or Unified 3DS (redirect).
+
+### Decision Rules (evaluated in order — first match wins)
+
+| #   | Condition                                                                      | Flow             | Reason                                             |
+| --- | ------------------------------------------------------------------------------ | ---------------- | -------------------------------------------------- |
+| 1   | No `payment_method_id` (no saved card)                                         | `unified_3ds`    | First time payment — must enter card details       |
+| 2   | Saved card is inactive, expired, or token invalid                              | `unified_3ds`    | Card needs to be re-entered                        |
+| 3   | `payments.enable_unified_checkout` is `false`                                  | `classic_iframe` | Feature flag disabled                              |
+| 4   | `amount_cents > high_value_threshold` (default: 200,000 = EGP 2,000)           | `unified_3ds`    | High-value transactions require extra verification |
+| 5   | `recentFailures >= failure_threshold` (default: 2 failures in 30 days)         | `unified_3ds`    | Too many recent failures — force fresh 3DS         |
+| 6   | `payments.enable_moto` is `false`                                              | `unified_3ds`    | MOTO feature disabled                              |
+| 7   | `payments.force_3ds_for_new_users` is `true` AND user has < 2 completed orders | `unified_3ds`    | New customer policy                                |
+| 8   | **All checks pass** (default)                                                  | `moto`           | One-click payment with `fallback_to_3ds: true`     |
+
+### Configuration
+
+```php
+// config/payments.php
+return [
+    'high_value_threshold'         => env('PAYMENT_HIGH_VALUE_THRESHOLD', 200000), // 2000 EGP
+    'moto_max_attempts'            => 1,       // MOTO once, then fallback
+    'recent_failure_lookback_days' => 30,
+    'recent_failure_threshold'     => 2,       // Force 3DS after 2+ failures in 30 days
+    'enable_moto'                  => env('PAYMENT_ENABLE_MOTO', true),
+    'enable_saved_cards'           => env('PAYMENT_ENABLE_SAVED_CARDS', true),
+    'enable_unified_checkout'      => env('PAYMENT_ENABLE_UNIFIED', true),
+    'force_3ds_for_new_users'      => env('PAYMENT_FORCE_3DS_NEW_USERS', false),
+    'payment_key_ttl_seconds'      => 3600,    // Paymob JWT TTL (1 hour)
+    'status_polling_interval_ms'   => 2000,
+    'status_polling_max_duration_ms' => 60000,
+];
+```
+
+---
+
+## 5. CARD TOKENIZATION DEEP DIVE
+
+### 5.1 What Is a Token?
+
+When you pay with card number `4111 1111 1111 1111`, Paymob generates a **token** — a random string like `tok_abc123def456...` — that represents your card. This token:
+
+- ✅ Can be used to charge the card again (via MOTO)
+- ✅ Is useless without Paymob's API keys (stolen tokens can't be used standalone)
 - ❌ Cannot be reversed to get the actual card number
-- ⏰ Has an expiration date (same as the card)
+- ⏰ Has the same expiration date as the physical card
 
-### Where tokens live in our system:
+### 5.2 Token Save Lifecycle (Dual Webhook Bridge)
+
+**The Problem:** Paymob sends card token data in a SEPARATE webhook (TOKEN type) that arrives BEFORE the transaction webhook. By the time the transaction webhook arrives and we confirm the payment, the token data is gone.
+
+**The Solution:** Cache bridge pattern.
+
+```
+Timeline:
+──────────────────────────────────────────────────────────────────────
+  T+0s    Customer completes payment on Paymob
+  T+1s    TOKEN webhook arrives → Cache::put("paymob_token_webhook:{orderId}", data, 30min)
+  T+2s    TRANSACTION webhook arrives → payment confirmed
+          → Cache::pull("paymob_token_webhook:{orderId}") retrieves token data
+          → PaymentTokenService::saveCardToken() encrypts + stores
+──────────────────────────────────────────────────────────────────────
+```
+
+**Cache key format:** `paymob_token_webhook:{paymob_order_id}`  
+**TTL:** 30 minutes (generous — webhook gap is typically < 5 seconds)  
+**Strategy:** `put()` on TOKEN webhook, `pull()` (get + delete) on TRANSACTION webhook
+
+**Token data sources (tried in order):**
+
+1. Direct from transaction webhook payload: `$payload['source_data']['token']` or `$payload['data']['token']['token']`
+2. Cached from TOKEN webhook: `Cache::pull("paymob_token_webhook:{orderId}")`
+3. If neither available → token not saved (payment still succeeds)
+
+### 5.3 Token Storage & Encryption
+
+**File:** `unibackend/app/Models/PaymentMethod.php`
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    payment_methods TABLE                       │
-├──────────────┬───────────────────────────────────────────────┤
-│ id           │ 5                                              │
-│ user_id      │ 7                                              │
-│ card_brand   │ "visa"                                         │
-│ card_last_four│ "4242"                                        │
-│ masked_card  │ "XXXX-XXXX-XXXX-4242"                         │
-│ paymob_card_token │ AES-256-CBC encrypted blob               │ ← THE TOKEN
-│ token_fingerprint │ SHA-256 hash of the token                 │ ← For dedup
-│ is_default   │ true                                           │
-│ is_verified  │ true                                           │
-│ expires_at   │ "2027-12-31"                                   │
-│ deleted_at   │ null (soft delete)                              │
-└──────────────┴───────────────────────────────────────────────┘
+├──────────────────┬───────────────────────────────────────────┤
+│ id               │ 1                                          │
+│ user_id          │ 26                                         │
+│ type             │ "card"                                     │
+│ card_last_four   │ "1111"                                     │
+│ card_brand       │ "visa"                                     │
+│ card_holder_name │ "Ahmed Hassan"                             │
+│ masked_card      │ "**** **** **** 1111"  (computed)          │
+│ paymob_card_token│ [AES-256-CBC encrypted blob]  ← THE TOKEN │
+│ token_fingerprint│ [SHA-256 hash of raw token]   ← For dedup │
+│ token_type       │ "paymob_saved_card"                       │
+│ status           │ "active"                                   │
+│ is_default       │ true                                       │
+│ is_verified      │ true                                       │
+│ expires_at       │ "2027-12-31 23:59:59"                      │
+│ deleted_at       │ null (soft delete for audit trail)          │
+└──────────────────┴───────────────────────────────────────────┘
 ```
 
-### When is a token saved?
+**Encryption:**
 
-A token is saved **only** when ALL of these are true:
+- **Algorithm:** AES-256-CBC via Laravel's `Crypt::encryptString()`
+- **Key:** Derived from `APP_KEY` in `.env`
+- **Mutator:** `setPaymobCardTokenAttribute($value)` auto-encrypts on write + generates fingerprint
+- **Accessor:** `getPaymobCardTokenAttribute($value)` auto-decrypts on read
+- **Failure handling:** If decryption fails (e.g., APP_KEY rotated), returns `null` — card becomes unusable but system doesn't crash
 
-1. ✅ HMAC verification passed (webhook is authentic)
-2. ✅ Payment was successful (`success = true`)
-3. ✅ Payment was captured (`is_capture = true`)
-4. ✅ User requested save (`save_card_requested = true` on the payment record)
-5. ✅ Token data exists in the webhook payload (`$payload['data']['token']`)
-6. ✅ Card info exists (`source_data.sub_type`, `source_data.pan`)
+### 5.4 Token Deduplication
 
-**File:** `unibackend/app/Services/PaymentTokenService.php` → `saveCardToken()`
-
-### Deduplication
-
-Before saving, we check if this exact token already exists using a **fingerprint**:
+Before saving a new token, the system checks for duplicates using SHA-256 fingerprints:
 
 ```php
 $fingerprint = hash('sha256', $rawToken);
 $existing = PaymentMethod::where('user_id', $userId)
     ->where('token_fingerprint', $fingerprint)
     ->first();
+
+if ($existing) {
+    // Already saved — skip (don't create duplicate)
+    return;
+}
 ```
 
-If the same card was already saved, we skip the duplicate.
+### 5.5 Soft-Delete Restore Strategy
 
-### Encryption at rest
+If a customer deletes a card and then saves the same card again:
 
-The raw Paymob token is **never stored in plain text**. It's encrypted using Laravel's `Crypt::encrypt()` which uses AES-256-CBC with the `APP_KEY` from your `.env` file.
+```php
+// PaymentMethod::findOrRestoreDeleted($userId, $tokenFingerprint)
+$trashed = PaymentMethod::withTrashed()
+    ->where('user_id', $userId)
+    ->where('token_fingerprint', $fingerprint)
+    ->onlyTrashed()
+    ->first();
 
-To use it later, we `Crypt::decrypt()` just before sending to Paymob's API.
+if ($trashed) {
+    $trashed->restore();           // Restore soft-deleted record
+    $trashed->update([...]);       // Update with fresh data
+    return $trashed;
+}
+
+// Otherwise create new record
+return PaymentMethod::create([...]);
+```
+
+**Why?** This prevents unique constraint violations and maintains audit trail continuity.
+
+### 5.6 Token Save Conditions
+
+A token is saved **only** when ALL conditions are met:
+
+1. ✅ HMAC verification passed (webhook is authentic)
+2. ✅ Payment was successful (`success = true`)
+3. ✅ Payment was captured (`is_capture = true`)
+4. ✅ User opted in (`save_card_requested = true` on the payment record)
+5. ✅ Token data exists (in webhook payload OR in cache from TOKEN webhook)
+6. ✅ Card info extractable (brand, last 4 digits)
+
+**File:** `unibackend/app/Services/PaymentTokenService.php` → `shouldSaveCardToken()` + `saveCardToken()`
 
 ---
 
-## 6. THE WEBHOOK — THE SINGLE SOURCE OF TRUTH
+## 6. THE WEBHOOK — SINGLE SOURCE OF TRUTH
 
-### Why is the webhook so important?
+### 6.1 HMAC Verification
+
+**File:** `unibackend/app/Services/PaymobService.php` → `verifyHmac()`
+
+Paymob sends an HMAC hash in the webhook that proves the request is authentic. We verify it by:
+
+1. **Concatenate fields** in Paymob's documented order:
 
 ```
-❌ WRONG: "The user's browser/app says payment succeeded → mark as paid"
-✅ RIGHT: "Paymob's server tells OUR server payment succeeded → mark as paid"
+amount_cents + created_at + currency + error_occured + has_parent_transaction +
+id + integration_id + is_3d_secure + is_auth + is_capture + is_refunded +
+is_standalone_payment + is_voided + order.id + owner + pending +
+source_data.pan + source_data.sub_type + source_data.type + success
 ```
 
-The webhook is the **only** thing that can change a payment from PENDING to PAID/FAILED. Not the frontend. Not the polling endpoint. Not an admin. Only the webhook.
+2. **Boolean conversion:** `true` → `"true"`, `false` → `"false"` (literal strings)
 
-### HMAC Verification
+3. **Hash:** `hash_hmac('sha512', $concatenated, $hmacSecret)`
 
-Paymob signs every webhook with HMAC-SHA512. Here's how we verify:
+4. **Compare:** `hash_equals($calculated, $received)` — timing-safe comparison (immune to side-channel attacks)
 
-1. Paymob concatenates specific fields in a specific order (amount, created_at, currency, error_occured, has_parent_transaction, id, integration_id, is_3d_secure, is_auth, is_capture, is_refunded, is_standalone_payment, is_voided, order_id, owner, pending, source_data.pan, source_data.sub_type, source_data.type, success)
-2. Paymob hashes this concatenated string with your HMAC secret using SHA-512
-3. Paymob sends the hash in the `hmac` field
-4. Our server computes the same hash and compares with `hash_equals()` (timing-safe to prevent timing attacks)
+**Security note:** If HMAC fails → `403 Forbidden` returned to Paymob. Payment is NOT processed.
 
-If the hashes don't match → reject the webhook immediately.
+### 6.2 Token Webhook vs Transaction Webhook
 
-### The Lock (Preventing Race Conditions)
+| Aspect       | TOKEN Webhook                                     | TRANSACTION Webhook                                          |
+| ------------ | ------------------------------------------------- | ------------------------------------------------------------ |
+| `type` field | `"TOKEN"`                                         | `"TRANSACTION"`                                              |
+| When sent    | After card tokenization                           | After payment attempt                                        |
+| Contains     | `token`, `masked_pan`, `card_subtype`, `order_id` | `success`, `amount_cents`, `is_capture`, `source_data`, etc. |
+| HMAC signed? | Yes (separate HMAC calculation)                   | Yes                                                          |
+| Our handling | Cache token data (`Cache::put`)                   | Process payment + retrieve cached token                      |
+| Mutates DB?  | No (cache only)                                   | Yes (payment status, order status, card save)                |
+
+### 6.3 Webhook Processing (Atomic Lock Sequence)
+
+**File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `processedCallback()`
+
+This is the exact sequence of operations when the TRANSACTION webhook arrives:
+
+```
+1. EXTRACT PAYLOAD
+   → $payload = $request->input('obj') ?? $request->all()
+
+2. TOKEN-ONLY WEBHOOK CHECK
+   → If payload has "token" + "masked_pan" but no "order":
+     → Cache::put("paymob_token_webhook:{orderId}", tokenData, 30min)
+     → Return 200 OK immediately
+
+3. HMAC VERIFICATION
+   → $this->paymobService->verifyHmac($payload)
+   → If fails → Return 403 Forbidden
+
+4. FIND PAYMENT RECORD
+   → Try by paymob_order_id first
+   → Fallback: match by special_reference / internal_order_id (regex ORD-\d+ prefix)
+   → If not found → Return 404
+
+5. AMOUNT VERIFICATION (stateless — before the lock)
+   → Compare $payload['amount_cents'] with $payment->amount_cents
+   → Compare $payload['currency'] with $payment->currency
+   → If mismatch → Mark FAILED with "Security violation: amount/currency mismatch"
+
+6. OPEN DB TRANSACTION + LOCK ROW
+   → DB::transaction(function() use (...) {
+   →   $payment = PaymobPayment::where('id', $paymentId)->lockForUpdate()->first()
+
+7. IDEMPOTENCY CHECK (inside lock)
+   → If $payment->isPaid() → Return 200 OK (duplicate webhook — safe to ignore)
+
+8. EVALUATE PAYMENT RESULT
+   → $isSuccess = (bool) $payload['success']
+   → $isCapture = (bool) $payload['is_capture']
+   → $transactionId = (string) $payload['id']
+
+9. THE PAYMOB UNIFIED CHECKOUT QUIRK (is_capture fix)
+   → If $isSuccess && !$isCapture:
+     → Check $payload['data']['migs_order']['status'] === 'CAPTURED'
+     → Check $payload['data']['captured_amount'] > 0
+     → Check $payload['order']['payment_status'] === 'PAID'
+     → If any true → override $isCapture = true
+
+10. FAILURE PATH
+    → If !$isSuccess:
+      → $confirmationService->failPayment($payment, $transactionId, $errorMessage, $payload)
+      → (This: marks FAILED, restores stock, updates order)
+
+11. AUTH-BUT-NOT-CAPTURED PATH
+    → If $isSuccess && !$isCapture && !$isAuth:
+      → $payment->markAsPending("Authorized but not captured")
+      → Return 200 OK (awaiting manual capture in Paymob Dashboard)
+
+12. SUCCESS PATH
+    → $confirmationService->confirmPayment($payment, $transactionId, $payload)
+    → (This: marks PAID, clears cart, finalizes promo, dispatches ProcessOrderAsync)
+
+13. CARD TOKEN SAVE (after success)
+    → If $paymentTokenService->shouldSaveCardToken($payment, $payload):
+      → Try extract token from $payload directly
+      → If not found → Cache::pull("paymob_token_webhook:{paymobOrderId}") (bridge pattern)
+      → $paymentTokenService->saveCardToken($userId, $tokenData)
+    → Token save wrapped in try/catch — NEVER breaks payment confirmation
+
+14. RETURN 200 OK
+```
+
+### 6.4 The Paymob Unified Checkout Quirk (is_capture Bug)
+
+**Problem:** Paymob's Unified Checkout sometimes sends `is_capture: false` at the top level of the webhook, even when the underlying payment processor (MIGS) has already captured the funds.
+
+**Evidence from real Order #48:**
+
+```json
+{
+  "success": true,
+  "is_capture": false,     ← TOP LEVEL SAYS NOT CAPTURED
+  "is_auth": false,
+  "data": {
+    "migs_order": {
+      "status": "CAPTURED"  ← BUT MIGS SAYS CAPTURED!
+    },
+    "captured_amount": 9290
+  },
+  "order": {
+    "payment_status": "PAID"
+  }
+}
+```
+
+**Fix:** Three-layer deep check:
 
 ```php
-DB::transaction(function () use ($paymobOrderId, ...) {
-    $payment = PaymobPayment::where('paymob_order_id', $paymobOrderId)
-        ->lockForUpdate()     // ← MySQL row-level lock
-        ->first();
+if ($isSuccess && !$isCapture) {
+    $migsStatus = $payload['data']['migs_order']['status'] ?? null;
+    $capturedAmount = $payload['data']['captured_amount'] ?? 0;
+    $orderStatus = $payload['order']['payment_status'] ?? null;
 
-    // ... all mutations happen inside this lock ...
-});
+    if ($migsStatus === 'CAPTURED' || $capturedAmount > 0 || $orderStatus === 'PAID') {
+        $isCapture = true; // Override — Paymob's top-level is wrong
+    }
+}
 ```
-
-**Why?** If Paymob sends the same webhook twice at the exact same millisecond (it happens!), without the lock:
-
-- Thread 1: Reads payment (PENDING) → marks PAID → clears cart
-- Thread 2: Reads payment (PENDING, hasn't been saved yet) → marks PAID AGAIN → clears cart AGAIN
-
-With `lockForUpdate()`:
-
-- Thread 1: Locks row → reads PENDING → marks PAID ✅
-- Thread 2: Waits... → Lock released → reads PAID → idempotency check → returns 200 OK (no-op) ✅
 
 ---
 
 ## 7. THE STATE MACHINE
 
-Payments follow strict state transitions. You can't go from FAILED to PAID, or from REFUNDED to PENDING. The state machine enforces this.
-
-**File:** `unibackend/app/Models/PaymobPayment.php`
+**File:** `unibackend/app/Models/PaymobPayment.php` → `transitionTo()`
 
 ```
-         ┌───────────┐
-         │  PENDING   │
-         └─────┬─────┘
+                    ┌──────────┐
+                    │  PENDING  │ (initial state)
+                    └─────┬────┘
+                          │
+                ┌─────────┼─────────┐
+                │                   │
+                ▼                   ▼
+         ┌──────────┐       ┌──────────┐
+         │   PAID   │       │  FAILED  │ (terminal)
+         └─────┬────┘       └──────────┘
                │
-        ┌──────┴──────┐
-        ▼             ▼
-  ┌───────────┐ ┌───────────┐
-  │   PAID     │ │  FAILED   │
-  └─────┬─────┘ └───────────┘
-        │         (terminal)
-        ▼
-  ┌───────────┐
-  │ REFUNDED  │
-  └───────────┘
-    (terminal)
+               ▼
+        ┌──────────┐
+        │ REFUNDED │ (terminal)
+        └──────────┘
 ```
 
-**Legal transitions:**
-| From | To | When |
-|------|----|------|
-| PENDING | PAID | Webhook confirms successful capture |
-| PENDING | FAILED | Webhook reports failure or no capture |
-| PAID | REFUNDED | Admin initiates refund |
+### Legal Transitions
 
-**Illegal transitions (will throw `LogicException`):**
+| From    | To       | Method                     | Trigger                                     |
+| ------- | -------- | -------------------------- | ------------------------------------------- |
+| PENDING | PAID     | `markAsPaid()`             | Webhook: `success=true, is_capture=true`    |
+| PENDING | FAILED   | `markAsFailed()`           | Webhook: `success=false` or amount mismatch |
+| PAID    | REFUNDED | `transitionTo('REFUNDED')` | Manual refund in Paymob Dashboard + webhook |
 
-- FAILED → PAID (can't "un-fail" a payment)
-- REFUNDED → anything
-- PAID → PENDING
-- PAID → FAILED
+### Illegal Transitions (throw `LogicException`)
 
-```php
-public function transitionTo(string $newStatus): void
-{
-    $allowed = self::ALLOWED_TRANSITIONS[$this->status] ?? [];
-    if (!in_array($newStatus, $allowed)) {
-        throw new \LogicException(
-            "Cannot transition from {$this->status} to {$newStatus}"
-        );
-    }
-    $this->status = $newStatus;
-}
-```
+- FAILED → PAID (cannot resurrect a failed payment)
+- FAILED → REFUNDED (cannot refund a failed payment)
+- REFUNDED → PAID (cannot un-refund)
+- PAID → PENDING (cannot go backwards)
+
+### PaymobPayment Helper Methods
+
+| Method                                   | Action                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `markAsPaid($transactionId, $response)`  | Sets status=PAID, stores transaction ID, sets `paid_at`            |
+| `markAsFailed($errorMessage, $response)` | Sets status=FAILED, stores error message                           |
+| `markAsPending($reason, $response)`      | Keeps PENDING, stores gateway response (e.g., auth-not-captured)   |
+| `markMotoAttempted()`                    | Increments `moto_attempts`, sets `moto_attempted_at`               |
+| `markAsFallbackTo3DS($reason)`           | Sets `is_fallback_from_moto=true`, changes `flow` to `unified_3ds` |
 
 ---
 
 ## 8. POLLING — READ-ONLY DISPLAY
 
-### What the frontend does
+**Endpoint:** `GET /api/v1/payments/status/{paymentId}`  
+**File:** `unibackend/app/Http/Controllers/Api/PaymentController.php` → `checkStatus()`
 
-After the customer completes the 3DS challenge in the WebView:
+### Critical Design: This endpoint NEVER mutates the database.
 
-**Component: `PaymentWebView.tsx`** (inline polling)
+The polling endpoint is used by the frontend to check if the webhook has arrived and processed the payment. It:
 
-- Detects WebView URL change → starts polling timer
-- Polls `GET /payments/status/{paymentId}` every 3 seconds
-- Maximum 30 seconds of polling
-- If PAID → navigate to success
-- If FAILED → show error alert
-- If timeout → show "check your orders" message
+1. Validates the authenticated user owns this payment
+2. Returns current status from database
+3. If payment is still PENDING and has a `paymob_intention_id`, fetches remote status from Paymob for display (but does NOT update local DB)
 
-**Screen: `payment-webview.tsx`** (uses imported `pollPaymentStatus`)
-
-- Starts polling immediately when screen loads (has paymentId)
-- Polls every 2 seconds, max 30 attempts (60 seconds)
-- Shows status indicator overlay on WebView
-
-### What the backend returns
+### Response Format
 
 ```json
 {
-  "success": true,
-  "data": {
-    "payment_id": 101,
-    "order_id": 42,
-    "status": "PENDING", // OUR DB status
-    "order_payment_status": null, // Order's payment_status
-    "order_status": null, // Order's status
-    "transaction_id": null, // Paymob transaction ID
-    "amount": 150.0, // In EGP (not cents)
-    "currency": "EGP",
-    "flow": "unified_3ds",
-    "updated_at": "2025-01-15T10:30:00.000000Z",
-    "paymob_status": "PROCESSED", // Live from Paymob API
-    "paymob_success": true, // Live from Paymob API
-    "message": "Final confirmation is webhook-based. Polling is for display only."
-  }
+  "status": "PAID",
+  "order_payment_status": "completed",
+  "order_status": "confirmed",
+  "transaction_id": "412532416",
+  "amount": 216.86,
+  "currency": "EGP",
+  "flow": "moto",
+  "updated_at": "2026-02-12T10:30:00.000000Z",
+  "paymob_status": "PAID",
+  "paymob_success": true,
+  "message": "Final confirmation is webhook-based. This status is for display only."
 }
 ```
 
-**Key insight:** `paymob_status` and `paymob_success` come from querying Paymob's API in real-time. They show that Paymob processed the payment, but our DB hasn't been updated yet (webhook hasn't arrived). The frontend should trust `status` (our DB) for navigation decisions, not `paymob_status`.
+### Frontend Polling Engine
 
-### Why polling never writes to DB
+**File:** `frontend/services/paymentMethodsApi.ts` → `pollPaymentStatus()`
 
-**Old code (DANGEROUS):**
-
-```php
-// ❌ REMOVED — Polling used to do this:
-if ($paymobSuccess) {
-    $payment->markAsPaid();      // DB mutation from polling!
-    $order->clearCart();          // Side effect from polling!
-}
 ```
-
-**New code (SAFE):**
-
-```php
-// ✅ CURRENT — Polling is 100% read-only
-return response()->json([
-    'data' => [
-        'status' => $payment->status,  // Just reads from DB
-        'paymob_status' => $paymobStatus, // Just displays remote status
-        // NO markAsPaid(), NO clearCart(), NO ProcessOrderAsync
-    ]
-]);
+Default interval: 2,000ms (2 seconds)
+Default max attempts: 30 (60 seconds total — can be overridden per caller)
+WebView polling: 15 attempts (30s) + 2s initial delay = 32 seconds total
+Terminal states: PAID, FAILED, REFUNDED → resolve immediately
+Non-terminal after timeout: resolves with current state
+Error resilience: retries on HTTP errors until max attempts
 ```
-
-Why? Because if polling could change state, an attacker could forge a poll response or a timing issue could mark a payment as paid when it actually failed.
 
 ---
 
-## 9. THE RECONCILIATION SAFETY NET
+## 9. PAYMENT CONFIRMATION SERVICE
 
-### The problem
+**File:** `unibackend/app/Services/PaymentConfirmationService.php`
 
-What if the webhook never arrives? (Network timeout, server crash, Paymob outage)
+Extracted from the PaymentController (God Controller breakup). This is the single place where payment outcomes affect the order.
 
-The payment would stay PENDING forever. The customer paid, but we never know.
+### `confirmPayment()` — Success Path (5-step atomic sequence)
 
-### The solution
+**Prerequisites (caller must guarantee):**
 
-**File:** `unibackend/app/Jobs/ReconcilePendingPayments.php`
+- HMAC verified
+- Amount + currency validated
+- Row locked via `lockForUpdate()` inside `DB::transaction`
+- Payment is still `PENDING`
 
-A scheduled job runs **every 5 minutes** and:
+**Steps:**
 
-1. Finds all PENDING payments older than 10 minutes (but less than 24 hours)
-2. For each stale payment, queries Paymob's API server-to-server
-3. Locks the row with `lockForUpdate()` (same protection as webhook)
-4. Verifies:
-   - Amount matches ✅
-   - Currency matches ✅
-   - `is_capture = true` ✅
-   - `success = true` ✅
-5. If all checks pass → `transitionTo('PAID')`, update order, dispatch job
-6. If Paymob says it failed → `transitionTo('FAILED')`
-7. If Paymob still shows pending → skip (will retry next run)
+1. `$payment->markAsPaid($transactionId, $gatewayResponse)` — state machine transition PENDING → PAID
+2. `PaymentTransaction::updateOrCreate(...)` — legacy audit trail record
+3. `$order->update(['payment_status' => 'completed', 'status' => 'confirmed'])` — order confirmation
+4. `$this->orderService->finalizePromoUsage($order)` + `$this->cartService->clearCart($cart)` — finalization
+5. `ProcessOrderAsync::dispatch($order->id, 'confirmed')` — async job for notifications, analytics
 
-### Configuration
+### `failPayment()` — Failure Path
 
-```php
-const STALE_AFTER_MINUTES = 10;  // Don't check payments younger than this
-const MAX_AGE_HOURS = 24;        // Don't check payments older than this
-const BATCH_SIZE = 50;           // Process max 50 per run
-```
-
-### Schedule
-
-**File:** `unibackend/routes/console.php`
-
-```php
-Schedule::job(new ReconcilePendingPayments)
-    ->everyFiveMinutes()
-    ->withoutOverlapping();  // Prevents duplicate runs if job takes >5 min
-```
+1. `$payment->markAsFailed($errorMessage, $gatewayResponse)`
+2. `PaymentTransaction::updateOrCreate(...)` — status `failed`
+3. `$order->update(['payment_status' => 'failed', 'status' => 'failed'])`
+4. **Stock restoration**: loops through order items, increments `quantity_available` for each product
 
 ---
 
 ## 10. PAYMENT RECOVERY (APP CRASH/KILL)
 
-### The problem
+If the app crashes or is killed during payment:
 
-Customer is on the 3DS page in the WebView. They:
+1. **Payment is in PENDING state** in the database
+2. When user reopens the app, the order shows as "payment pending"
+3. User can retry payment from order details
+4. If the original payment actually succeeded (webhook arrived while app was dead):
+   - The webhook already marked the payment as PAID
+   - When user checks, they see the order is confirmed
+5. If the original payment failed:
+   - The webhook marked it as FAILED
+   - User can retry with a new payment
 
-- Get a phone call → app goes to background → killed by OS
-- Accidentally swipe the app closed
-- Phone runs out of battery
-
-When they reopen the app, what happens?
-
-### The solution
-
-**File:** `frontend/app/payment-recovery.tsx`
-
-Before initiating payment, the frontend stores a "pending payment" in AsyncStorage:
-
-```json
-{
-  "orderId": 42,
-  "orderNumber": "ORD-42",
-  "paymentAttemptId": 101,
-  "timestamp": 1705312200000
-}
-```
-
-When the app launches, it checks for this pending payment. If found:
-
-1. Shows "Checking Payment Status..." screen
-2. Polls `GET /payments/status/101` up to 5 times (2-second intervals)
-3. If PAID → "Payment Successful!" → navigate to order success
-4. If FAILED → "Payment Failed" → show retry button
-5. If still PENDING → "Payment Pending" → show "Check Again" and "View Order" buttons
-
-After handling, the pending payment is cleared from AsyncStorage.
+**Reconciliation safety net:** A scheduled job can be configured to check PENDING payments older than X minutes, query Paymob's API for actual status, and reconcile.
 
 ---
 
 ## 11. SECURITY DEEP DIVE
 
-### Authentication Layer
+### Authentication & Authorization
 
-| Layer               | Mechanism                                                  |
-| ------------------- | ---------------------------------------------------------- |
-| API Auth            | Laravel Sanctum (Bearer token)                             |
-| Payment Owner Check | `user_id` compared to `auth()->id()` on every status check |
-| Webhook Auth        | HMAC-SHA512 with shared secret                             |
-| Token Encryption    | AES-256-CBC via Laravel Crypt (APP_KEY)                    |
-| Sensitive Deletions | `password.confirm` middleware                              |
+| Layer                     | Mechanism                                                         |
+| ------------------------- | ----------------------------------------------------------------- |
+| API Authentication        | Laravel Sanctum bearer tokens                                     |
+| Payment ownership         | `$order->user_id === auth()->id()` checked before every operation |
+| Card ownership            | `$paymentMethod->user_id === auth()->id()` verified               |
+| Webhook authentication    | HMAC SHA-512 verification                                         |
+| Webhook replay protection | Idempotent processing via pessimistic locking                     |
 
-### What's verified in the webhook:
+### Encryption
 
-| Check           | Why                                                           |
-| --------------- | ------------------------------------------------------------- |
-| HMAC signature  | Proves webhook came from Paymob, not an attacker              |
-| Amount in cents | Prevents attacker from paying 1 EGP for 1000 EGP order        |
-| Currency        | Prevents cross-currency attacks                               |
-| `is_capture`    | Ensures money was actually captured, not just authorized      |
-| Row lock        | Prevents double-processing from duplicate webhooks            |
-| Idempotency     | If already PAID, silently returns 200 (no double crediting)   |
-| State machine   | Even if somehow called twice, PAID→PAID throws LogicException |
+| Data               | Algorithm      | Key                |
+| ------------------ | -------------- | ------------------ |
+| Card token at rest | AES-256-CBC    | Laravel APP_KEY    |
+| Token fingerprint  | SHA-256        | N/A (one-way hash) |
+| Webhook HMAC       | SHA-512        | Paymob HMAC_SECRET |
+| API communication  | HTTPS/TLS 1.2+ | Paymob SSL cert    |
 
-### What's encrypted:
+### Race Condition Prevention
 
-| Data           | Method                      | Where                               |
-| -------------- | --------------------------- | ----------------------------------- |
-| Card token     | AES-256-CBC (Laravel Crypt) | `payment_methods.paymob_card_token` |
-| User passwords | Bcrypt                      | `users.password`                    |
-| API tokens     | SHA-256 hash                | `personal_access_tokens`            |
+```php
+DB::transaction(function () use ($paymentId) {
+    // Pessimistic lock — other requests wait until this transaction completes
+    $payment = PaymobPayment::where('id', $paymentId)->lockForUpdate()->first();
 
-### What's NOT stored (by design):
+    // Idempotency check INSIDE the lock
+    if ($payment->isPaid()) {
+        return; // Duplicate webhook — safe to ignore
+    }
 
-- ❌ Full card numbers
-- ❌ CVV/CVC codes
-- ❌ Raw Paymob tokens (always encrypted)
-- ❌ 3DS passwords/OTPs
+    // Process payment...
+});
+```
+
+### PCI-DSS Compliance
+
+- **No raw card numbers** stored anywhere in the system
+- Card tokens are **encrypted at rest** (AES-256-CBC)
+- `paymob_card_token` and `token` columns are in `$hidden` array — never exposed in JSON responses
+- Card details are entered on **Paymob's hosted page** (not our backend)
+- Only token + masked PAN + last 4 digits are stored
+
+### Amount Verification
+
+```php
+// Before processing, verify Paymob sent the correct amount
+if ((int)$payload['amount_cents'] !== (int)$payment->amount_cents) {
+    $payment->markAsFailed("Security violation: amount mismatch");
+    return;
+}
+if (strtoupper($payload['currency']) !== strtoupper($payment->currency)) {
+    $payment->markAsFailed("Security violation: currency mismatch");
+    return;
+}
+```
 
 ---
 
 ## 12. DATABASE SCHEMA
 
-### `paymob_payments` — Every payment attempt
+### `paymob_payments` Table
 
 ```sql
 CREATE TABLE paymob_payments (
   id                    BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id              BIGINT UNSIGNED NOT NULL,         -- FK to orders
-  user_id               BIGINT UNSIGNED NULL,             -- FK to users (nullable for legacy)
-  paymob_order_id       VARCHAR(255) NULL,                -- Paymob's order ID
-  paymob_transaction_id VARCHAR(255) NULL,                -- Paymob's txn ID (set on success)
-  paymob_intention_id   VARCHAR(255) NULL,                -- Intention ID (Unified Checkout)
-  special_reference     VARCHAR(255) NULL UNIQUE,         -- Our unique reference
-  amount_cents          INTEGER NOT NULL,                 -- Amount in cents (15000 = 150.00 EGP)
-  currency              VARCHAR(10) NOT NULL DEFAULT 'EGP',
-  status                VARCHAR(20) NOT NULL DEFAULT 'PENDING',  -- PENDING/PAID/FAILED/REFUNDED
-  flow                  ENUM('classic_iframe','unified_3ds','moto') DEFAULT 'classic_iframe',
-  save_card_requested   BOOLEAN DEFAULT FALSE,            -- Did user check "save card"?
-  error_message         TEXT NULL,                        -- Error detail on failure
-  paymob_response       LONGTEXT NULL,                   -- Full Paymob response JSON
+  order_id              BIGINT UNSIGNED NOT NULL,
+  user_id               BIGINT UNSIGNED NOT NULL,
+  internal_order_id     VARCHAR(255) UNIQUE,      -- "ORD-42-1707753600123456"
+  paymob_order_id       VARCHAR(255),             -- Paymob's order ID
+  paymob_intention_id   VARCHAR(255),             -- Intention API ID (pi_test_...)
+  paymob_transaction_id VARCHAR(255),             -- Transaction ID from webhook
+  special_reference     VARCHAR(255),             -- Unique ref for Paymob
+  amount_cents          INT NOT NULL,             -- 15000 = EGP 150.00
+  currency              VARCHAR(10) DEFAULT 'EGP',
+  payment_method        VARCHAR(20) NOT NULL,     -- 'CARD' or 'WALLET'
+  flow                  VARCHAR(20) NOT NULL,     -- 'classic_iframe', 'unified_3ds', 'moto'
+  save_card_requested   BOOLEAN DEFAULT FALSE,
+  moto_attempts         INT DEFAULT 0,
+  moto_attempted_at     TIMESTAMP NULL,
   is_fallback_from_moto BOOLEAN DEFAULT FALSE,
-  moto_attempts         INTEGER DEFAULT 0,
+  integration_id        VARCHAR(50),              -- Which Paymob integration was used
+  status                VARCHAR(20) DEFAULT 'PENDING', -- PENDING, PAID, FAILED, REFUNDED
+  billing_data          JSON,
+  paymob_response       JSON,                     -- Full Paymob response for audit
+  error_message         TEXT NULL,
+  paid_at               TIMESTAMP NULL,
   created_at            TIMESTAMP,
   updated_at            TIMESTAMP,
 
   INDEX idx_order_id (order_id),
   INDEX idx_user_id (user_id),
+  INDEX idx_paymob_order_id (paymob_order_id),
   INDEX idx_status (status),
-  INDEX idx_paymob_order_id (paymob_order_id)
+  INDEX idx_special_reference (special_reference),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
 );
 ```
 
-### `payment_methods` — Saved cards (tokens)
+### `payment_methods` Table
 
 ```sql
 CREATE TABLE payment_methods (
   id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id             BIGINT UNSIGNED NOT NULL,
-  card_brand          VARCHAR(50) NOT NULL,       -- visa, mastercard, amex
-  card_last_four      VARCHAR(4) NOT NULL,        -- 4242
-  masked_card         VARCHAR(50) NULL,           -- XXXX-XXXX-XXXX-4242
-  paymob_card_token   TEXT NOT NULL,              -- AES-256-CBC encrypted
-  token               TEXT NULL,                  -- Legacy field
-  token_fingerprint   VARCHAR(64) NULL UNIQUE,    -- SHA-256 for dedup
+  type                VARCHAR(20) DEFAULT 'card',
+  card_last_four      VARCHAR(4),
+  card_brand          VARCHAR(20),               -- 'visa', 'mastercard', 'amex'
+  card_holder_name    VARCHAR(255),
+  token               TEXT,                      -- Legacy (redirects to paymob_card_token)
+  paymob_card_token   TEXT,                      -- AES-256-CBC encrypted token
+  token_fingerprint   VARCHAR(64),               -- SHA-256 hash for dedup
+  token_type          VARCHAR(30),               -- 'paymob_saved_card'
+  status              VARCHAR(20) DEFAULT 'active',
+  invalidated_reason  TEXT NULL,
+  invalidated_at      TIMESTAMP NULL,
   is_default          BOOLEAN DEFAULT FALSE,
-  is_verified         BOOLEAN DEFAULT TRUE,
-  expires_at          VARCHAR(10) NULL,           -- "12/27" (month/year)
-  deleted_at          TIMESTAMP NULL,             -- Soft delete
+  is_verified         BOOLEAN DEFAULT FALSE,
+  expires_at          TIMESTAMP NULL,
   created_at          TIMESTAMP,
   updated_at          TIMESTAMP,
+  deleted_at          TIMESTAMP NULL,            -- Soft delete for audit trail
 
-  INDEX idx_user_id (user_id)
+  INDEX idx_user_id (user_id),
+  INDEX idx_token_fingerprint (token_fingerprint),
+  INDEX idx_is_default (is_default),
+  FOREIGN KEY (user_id) REFERENCES users(id)
 );
 ```
 
@@ -809,29 +1141,30 @@ CREATE TABLE payment_methods (
 
 ## 13. API ENDPOINTS REFERENCE
 
-### Payment Endpoints (require authentication)
+### Payment Endpoints (Authenticated)
 
-| Method | Endpoint                                           | Purpose                                   |
-| ------ | -------------------------------------------------- | ----------------------------------------- |
-| POST   | `/api/v1/payments/paymob/pre-check`                | Validate Paymob connectivity before order |
-| POST   | `/api/v1/payments/paymob/initiate`                 | Start new card payment                    |
-| POST   | `/api/v1/payments/paymob/initiate-with-saved-card` | Pay with saved card                       |
-| GET    | `/api/v1/payments/status/{paymentId}`              | Poll payment status (read-only)           |
-| GET    | `/api/v1/payments/order/{orderId}/status`          | Legacy: status by order ID                |
+| Method | Route                                              | Controller Method          | Purpose                                               |
+| ------ | -------------------------------------------------- | -------------------------- | ----------------------------------------------------- |
+| `POST` | `/api/v1/payments/paymob/pre-check`                | `preCheckPayment`          | Pre-validate payment capability (optional, for UX)    |
+| `POST` | `/api/v1/payments/paymob/initiate`                 | `initiatePayment`          | Start new card/wallet payment (routes to MOTO or 3DS) |
+| `POST` | `/api/v1/payments/paymob/initiate-with-saved-card` | `initiateSavedCardPayment` | Start saved card payment (direct MOTO entry point)    |
+| `GET`  | `/api/v1/payments/status/{paymentId}`              | `checkStatus`              | Poll payment status (READ-ONLY)                       |
+| `GET`  | `/api/v1/order/{orderId}/status`                   | `getPaymentStatus`         | Legacy status endpoint                                |
 
-### Webhook Endpoint (NO authentication — HMAC verified)
+### Webhook Endpoints (Public — HMAC protected)
 
-| Method | Endpoint                   | Purpose                               |
-| ------ | -------------------------- | ------------------------------------- |
-| POST   | `/api/v1/paymob/processed` | Paymob callback (the source of truth) |
+| Method | Route                      | Controller Method   | Purpose                                    |
+| ------ | -------------------------- | ------------------- | ------------------------------------------ |
+| `POST` | `/api/v1/paymob/processed` | `processedCallback` | Receive payment/token webhooks from Paymob |
+| `GET`  | `/api/v1/payment/response` | `responseCallback`  | UX-only redirect (never mutates DB)        |
 
-### Payment Methods (require authentication)
+### Payment Methods CRUD (Authenticated)
 
-| Method | Endpoint                               | Purpose                               |
-| ------ | -------------------------------------- | ------------------------------------- |
-| GET    | `/api/v1/payment-methods`              | List saved cards                      |
-| PUT    | `/api/v1/payment-methods/{id}/default` | Set card as default                   |
-| DELETE | `/api/v1/payment-methods/{id}`         | Delete saved card (requires password) |
+| Method   | Route                                  | Controller Method | Purpose                  |
+| -------- | -------------------------------------- | ----------------- | ------------------------ |
+| `GET`    | `/api/v1/payment-methods`              | `index`           | List all saved cards     |
+| `PUT`    | `/api/v1/payment-methods/{id}/default` | `setDefault`      | Set card as default      |
+| `DELETE` | `/api/v1/payment-methods/{id}`         | `destroy`         | Soft-delete a saved card |
 
 ---
 
@@ -839,281 +1172,577 @@ CREATE TABLE payment_methods (
 
 ### Backend (Laravel)
 
-| File                                                   | Lines | Purpose                                               |
-| ------------------------------------------------------ | ----- | ----------------------------------------------------- |
-| `app/Http/Controllers/Api/PaymentController.php`       | ~1291 | Main orchestrator: initiate, webhook, status check    |
-| `app/Services/PaymobService.php`                       | ~400+ | Paymob API client: intentions, transactions, tokens   |
-| `app/Services/PaymentTokenService.php`                 | ~165  | Token save/validate logic (extracted from controller) |
-| `app/Services/PaymentDecisionService.php`              | ~200+ | Decides flow: Unified vs Classic vs MOTO              |
-| `app/Services/CheckoutService.php`                     | ~500+ | Checkout orchestration, order creation                |
-| `app/Models/PaymobPayment.php`                         | ~185  | Payment model + state machine                         |
-| `app/Models/PaymentMethod.php`                         | ~100  | Saved card model                                      |
-| `app/Jobs/ReconcilePendingPayments.php`                | ~243  | Reconciliation cron job                               |
-| `app/Http/Controllers/Api/PaymentMethodController.php` | ~200  | CRUD for saved cards                                  |
-| `routes/api.php`                                       | ~618  | API route definitions                                 |
-| `routes/console.php`                                   | ~30   | Scheduler registration                                |
-| `database/migrations/*_payment*.php`                   | —     | Schema migrations                                     |
+| File                                             | Lines | Purpose                                                                                                                     |
+| ------------------------------------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------- |
+| `app/Http/Controllers/Api/PaymentController.php` | ~1600 | Main orchestrator — initiatePayment, processedCallback, checkStatus, MOTO flow, webhook handling                            |
+| `app/Services/PaymobService.php`                 | ~1034 | Paymob API wrapper — authenticate, createIntention, createMotoIntention, payWithSavedCardMoto, verifyHmac, extractCardToken |
+| `app/Services/PaymentDecisionService.php`        | ~199  | 8-rule decision tree — decides MOTO vs Unified 3DS                                                                          |
+| `app/Services/PaymentTokenService.php`           | ~148  | Card token lifecycle — shouldSaveCardToken, saveCardToken, dedup, fingerprint                                               |
+| `app/Services/PaymentConfirmationService.php`    | ~120  | Atomic payment outcome handler — confirmPayment (5 steps), failPayment (4 steps)                                            |
+| `app/Models/PaymobPayment.php`                   | ~180  | Payment model — state machine, transitions, scopes                                                                          |
+| `app/Models/PaymentMethod.php`                   | ~312  | Saved card model — encryption mutators, soft deletes, findOrRestoreDeleted                                                  |
+| `config/payments.php`                            | ~20   | Payment configuration — thresholds, feature flags                                                                           |
+| `routes/api.php`                                 | N/A   | API route definitions for all payment endpoints                                                                             |
 
-### Frontend (React Native / TypeScript)
+### Frontend (React Native / Expo)
 
-| File                                  | Purpose                                           |
-| ------------------------------------- | ------------------------------------------------- |
-| `services/paymentMethodsApi.ts`       | API calls + polling logic + types                 |
-| `components/PaymentWebView.tsx`       | WebView component with inline polling             |
-| `app/payment-webview.tsx`             | Screen wrapper using imported `pollPaymentStatus` |
-| `app/payment.tsx`                     | Screen wrapper using `PaymentWebView` component   |
-| `app/payment-recovery.tsx`            | App resume/crash recovery screen                  |
-| `services/payment/paymentRecovery.ts` | AsyncStorage pending payment management           |
-| `services/payment/paymentMessages.ts` | Error message mapping for UI                      |
-| `types/index.ts`                      | TypeScript interfaces for all API types           |
+| File                              | Lines | Purpose                                                                            |
+| --------------------------------- | ----- | ---------------------------------------------------------------------------------- |
+| `app/checkout/payment.tsx`        | ~540  | Step 2 — Payment type selection (Card/COD), saved card toggle, card selector       |
+| `app/checkout/confirmation.tsx`   | ~1046 | Step 3 — Order review, delivery slot, place order, payment initiation orchestrator |
+| `app/payment-webview.tsx`         | ~250  | WebView for 3DS/Unified Checkout — URL interception, polling after redirect        |
+| `app/profile/payment-methods.tsx` | ~500  | Profile — Manage saved cards (list, set default, delete)                           |
+| `app/profile/payment.tsx`         | ~226  | Profile — Payment info page (available methods, how it works)                      |
+| `components/SavedCardsList.tsx`   | ~220  | Reusable saved card selector with radio buttons and brand colors                   |
+| `services/paymentMethodsApi.ts`   | ~200  | API client — all payment API calls + polling engine                                |
 
 ---
 
 ## 15. ENVIRONMENT CONFIGURATION
 
-### Backend `.env` — REQUIRED
+### `.env` Variables
 
 ```bash
-# ═══════════════════════════════════════════════════════════════
-# PAYMOB PAYMENT GATEWAY — ALL REQUIRED
-# ═══════════════════════════════════════════════════════════════
+# ── Paymob Core ──
+PAYMOB_API_KEY=ZXlKaGJHY2lPaUpJVX...       # API key from Paymob Dashboard
+PAYMOB_SECRET_KEY=egy_sk_test_...            # Secret key for Intention API (v1)
+PAYMOB_PUBLIC_KEY=egy_pk_test_...            # Public key for client-side
+PAYMOB_HMAC_SECRET=A1B2C3D4E5F6...          # HMAC secret for webhook verification
 
-# Your Paymob API key (from Paymob Dashboard → Settings → API Keys)
-PAYMOB_API_KEY=your_api_key_here
+# ── Integration IDs ──
+PAYMOB_INTEGRATION_ID=5084814               # Card/3DS (Unified Checkout)
+PAYMOB_WALLET_INTEGRATION_ID=5084831        # Mobile Wallet (Vodafone Cash, etc.)
+PAYMOB_MOTO_INTEGRATION_ID=5511054          # MOTO (Server-to-server, saved card)
+PAYMOB_IFRAME_ID=919973                     # Legacy hosted page
 
-# Paymob Secret Key (for V1 Intention API)
-PAYMOB_SECRET_KEY=egy_sk_test_xxxx   # test key starts with egy_sk_test_
-                                      # live key starts with egy_sk_live_
+# ── URLs ──
+PAYMOB_CALLBACK_URL=https://your-domain.com/api/v1/paymob/processed
+PAYMOB_REDIRECT_URL=elbaraka://payment-return    # Deep link back to app
 
-# Paymob Public Key (for Unified Checkout iframe URL)
-PAYMOB_PUBLIC_KEY=egy_pk_test_xxxx   # test key starts with egy_pk_test_
-
-# HMAC Secret (from Paymob Dashboard → Settings → HMAC)
-PAYMOB_HMAC_SECRET=your_32_char_hex_string
-
-# Integration IDs (from Paymob Dashboard → Developers → Integration IDs)
-PAYMOB_CARD_INTEGRATION_ID=5084814       # Card payments
-PAYMOB_WALLET_INTEGRATION_ID=5084831     # Wallet payments (if applicable)
-PAYMOB_INTEGRATION_ID_3DS=5084814        # 3DS verification (usually same as card)
-PAYMOB_MOTO_INTEGRATION_ID=              # MOTO (leave empty to disable)
-
-# Iframe ID (from Paymob Dashboard → Developers → iFrames)
-PAYMOB_IFRAME_ID=919973
-
-# URLs — CRITICAL: Must be publicly accessible
-PAYMOB_CALLBACK_URL=https://your-domain.com/api/v1/paymob/processed    # Webhook
-PAYMOB_REDIRECT_URL=https://your-domain.com/payment-return              # After 3DS
-
-# Paymob API base URL
-PAYMOB_BASE_URL=https://accept.paymob.com/api
-
-# Feature flags
-PAYMENT_ENABLE_MOTO=true           # Enable MOTO flow
-PAYMENT_ENABLE_SAVED_CARDS=true    # Enable card tokenization
-PAYMENT_ENABLE_UNIFIED=true        # Enable Unified Checkout (V1 API)
-
-# ═══════════════════════════════════════════════════════════════
-# LARAVEL APP KEY — CRITICAL FOR TOKEN ENCRYPTION
-# ═══════════════════════════════════════════════════════════════
-APP_KEY=base64:your_key_here       # php artisan key:generate
-# ⚠️ IF YOU CHANGE THIS, ALL SAVED CARD TOKENS BECOME UNREADABLE
-```
-
-### Frontend `.env`
-
-```bash
-# API base URL — points to your Laravel backend
-API_URL=https://your-domain.com/api/v1
-
-# For local development with Android emulator:
-# API_URL=http://10.0.2.2:8000/api/v1
-
-# For local development with iOS simulator:
-# API_URL=http://localhost:8000/api/v1
-
-# For ngrok tunnel (development):
-# API_URL=https://xxxx-xxx-xxx-xxx-xxx.ngrok-free.app/api/v1
+# ── Feature Flags ──
+PAYMENT_ENABLE_MOTO=true
+PAYMENT_ENABLE_SAVED_CARDS=true
+PAYMENT_ENABLE_UNIFIED=true
+PAYMENT_FORCE_3DS_NEW_USERS=false
+PAYMENT_HIGH_VALUE_THRESHOLD=200000          # 2000 EGP in cents
 ```
 
 ---
 
 ## 16. PAYMOB DASHBOARD CONFIGURATION
 
-These settings must be configured in your Paymob merchant dashboard at https://accept.paymob.com/portal2/en/dashboard
+### Required Setup
 
-### 1. Webhook (Transaction Processed Callback)
+1. **Card Integration (5084814)**
+   - Transaction processed callback URL: `https://your-domain.com/api/v1/paymob/processed`
+   - Transaction response callback URL: `https://your-domain.com/api/v1/payment/response`
 
-**Location:** Dashboard → Settings → Account Settings → Notification URL
+2. **MOTO Integration (5511054)**
+   - Same callback URLs as above
+   - **Risk team approval required** for production MOTO (contact Paymob support)
+   - Test MOTO integration will always trigger 3DS with test cards
+
+3. **Wallet Integration (5084831)**
+   - Same callback URLs
+
+4. **HMAC Configuration**
+   - Generate HMAC secret in Dashboard → Developers → HMAC
+   - Copy to `PAYMOB_HMAC_SECRET` in `.env`
+
+---
+
+## 17. FRONTEND PAYMENT SCREENS
+
+### Step 2: Payment Method Selection (`checkout/payment.tsx`)
+
+**UI Features:**
+
+- **Card/Cash toggle** — Premium card-style buttons with brand icons, checkmark badge on active
+- **Saved card toggle** — Switch to toggle between new card and saved card mode
+- **Saved cards list** — Radio selection with brand-colored strips (Visa blue, MC red, Amex blue)
+- **Save card checkbox** — Opt-in to save new card for future use
+- **Security badges** — "PCI-DSS compliant • 256-bit encryption" and "Cards encrypted and securely stored"
+- **Disabled state** — Continue button disabled when saved card mode is on but no card selected
+- **COD features list** — Checklist of COD benefits
+
+### Step 3: Order Confirmation (`checkout/confirmation.tsx`)
+
+**Payment Logic:**
+
+1. Creates order via API
+2. Routes to MOTO or Unified Checkout based on backend response
+3. MOTO → navigates to order-success with polling
+4. Unified 3DS → navigates to payment-webview with iframe URL
+5. COD → navigates directly to order-success
+
+### Profile: Payment Methods (`profile/payment-methods.tsx`)
+
+**UI Features:**
+
+- **Card list** — Premium card items with brand-colored icon strips, default ribbon, verified/expired/unverified badges
+- **Actions** — "Set as Default" (green pill) and "Delete" (red pill) buttons
+- **Empty state** — Step-by-step guide on how to save a card (3 numbered steps)
+- **Security note** — "All cards encrypted with AES-256-CBC"
+- **Skeleton loading** — Shimmer effect while loading
+- **Pull-to-refresh** — Refresh card list
+
+---
+
+## 18. COMPLETE TEST SCENARIOS
+
+### Scenario 1: New Card Payment — Success
 
 ```
-https://your-domain.com/api/v1/paymob/processed
+Given: User has no saved cards
+When:  User selects Card → enters new card details → completes 3DS
+Then:  Order status = confirmed, payment status = completed
+       Card NOT saved (save_card was false)
+       Cart is cleared
+       User navigated to success screen
 ```
 
-⚠️ This URL must be:
+### Scenario 2: New Card Payment — Save Card
 
-- Publicly accessible (not localhost!)
-- HTTPS in production
-- Responding within 10 seconds
+```
+Given: User has no saved cards, checks "Save this card"
+When:  User completes payment with card 4111 1111 1111 1111
+Then:  Order confirmed + card saved to payment_methods table
+       paymob_card_token = AES-256-CBC encrypted
+       token_fingerprint = SHA-256 of raw token
+       is_verified = true, is_default = true (first card)
+       card_last_four = "1111", card_brand = "visa"
+```
 
-### 2. HMAC Secret
+### Scenario 3: Saved Card Payment — MOTO Success (Production)
 
-**Location:** Dashboard → Settings → HMAC
+```
+Given: User has saved Visa •••• 1111, amount < 2000 EGP, no recent failures
+When:  User selects saved card → taps Pay
+Then:  Decision engine returns MOTO
+       MOTO Intention created with integration 5511054
+       Server-to-server pay request sent
+       Payment succeeds instantly (no redirect)
+       User navigated directly to success screen
+```
 
-- Copy the HMAC secret → paste into `PAYMOB_HMAC_SECRET` in `.env`
-- Ensure HMAC is **enabled** (checkbox is checked)
+### Scenario 4: Saved Card Payment — MOTO → 3DS Fallback
 
-### 3. Integration IDs
+```
+Given: User has saved card, MOTO attempted
+When:  Paymob returns requires_redirection: true (bank requires 3DS)
+Then:  payment.is_fallback_from_moto = true
+       payment.flow changed from 'moto' to 'unified_3ds'
+       Unified Checkout created with card_tokens (card pre-filled)
+       User redirected to Paymob checkout → completes 3DS
+       Webhook confirms payment
+```
 
-**Location:** Dashboard → Developers → Payment Integrations
+### Scenario 5: Saved Card Payment — MOTO Failure
 
-- Create a **Card** integration → copy ID → `PAYMOB_CARD_INTEGRATION_ID`
-- Create a **Wallet** integration → copy ID → `PAYMOB_WALLET_INTEGRATION_ID`
-- Note: 3DS integration ID is usually the same as Card
+```
+Given: User has saved card
+When:  MOTO pay request returns success: false
+Then:  Payment marked as FAILED
+       Error message stored from Paymob response
+       User sees payment failure screen
+       Stock restored to inventory
+```
 
-### 4. iFrame ID
+### Scenario 6: High-Value Transaction Forces 3DS
 
-**Location:** Dashboard → Developers → iFrames
+```
+Given: User has saved card, order amount = EGP 3,000 (300,000 cents)
+When:  Decision engine evaluates
+Then:  Rule 4 fires: amount > high_value_threshold (200,000)
+       Flow = unified_3ds (NOT moto)
+       User redirected to Paymob for full 3DS verification
+```
 
-- Create an iframe → copy ID → `PAYMOB_IFRAME_ID`
+### Scenario 7: Recent Failures Force 3DS
 
-### 5. API Keys
+```
+Given: User had 2 failed payments in last 30 days, has saved card
+When:  Decision engine evaluates
+Then:  Rule 5 fires: recent failures >= threshold (2)
+       Flow = unified_3ds (NOT moto)
+       User must complete fresh 3DS verification
+```
 
-**Location:** Dashboard → Settings → API Keys (or Profile → API Key)
+### Scenario 8: New User Forced to 3DS
 
-- Copy API Key → `PAYMOB_API_KEY`
-- Under V1 API section:
-  - Secret Key → `PAYMOB_SECRET_KEY`
-  - Public Key → `PAYMOB_PUBLIC_KEY`
+```
+Given: force_3ds_for_new_users = true, user has < 2 completed orders, has saved card
+When:  Decision engine evaluates
+Then:  Rule 7 fires: new user policy
+       Flow = unified_3ds (NOT moto)
+```
 
-### 6. Redirect URL (for 3DS return)
+### Scenario 9: Duplicate Webhook (Idempotency)
 
-**Location:** Set programmatically via the Intention API `redirection_url` parameter
+```
+Given: Payment already marked as PAID
+When:  Paymob sends duplicate TRANSACTION webhook
+Then:  Webhook handler acquires lock → checks isPaid() → returns 200 OK
+       No duplicate processing, no double cart clear, no duplicate notifications
+```
 
-Currently set to: `elbaraka://payment-return` (deep link back to the app)
+### Scenario 10: HMAC Verification Failure
+
+```
+Given: Webhook arrives with invalid/tampered HMAC
+When:  verifyHmac() calculates SHA-512 and compares
+Then:  hash_equals() returns false
+       403 Forbidden returned to sender
+       Payment NOT processed — status stays PENDING
+```
+
+### Scenario 11: Amount Mismatch Attack
+
+```
+Given: Attacker sends webhook with amount_cents = 100 (instead of 15000)
+When:  Webhook handler compares amounts before lock
+Then:  Mismatch detected → payment marked FAILED
+       Error: "Security violation: amount mismatch"
+       Order marked as failed
+```
+
+### Scenario 12: Currency Mismatch Attack
+
+```
+Given: Webhook payload has currency = "USD" but payment expects "EGP"
+When:  Webhook handler compares currencies
+Then:  Mismatch detected → payment marked FAILED
+       Error: "Security violation: currency mismatch"
+```
+
+### Scenario 13: Token Webhook Before Transaction Webhook (Cache Bridge)
+
+```
+Given: User opted to save card
+When:  TOKEN webhook arrives first → Transaction webhook arrives second
+Then:  TOKEN webhook: Cache::put("paymob_token_webhook:{orderId}", tokenData, 30min)
+       TRANSACTION webhook: Confirms payment → Cache::pull() retrieves token
+       Token saved to payment_methods via PaymentTokenService
+```
+
+### Scenario 14: Token Save Failure — Payment Still Succeeds
+
+```
+Given: Token extraction fails (unexpected format) or encryption error
+When:  saveCardToken() throws exception
+Then:  Exception caught and logged
+       Payment confirmation NOT affected — order is still PAID
+       Card simply not saved — user can save it next time
+```
+
+### Scenario 15: Duplicate Card Token (Same Card Saved Twice)
+
+```
+Given: User already has Visa •••• 1111 saved
+When:  User pays with same card and checks "Save"
+Then:  SHA-256 fingerprint matches existing record
+       Deduplication: skip save (no duplicate created)
+       Payment succeeds normally
+```
+
+### Scenario 16: Restored Soft-Deleted Card
+
+```
+Given: User previously deleted Visa •••• 1111
+When:  User pays with same card and checks "Save"
+Then:  findOrRestoreDeleted() finds trashed record by fingerprint
+       Trashed record restored (deleted_at = null)
+       Token refreshed with new encrypted value
+       No unique constraint violation
+```
+
+### Scenario 17: APP_KEY Rotation — Graceful Degradation
+
+```
+Given: APP_KEY changed after card was saved
+When:  User tries to pay with saved card
+Then:  Decryption fails → getPaymobCardTokenAttribute() returns null
+       Card's isActive() returns false (token invalid)
+       Decision engine detects inactive card → routes to unified_3ds
+       User enters card details fresh → new token saved with new key
+```
+
+### Scenario 18: Paymob is_capture Quirk (Unified Checkout)
+
+```
+Given: Payment successful, but webhook has is_capture=false at top level
+When:  Webhook handler evaluates
+Then:  Deep check: data.migs_order.status === 'CAPTURED' ✅
+       is_capture overridden to true
+       Payment confirmed normally (not stuck as "authorized")
+```
+
+### Scenario 19: Cash on Delivery
+
+```
+Given: User selects Cash payment
+When:  User taps Place Order
+Then:  Order created with status = 'processing'
+       No Paymob interaction, no webhooks
+       User navigated directly to success screen
+       No payment record in paymob_payments table
+```
+
+### Scenario 20: App Crash During Payment
+
+```
+Given: User opened WebView, payment processing
+When:  App crashes / user kills app
+Then:  Payment stays PENDING in database
+       Webhook arrives → payment confirmed/failed regardless of app state
+       User reopens app → order screen shows actual status
+       User can retry if payment failed
+```
+
+### Scenario 21: Wallet Payment
+
+```
+Given: User selects Wallet (Vodafone Cash, etc.)
+When:  Payment initiated
+Then:  Classic iframe flow used (not Intention API)
+       Integration ID = 5084831 (wallet)
+       No card tokenization (wallets can't be tokenized)
+       Webhook confirmation same as card payments
+```
+
+### Scenario 22: WebView URL Interception
+
+```
+Given: Payment WebView is open
+When:  Paymob redirects to elbaraka://payment-return
+Then:  handleShouldStartLoadWithRequest() intercepts the URL
+       Returns false (prevents loading deep link in WebView)
+       Triggers polling immediately
+       Shows "Verifying payment..." overlay
+```
+
+### Scenario 23: Polling Timeout
+
+```
+Given: Webhook hasn't arrived after 32 seconds (2s initial delay + 15 attempts × 2s)
+When:  Polling reaches max 15 attempts
+Then:  Polling stops
+       Alert: "Payment is still being processed. Check your orders."
+       User navigated to home screen
+       (Webhook will eventually arrive and confirm payment)
+```
+
+### Scenario 24: Set Default Card
+
+```
+Given: User has 2 saved cards, Card A is default
+When:  User taps "Set as Default" on Card B
+Then:  API: PUT /payment-methods/{B}/default
+       Card A: is_default = false
+       Card B: is_default = true
+       Atomic transaction (no race condition)
+```
+
+### Scenario 25: Delete Card — Default Reassignment
+
+```
+Given: User has 2 cards, Card A (default) and Card B
+When:  User deletes Card A
+Then:  Card A: soft-deleted (deleted_at = now)
+       Card B: automatically set as new default
+       API returns new_default info in response
+```
+
+### Scenario 26: Expired Card Blocked from MOTO
+
+```
+Given: User has saved card that expired last month
+When:  Decision engine evaluates
+Then:  Rule 2 fires: card is inactive (expired)
+       Flow = unified_3ds (NOT moto)
+       User must enter new card details
+```
+
+### Scenario 27: Pre-Check Payment (Optional UX Enhancement)
+
+```
+Given: User is on checkout, hasn't created order yet
+When:  Frontend calls POST /payments/paymob/pre-check
+Then:  Backend authenticates with Paymob, registers temp order
+       Result cached 30 minutes under payment_precheck_{userId}
+       Returns iframe_url for instant checkout readiness
+       If Paymob is down → returns 503 "Payment service temporarily unavailable"
+```
+
+### Scenario 28: Concurrent Webhooks (Race Condition)
+
+```
+Given: Paymob sends same webhook twice (network retry)
+When:  Both hit processedCallback() simultaneously
+Then:  First request: acquires lockForUpdate() → processes payment → commits
+       Second request: waits for lock → acquires lock → isPaid() = true → returns 200 OK
+       No double processing, no duplicate cart clearing
+```
+
+### Scenario 29: Auth-but-Not-Captured (Intermediate State)
+
+```
+Given: Payment successful (success=true) but is_capture=false AND is_auth=true
+       AND Paymob Unified Checkout quirk check also returns false
+When:  Webhook handler evaluates
+Then:  Payment stays PENDING with reason "Authorized but not yet captured"
+       Order stays in current status (not confirmed)
+       Manual capture required in Paymob Dashboard
+       Next webhook (after capture) will transition to PAID
+```
+
+### Scenario 30: MOTO Disabled Feature Flag
+
+```
+Given: config payments.enable_moto = false, user has saved card
+When:  Decision engine evaluates
+Then:  Rule 6 fires: MOTO feature disabled
+       Flow = unified_3ds (customer redirected to enter card details)
+       Saved card NOT used for server-to-server payment
+```
+
+### Scenario 31: Classic iFrame Fallback
+
+```
+Given: config payments.enable_unified_checkout = false
+When:  Decision engine evaluates
+Then:  Rule 3 fires: Unified Checkout disabled
+       Flow = classic_iframe (legacy hosted page)
+       Uses iFrame integration ID (919973)
+```
+
+### Scenario 32: Direct Saved Card Endpoint
+
+```
+Given: User calls POST /payments/paymob/initiate-with-saved-card with payment_method_id
+When:  initiateSavedCardPayment() is called
+Then:  Bypasses decision engine → always uses MOTO flow
+       Direct entry point for explicit saved card payments
+       Same MOTO flow as Scenario 3 but without decision tree evaluation
+```
 
 ---
 
-## 17. TESTING CHECKLIST
+## 19. TROUBLESHOOTING GUIDE
 
-### Test Cards (Paymob Egypt Test Mode)
+### Payment stuck in PENDING
 
-| Card Number           | Result         | Use Case              |
-| --------------------- | -------------- | --------------------- |
-| `5123 4567 8901 2346` | ✅ Success     | Happy path            |
-| `4987 6543 2109 8769` | ❌ Decline     | Test failure handling |
-| `5111 1111 1111 1118` | ✅ 3DS Success | Test 3DS flow         |
-| `4000 0000 0000 0002` | ❌ 3DS Fail    | Test 3DS failure      |
+1. **Check webhook delivery:** Open Paymob Dashboard → Transactions → find the transaction → check webhook delivery status
+2. **Check callback URL:** Ensure the Transaction processed callback URL is set correctly on the integration in Paymob Dashboard
+3. **Check server logs:** `storage/logs/laravel.log` — search for the order ID or transaction ID
+4. **Manual reconciliation:** If webhook was delivered but not processed, check for HMAC errors or exceptions
+5. **Paymob test mode:** Test transactions may have delayed webhooks (up to 30s)
 
-### Scenarios to Test
+### Card not saving despite checkbox checked
 
-- [ ] **New card → success** → Order marked PAID, card saved (if requested)
-- [ ] **New card → failure** → Error message shown, retry available
-- [ ] **New card → save card unchecked** → Payment succeeds, no card saved
-- [ ] **Saved card → success** → Pays without re-entering card details
-- [ ] **Saved card → 3DS required** → WebView opens for 3DS, then success
-- [ ] **Duplicate webhook** → Second webhook is silently ignored (idempotency)
-- [ ] **App kill mid-payment** → Recovery screen checks status on reopen
-- [ ] **Polling timeout** → "Check your orders" message shown
-- [ ] **Network error during poll** → Graceful error with retry option
-- [ ] **Delete saved card** → Card removed (soft delete), new default auto-selected
-- [ ] **Reconciliation job** → Stale PENDING payments resolved after 10 minutes
+1. **Check both webhooks arrived:** Search logs for "TOKEN" webhook and "TRANSACTION" webhook
+2. **Token webhook might be missing:** Paymob must send TOKEN webhook — check Dashboard webhook delivery
+3. **Cache bridge:** If TOKEN webhook arrived but cache expired (> 30 min delay), token data is lost
+4. **save_card_requested:** Verify the payment record has `save_card_requested = true`
+5. **Token extraction:** Check if token data structure matches expected format
 
----
+### MOTO always falls back to 3DS
 
-## 18. TROUBLESHOOTING GUIDE
+1. **Test environment:** Test cards ALWAYS trigger 3DS — this is expected behavior
+2. **Production:** Contact Paymob Risk team to activate live MOTO on your integration
+3. **Decision engine:** Check which rule is firing — add logging to `PaymentDecisionService`
+4. **Integration ID:** Verify `PAYMOB_MOTO_INTEGRATION_ID` is set correctly
 
-### "Payment stays PENDING forever"
+### "unmatched_item_prices" error (HTTP 406)
 
-1. **Check webhook URL** — Is `PAYMOB_CALLBACK_URL` reachable from the internet?
-2. **Check HMAC** — Is `PAYMOB_HMAC_SECRET` correct? (Copy-paste from dashboard)
-3. **Check server logs** — `storage/logs/laravel.log` for webhook errors
-4. **Wait 10 minutes** — Reconciliation job will catch it
-5. **Manual check** — Query Paymob's API directly with the `paymob_order_id`
+1. **Items total must equal amount:** Sum of all (item.amount × item.quantity) must exactly equal the intention amount
+2. **Include delivery fee + tax:** These must be separate line items
+3. **Rounding adjustment:** If there's a 1-cent rounding difference, add an "Adjustment" line item
 
-### "HMAC verification failed"
+### WebView not detecting redirect
 
-- Double-check `PAYMOB_HMAC_SECRET` matches the dashboard exactly
-- Ensure no extra whitespace in the `.env` value
-- Check that HMAC is enabled in Paymob dashboard settings
+1. **Deep link scheme:** Verify `elbaraka://payment-return` matches `PAYMOB_REDIRECT_URL` in `.env`
+2. **URL interception:** `handleShouldStartLoadWithRequest()` checks for `elbaraka://` prefix
+3. **Dev fallback:** In dev, also checks for ngrok/localhost URLs
+4. **WebView loading:** Ensure `javaScriptEnabled` and `domStorageEnabled` are true
 
-### "Card token not being saved"
+### Encryption error on card usage
 
-- Verify `save_card_requested` is `true` on the `paymob_payments` record
-- Check that `is_capture` was `true` in the webhook (not just `is_auth`)
-- Check `storage/logs/laravel.log` for "Token save" related messages
-
-### "Polling shows PENDING but Paymob says success"
-
-- This is NORMAL. The webhook hasn't arrived yet.
-- `paymob_status: "PROCESSED"` + `paymob_success: true` means Paymob processed it
-- But `status: "PENDING"` means our webhook hasn't confirmed it yet
-- Wait a few more seconds, or the reconciliation job will handle it
-
-### "Frontend shows wrong error message"
-
-- `mapPaymentError()` in `paymentMessages.ts` maps Paymob error strings to user-friendly messages
-- If you see a generic "Something went wrong", the Paymob error string wasn't recognized
-- Add the new error pattern to `paymentMessages.ts`
+1. **APP_KEY rotation:** If `APP_KEY` was changed, all existing encrypted tokens become invalid
+2. **Graceful degradation:** Card returns `null` token → `isActive()` = false → falls back to 3DS
+3. **Fix:** Customer must re-enter card details and save again with new key
 
 ---
 
-## 19. GLOSSARY
+## 20. GLOSSARY
 
-| Term                | Meaning                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| **Tokenization**    | Converting a card number into a reusable token for future charges                            |
-| **3DS / 3D Secure** | Bank verification (OTP) that confirms the cardholder approves the charge                     |
-| **HMAC**            | Hash-based Message Authentication Code — proves a webhook is genuine                         |
-| **Webhook**         | Server-to-server notification from Paymob to your backend                                    |
-| **Polling**         | Frontend repeatedly checking status endpoint (every few seconds)                             |
-| **Idempotency**     | Processing the same webhook twice produces the same result (no double charge)                |
-| **lockForUpdate**   | MySQL row-level lock preventing concurrent access to the same payment                        |
-| **State Machine**   | Rules about which status transitions are allowed (e.g., PENDING→PAID ✅, FAILED→PAID ❌)     |
-| **Reconciliation**  | Background job that catches payments where the webhook was missed                            |
-| **MOTO**            | Mail Order/Telephone Order — card-not-present payment without 3DS                            |
-| **Intention**       | Paymob V1 API concept — represents a payment intent before the actual charge                 |
-| **Integration ID**  | Paymob's identifier for your payment method configuration                                    |
-| **iframe_url**      | URL of Paymob's hosted checkout page, displayed in WebView                                   |
-| **capture**         | Actually taking the money (vs. authorization which just reserves it)                         |
-| **AES-256-CBC**     | Encryption algorithm used to encrypt card tokens at rest                                     |
-| **Sanctum**         | Laravel's API authentication package (Bearer token)                                          |
-| **AsyncStorage**    | React Native's persistent key-value storage (used for pending payment recovery)              |
-| **Deep Link**       | `elbaraka://payment-return` — opens the app from a URL                                       |
-| **EGP**             | Egyptian Pound (currency)                                                                    |
-| **Cents**           | Backend stores amounts as integers (150.00 EGP = 15000 cents) to avoid floating-point errors |
-
----
-
-## APPENDIX: WHAT YOU NEED FROM PAYMOB (Configuration Checklist)
-
-Before the system works, you need to provide/configure:
-
-| #   | Item                      | Where to Get It                  | Status                                                                          |
-| --- | ------------------------- | -------------------------------- | ------------------------------------------------------------------------------- |
-| 1   | **Paymob API Key**        | Dashboard → Settings → API Keys  | ⚠️ Currently using test key                                                     |
-| 2   | **Paymob Secret Key**     | Dashboard → V1 API section       | ⚠️ Currently `egy_sk_test_...`                                                  |
-| 3   | **Paymob Public Key**     | Dashboard → V1 API section       | ⚠️ Currently `egy_pk_test_...`                                                  |
-| 4   | **HMAC Secret**           | Dashboard → Settings → HMAC      | ✅ Set                                                                          |
-| 5   | **Card Integration ID**   | Dashboard → Payment Integrations | ✅ `5084814`                                                                    |
-| 6   | **Wallet Integration ID** | Dashboard → Payment Integrations | ✅ `5084831`                                                                    |
-| 7   | **MOTO Integration ID**   | Dashboard → Payment Integrations | ❌ Empty (MOTO disabled)                                                        |
-| 8   | **iFrame ID**             | Dashboard → Developers → iFrames | ✅ `919973`                                                                     |
-| 9   | **Webhook URL**           | You set this in dashboard        | ⚠️ Currently ngrok (dev only)                                                   |
-| 10  | **Production domain**     | Your hosting provider            | ❓ Needed for live                                                              |
-| 11  | **SSL certificate**       | Your hosting provider            | ❓ Required for HTTPS webhook                                                   |
-| 12  | **Laravel APP_KEY**       | `php artisan key:generate`       | ✅ Set (DO NOT CHANGE)                                                          |
-| 13  | **Laravel scheduler**     | `crontab -e` on server           | ❌ Must add: `* * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1` |
-
-### For Going Live (Production):
-
-- [ ] Switch from `egy_sk_test_` to `egy_sk_live_` keys
-- [ ] Switch from `egy_pk_test_` to `egy_pk_live_` keys
-- [ ] Update `PAYMOB_CALLBACK_URL` from ngrok to your real domain
-- [ ] Update `PAYMOB_REDIRECT_URL` to your real domain
-- [ ] Set up the Laravel scheduler cron job on the server
-- [ ] Ensure HTTPS is working on your domain
-- [ ] Test with a real card (small amount, then refund)
+| Term                                     | Definition                                                                                                                          |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **3DS (3D Secure)**                      | Bank verification protocol — customer enters OTP from their bank to confirm payment                                                 |
+| **AES-256-CBC**                          | Symmetric encryption algorithm used to encrypt card tokens at rest                                                                  |
+| **Card Token**                           | A random string representing a saved card — can charge the card again without knowing the real number                               |
+| **CIT (Customer Initiated Transaction)** | Payment where the customer is present and interacts (3DS, card entry)                                                               |
+| **Deep Link**                            | `elbaraka://payment-return` — URL scheme that opens the El Baraka app from a browser                                                |
+| **Fingerprint**                          | SHA-256 hash of the raw card token — used for deduplication without comparing encrypted values                                      |
+| **HMAC**                                 | Hash-based Message Authentication Code — proves webhook is from Paymob (not forged)                                                 |
+| **Idempotent**                           | Can be safely called multiple times with the same result — duplicate webhooks don't cause double processing                         |
+| **Intention API**                        | Paymob's V1 API for creating payment sessions (`POST /v1/intention/`)                                                               |
+| **Integration ID**                       | Paymob identifier for a specific payment method configuration (card, wallet, MOTO, etc.)                                            |
+| **Lockbox (pessimistic lock)**           | `SELECT ... FOR UPDATE` — prevents other database transactions from reading/writing the row until the current transaction completes |
+| **MIGS**                                 | MasterCard Internet Gateway Service — underlying processor used by some banks                                                       |
+| **MIT (Merchant Initiated Transaction)** | Payment without customer interaction — uses MOTO integration                                                                        |
+| **MOTO**                                 | Mail Order / Telephone Order — server-to-server payment with no customer UI                                                         |
+| **Paymob**                               | Egyptian payment gateway at `accept.paymob.com` — handles card, wallet, and MOTO payments                                           |
+| **PCI-DSS**                              | Payment Card Industry Data Security Standard — security requirements for handling card data                                         |
+| **Pessimistic Locking**                  | Database strategy where a row is locked before reading to prevent concurrent modifications                                          |
+| **Polling**                              | Frontend repeatedly checks payment status via GET request until a terminal state is reached                                         |
+| **Reconciliation**                       | Scheduled process to match local payment records with Paymob's actual status                                                        |
+| **SHA-256**                              | Cryptographic hash function — used for token fingerprints (one-way, cannot be reversed)                                             |
+| **SHA-512**                              | Cryptographic hash function — used for HMAC webhook verification                                                                    |
+| **Soft Delete**                          | Record marked as deleted (deleted_at timestamp) but not actually removed from database                                              |
+| **State Machine**                        | Enforced status transitions: PENDING→PAID/FAILED, PAID→REFUNDED — prevents illegal state changes                                    |
+| **Token Webhook**                        | Paymob's separate webhook sent when a card is tokenized (type: "TOKEN")                                                             |
+| **Transaction Webhook**                  | Paymob's main webhook sent after a payment attempt (type: "TRANSACTION")                                                            |
+| **Unified Checkout**                     | Paymob's hosted payment page — customer enters card details on Paymob's domain (not ours)                                           |
+| **WebView**                              | In-app browser component that loads Paymob's checkout page                                                                          |
 
 ---
 
-_Document generated after full enterprise audit + P0/P1 patches + frontend integration fixes._
+## APPENDIX A: PAYMOB API ENDPOINTS USED
+
+| API                     | Method | URL                                                | Purpose                                           |
+| ----------------------- | ------ | -------------------------------------------------- | ------------------------------------------------- |
+| Authenticate (legacy)   | POST   | `/api/auth/tokens`                                 | Get auth token for legacy APIs                    |
+| Register Order (legacy) | POST   | `/api/ecommerce/orders`                            | Register order for legacy flow                    |
+| Payment Key (legacy)    | POST   | `/api/acceptance/payment_keys`                     | Generate payment key for legacy flow              |
+| **Create Intention**    | POST   | `/v1/intention/`                                   | Create payment session (Unified Checkout or MOTO) |
+| **Pay with Token**      | POST   | `/api/acceptance/payments/pay`                     | Server-to-server MOTO payment with saved card     |
+| Get Intention Status    | GET    | `/v1/intentions/{id}`                              | Manual status check (reconciliation)              |
+| Unified Checkout URL    | GET    | `/unifiedcheckout/?publicKey=...&clientSecret=...` | Frontend checkout page                            |
+
+## APPENDIX B: INTEGRATION IDS
+
+| ID        | Name     | Type               | Use Case                                                              |
+| --------- | -------- | ------------------ | --------------------------------------------------------------------- |
+| `5084814` | Card/3DS | Unified Checkout   | New card payments with 3DS verification                               |
+| `5511054` | MOTO     | Server-to-server   | Saved card one-click payments (requires Risk approval for production) |
+| `5084831` | Wallet   | Classic iframe     | Mobile wallet payments (Vodafone Cash, etc.)                          |
+| `919973`  | iFrame   | Legacy hosted page | Backward compatibility                                                |
+
+## APPENDIX C: ENVIRONMENT-SPECIFIC BEHAVIOR
+
+| Aspect               | Test Environment                      | Production Environment          |
+| -------------------- | ------------------------------------- | ------------------------------- |
+| MOTO with test cards | Always triggers 3DS fallback          | True one-click (no redirect)    |
+| Card numbers         | Use `4111 1111 1111 1111` (Visa test) | Real card numbers               |
+| 3DS verification     | ACS Emulator (auto-approve)           | Real bank OTP via SMS           |
+| MOTO integration     | Test `5511054`                        | Live integration ID from Paymob |
+| Webhooks             | May have 5-30s delay                  | Near-instant (< 2s typically)   |
+| Transaction limits   | None                                  | Subject to merchant agreement   |
+| Risk team approval   | Not required                          | Required for MOTO activation    |
+
+---
+
+**END OF DOCUMENT**
+
+_This document covers the complete payment system implementation for El Baraka, including all 4 payment flows, 32 test scenarios, security measures, database schemas, API references, and troubleshooting guides. It is designed as an enterprise-ready reference for implementing or auditing the payment tokenization system._
