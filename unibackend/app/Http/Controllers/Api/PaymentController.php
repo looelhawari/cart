@@ -13,6 +13,7 @@ use App\Services\PaymentTokenService;
 use App\Services\PaymentConfirmationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -417,14 +418,39 @@ class PaymentController extends Controller
             ]);
 
             // ═══════════════════════════════════════════════════════════════
-            // Token-only webhooks (no order object) are acknowledged but
-            // card tokens are ONLY saved from HMAC-verified transaction webhooks.
-            // This prevents accepting tokens from unverified sources.
+            // Token-only webhooks (no order object):
+            // Paymob sends card token data in a SEPARATE webhook BEFORE the
+            // transaction webhook. The transaction webhook does NOT contain
+            // the token. We cache the token data here (keyed by Paymob
+            // order_id) and retrieve it when the HMAC-verified transaction
+            // webhook confirms payment success.
+            //
+            // Security: The token is NOT saved to payment_methods here.
+            // It's only used AFTER the transaction webhook passes HMAC
+            // verification + success + capture checks.
             // ═══════════════════════════════════════════════════════════════
             if (isset($payload['token']) && isset($payload['masked_pan']) && !isset($payload['order'])) {
-                Log::info('💳 Token-only webhook received - acknowledged (tokens saved from transaction webhook)', [
-                    'masked_pan' => $payload['masked_pan'] ?? null,
-                ]);
+                $tokenOrderId = $payload['order_id'] ?? null;
+                if ($tokenOrderId && is_string($payload['token']) && !empty($payload['token'])) {
+                    // Cache token data for 30 minutes — enough for transaction webhook to arrive
+                    $tokenData = [
+                        'token' => $payload['token'],
+                        'masked_pan' => $payload['masked_pan'] ?? null,
+                        'card_subtype' => $payload['card_subtype'] ?? null,
+                        'merchant_id' => $payload['merchant_id'] ?? null,
+                        'order_id' => $tokenOrderId,
+                    ];
+                    Cache::put("paymob_token_webhook:{$tokenOrderId}", $tokenData, now()->addMinutes(30));
+
+                    Log::info('💳 Token webhook received — cached for transaction webhook', [
+                        'masked_pan' => $payload['masked_pan'] ?? null,
+                        'paymob_order_id' => $tokenOrderId,
+                    ]);
+                } else {
+                    Log::info('💳 Token webhook received — no order_id to cache', [
+                        'masked_pan' => $payload['masked_pan'] ?? null,
+                    ]);
+                }
                 return response()->json(['message' => 'Token webhook acknowledged'], 200);
             }
 
@@ -679,8 +705,40 @@ class PaymentController extends Controller
                 // Gated by: webhook HMAC ✅, success ✅, is_capture ✅,
                 //           correct payment record ✅, idempotency ✅
                 // ═══════════════════════════════════════════════════════
-                if ($this->tokenService->shouldSaveCardToken($payment, $payload)) {
-                    $this->tokenService->saveCardToken($order->user_id, $payload);
+                if ($payment->save_card_requested && $payment->payment_method === 'CARD') {
+                    // First try: token in the transaction webhook payload itself
+                    if ($this->tokenService->shouldSaveCardToken($payment, $payload)) {
+                        $this->tokenService->saveCardToken($order->user_id, $payload);
+                    } else {
+                        // Second try: Paymob sends the card token in a SEPARATE
+                        // webhook that arrives BEFORE the transaction webhook.
+                        // We cached it earlier — retrieve and use it now.
+                        $paymobOrderId = $payload['order']['id'] ?? null;
+                        if ($paymobOrderId) {
+                            $cachedToken = Cache::pull("paymob_token_webhook:{$paymobOrderId}");
+                            if ($cachedToken && !empty($cachedToken['token'])) {
+                                Log::info('💳 Using cached token from token webhook', [
+                                    'payment_id' => $payment->id,
+                                    'masked_pan' => $cachedToken['masked_pan'] ?? null,
+                                ]);
+                                // Build a payload structure that extractCardTokenFromIntention understands
+                                $tokenPayload = [
+                                    'token' => $cachedToken['token'],
+                                    'masked_pan' => $cachedToken['masked_pan'],
+                                    'source_data' => [
+                                        'sub_type' => $cachedToken['card_subtype'] ?? ($payload['source_data']['sub_type'] ?? 'Card'),
+                                        'pan' => $payload['source_data']['pan'] ?? null,
+                                    ],
+                                ];
+                                $this->tokenService->saveCardToken($order->user_id, $tokenPayload);
+                            } else {
+                                Log::warning('💳 Card save requested but no token available (not in transaction payload or cache)', [
+                                    'payment_id' => $payment->id,
+                                    'paymob_order_id' => $paymobOrderId,
+                                ]);
+                            }
+                        }
+                    }
                 }
 
                 Log::info('✅ Payment SUCCESS — All tables updated atomically', [
@@ -890,58 +948,56 @@ class PaymentController extends Controller
                 'first_name' => $paymentMethod->card_holder_name ?? $order->user->name ?? 'Customer',
                 'last_name' => ' ',
                 'email' => $order->user->email,
-                'phone_number' => $order->user->phone ?? 'NA',
+                'phone_number' => $order->user->phone ?? '+201000000000',
                 'apartment' => 'NA',
                 'floor' => 'NA',
                 'building' => 'NA',
                 'street' => 'NA',
-                'city' => 'NA',
-                'state' => 'NA',
-                'country' => 'Egypt',
-                'postal_code' => 'NA',
-                'shipping_method' => 'NA',
+                'city' => 'Cairo',
+                'state' => 'Cairo',
+                'country' => 'EG',
             ];
 
-            // Step 1: Authenticate with Paymob
-            $authToken = $this->paymobService->authenticate();
+            // Build items array for Paymob intention
+            $items = [[
+                'name' => 'Order #' . ($order->order_number ?? $order->id),
+                'amount' => $amountCents,
+                'description' => 'Order payment',
+                'quantity' => 1,
+            ]];
 
-            // Step 2: Register order with Paymob
-            $paymobOrderId = $this->paymobService->registerOrder(
-                $authToken,
+            // Step 1: Create MOTO Intention (uses MOTO integration ID)
+            $intentionResult = $this->paymobService->createMotoIntention(
                 $amountCents,
+                $billingData,
+                $items,
                 $internalOrderId
             );
 
-            // Step 3: Generate payment token using saved card (MEDIUM 3: Use consistent naming)
-            // CRITICAL 1: This may still require 3DS - return iframe_url to frontend
-            $paymentToken = $this->paymobService->payWithSavedCard(
-                $authToken,
-                $amountCents,
-                $paymobOrderId,
-                $paymentMethod->token, // Decrypted token from model accessor
-                $billingData
+            // Step 2: Pay with saved card token via MOTO
+            $motoResult = $this->paymobService->payWithSavedCardMoto(
+                $paymentMethod->paymob_card_token, // Decrypted automatically by accessor
+                $intentionResult['payment_token']
             );
 
-            // Get integration ID for cards
-            $integrationId = $this->paymobService->getIntegrationId('CARD');
-
-            // Get iframe URL (CRITICAL 1: May be needed for 3DS challenge)
-            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
-
             // Store payment record
-            // ✅ P0 FIX: Added user_id, removed payment_token (column dropped in migration)
             $payment = PaymobPayment::create([
                 'order_id' => $order->id,
                 'user_id' => auth()->id(),
                 'internal_order_id' => $internalOrderId,
-                'paymob_order_id' => $paymobOrderId,
+                'paymob_order_id' => $intentionResult['paymob_order_id'],
+                'paymob_intention_id' => $intentionResult['intention_id'],
                 'amount_cents' => $amountCents,
                 'currency' => 'EGP',
                 'payment_method' => 'CARD',
                 'save_card_requested' => false, // Already saved
-                'integration_id' => $integrationId,
+                'integration_id' => config('services.paymob.moto_integration_id'),
+                'special_reference' => $internalOrderId,
+                'flow' => 'moto',
                 'status' => 'PENDING',
                 'billing_data' => $billingData,
+                'moto_attempts' => 1,
+                'moto_attempted_at' => now(),
             ]);
 
             // Update order payment status
@@ -949,25 +1005,71 @@ class PaymentController extends Controller
                 'payment_status' => 'pending',
             ]);
 
-            Log::info('✅ Saved card payment token generated', [
+            Log::info('✅ Saved card MOTO payment initiated', [
                 'payment_id' => $payment->id,
                 'order_id' => $order->id,
                 'payment_method_id' => $paymentMethod->id,
+                'moto_success' => $motoResult['success'] ?? false,
             ]);
 
-            // CRITICAL 1 FIX: Return iframe_url for potential 3DS challenge
+            // Check if MOTO succeeded directly or needs 3DS fallback
+            if ($motoResult['requires_3ds'] ?? false) {
+                // MOTO declined, fallback needed - return redirect info
+                $payment->markAsFallbackTo3DS('MOTO declined - bank requires 3DS');
+
+                // Fallback to Unified Checkout with saved card pre-filled
+                $fallback = $this->initiateUnifiedCheckout(
+                    $order,
+                    $paymentMethod->paymob_card_token,
+                    false,
+                    $billingData,
+                    $internalOrderId,
+                    $payment->id
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'payment_id' => $fallback['payment_id'],
+                        'flow' => 'unified_3ds',
+                        'redirect_url' => $fallback['redirect_url'],
+                        'amount' => $order->total,
+                        'currency' => 'EGP',
+                        'card_last_four' => $paymentMethod->card_last_four,
+                        'card_brand' => $paymentMethod->card_brand,
+                        'fallback_from_moto' => true,
+                    ],
+                    'message' => 'MOTO requires 3DS - redirecting to checkout',
+                ]);
+            }
+
+            if (!($motoResult['success'] ?? false)) {
+                // MOTO failed entirely
+                $payment->markAsFailed(
+                    $motoResult['error'] ?? 'MOTO payment declined',
+                    $motoResult['data'] ?? []
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $motoResult['error'] ?? 'Payment declined. Please try again.',
+                ], 400);
+            }
+
+            // MOTO SUCCESS! No redirect needed
             return response()->json([
                 'success' => true,
                 'data' => [
                     'payment_id' => $payment->id,
-                    'payment_token' => $paymentToken,
-                    'iframe_url' => $iframeUrl, // ✅ Frontend must handle 3DS challenge
+                    'flow' => 'moto',
+                    'status' => 'processing',
+                    'transaction_id' => $motoResult['transaction_id'] ?? null,
                     'amount' => $order->total,
                     'currency' => 'EGP',
                     'card_last_four' => $paymentMethod->card_last_four,
                     'card_brand' => $paymentMethod->card_brand,
                 ],
-                'message' => 'Payment initiated with saved card',
+                'message' => 'Payment processing with saved card',
             ]);
         });
     }
@@ -1083,7 +1185,7 @@ class PaymentController extends Controller
         try {
             $amountCents = (int) ($order->total * 100);
 
-            Log::info('💳 MOTO: Attempting one-click payment', [
+            Log::info('💳 MOTO: Attempting one-click payment via Intention API', [
                 'order_id' => $order->id,
                 'amount_cents' => $amountCents,
                 'saved_card_id' => $savedCard->id,
@@ -1091,27 +1193,74 @@ class PaymentController extends Controller
                 'card_brand' => $savedCard->card_brand,
             ]);
 
-            // Step 1: Authenticate and register order
-            $authToken = $this->paymobService->authenticate();
-            $paymobOrderId = $this->paymobService->registerOrder(
-                $authToken,
-                $amountCents,
-                $internalOrderId
-            );
+            // Build items array for Paymob intention (must sum to amountCents exactly)
+            $items = $order->items->map(function ($item) {
+                return [
+                    'name' => $item->product->name ?? $item->product_name ?? 'Product',
+                    'amount' => (int) ($item->price * 100),
+                    'description' => 'Order item',
+                    'quantity' => $item->quantity ?? 1,
+                ];
+            })->toArray();
 
-            // Step 2: Generate fresh payment key (JWT)
-            $paymentKeyJWT = $this->paymobService->generatePaymentKey(
-                $authToken,
+            // Add delivery fee as a line item if present
+            if ($order->delivery_fee > 0) {
+                $items[] = [
+                    'name' => 'Delivery Fee',
+                    'amount' => (int) ($order->delivery_fee * 100),
+                    'description' => 'Delivery fee',
+                    'quantity' => 1,
+                ];
+            }
+
+            // Add tax as a line item if present
+            if ($order->tax > 0) {
+                $items[] = [
+                    'name' => 'Tax',
+                    'amount' => (int) ($order->tax * 100),
+                    'description' => 'Tax',
+                    'quantity' => 1,
+                ];
+            }
+
+            // Calculate and verify items total matches order total
+            $itemsTotal = array_reduce($items, function ($carry, $item) {
+                return $carry + ($item['amount'] * $item['quantity']);
+            }, 0);
+
+            // Fix rounding mismatches — Paymob requires items to sum exactly to amount
+            if ($itemsTotal !== $amountCents) {
+                $difference = $amountCents - $itemsTotal;
+                Log::warning('⚠️ MOTO items total mismatch - adding adjustment', [
+                    'items_total' => $itemsTotal,
+                    'order_total' => $amountCents,
+                    'difference' => $difference,
+                ]);
+                $items[] = [
+                    'name' => 'Adjustment',
+                    'amount' => $difference,
+                    'description' => 'Rounding adjustment',
+                    'quantity' => 1,
+                ];
+            }
+
+            // Step 1: Create MOTO Intention (uses MOTO integration ID)
+            // This returns payment_keys[0].key needed for the pay request
+            $intentionResult = $this->paymobService->createMotoIntention(
                 $amountCents,
-                $paymobOrderId,
                 $billingData,
-                'CARD'
+                $items,
+                $internalOrderId // special_reference
             );
 
-            // Step 3: Attempt MOTO payment with saved card token
+            $paymentToken = $intentionResult['payment_token'];
+            $intentionId = $intentionResult['intention_id'];
+            $paymobOrderId = $intentionResult['paymob_order_id'];
+
+            // Step 2: Call Pay endpoint with saved card token + MOTO payment token
             $motoResult = $this->paymobService->payWithSavedCardMoto(
                 $savedCard->paymob_card_token, // Decrypted automatically by accessor
-                $paymentKeyJWT
+                $paymentToken
             );
 
             // Create payment record
@@ -1120,13 +1269,15 @@ class PaymentController extends Controller
                 'user_id' => $order->user_id,
                 'internal_order_id' => $internalOrderId,
                 'paymob_order_id' => $paymobOrderId,
+                'paymob_intention_id' => $intentionId,
                 'amount_cents' => $amountCents,
                 'currency' => 'EGP',
                 'payment_method' => 'CARD',
-                'integration_id' => $this->paymobService->getIntegrationId('CARD'),
+                'integration_id' => config('services.paymob.moto_integration_id'),
                 'status' => 'PENDING',
                 'billing_data' => $billingData,
                 'flow' => 'moto',
+                'special_reference' => $internalOrderId,
                 'moto_attempts' => 1,
                 'moto_attempted_at' => now(),
             ]);

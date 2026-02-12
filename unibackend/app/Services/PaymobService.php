@@ -644,27 +644,137 @@ class PaymobService
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // NEW: MOTO PAYMENT (One-Click Server-to-Server)
+    // NEW: MOTO PAYMENT (One-Click Server-to-Server via Intention API)
+    // Per Paymob docs: https://developers.paymob.com/paymob-docs/developers/pay-with-saved-cards/mit
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * Pay with saved card using MOTO (Mail Order / Telephone Order).
-     * Server-to-server payment, NO user interaction by default, NO 3DS.
+     * Step 1 of MOTO: Create Intention with MOTO integration ID.
      *
-     * REQUIREMENTS:
-     * - Must have saved card token from previous successful payment
-     * - Payment key (JWT) must be generated fresh per attempt
-     * - Only for low/medium risk orders (per business rules)
+     * Unlike Unified Checkout which uses 3DS integration, MOTO uses
+     * a dedicated MOTO integration ID. The response contains
+     * payment_keys[0].key which is the payment_token for Step 2.
      *
-     * Based on Paymob documentation sample:
-     * POST https://accept.paymob.com/api/acceptance/payments/pay
-     *
-     * @param string $savedCardToken Paymob saved card token (from payment_methods.paymob_card_token)
-     * @param string $paymentKeyJWT Fresh JWT payment key from generatePaymentKey()
-     * @return array MOTO payment result with 'success', 'transaction_id', 'requires_3ds', 'redirect_url'
+     * @param int $amountCents Amount in cents (piasters)
+     * @param array $billingData Billing information
+     * @param array $items Order items for fraud detection
+     * @param string $specialReference Internal reference to correlate with our payment
+     * @return array ['intention_id', 'payment_token', 'paymob_order_id']
      * @throws Exception
      */
-    public function payWithSavedCardMoto(string $savedCardToken, string $paymentKeyJWT): array
+    public function createMotoIntention(
+        int $amountCents,
+        array $billingData,
+        array $items,
+        string $specialReference
+    ): array {
+        try {
+            if (empty($this->motoIntegrationId)) {
+                throw new Exception('MOTO integration ID not configured. Set PAYMOB_MOTO_INTEGRATION_ID in .env');
+            }
+
+            $endpoint = 'https://accept.paymob.com/v1/intention/';
+
+            $payload = [
+                'amount' => $amountCents,
+                'currency' => $this->currency,
+                'payment_methods' => [(int) $this->motoIntegrationId],
+                'items' => $items,
+                'billing_data' => [
+                    'first_name' => $billingData['first_name'] ?? 'Customer',
+                    'last_name' => $billingData['last_name'] ?? ' ',
+                    'email' => $billingData['email'] ?? 'customer@example.com',
+                    'phone_number' => $billingData['phone_number'] ?? '+201000000000',
+                    'country' => $billingData['country'] ?? 'EG',
+                    'city' => $billingData['city'] ?? 'Cairo',
+                    'street' => $billingData['street'] ?? 'N/A',
+                    'building' => $billingData['building'] ?? 'N/A',
+                    'floor' => $billingData['floor'] ?? 'N/A',
+                    'apartment' => $billingData['apartment'] ?? 'N/A',
+                    'state' => $billingData['state'] ?? '',
+                ],
+                'notification_url' => $this->callbackUrl,
+                'special_reference' => $specialReference,
+            ];
+
+            Log::info('🔐 Creating MOTO Intention (saved card payment)', [
+                'amount_cents' => $amountCents,
+                'moto_integration_id' => $this->motoIntegrationId,
+                'special_reference' => $specialReference,
+            ]);
+
+            $response = Http::timeout(30)
+                ->retry(2, 1000)
+                ->withHeaders([
+                    'Authorization' => 'Token ' . $this->secretKey,
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($endpoint, $payload);
+
+            if (!$response->successful()) {
+                Log::error('❌ MOTO Intention API failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                throw new Exception('Failed to create MOTO intention: ' . $response->body());
+            }
+
+            $data = $response->json();
+            $intentionId = $data['id'] ?? null;
+            $paymentKeys = $data['payment_keys'] ?? [];
+
+            if (!$intentionId) {
+                throw new Exception('Invalid MOTO intention response: missing id');
+            }
+
+            // Extract the MOTO payment token from payment_keys
+            $paymentToken = null;
+            if (!empty($paymentKeys) && isset($paymentKeys[0]['key'])) {
+                $paymentToken = $paymentKeys[0]['key'];
+            }
+
+            if (!$paymentToken) {
+                throw new Exception('MOTO intention response missing payment_keys[0].key');
+            }
+
+            // Extract Paymob's order ID from the intention
+            $paymobOrderId = $data['intention_order_id'] ?? $data['order'] ?? null;
+
+            Log::info('✅ MOTO Intention created successfully', [
+                'intention_id' => $intentionId,
+                'has_payment_token' => !empty($paymentToken),
+                'paymob_order_id' => $paymobOrderId,
+            ]);
+
+            return [
+                'intention_id' => $intentionId,
+                'payment_token' => $paymentToken,
+                'paymob_order_id' => $paymobOrderId,
+                'client_secret' => $data['client_secret'] ?? null,
+            ];
+
+        } catch (Exception $e) {
+            Log::error('❌ MOTO Intention creation failed', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Step 2 of MOTO: Pay with saved card token.
+     * Server-to-server payment, NO user interaction, NO 3DS.
+     *
+     * Per Paymob MIT docs:
+     * POST https://accept.paymob.com/api/acceptance/payments/pay
+     * Body: { source: { identifier: <card_token>, subtype: "TOKEN" }, payment_token: <from intention> }
+     *
+     * @param string $savedCardToken Paymob saved card token (from payment_methods.paymob_card_token)
+     * @param string $paymentToken payment_keys[0].key from createMotoIntention()
+     * @return array MOTO payment result with 'success', 'transaction_id', 'requires_3ds', etc.
+     * @throws Exception
+     */
+    public function payWithSavedCardMoto(string $savedCardToken, string $paymentToken): array
     {
         try {
             $endpoint = 'https://accept.paymob.com/api/acceptance/payments/pay';
@@ -674,16 +784,16 @@ class PaymobService
                     'identifier' => $savedCardToken,  // ⭐ Paymob saved card token
                     'subtype' => 'TOKEN',
                 ],
-                'payment_token' => $paymentKeyJWT,    // ⭐ Fresh JWT payment key
+                'payment_token' => $paymentToken,     // ⭐ From MOTO Intention payment_keys[0].key
             ];
 
-            Log::info('💳 MOTO payment attempt', [
+            Log::info('💳 MOTO pay request (saved card)', [
                 'has_card_token' => !empty($savedCardToken),
-                'has_payment_key' => !empty($paymentKeyJWT),
+                'has_payment_token' => !empty($paymentToken),
             ]);
 
             $response = Http::timeout(30)
-                ->retry(1, 500) // MOTO should be fast, only 1 retry
+                ->retry(1, 500)
                 ->post($endpoint, $payload);
 
             if (!$response->successful()) {
@@ -692,7 +802,7 @@ class PaymobService
                     'body' => $response->body(),
                 ]);
 
-                $errorData = $response->json();
+                $errorData = $response->json() ?? [];
 
                 // Check if 3DS required (common fallback scenario)
                 if ($this->requiresRedirection($errorData)) {
