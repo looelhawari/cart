@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CreateOrderRequest;
 use App\Models\Cart;
+use App\Models\Order;
 use App\Models\PromoCode;
 use App\Services\CartService;
+use App\Services\OrderCancellationService;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,11 +18,16 @@ class OrderController extends Controller
 {
     protected OrderService $orderService;
     protected CartService $cartService;
+    protected OrderCancellationService $cancellationService;
 
-    public function __construct(OrderService $orderService, CartService $cartService)
-    {
+    public function __construct(
+        OrderService $orderService,
+        CartService $cartService,
+        OrderCancellationService $cancellationService
+    ) {
         $this->orderService = $orderService;
         $this->cartService = $cartService;
+        $this->cancellationService = $cancellationService;
     }
 
     /**
@@ -164,7 +171,7 @@ class OrderController extends Controller
     }
 
     /**
-     * Cancel order
+     * Cancel order with enterprise refund processing
      * POST /api/v1/orders/{id}/cancel
      */
     public function cancel(Request $request, int $id): JsonResponse
@@ -191,23 +198,144 @@ class OrderController extends Controller
                 ], 401);
             }
 
-            $order = $this->orderService->cancelOrder($id, $user->id, $request->input('reason', 'Cancelled by user'));
+            $result = $this->cancellationService->cancelOrder(
+                $id,
+                $user->id,
+                $request->input('reason', 'Cancelled by user')
+            );
 
             return response()->json([
-                'success' => true,
-                'message' => 'Order cancelled successfully',
-                'data' => ['order' => $order],
+                'success' => $result['success'],
+                'message' => $result['message'],
+                'data' => [
+                    'order' => $result['order'],
+                    'refund' => $result['refund'],
+                ],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found or cannot be cancelled',
+                'message' => 'Order not found or does not belong to you',
             ], 404);
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Illuminate\Support\Facades\Log::error('[CANCEL] Database error', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to cancel order',
+                'message' => 'A system error occurred while processing your cancellation. Please try again or contact support.',
+            ], 500);
+        } catch (\Exception $e) {
+            // Sanitize all error messages — never expose raw internal/HTTP/Paymob details
+            $rawMsg = $e->getMessage();
+            $isSafe = !str_contains($rawMsg, 'SQLSTATE')
+                && !str_contains($rawMsg, 'HTTP request returned')
+                && !str_contains($rawMsg, '{\"message\"')
+                && !str_contains($rawMsg, 'status code')
+                && !str_contains($rawMsg, 'Connection refused')
+                && !str_contains($rawMsg, 'cURL error');
+
+            $message = $isSafe
+                ? $rawMsg
+                : 'An unexpected error occurred. Please try again or contact support.';
+
+            \Illuminate\Support\Facades\Log::error('[CANCEL] Exception', [
+                'order_id' => $id,
+                'raw_error' => $rawMsg,
+                'sanitized' => !$isSafe,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], 422);
+        }
+    }
+
+    /**
+     * Check if an order can be cancelled (pre-check for frontend UI).
+     * GET /api/v1/orders/{id}/can-cancel
+     */
+    public function canCancel(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $order = Order::where('id', $id)
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+
+            $eligibility = $this->cancellationService->getCancellationEligibility($order);
+
+            return response()->json([
+                'success' => true,
+                'data' => $eligibility,
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('[CAN-CANCEL] Error', [
+                'order_id' => $id,
                 'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to check cancellation eligibility. Please try again.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Get refund history for an order.
+     * GET /api/v1/orders/{id}/refunds
+     */
+    public function refundHistory(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            // Verify order belongs to user
+            Order::where('id', $id)
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+
+            $refunds = $this->cancellationService->getRefundHistory($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => ['refunds' => $refunds],
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('[REFUND-HISTORY] Error', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve refund history. Please try again.',
             ], 500);
         }
     }

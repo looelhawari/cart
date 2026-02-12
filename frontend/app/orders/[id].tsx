@@ -24,7 +24,9 @@ import { Spacing } from "@/constants/Spacing";
 import {
   getOrder,
   cancelOrder as cancelOrderApi,
+  checkCancellationEligibility,
   Order,
+  CancellationEligibility,
 } from "@/services/api/orderApi";
 import { createReview } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
@@ -41,6 +43,11 @@ export default function OrderDetailsScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelEligibility, setCancelEligibility] =
+    useState<CancellationEligibility | null>(null);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
+  const [refundResult, setRefundResult] = useState<any>(null);
+  const [showRefundResult, setShowRefundResult] = useState(false);
 
   // Rating state
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -568,15 +575,45 @@ export default function OrderDetailsScreen() {
     [id],
   );
 
+  const handleOpenCancelDialog = async () => {
+    setCheckingEligibility(true);
+    try {
+      const eligibility = await checkCancellationEligibility(Number(id));
+      setCancelEligibility(eligibility);
+      if (!eligibility.can_cancel) {
+        setToastMessage(eligibility.reason);
+        setToastType("error");
+        setToastVisible(true);
+        return;
+      }
+      setShowCancelDialog(true);
+    } catch (error: any) {
+      setToastMessage(
+        error.message || "Failed to check cancellation eligibility",
+      );
+      setToastType("error");
+      setToastVisible(true);
+    } finally {
+      setCheckingEligibility(false);
+    }
+  };
+
   const handleCancelOrder = async () => {
     setCancelling(true);
     try {
-      await cancelOrderApi(
+      const result = await cancelOrderApi(
         Number(id),
         cancelReason.trim() || "Cancelled by user",
       );
       setShowCancelDialog(false);
-      setToastMessage("Order cancelled successfully");
+      setCancelReason("");
+
+      if (result.data?.refund) {
+        setRefundResult(result.data.refund);
+        setShowRefundResult(true);
+      }
+
+      setToastMessage(result.message || "Order cancelled successfully");
       setToastType("success");
       setToastVisible(true);
       fetchOrderDetails(); // Refresh order
@@ -698,7 +735,11 @@ export default function OrderDetailsScreen() {
   };
 
   const canCancelOrder = (status: string) => {
-    return ["pending", "processing", "confirmed"].includes(status);
+    // Show cancel button for all statuses where cancellation MIGHT be possible.
+    // Actual eligibility is verified server-side via /can-cancel endpoint.
+    return ["pending", "pending_payment", "confirmed", "preparing"].includes(
+      status,
+    );
   };
 
   useEffect(() => {
@@ -1359,23 +1400,120 @@ export default function OrderDetailsScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.cancelButton}
-            onPress={() => setShowCancelDialog(true)}
+            onPress={handleOpenCancelDialog}
+            disabled={checkingEligibility}
           >
-            <Ionicons
-              name="close-circle-outline"
-              size={20}
-              color={Colors.accentRed}
-            />
-            <Text style={styles.cancelText}>Cancel Order</Text>
+            {checkingEligibility ? (
+              <ActivityIndicator size="small" color={Colors.accentRed} />
+            ) : (
+              <>
+                <Ionicons
+                  name="close-circle-outline"
+                  size={20}
+                  color={Colors.accentRed}
+                />
+                <Text style={styles.cancelText}>Cancel Order</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Cancel Dialog */}
+      {/* Cancel Dialog with Penalty Warning */}
       {showCancelDialog && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Cancel Order</Text>
+
+            {/* Penalty Warning */}
+            {cancelEligibility?.refund_type === "penalty" && (
+              <View
+                style={{
+                  backgroundColor: "#FFF3CD",
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.md,
+                  borderLeftWidth: 4,
+                  borderLeftColor: Colors.accentOrange,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall,
+                    fontWeight: Typography.bold,
+                    color: "#856404",
+                    marginBottom: 4,
+                  }}
+                >
+                  ⚠️ Cancellation Fee Applies
+                </Text>
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall,
+                    color: "#856404",
+                  }}
+                >
+                  {cancelEligibility.reason}
+                </Text>
+              </View>
+            )}
+
+            {/* Full Refund Notice */}
+            {cancelEligibility?.refund_type === "full" && (
+              <View
+                style={{
+                  backgroundColor: "#D4EDDA",
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.md,
+                  borderLeftWidth: 4,
+                  borderLeftColor: "#28A745",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall,
+                    fontWeight: Typography.bold,
+                    color: "#155724",
+                    marginBottom: 4,
+                  }}
+                >
+                  ✅ Full Refund
+                </Text>
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall,
+                    color: "#155724",
+                  }}
+                >
+                  {cancelEligibility.reason}
+                </Text>
+              </View>
+            )}
+
+            {/* COD Notice */}
+            {cancelEligibility?.refund_type === "none" && (
+              <View
+                style={{
+                  backgroundColor: "#E2E3E5",
+                  borderRadius: 12,
+                  padding: Spacing.md,
+                  marginBottom: Spacing.md,
+                  borderLeftWidth: 4,
+                  borderLeftColor: Colors.neutralMedium,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall,
+                    color: "#383D41",
+                  }}
+                >
+                  {cancelEligibility.reason}
+                </Text>
+              </View>
+            )}
+
             <Text style={styles.modalMessage}>
               Please provide a reason for cancellation:
             </Text>
@@ -1394,6 +1532,7 @@ export default function OrderDetailsScreen() {
                 onPress={() => {
                   setShowCancelDialog(false);
                   setCancelReason("");
+                  setCancelEligibility(null);
                 }}
               >
                 <Text style={styles.modalButtonTextSecondary}>Keep Order</Text>
@@ -1407,11 +1546,161 @@ export default function OrderDetailsScreen() {
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
                   <Text style={styles.modalButtonTextPrimary}>
-                    Cancel Order
+                    {cancelEligibility?.refund_type === "penalty"
+                      ? "Cancel & Accept Fee"
+                      : "Cancel Order"}
                   </Text>
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      )}
+
+      {/* Refund Result Modal */}
+      {showRefundResult && refundResult && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ alignItems: "center", marginBottom: Spacing.md }}>
+              <Ionicons name="checkmark-circle" size={48} color="#28A745" />
+            </View>
+            <Text style={[styles.modalTitle, { textAlign: "center" }]}>
+              Refund Processed
+            </Text>
+            <View
+              style={{
+                backgroundColor: Colors.neutralCloud,
+                borderRadius: 12,
+                padding: Spacing.md,
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: Colors.neutralMedium,
+                    fontSize: Typography.bodySmall,
+                  }}
+                >
+                  Refund Type
+                </Text>
+                <Text
+                  style={{
+                    fontWeight: Typography.bold,
+                    fontSize: Typography.bodySmall,
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {refundResult.type}
+                </Text>
+              </View>
+              {refundResult.penalty_amount > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: Colors.neutralMedium,
+                      fontSize: Typography.bodySmall,
+                    }}
+                  >
+                    Cancellation Fee ({refundResult.penalty_percent}%)
+                  </Text>
+                  <Text
+                    style={{
+                      fontWeight: Typography.bold,
+                      fontSize: Typography.bodySmall,
+                      color: Colors.accentRed,
+                    }}
+                  >
+                    -{refundResult.penalty_amount.toFixed(2)} EGP
+                  </Text>
+                </View>
+              )}
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: Colors.neutralMedium,
+                    fontSize: Typography.bodySmall,
+                  }}
+                >
+                  Refund Amount
+                </Text>
+                <Text
+                  style={{
+                    fontWeight: Typography.bold,
+                    fontSize: Typography.bodyBase,
+                    color: "#28A745",
+                  }}
+                >
+                  {refundResult.refund_amount.toFixed(2)} EGP
+                </Text>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text
+                  style={{
+                    color: Colors.neutralMedium,
+                    fontSize: Typography.bodySmall,
+                  }}
+                >
+                  Estimated Arrival
+                </Text>
+                <Text
+                  style={{
+                    fontWeight: Typography.bold,
+                    fontSize: Typography.bodySmall,
+                  }}
+                >
+                  {refundResult.estimated_days}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                {
+                  backgroundColor: Colors.primary900,
+                  width: "100%",
+                  paddingVertical: Spacing.md,
+                },
+              ]}
+              onPress={() => {
+                setShowRefundResult(false);
+                setRefundResult(null);
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.bodyBase,
+                  fontWeight: "700",
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                }}
+              >
+                Got It
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}

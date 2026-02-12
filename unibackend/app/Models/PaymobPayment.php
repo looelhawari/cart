@@ -149,6 +149,26 @@ class PaymobPayment extends Model
     }
 
     /**
+     * Mark payment as refunded.
+     */
+    public function markAsRefunded(string $refundId = null): void
+    {
+        $this->transitionTo('REFUNDED');
+        $this->update([
+            'status' => 'REFUNDED',
+            'error_message' => 'Refunded' . ($refundId ? " (Paymob refund ID: {$refundId})" : ''),
+        ]);
+    }
+
+    /**
+     * Check if payment is refunded.
+     */
+    public function isRefunded(): bool
+    {
+        return $this->status === 'REFUNDED';
+    }
+
+    /**
      * NEW: Mark payment as MOTO attempted.
      */
     public function markMotoAttempted(): void

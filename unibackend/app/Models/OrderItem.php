@@ -15,12 +15,14 @@ class OrderItem extends Model
         'quantity',
         'price',
         'subtotal',
+        'refunded',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'price' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'refunded' => 'boolean',
     ];
 
     /**

@@ -101,6 +101,14 @@ class Order extends Model
     }
 
     /**
+     * Get refund records for this order
+     */
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(OrderRefund::class);
+    }
+
+    /**
      * Get the latest successful Paymob payment
      */
     public function successfulPayment()
@@ -136,6 +144,7 @@ class Order extends Model
             'completed' => 'Completed',
             'failed' => 'Failed',
             'refunded' => 'Refunded',
+            'partially_refunded' => 'Partially Refunded',
             default => 'Unknown',
         };
     }

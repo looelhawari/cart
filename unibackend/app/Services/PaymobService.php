@@ -1029,5 +1029,140 @@ class PaymobService
             return null;
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // REFUND & VOID — Paymob Refund API
+    // POST https://accept.paymob.com/api/acceptance/void_refund/refund
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Refund a transaction via Paymob.
+     *
+     * @param string $transactionId The original Paymob transaction ID
+     * @param int    $amountCents   Amount to refund in cents (can be partial)
+     * @return array{success: bool, refund_id: string|null, response: array}
+     * @throws Exception
+     */
+    public function refundTransaction(string $transactionId, int $amountCents): array
+    {
+        try {
+            $authToken = $this->authenticate();
+
+            Log::info('💰 [REFUND] Initiating Paymob refund', [
+                'transaction_id' => $transactionId,
+                'amount_cents' => $amountCents,
+                'amount_egp' => $amountCents / 100,
+            ]);
+
+            // NO retry — refund is a financial operation; retrying may cause duplicates
+            $response = Http::timeout(30)
+                ->connectTimeout(10)
+                ->post("{$this->baseUrl}/acceptance/void_refund/refund", [
+                    'auth_token' => $authToken,
+                    'transaction_id' => $transactionId,
+                    'amount_cents' => $amountCents,
+                ]);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::error('❌ [REFUND] Paymob refund API failed', [
+                    'transaction_id' => $transactionId,
+                    'amount_cents' => $amountCents,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+
+                return [
+                    'success' => false,
+                    'refund_id' => null,
+                    'response' => $data ?? ['error' => 'API call failed with status ' . $response->status()],
+                ];
+            }
+
+            // Paymob returns the refund transaction object
+            $isSuccess = ($data['success'] ?? false) || ($data['pending'] ?? false);
+            $refundId = isset($data['id']) ? (string) $data['id'] : null;
+
+            Log::info($isSuccess ? '✅ [REFUND] Paymob refund successful' : '❌ [REFUND] Paymob refund rejected', [
+                'transaction_id' => $transactionId,
+                'refund_id' => $refundId,
+                'amount_cents' => $amountCents,
+                'success' => $isSuccess,
+                'is_refunded' => $data['is_refunded'] ?? null,
+                'is_voided' => $data['is_voided'] ?? null,
+            ]);
+
+            return [
+                'success' => $isSuccess,
+                'refund_id' => $refundId,
+                'response' => $data,
+            ];
+
+        } catch (Exception $e) {
+            Log::error('❌ [REFUND] Exception during Paymob refund', [
+                'transaction_id' => $transactionId,
+                'amount_cents' => $amountCents,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Never re-throw raw HTTP/Paymob exceptions — return a failure
+            // so the caller can handle it gracefully.
+            return [
+                'success' => false,
+                'refund_id' => null,
+                'response' => ['error' => 'Payment gateway communication error'],
+            ];
+        }
+    }
+
+    /**
+     * Void a transaction (same-day, before settlement).
+     * Uses the same endpoint — Paymob automatically determines void vs refund.
+     */
+    public function voidTransaction(string $transactionId): array
+    {
+        // Void = refund with full amount, but Paymob determines void vs refund
+        // based on settlement status. We call the same endpoint.
+        // For void, we don't pass amount_cents — Paymob voids the full amount.
+        try {
+            $authToken = $this->authenticate();
+
+            Log::info('🚫 [VOID] Initiating Paymob void', [
+                'transaction_id' => $transactionId,
+            ]);
+
+            $response = Http::timeout(30)
+                ->connectTimeout(10)
+                ->retry(2, 500)
+                ->post("{$this->baseUrl}/acceptance/void_refund/refund", [
+                    'auth_token' => $authToken,
+                    'transaction_id' => $transactionId,
+                ]);
+
+            $data = $response->json();
+            $isSuccess = $response->successful() && (($data['success'] ?? false) || ($data['pending'] ?? false));
+            $refundId = isset($data['id']) ? (string) $data['id'] : null;
+
+            Log::info($isSuccess ? '✅ [VOID] Paymob void successful' : '❌ [VOID] Paymob void failed', [
+                'transaction_id' => $transactionId,
+                'refund_id' => $refundId,
+                'is_voided' => $data['is_voided'] ?? null,
+            ]);
+
+            return [
+                'success' => $isSuccess,
+                'refund_id' => $refundId,
+                'response' => $data ?? [],
+            ];
+
+        } catch (Exception $e) {
+            Log::error('❌ [VOID] Exception during Paymob void', [
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
 }
 

@@ -288,7 +288,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::post('/', [OrderController::class, 'store']);
             Route::get('/{id}', [OrderController::class, 'show']);
+            Route::get('/{id}/can-cancel', [OrderController::class, 'canCancel']);
             Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
+            Route::get('/{id}/refunds', [OrderController::class, 'refundHistory']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
         });
 

@@ -193,7 +193,7 @@ class OrderService
             if ($this->notificationService) {
                 try {
                     $this->notificationService->notifyOrderPlacedFromOrder($order);
-                    
+
                     // Record purchase patterns for smart reorder suggestions
                     foreach ($order->items as $item) {
                         UserPurchasePattern::recordPurchase($userId, $item->product_id);
@@ -235,54 +235,16 @@ class OrderService
     }
 
     /**
-     * Cancel order with automatic refund
+     * Cancel order — delegates to OrderCancellationService.
+     *
+     * @deprecated Use OrderCancellationService::cancelOrder() directly.
+     *             This method is kept for backward compatibility only.
      */
     public function cancelOrder(int $orderId, int $userId, string $reason): Order
     {
-        return DB::transaction(function () use ($orderId, $userId, $reason) {
-            $order = Order::where('id', $orderId)
-                ->where('user_id', $userId)
-                ->whereNotIn('status', ['delivered', 'cancelled'])
-                ->firstOrFail();
-
-            // Restore product stock
-            foreach ($order->items as $item) {
-                $item->product->increment('stock_quantity', $item->quantity);
-                $item->product->decrement('sales_count', $item->quantity);
-            }
-
-            // Process refund if payment was completed
-            if ($order->payment_status === 'completed') {
-                $refundService = app(RefundService::class);
-                $refundService->refundOrder($order, $reason);
-            }
-
-            // Update order
-            $order->update([
-                'status' => 'cancelled',
-                'cancelled_at' => now(),
-                'cancellation_reason' => $reason,
-            ]);
-
-            // Record status change
-            // OrderStatusHistory::create([
-            //     'order_id' => $order->id,
-            //     'status' => 'cancelled',
-            //     'notes' => 'Order cancelled by customer: ' . $reason,
-            //     'created_by' => $userId,
-            // ]);
-
-            // Send enterprise notification for order cancellation
-            if ($this->notificationService) {
-                try {
-                    $this->notificationService->notifyOrderCancelledFromOrder($order, $reason);
-                } catch (\Exception $e) {
-                    Log::warning('Failed to send cancellation notification', ['error' => $e->getMessage()]);
-                }
-            }
-
-            return $order->fresh(['items.product', 'deliveryAddress']);
-        });
+        $cancellationService = app(OrderCancellationService::class);
+        $result = $cancellationService->cancelOrder($orderId, $userId, $reason);
+        return $result['order'];
     }
 
     /**

@@ -46,20 +46,78 @@ export interface Order {
   tax: number;
   discount: number;
   total: number;
-  payment_method: "cod" | "card" | "cash_on_delivery" | "wallet" | "wallet+card";
+  payment_method:
+    | "cod"
+    | "card"
+    | "cash_on_delivery"
+    | "wallet"
+    | "wallet+card";
   payment_method_id: number | null;
-  payment_status: "pending" | "completed" | "failed" | "refunded"; // STEP 4: Use 'completed' not 'paid'
+  payment_status:
+    | "pending"
+    | "completed"
+    | "failed"
+    | "refunded"
+    | "partially_refunded";
   delivery_address_id: number;
   delivery_date: string;
   delivery_time_slot: string;
   delivery_notes: string | null;
   promo_code?: string | null;
   promo_code_snapshot?: PromoSummary | null;
+  refunded_amount?: number;
+  refunded_at?: string | null;
+  cancelled_at?: string | null;
+  cancellation_reason?: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];
   delivery_address?: any;
   status_history?: OrderStatusHistory[];
+  refunds?: OrderRefund[];
+}
+
+export interface OrderRefund {
+  id: number;
+  order_id: number;
+  type: "full" | "partial" | "penalty";
+  original_amount: number;
+  penalty_percent: number;
+  penalty_amount: number;
+  refund_amount: number;
+  refund_method: "paymob" | "wallet" | "none";
+  status: "pending" | "processing" | "completed" | "failed";
+  reason: string | null;
+  initiated_by: "customer" | "admin";
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface CancellationEligibility {
+  can_cancel: boolean;
+  reason: string;
+  refund_type: "full" | "penalty" | "none" | null;
+  refund_percent: number;
+  penalty_percent: number;
+  estimated_refund?: number;
+}
+
+export interface CancelResult {
+  success: boolean;
+  message: string;
+  data: {
+    order: Order;
+    refund: {
+      id: number;
+      type: string;
+      original_amount: number;
+      penalty_percent: number;
+      penalty_amount: number;
+      refund_amount: number;
+      status: string;
+      estimated_days: string;
+    } | null;
+  };
 }
 
 export interface CreateOrderData {
@@ -162,9 +220,12 @@ export const orderApi = {
   },
 
   /**
-   * Cancel an order
+   * Cancel an order (with enterprise refund processing)
    */
-  cancelOrder: async (orderId: number, reason: string) => {
+  cancelOrder: async (
+    orderId: number,
+    reason: string,
+  ): Promise<CancelResult> => {
     const token = await getAuthToken();
 
     const response = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
@@ -179,12 +240,72 @@ export const orderApi = {
       body: JSON.stringify({ reason: reason }),
     });
 
+    const data = await safeJsonParse(response);
+
     if (!response.ok) {
-      const error = await safeJsonParse(response);
-      throw new Error(error?.message || "Failed to cancel order");
+      throw new Error(data?.message || "Failed to cancel order");
     }
 
-    return await safeJsonParse(response);
+    return data;
+  },
+
+  /**
+   * Check if an order can be cancelled (pre-check for UI)
+   */
+  checkCancellationEligibility: async (
+    orderId: number,
+  ): Promise<CancellationEligibility> => {
+    const token = await getAuthToken();
+
+    const response = await fetch(
+      `${API_BASE_URL}/orders/${orderId}/can-cancel`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json; charset=utf-8",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      },
+    );
+
+    const data = await safeJsonParse(response);
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || "Failed to check cancellation eligibility",
+      );
+    }
+
+    return data.data;
+  },
+
+  /**
+   * Get refund history for an order
+   */
+  getRefundHistory: async (orderId: number): Promise<OrderRefund[]> => {
+    const token = await getAuthToken();
+
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/refunds`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    const data = await safeJsonParse(response);
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to get refund history");
+    }
+
+    return data.data.refunds;
   },
 
   /**
@@ -221,4 +342,7 @@ export const getOrders = orderApi.getOrders;
 export const getOrder = orderApi.getOrder;
 export const createOrder = orderApi.createOrder;
 export const cancelOrder = orderApi.cancelOrder;
+export const checkCancellationEligibility =
+  orderApi.checkCancellationEligibility;
+export const getRefundHistory = orderApi.getRefundHistory;
 export const reorder = orderApi.reorder;
