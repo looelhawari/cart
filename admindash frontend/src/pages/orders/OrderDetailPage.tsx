@@ -77,8 +77,9 @@ export default function OrderDetailPage() {
     const assignDriverMutation = useMutation({
         mutationFn: ({ orderId, driverId }: { orderId: number; driverId: number }) =>
             driverService.assignDriverToOrder(orderId, driverId),
-        onSuccess: (response) => {
+        onSuccess: (response: any) => {
             // Optimistically update the cache with the fresh order data from the API
+            // Backend returns { success: true, message: "...", data: orderWithDriver }
             if (response?.data) {
                 queryClient.setQueryData(['order', id], response.data)
             }
