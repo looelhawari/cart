@@ -314,26 +314,42 @@ export interface InitiatePaymentResponse {
   success: boolean;
   message: string;
   data: {
-    payment_token: string;
-    iframe_url: string;
+    payment_id: number;
+    payment_token?: string;
+    iframe_url?: string;
+    redirect_url?: string; // Unified Checkout URL (preferred over iframe_url)
     order_id: number;
     amount_cents: number;
+    flow: "classic_iframe" | "unified_3ds" | "moto";
+    requires_redirect?: boolean;
   };
 }
 
 export interface InitiateSavedCardPaymentRequest {
   order_id: number;
   payment_method_id: number;
+  billing_data: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone_number: string;
+    city: string;
+    street: string;
+  };
 }
 
 export interface InitiateSavedCardPaymentResponse {
   success: boolean;
   message: string;
   data: {
-    payment_token: string;
-    iframe_url: string; // ✅ May require 3DS challenge
+    payment_id: number;
+    payment_token?: string;
+    iframe_url?: string;
+    redirect_url?: string;
     card_last_four: string;
     card_brand: CardBrand;
+    flow: "moto" | "unified_3ds";
+    requires_redirect?: boolean;
   };
 }
 

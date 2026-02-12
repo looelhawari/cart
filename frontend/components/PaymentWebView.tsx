@@ -14,7 +14,7 @@ import { X } from "lucide-react-native";
 
 import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
-import { getPaymentStatus } from "@/services/api/paymentsApi";
+import { getPaymentStatus } from "@/services/paymentMethodsApi";
 import { useStore } from "@/store";
 import {
   clearPendingPayment,
@@ -32,6 +32,7 @@ const POLLING_CONFIG = {
 interface PaymentWebViewProps {
   iframeUrl: string;
   orderId: number;
+  paymentId?: number; // Preferred: poll by paymentId (more reliable than orderId)
   onSuccess?: () => void;
   onFailure?: (error: string) => void;
   onClose?: () => void;
@@ -40,6 +41,7 @@ interface PaymentWebViewProps {
 export default function PaymentWebView({
   iframeUrl,
   orderId,
+  paymentId,
   onSuccess,
   onFailure,
   onClose,
@@ -51,7 +53,7 @@ export default function PaymentWebView({
 
   // STEP 3: Polling state management
   const pollingStartTimeRef = useRef<number | null>(null);
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPollingActiveRef = useRef(false);
 
   // STEP 3: Cleanup polling on unmount
@@ -90,56 +92,49 @@ export default function PaymentWebView({
     }
 
     try {
+      // Use paymentId if available (more reliable), fallback to orderId
+      const pollId = paymentId || orderId;
       console.log("[STEP 3] Polling payment status...", {
-        orderId,
+        paymentId: pollId,
         elapsed: pollingStartTimeRef.current
           ? Date.now() - pollingStartTimeRef.current
           : 0,
       });
 
-      const statusResponse = await getPaymentStatus(orderId);
+      const statusResponse = await getPaymentStatus(pollId);
 
       if (!statusResponse.success) {
         throw new Error("Failed to get payment status");
       }
 
       const status = statusResponse.data?.status;
-      const orderStatus = statusResponse.data?.order_status;
-      const paymentStatus = statusResponse.data?.payment_status;
+      const orderPaymentStatus = statusResponse.data?.order_payment_status;
+      const paymobSuccess = statusResponse.data?.paymob_success;
 
       console.log("[STEP 3] Payment status:", {
-        paymob_status: status,
-        order_status: orderStatus,
-        payment_status: paymentStatus,
+        status: status,
+        order_payment_status: orderPaymentStatus,
+        paymob_success: paymobSuccess,
       });
 
       // STEP 3: Handle terminal states - STOP POLLING IMMEDIATELY
-      // Check both Paymob status AND order payment_status for completed payments
-      if (status === "PAID" || paymentStatus === "completed") {
+      // Check both payment record status AND order payment_status for completed payments
+      if (status === "PAID" || orderPaymentStatus === "completed") {
         console.log("[STEP 3] Payment confirmed - stopping polling");
         stopPolling();
         await handlePaymentSuccess();
         return;
       }
 
-      if (status === "FAILED" || paymentStatus === "failed") {
+      if (status === "FAILED" || orderPaymentStatus === "failed") {
         console.log("[STEP 3] Payment failed - stopping polling");
         stopPolling();
-        await handlePaymentFailure(
-          statusResponse.data?.error_message || "Payment failed",
-        );
+        await handlePaymentFailure("Payment failed");
         return;
       }
 
-      if (status === "CANCELLED") {
-        console.log("[STEP 3] Payment cancelled - stopping polling");
-        stopPolling();
-        await handlePaymentCancelled();
-        return;
-      }
-
-      // STEP 3: UNKNOWN/PENDING - continue polling ONLY if within timeout
-      if (status === "PENDING" || status === "UNKNOWN" || !status) {
+      // STEP 3: PENDING/REFUNDED - continue polling ONLY if within timeout
+      if (status === "PENDING" || !status) {
         if (shouldContinuePolling()) {
           console.log("[STEP 3] Still pending, scheduling next poll...");
           pollingTimeoutRef.current = setTimeout(
@@ -214,41 +209,6 @@ export default function PaymentWebView({
       ]);
     } catch (error) {
       console.error("[STEP 3] Error handling payment failure:", error);
-      setProcessing(false);
-    }
-  };
-
-  // STEP 3: Handle cancelled payment
-  const handlePaymentCancelled = async () => {
-    try {
-      await clearPendingPayment();
-      setProcessing(false);
-
-      Alert.alert(
-        "Payment Cancelled",
-        "Your payment was cancelled. Would you like to try again?",
-        [
-          {
-            text: "Try Again",
-            onPress: () => {
-              router.replace({
-                pathname: "/checkout/confirmation",
-                params: {
-                  orderId: orderId.toString(),
-                  retry: "true",
-                },
-              });
-            },
-          },
-          {
-            text: "Back to Cart",
-            style: "cancel",
-            onPress: () => router.replace("/(tabs)/cart"),
-          },
-        ],
-      );
-    } catch (error) {
-      console.error("[STEP 3] Error handling payment cancellation:", error);
       setProcessing(false);
     }
   };

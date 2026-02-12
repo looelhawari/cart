@@ -11,6 +11,9 @@ export default function PaymentScreen() {
 
   const iframeUrl = params.iframeUrl as string;
   const orderId = params.orderId ? parseInt(params.orderId as string) : 0;
+  const paymentId = params.paymentId
+    ? parseInt(params.paymentId as string)
+    : undefined;
 
   const handlePaymentSuccess = () => {
     // WebView component will navigate to order-success
@@ -29,6 +32,7 @@ export default function PaymentScreen() {
       <PaymentWebView
         iframeUrl={iframeUrl}
         orderId={orderId}
+        paymentId={paymentId}
         onSuccess={handlePaymentSuccess}
         onFailure={handlePaymentFailure}
         onClose={handleClose}

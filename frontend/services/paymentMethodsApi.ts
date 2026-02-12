@@ -143,6 +143,10 @@ export function getDefaultPaymentMethod(
 
 /**
  * Payment Status Response
+ *
+ * IMPORTANT: Polling is READ-ONLY. The backend webhook (processedCallback)
+ * is the ONLY authority that transitions payment state.
+ * The `message` field reminds the frontend of this contract.
  */
 export interface PaymentStatusResponse {
   success: boolean;
@@ -150,11 +154,16 @@ export interface PaymentStatusResponse {
     payment_id: number;
     order_id: number;
     status: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+    order_payment_status: string | null; // e.g. "completed", "failed", "pending"
+    order_status: string | null; // e.g. "processing", "confirmed"
     transaction_id: string | null;
     amount: number;
     currency: string;
     flow: "classic_iframe" | "unified_3ds" | "moto";
     updated_at: string;
+    paymob_status: string | null; // Remote Paymob status (e.g. "PROCESSED")
+    paymob_success: boolean | null; // Remote Paymob success flag
+    message: string; // "Final confirmation is webhook-based..."
   };
 }
 
@@ -237,7 +246,7 @@ export async function pollPaymentStatus(
 }
 
 // ═══════════════════════════════════════════════════════
-// UTILITY FUNCTIONS
+// CARD DISPLAY HELPERS
 // ═══════════════════════════════════════════════════════
 
 /**

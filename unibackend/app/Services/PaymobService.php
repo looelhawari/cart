@@ -15,10 +15,11 @@ class PaymobService
     private string $iframeId;
     private string $cardIntegrationId;
     private string $integrationId3DS;
+    private string $motoIntegrationId;
     private string $walletIntegrationId;
     private string $callbackUrl;
     private string $currency;
-    private string $baseUrl = 'https://accept.paymob.com/api';
+    private string $baseUrl;
 
     public function __construct()
     {
@@ -29,9 +30,11 @@ class PaymobService
         $this->iframeId = config('services.paymob.iframe_id');
         $this->cardIntegrationId = config('services.paymob.card_integration_id');
         $this->integrationId3DS = config('services.paymob.integration_id_3ds');
+        $this->motoIntegrationId = config('services.paymob.moto_integration_id', '');
         $this->walletIntegrationId = config('services.paymob.wallet_integration_id');
         $this->callbackUrl = config('services.paymob.callback_url');
         $this->currency = config('services.paymob.currency', 'EGP');
+        $this->baseUrl = config('services.paymob.base_url', 'https://accept.paymob.com/api');
     }
 
     /**
@@ -621,7 +624,6 @@ class PaymobService
 
             Log::info('✅ Paymob Intention created successfully', [
                 'intention_id' => $intentionId,
-                'client_secret_preview' => substr($clientSecret, 0, 20) . '...',
             ]);
 
             return [
@@ -676,8 +678,8 @@ class PaymobService
             ];
 
             Log::info('💳 MOTO payment attempt', [
-                'token_preview' => substr($savedCardToken, 0, 10) . '...',
-                'payment_key_preview' => substr($paymentKeyJWT, 0, 20) . '...',
+                'has_card_token' => !empty($savedCardToken),
+                'has_payment_key' => !empty($paymentKeyJWT),
             ]);
 
             $response = Http::timeout(30)
@@ -835,7 +837,6 @@ class PaymobService
             ];
 
             Log::info('✅ Card token extracted from Intention webhook', [
-                'token_preview' => substr($cardData['token'], 0, 10) . '...',
                 'last4' => $cardData['last4'],
                 'brand' => $cardData['brand'],
             ]);
@@ -856,7 +857,6 @@ class PaymobService
             ];
 
             Log::info('✅ Card token extracted from direct structure', [
-                'token_preview' => substr($cardData['token'], 0, 10) . '...',
                 'last4' => $cardData['last4'],
                 'brand' => $cardData['brand'],
             ]);

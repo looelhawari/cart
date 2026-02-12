@@ -1,22 +1,22 @@
 /**
- * PaymentWebView Screen (Tokenization Phase 3)
- * Updated: Dual-flow support with polling
+ * PaymentWebView Screen (Tokenization Phase 3 — FIXED)
  *
  * Handles 3DS authentication for Unified Checkout and Classic flows.
- * Uses polling instead of redirect detection for payment confirmation.
  *
- * CRITICAL: Polling is the ONLY reliable way to detect payment success.
- * - WebView redirects are unreliable (ngrok issues, timing problems)
- * - Backend webhook updates payment status in database
- * - Frontend polls GET /api/v1/payments/status/{paymentId} every 2 seconds
+ * FLOW:
+ * 1. WebView loads Paymob Unified Checkout URL
+ * 2. User enters card info and completes 3DS
+ * 3. Paymob redirects to `elbaraka://payment-return` (deep link)
+ * 4. WebView intercepts the redirect (handleShouldStartLoadWithRequest)
+ * 5. THEN we start polling GET /api/v1/payments/status/{paymentId}
+ * 6. Webhook on backend has already updated status (usually ~1s earlier)
+ * 7. Polling detects PAID/FAILED → show result modal → navigate
  *
- * Flows handled:
- * 1. Unified Checkout (3DS + Tokenization)
- * 2. Classic Iframe (Legacy)
- * 3. MOTO fallback to 3DS (when bank requires 3DS)
+ * CRITICAL FIX: Polling ONLY starts after redirect detection.
+ * Previous version polled immediately on mount (wasted 30+ API calls).
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -35,116 +35,140 @@ export default function PaymentWebViewScreen() {
   }>();
 
   const [loading, setLoading] = useState(true);
-  const [pollingStatus, setPollingStatus] = useState<string>("Starting...");
   const [showResultModal, setShowResultModal] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const pollingActive = useRef(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Refs for cleanup — polling can be cancelled on unmount
+  const pollingStarted = useRef(false);
+  const isMounted = useRef(true);
+
+  // Track unmount for cleanup
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   /**
-   * Start polling for payment status
+   * Start polling ONLY after payment redirect detected.
+   * Called from handleShouldStartLoadWithRequest when we intercept
+   * the deep link redirect from Paymob.
    */
-  useEffect(() => {
-    if (params.paymentId && !pollingActive.current) {
-      pollingActive.current = true;
+  const startPollingAfterRedirect = useCallback(async () => {
+    if (pollingStarted.current || !params.paymentId) return;
+    pollingStarted.current = true;
+    setIsVerifying(true);
 
-      const startPollingAsync = async () => {
-        const paymentId = parseInt(params.paymentId);
+    const paymentId = parseInt(params.paymentId);
 
-        console.log("[PaymentWebView] Starting payment status polling...");
-        setPollingStatus("Checking payment status...");
+    console.log(
+      "[PaymentWebView] 🔄 Redirect detected — starting payment status polling...",
+    );
 
-        try {
-          const result = await pollPaymentStatus(
-            paymentId,
-            (status) => {
-              console.log(`[PaymentWebView] Payment status: ${status}`);
-              setPollingStatus(`Status: ${status}`);
-            },
-            {
-              intervalMs: 2000, // Poll every 2 seconds
-              maxAttempts: 30, // 60 seconds total
-            },
-          );
+    try {
+      // Small delay: give webhook 2s to arrive at backend first
+      await new Promise((r) => setTimeout(r, 2000));
 
-          // Payment completed
-          if (result.status === "PAID") {
-            console.log("[PaymentWebView] ✅ Payment successful!");
-            // Show success modal for 2 seconds
-            setPaymentSuccess(true);
-            setShowResultModal(true);
-          } else if (result.status === "FAILED") {
-            console.log("[PaymentWebView] ❌ Payment failed");
-            // Show failure modal for 2 seconds
-            setPaymentSuccess(false);
-            setShowResultModal(true);
-          } else {
-            // Timeout or still pending
-            console.warn("[PaymentWebView] ⏱️ Payment verification timeout");
-            Alert.alert(
-              "Payment Verification",
-              "We are still processing your payment. Please check your orders.",
-              [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
-            );
-          }
-        } catch (error) {
-          console.error("[PaymentWebView] Polling error:", error);
-          Alert.alert(
-            "Error",
-            "Failed to verify payment status. Please check your orders.",
-            [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
-          );
-        }
-      };
+      if (!isMounted.current) return;
 
-      startPollingAsync();
+      const result = await pollPaymentStatus(
+        paymentId,
+        (status) => {
+          if (!isMounted.current) return;
+          console.log(`[PaymentWebView] Payment status: ${status}`);
+        },
+        {
+          intervalMs: 2000, // Poll every 2 seconds
+          maxAttempts: 15, // 30 seconds total (webhook should arrive within 5s)
+        },
+      );
+
+      if (!isMounted.current) return;
+
+      if (result.status === "PAID") {
+        console.log("[PaymentWebView] ✅ Payment successful!");
+        setPaymentSuccess(true);
+        setShowResultModal(true);
+      } else if (result.status === "FAILED") {
+        console.log("[PaymentWebView] ❌ Payment failed");
+        setPaymentSuccess(false);
+        setShowResultModal(true);
+      } else {
+        // Still PENDING after 30s — webhook might be delayed
+        console.warn("[PaymentWebView] ⏱️ Payment verification timeout");
+        Alert.alert(
+          "Payment Verification",
+          "We are still processing your payment. You will receive a notification when it's confirmed. Please check your orders.",
+          [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
+        );
+      }
+    } catch (error) {
+      if (!isMounted.current) return;
+      console.error("[PaymentWebView] Polling error:", error);
+      Alert.alert(
+        "Error",
+        "Failed to verify payment status. Please check your orders.",
+        [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
+      );
+    } finally {
+      if (isMounted.current) setIsVerifying(false);
     }
-  }, [params.paymentId, params.orderId, router]);
+  }, [params.paymentId, router]);
 
   /**
-   * Intercept navigation - detect deep link redirects from Paymob
+   * Intercept navigation — detect redirect from Paymob after 3DS.
+   *
+   * Paymob redirects to PAYMOB_REDIRECT_URL after payment.
+   * We set that to `elbaraka://payment-return` (deep link).
+   * The WebView can't load a deep link, so we intercept it here
+   * and start polling instead.
    */
-  const handleShouldStartLoadWithRequest = (request: any) => {
-    const { url } = request;
+  const handleShouldStartLoadWithRequest = useCallback(
+    (request: any) => {
+      const { url } = request;
 
-    console.log("[PaymentWebView] Should start load:", url);
+      // Detect deep link redirect from Paymob
+      if (
+        url.startsWith("elbaraka://payment-return") ||
+        url.startsWith("elbaraka://payment")
+      ) {
+        console.log(
+          "[PaymentWebView] 🎯 Deep link redirect detected — starting verification",
+        );
+        startPollingAfterRedirect();
+        return false; // Don't try to load the deep link
+      }
 
-    // Detect deep link redirect from Paymob (elbaraka://payment-return)
-    if (url.startsWith("elbaraka://payment-return")) {
-      console.log(
-        "[PaymentWebView] Deep link redirect detected - polling will verify status",
-      );
-      setPollingStatus("Payment submitted - verifying...");
-      return false; // Don't try to load the deep link
-    }
+      // Detect ngrok/localhost redirect (fallback for dev)
+      if (
+        url.includes("/payment-return") &&
+        (url.includes("ngrok") ||
+          url.includes("localhost") ||
+          url.includes("127.0.0.1"))
+      ) {
+        console.log(
+          "[PaymentWebView] 🎯 Dev redirect detected — starting verification",
+        );
+        startPollingAfterRedirect();
+        return false;
+      }
 
-    // Detect localhost redirect (fallback for development)
-    if (
-      url.includes("localhost:8000/payment-return") ||
-      url.includes("127.0.0.1:8000/payment-return")
-    ) {
-      console.log(
-        "[PaymentWebView] Localhost redirect detected - polling will verify status",
-      );
-      setPollingStatus("Payment submitted - verifying...");
-      return false; // Don't try to load localhost
-    }
+      // Detect Paymob's own payment status page (sometimes redirects there)
+      if (url.includes("accept.paymob.com/unifiedcheckout/payment-status")) {
+        console.log(
+          "[PaymentWebView] 🎯 Paymob status page detected — starting verification",
+        );
+        startPollingAfterRedirect();
+        return false;
+      }
 
-    // Detect payment completion URL but rely on polling for final confirmation
-    if (url.includes("/payment/callback") || url.includes("/payment/success")) {
-      console.log(
-        "[PaymentWebView] Payment completion detected - polling will confirm",
-      );
-      setPollingStatus("Verifying payment...");
-      return false; // Don't load the callback URL
-    }
-
-    if (url.includes("/payment/failed") || url.includes("/payment/error")) {
-      console.log("[PaymentWebView] Payment failure detected");
-      return false;
-    }
-
-    return true;
-  };
+      // Allow all other URLs (Paymob checkout pages, 3DS bank pages, etc.)
+      return true;
+    },
+    [startPollingAfterRedirect],
+  );
 
   /**
    * Handle WebView errors
@@ -153,19 +177,15 @@ export default function PaymentWebViewScreen() {
     const { nativeEvent } = syntheticEvent;
     console.error("[PaymentWebView] Error:", nativeEvent);
 
+    // If we're already verifying (redirect happened), ignore WebView errors
+    if (isVerifying) return;
+
     Alert.alert(
       "Error",
       "Failed to load payment page. Please check your internet connection and try again.",
       [
-        {
-          text: "Retry",
-          onPress: () => setLoading(true),
-        },
-        {
-          text: "Cancel",
-          onPress: () => router.back(),
-          style: "cancel",
-        },
+        { text: "Retry", onPress: () => setLoading(true) },
+        { text: "Cancel", onPress: () => router.back(), style: "cancel" },
       ],
     );
   };
@@ -181,7 +201,6 @@ export default function PaymentWebViewScreen() {
     setShowResultModal(false);
 
     if (paymentSuccess) {
-      // Navigate to order success
       router.replace({
         pathname: "/order-success",
         params: {
@@ -192,7 +211,6 @@ export default function PaymentWebViewScreen() {
         },
       });
     } else {
-      // Navigate back to checkout or cart
       router.back();
     }
   };
@@ -206,18 +224,22 @@ export default function PaymentWebViewScreen() {
         duration={2000}
       />
 
-      {loading && (
+      {/* Loading overlay — shown while WebView is loading */}
+      {loading && !isVerifying && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
           <Text style={styles.loadingText}>Loading payment...</Text>
         </View>
       )}
 
-      {/* Polling status indicator */}
-      {params.paymentId && (
-        <View style={styles.pollingIndicator}>
-          <ActivityIndicator size="small" color={Colors.primary900} />
-          <Text style={styles.pollingText}>{pollingStatus}</Text>
+      {/* Verifying overlay — shown ONLY after payment redirect detected */}
+      {isVerifying && (
+        <View style={styles.verifyingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary900} />
+          <Text style={styles.verifyingTitle}>Verifying Payment</Text>
+          <Text style={styles.verifyingText}>
+            Please wait while we confirm your payment...
+          </Text>
         </View>
       )}
 
@@ -232,7 +254,7 @@ export default function PaymentWebViewScreen() {
         onLoad={() => setLoading(false)}
         onError={handleError}
         onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-        style={styles.webview}
+        style={[styles.webview, isVerifying && { opacity: 0 }]}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         startInLoadingState={true}
@@ -263,28 +285,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.neutralCharcoal,
   },
-  pollingIndicator: {
+  verifyingContainer: {
     position: "absolute",
-    top: 50,
+    top: 0,
     left: 0,
     right: 0,
-    flexDirection: "row",
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
-    padding: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    zIndex: 100,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: Colors.neutralWhite,
+    zIndex: 1000,
   },
-  pollingText: {
-    marginLeft: 8,
-    fontSize: 13,
+  verifyingTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "600",
     color: Colors.neutralCharcoal,
-    fontWeight: "500",
+  },
+  verifyingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.neutralGray,
+    textAlign: "center",
+    paddingHorizontal: 40,
   },
   webview: {
     flex: 1,

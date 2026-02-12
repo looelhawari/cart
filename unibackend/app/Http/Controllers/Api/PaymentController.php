@@ -9,25 +9,32 @@ use App\Models\PaymentMethod;
 use App\Models\PaymobPayment;
 use App\Services\PaymobService;
 use App\Services\PaymentDecisionService;
+use App\Services\PaymentTokenService;
+use App\Services\PaymentConfirmationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Carbon\Carbon;
 use Exception;
 
 class PaymentController extends Controller
 {
     private PaymobService $paymobService;
     private PaymentDecisionService $decisionService;
+    private PaymentTokenService $tokenService;
+    private PaymentConfirmationService $confirmationService;
 
     public function __construct(
         PaymobService $paymobService,
-        PaymentDecisionService $decisionService
+        PaymentDecisionService $decisionService,
+        PaymentTokenService $tokenService,
+        PaymentConfirmationService $confirmationService
     ) {
         $this->paymobService = $paymobService;
         $this->decisionService = $decisionService;
+        $this->tokenService = $tokenService;
+        $this->confirmationService = $confirmationService;
     }
 
     /**
@@ -183,6 +190,14 @@ class PaymentController extends Controller
             // Get order
             $order = Order::findOrFail($request->order_id);
 
+            // SECURITY: Verify order belongs to authenticated user
+            if ($order->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: Order does not belong to you',
+                ], 403);
+            }
+
             // Check if order already has a successful payment
             $existingPayment = PaymobPayment::where('order_id', $order->id)
                 ->where('status', 'PAID')
@@ -219,16 +234,6 @@ class PaymentController extends Controller
             // Generate unique internal order ID
             $internalOrderId = 'ORD-' . $order->id . '-' . (int)(microtime(true) * 1000);
 
-            // Step 1: Authenticate with Paymob
-            $authToken = $this->paymobService->authenticate();
-
-            // Step 2: Register order with Paymob
-            $paymobOrderId = $this->paymobService->registerOrder(
-                $authToken,
-                $amountCents,
-                $internalOrderId
-            );
-
             // Prepare billing data for Paymob
             $billingData = array_merge($request->billing_data, [
                 'apartment' => 'NA',
@@ -246,25 +251,29 @@ class PaymentController extends Controller
 
             // Wallet payments: Use classic iframe flow (no tokenization)
             if ($request->payment_method === 'WALLET') {
-                return $this->initiateClassicFlow(
+                $response = $this->initiateClassicFlow(
                     $order,
                     $request->payment_method,
                     $billingData,
                     $internalOrderId,
                     false // No card save for wallet
                 );
+                DB::commit();
+                return $response;
             }
 
             // Check if dual-flow features enabled
             if (!config('payments.enable_moto') && !config('payments.enable_unified_checkout')) {
                 // Feature flags disabled, fallback to classic flow
-                return $this->initiateClassicFlow(
+                $response = $this->initiateClassicFlow(
                     $order,
                     $request->payment_method,
                     $billingData,
                     $internalOrderId,
                     $request->boolean('save_card', false)
                 );
+                DB::commit();
+                return $response;
             }
 
             // Get saved card if payment_method_id provided
@@ -408,11 +417,15 @@ class PaymentController extends Controller
             ]);
 
             // ═══════════════════════════════════════════════════════════════
-            // CRITICAL: Handle TOKEN WEBHOOK BEFORE HMAC (different structure)
-            // Token webhooks have different HMAC calculation, so check first
+            // Token-only webhooks (no order object) are acknowledged but
+            // card tokens are ONLY saved from HMAC-verified transaction webhooks.
+            // This prevents accepting tokens from unverified sources.
             // ═══════════════════════════════════════════════════════════════
             if (isset($payload['token']) && isset($payload['masked_pan']) && !isset($payload['order'])) {
-                return $this->handleTokenWebhook($payload);
+                Log::info('💳 Token-only webhook received - acknowledged (tokens saved from transaction webhook)', [
+                    'masked_pan' => $payload['masked_pan'] ?? null,
+                ]);
+                return response()->json(['message' => 'Token webhook acknowledged'], 200);
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -450,18 +463,18 @@ class PaymentController extends Controller
                 // In Unified Checkout, the special_reference we sent is in merchant_order_id
                 // Check both top level and inside order object
                 $specialReference = null;
-                
+
                 if (isset($payload['merchant_order_id'])) {
                     $specialReference = $payload['merchant_order_id'];
                 } elseif (isset($payload['order']['merchant_order_id'])) {
                     $specialReference = $payload['order']['merchant_order_id'];
                 }
-                
+
                 if ($specialReference) {
                     Log::info('🔍 Searching payment by special_reference', [
                         'special_reference' => $specialReference,
                     ]);
-                    
+
                     // Extract ORD-XXX part from the special reference
                     // Format: ORD-138-1769285913241-6975291b51d97
                     if (preg_match('/^(ORD-\d+)/', $specialReference, $matches)) {
@@ -494,216 +507,195 @@ class PaymentController extends Controller
                 ]);
             }
 
-            // IDEMPOTENCY: Check if already processed (by status OR transaction_id)
-            if ($payment->status !== 'PENDING' || $payment->transaction_id === $transactionId) {
-                Log::info('✅ IDEMPOTENCY: Webhook already processed (no-op)', [
-                    'payment_id' => $payment->id,
-                    'current_status' => $payment->status,
-                    'transaction_id' => $payment->transaction_id,
-                    'duplicate_transaction_id' => $transactionId,
-                ]);
-                // Return 200 OK but do NOTHING (safe idempotent behavior)
-                return response()->json(['message' => 'Already processed'], 200);
-            }
-
             // ═══════════════════════════════════════════════════════════════
-            // REQUIREMENT 3: VALIDATE WEBHOOK DATA (Amount Match)
+            // REQUIREMENT 3: VALIDATE WEBHOOK DATA (Amount + Currency)
+            // These checks run BEFORE the lock — they are stateless and fast.
             // ═══════════════════════════════════════════════════════════════
-            $success = $payload['success'] ?? false;
             $amountCents = $payload['amount_cents'] ?? 0;
 
             // Verify amount matches (prevent payment manipulation)
-            if ($amountCents != $payment->amount_cents) {
+            if ((int) $amountCents !== (int) $payment->amount_cents) {
                 Log::error('❌ SECURITY: Amount mismatch detected', [
                     'expected' => $payment->amount_cents,
                     'received' => $amountCents,
                     'order_id' => $payment->order_id,
                 ]);
 
-                // Mark as failed in atomic transaction
                 DB::transaction(function () use ($payment, $payload) {
-                    $payment->markAsFailed('Amount mismatch - security violation', $payload);
-                    $payment->order->update([
-                        'status' => 'failed',
-                        'payment_status' => 'failed',
-                    ]);
+                    $locked = PaymobPayment::where('id', $payment->id)->lockForUpdate()->first();
+                    if ($locked && $locked->isPending()) {
+                        $locked->markAsFailed('Amount mismatch - security violation', $payload);
+                        $locked->order->update(['status' => 'failed', 'payment_status' => 'failed']);
+                    }
                 });
 
                 return response()->json(['message' => 'Amount mismatch'], 400);
             }
 
-            // ═══════════════════════════════════════════════════════════════
-            // REQUIREMENT 4: ATOMIC TRANSACTION (All-or-Nothing)
-            // ═══════════════════════════════════════════════════════════════
-            DB::beginTransaction();
+            // ✅ P0 FIX: Verify currency matches stored currency
+            $receivedCurrency = strtoupper(trim((string) ($payload['currency'] ?? '')));
+            $expectedCurrency = strtoupper(trim((string) $payment->currency));
+            if ($receivedCurrency !== '' && $receivedCurrency !== $expectedCurrency) {
+                Log::error('❌ SECURITY: Currency mismatch detected', [
+                    'expected' => $expectedCurrency,
+                    'received' => $receivedCurrency,
+                    'order_id' => $payment->order_id,
+                ]);
 
-            try {
-                $order = $payment->order;
-
-                if ($success) {
-                    // ═══════════════════════════════════════════════════════
-                    // SUCCESS PATH: Payment Confirmed
-                    // ═══════════════════════════════════════════════════════
-
-                    // 1. Update paymob_payments table
-                    $payment->markAsPaid($transactionId, $payload);
-
-                    // 2. Update/Create payment_transactions table
-                    \App\Models\PaymentTransaction::updateOrCreate(
-                        [
-                            'order_id' => $order->id,
-                            'transaction_id' => $transactionId,
-                        ],
-                        [
-                            'payment_method' => 'card',
-                            'amount' => $order->total,  // Use order snapshot, NOT cart
-                            'status' => 'completed',
-                            'gateway_response' => $payload,
-                            'processed_at' => now(),
-                        ]
-                    );
-
-                    // 3. Update orders table (STEP 4: Use 'completed' as single source of truth)
-                    $order->update([
-                        'payment_status' => 'completed',
-                        'status' => 'confirmed',
-                        // REQUIREMENT 6: NEVER touch orders.total or recalculate anything
-                    ]);
-
-                    app(\App\Services\OrderService::class)->finalizePromoUsage($order);
-
-                    // 4. REQUIREMENT 5: Clear cart ONLY when success confirmed (inside transaction)
-                    $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
-                    if ($cart) {
-                        Log::info('🗑️ ATOMIC: Clearing cart after payment confirmation', [
-                            'cart_id' => $cart->id,
-                            'user_id' => $order->user_id,
-                            'items_count_before' => $cart->items->count(),
-                        ]);
-
-                        app(\App\Services\CartService::class)->clearCart($cart);
-
-                        // Verify cart is cleared
-                        $cart->refresh();
-                        Log::info('✅ Cart cleared successfully', [
-                            'cart_id' => $cart->id,
-                            'items_count_after' => $cart->items->count(),
-                        ]);
-                    } else {
-                        Log::warning('⚠️ No cart found to clear', [
-                            'user_id' => $order->user_id,
-                        ]);
+                DB::transaction(function () use ($payment, $payload, $expectedCurrency, $receivedCurrency) {
+                    $locked = PaymobPayment::where('id', $payment->id)->lockForUpdate()->first();
+                    if ($locked && $locked->isPending()) {
+                        $locked->markAsFailed("Currency mismatch: expected {$expectedCurrency} got {$receivedCurrency}", $payload);
+                        $locked->order->update(['status' => 'failed', 'payment_status' => 'failed']);
                     }
-                    
-                    // 5. Dispatch async processing (notifications, analytics, etc.)
-                    ProcessOrderAsync::dispatch($order, 'confirmed');
+                });
 
-                    // ═══════════════════════════════════════════════════════
-                    // ✅ PHASE 3: SAVE CARD TOKEN (if user opted in)
-                    // MEDIUM 1 FIX: Only save after FULL validation
-                    // - Payment success confirmed ✅ (we're in success path)
-                    // - Payment is expected record ✅ (already verified above)
-                    // - Not already processed ✅ (idempotency check passed)
-                    // - Payment method is CARD ✅ (checked in shouldSaveCardToken)
-                    // - Never runs for WALLET ✅ (shouldSaveCardToken rejects non-CARD)
-                    // ═══════════════════════════════════════════════════════
-                    
-                    Log::info('🔍 Checking if should save card', [
-                        'payment_method' => $payment->payment_method,
-                        'save_card_requested' => $payment->save_card_requested,
-                        'has_source_data_token' => isset($payload['source_data']['token']),
-                        'has_token_object' => isset($payload['token']),
-                        'source_data_keys' => isset($payload['source_data']) ? array_keys($payload['source_data']) : [],
-                    ]);
-                    
-                    if ($this->shouldSaveCardToken($payment, $payload)) {
-                        $this->saveCardToken($order->user_id, $payload);
-                    }
+                return response()->json(['message' => 'Currency mismatch'], 400);
+            }
 
-                    Log::info('✅ Payment SUCCESS - All tables updated atomically', [
+            // ═══════════════════════════════════════════════════════════════
+            // REQUIREMENT 4: ATOMIC TRANSACTION with PESSIMISTIC LOCK
+            // ✅ P0 FIX: lockForUpdate() prevents race conditions on
+            //    concurrent webhook retries. Idempotency check is now
+            //    INSIDE the lock so two simultaneous requests cannot
+            //    both pass the PENDING check.
+            // ═══════════════════════════════════════════════════════════════
+            $result = DB::transaction(function () use ($payment, $transactionId, $payload) {
+                // ✅ Re-fetch with pessimistic lock (SELECT ... FOR UPDATE)
+                $payment = PaymobPayment::where('id', $payment->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$payment) {
+                    return response()->json(['message' => 'Payment not found'], 404);
+                }
+
+                // ✅ IDEMPOTENCY inside lock — safe from race conditions
+                if ($payment->status !== 'PENDING' || $payment->paymob_transaction_id === (string) $transactionId) {
+                    Log::info('✅ IDEMPOTENCY: Webhook already processed (no-op)', [
                         'payment_id' => $payment->id,
-                        'order_id' => $order->id,
-                        'transaction_id' => $transactionId,
-                        'paymob_payments.status' => 'PAID',
-                        'payment_transactions.status' => 'completed',
-                        'orders.payment_status' => 'completed',
-                        'orders.status' => 'confirmed',
-                        'cart_cleared' => true,
+                        'current_status' => $payment->status,
+                        'transaction_id' => $payment->paymob_transaction_id,
+                        'duplicate_transaction_id' => $transactionId,
                     ]);
-                } else {
-                    // ═══════════════════════════════════════════════════════
-                    // FAILURE PATH: Payment Failed/Cancelled
-                    // ═══════════════════════════════════════════════════════
+                    return response()->json(['message' => 'Already processed'], 200);
+                }
 
+                $success    = (bool) ($payload['success'] ?? false);
+                $isCapture  = (bool) ($payload['is_capture'] ?? false);
+                $isAuth     = (bool) ($payload['is_auth'] ?? false);
+                $order      = $payment->order;
+
+                // ═══════════════════════════════════════════════════════
+                // PAYMOB UNIFIED CHECKOUT QUIRK:
+                // In the Intention API flow, the top-level `is_capture`
+                // can be `false` even when the payment is fully captured.
+                // The real capture status lives deeper in the payload:
+                //   - data.migs_order.status === "CAPTURED"
+                //   - data.captured_amount > 0
+                //   - order.payment_status === "PAID"
+                // We must check these before rejecting a successful payment.
+                // ═══════════════════════════════════════════════════════
+                if ($success && !$isCapture) {
+                    $migsStatus     = strtoupper(trim($payload['data']['migs_order']['status'] ?? ''));
+                    $capturedAmt    = (float) ($payload['data']['captured_amount'] ?? $payload['captured_amount'] ?? 0);
+                    $orderPayStatus = strtoupper(trim($payload['order']['payment_status'] ?? ''));
+
+                    if ($migsStatus === 'CAPTURED' || $capturedAmt > 0 || $orderPayStatus === 'PAID') {
+                        Log::info('🔧 Paymob quirk: is_capture=false but underlying data confirms capture', [
+                            'payment_id'       => $payment->id,
+                            'migs_status'      => $migsStatus,
+                            'captured_amount'  => $capturedAmt,
+                            'order_pay_status' => $orderPayStatus,
+                        ]);
+                        $isCapture = true; // Override — payment IS captured
+                    }
+                }
+
+                // ═══════════════════════════════════════════════════════
+                // FAILURE PATH: Payment Failed/Cancelled
+                // ═══════════════════════════════════════════════════════
+                if (!$success) {
                     $errorMessage = $payload['data']['message'] ?? 'Payment failed';
                     $isCancelled = isset($payload['is_cancelled']) && $payload['is_cancelled'];
 
-                    // 1. Update paymob_payments table
-                    // NOTE: Database only has PENDING/PAID/FAILED, so treat CANCELLED as FAILED
-                    $payment->markAsFailed(
+                    $this->confirmationService->failPayment(
+                        $payment,
+                        $transactionId,
                         $isCancelled ? 'Payment cancelled by user' : $errorMessage,
-                        $payload
+                        $payload,
+                        'webhook'
                     );
 
-                    // 2. Update/Create payment_transactions table
-                    \App\Models\PaymentTransaction::updateOrCreate(
-                        [
-                            'order_id' => $order->id,
-                            'transaction_id' => $transactionId,
-                        ],
-                        [
-                            'payment_method' => 'card',
-                            'amount' => $order->total,  // Use order snapshot
-                            'status' => 'failed',  // REQUIREMENT 6: Consistent failure mapping
-                            'gateway_response' => $payload,
-                            'processed_at' => now(),
-                        ]
-                    );
-
-                    // 3. Update orders table (REQUIREMENT 6: Consistent failure mapping)
-                    $order->update([
-                        'payment_status' => 'failed',
-                        'status' => 'failed',
-                    ]);
-
-                    // 4. Restore product stock (return items to inventory)
-                    foreach ($order->items as $orderItem) {
-                        $product = $orderItem->product;
-                        if ($product) {
-                            $product->increment('stock_quantity', $orderItem->quantity);
-                            Log::info('📦 Stock restored', [
-                                'product_id' => $product->id,
-                                'quantity' => $orderItem->quantity,
-                                'new_stock' => $product->stock_quantity,
-                            ]);
-                        }
-                    }
-
-                    // 5. REQUIREMENT 5: DO NOT clear cart on failure (preserve for retry)
                     Log::info('❌ Payment FAILED - Cart preserved for retry', [
                         'payment_id' => $payment->id,
                         'order_id' => $order->id,
                         'error' => $errorMessage,
-                        'paymob_payments.status' => $payment->status,
-                        'payment_transactions.status' => 'failed',
-                        'orders.payment_status' => 'failed',
-                        'orders.status' => 'failed',
-                        'cart_cleared' => false,
                     ]);
+
+                    return response()->json(['message' => 'Callback processed'], 200);
                 }
 
-                DB::commit();
+                // ═══════════════════════════════════════════════════════
+                // ✅ P0 FIX: CAPTURE/AUTH VERIFICATION
+                // If authorized-but-not-captured, do NOT confirm order.
+                // Money is held but NOT transferred yet.
+                // ═══════════════════════════════════════════════════════
+                if ($isAuth && !$isCapture) {
+                    Log::warning('⚠️ Payment authorized but NOT captured — keeping PENDING', [
+                        'payment_id' => $payment->id,
+                        'order_id' => $order->id,
+                        'transaction_id' => $transactionId,
+                    ]);
+                    $payment->markAsPending('Authorized but not yet captured', $payload);
+                    return response()->json(['message' => 'Callback processed — awaiting capture'], 200);
+                }
+
+                if (!$isCapture) {
+                    Log::error('❌ Payment success=true but is_capture=false', [
+                        'payment_id' => $payment->id,
+                        'is_auth' => $isAuth,
+                        'is_capture' => $isCapture,
+                    ]);
+                    $payment->markAsFailed('Success true but not captured', $payload);
+                    $order->update(['status' => 'failed', 'payment_status' => 'failed']);
+                    return response()->json(['message' => 'Callback processed'], 200);
+                }
+
+                // ═══════════════════════════════════════════════════════
+                // SUCCESS PATH: Payment Confirmed (success + captured)
+                // ═══════════════════════════════════════════════════════
+
+                // Centralised confirmation — single source of truth
+                $this->confirmationService->confirmPayment(
+                    $payment,
+                    $transactionId,
+                    $payload,
+                    'webhook'
+                );
+
+                // ═══════════════════════════════════════════════════════
+                // ✅ SAVE CARD TOKEN (only after verified success + capture)
+                // Gated by: webhook HMAC ✅, success ✅, is_capture ✅,
+                //           correct payment record ✅, idempotency ✅
+                // ═══════════════════════════════════════════════════════
+                if ($this->tokenService->shouldSaveCardToken($payment, $payload)) {
+                    $this->tokenService->saveCardToken($order->user_id, $payload);
+                }
+
+                Log::info('✅ Payment SUCCESS — All tables updated atomically', [
+                    'payment_id' => $payment->id,
+                    'order_id' => $order->id,
+                    'transaction_id' => $transactionId,
+                    'is_capture' => $isCapture,
+                ]);
 
                 return response()->json(['message' => 'Callback processed'], 200);
+            });
 
-            } catch (Exception $e) {
-                DB::rollBack();
-                throw $e;  // Re-throw to outer catch block
-            }
+            return $result;
 
         } catch (Exception $e) {
-            DB::rollBack();
-
             Log::error('🔥 Webhook processing error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -739,133 +731,8 @@ class PaymentController extends Controller
         ]);
     }
 
-    /**
-     * Get payment status for an order.
-     *
-     * GET /api/v1/payments/order/{orderId}/status
-     */
-    /**
-     * Get payment status by payment ID (for frontend polling)
-     * Route: GET /api/v1/payments/status/{paymentId}
-     *
-     * IMPORTANT: If payment is PENDING and has intention_id, fetch from Paymob
-     * This handles cases where webhook wasn't received (localhost development)
-     */
-    public function getPaymentStatusById($paymentId): JsonResponse
-    {
-        try {
-            $payment = PaymobPayment::find($paymentId);
-
-            if (!$payment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Payment not found',
-                ], 404);
-            }
-
-            // ═══════════════════════════════════════════════════════════════
-            // WEBHOOK FALLBACK: If payment is PENDING, check Paymob directly
-            // This handles localhost development where webhook can't reach us
-            // ═══════════════════════════════════════════════════════════════
-            if ($payment->status === 'PENDING' && $payment->paymob_intention_id) {
-                Log::info('🔄 Payment still PENDING - fetching from Paymob', [
-                    'payment_id' => $payment->id,
-                    'intention_id' => $payment->paymob_intention_id,
-                ]);
-
-                $transactionData = $this->paymobService->getTransactionByIntention(
-                    $payment->paymob_intention_id
-                );
-
-                if ($transactionData && isset($transactionData['status'])) {
-                    $paymobStatus = $transactionData['status'];
-                    $latestTxn = $transactionData['latest_transaction'] ?? null;
-
-                    Log::info('📊 Paymob transaction status', [
-                        'intention_id' => $payment->paymob_intention_id,
-                        'status' => $paymobStatus,
-                        'transaction_id' => $latestTxn['id'] ?? null,
-                        'success' => $latestTxn['success'] ?? null,
-                    ]);
-
-                    // If Paymob shows PROCESSED and transaction successful, update locally
-                    if ($paymobStatus === 'PROCESSED' && $latestTxn && ($latestTxn['success'] ?? false)) {
-                        DB::beginTransaction();
-                        try {
-                            $order = $payment->order;
-
-                            // Update payment status
-                            $payment->markAsPaid($latestTxn['id'], $latestTxn);
-
-                            // Update order
-                            $order->update([
-                                'payment_status' => 'completed',
-                                'status' => 'confirmed',
-                            ]);
-
-                            // Save card token if applicable
-                            if ($this->shouldSaveCardToken($payment, $latestTxn)) {
-                                $this->saveCardToken($order->user_id, $latestTxn);
-                            }
-
-                            // Clear cart
-                            $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
-                            if ($cart) {
-                                app(\App\Services\CartService::class)->clearCart($cart);
-                            }
-
-                            DB::commit();
-                            
-                            // Dispatch async processing (notifications, analytics)
-                            ProcessOrderAsync::dispatch($order, 'confirmed');
-
-                            Log::info('✅ Payment auto-updated from Paymob fetch', [
-                                'payment_id' => $payment->id,
-                                'transaction_id' => $latestTxn['id'],
-                            ]);
-
-                            // Refresh payment to get updated status
-                            $payment->refresh();
-
-                        } catch (Exception $e) {
-                            DB::rollBack();
-                            Log::error('❌ Failed to auto-update payment', [
-                                'payment_id' => $payment->id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
-                }
-            }
-
-            $order = $payment->order;
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'status' => $payment->status, // PENDING, PAID, FAILED
-                    'payment_status' => $order->payment_status ?? null, // pending, completed, failed
-                    'order_status' => $order->status ?? null, // confirmed, failed, etc
-                    'amount' => $payment->amount_in_egp,
-                    'currency' => $payment->currency,
-                    'payment_method' => $payment->payment_method,
-                    'paid_at' => $payment->paid_at,
-                    'transaction_id' => $payment->paymob_transaction_id,
-                ],
-            ]);
-
-        } catch (Exception $e) {
-            Log::error('Get payment status error', [
-                'payment_id' => $paymentId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to get payment status',
-            ], 500);
-        }
-    }
+    // NOTE: getPaymentStatusById() was removed — it was dead code (no route)
+    // with a dangerous polling→DB mutation pattern. Use checkStatus() instead.
 
     /**
      * Get payment status by order ID (legacy compatibility)
@@ -886,7 +753,7 @@ class PaymentController extends Controller
             }
 
             // Also get order payment status for frontend terminal state detection
-            $order = \App\Models\Order::find($orderId);
+            $order = Order::find($orderId);
 
             return response()->json([
                 'success' => true,
@@ -916,258 +783,10 @@ class PaymentController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // ✅ PHASE 3: SAVED CARD TOKEN MANAGEMENT
+    // SAVED CARD TOKEN MANAGEMENT → Delegated to PaymentTokenService
+    // Methods removed: shouldSaveCardToken(), saveCardToken()
+    // Now called via $this->tokenService->shouldSaveCardToken() etc.
     // ═══════════════════════════════════════════════════════════════════
-
-    /**
-     * Check if we should save card token from webhook.
-     *
-     * Conditions:
-     * 1. Payment succeeded (already checked by caller)
-     * 2. Payment method is CARD (not wallet)
-     * 3. User opted in during payment initiation
-     * 4. Token exists in Paymob response
-     *
-     * @param PaymobPayment $payment
-     * @param array $payload Paymob webhook payload
-     * @return bool
-     */
-    private function shouldSaveCardToken(PaymobPayment $payment, array $payload): bool
-    {
-        // Only for card payments
-        if ($payment->payment_method !== 'CARD') {
-            return false;
-        }
-
-        // Check if user requested save (stored in paymob_payments.save_card_requested)
-        if (!$payment->save_card_requested) {
-            return false;
-        }
-
-        // Verify token exists in Paymob response
-        if (!isset($payload['source_data']['token'])) {
-            Log::warning('💳 Card save requested but no token in callback', [
-                'payment_id' => $payment->id,
-                'has_source_data' => isset($payload['source_data']),
-            ]);
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Handle Paymob token webhook (separate from transaction webhook)
-     * 
-     * Paymob Unified Checkout sends TWO webhooks:
-     * 1. Token webhook (arrives first, ~30s before transaction)
-     * 2. Transaction webhook (arrives second, confirms payment)
-     * 
-     * Token webhooks have DIFFERENT HMAC calculation, so we skip HMAC for them.
-     */
-    private function handleTokenWebhook(array $payload): JsonResponse
-    {
-        Log::info('💳 Token webhook received', [
-            'token_preview' => substr($payload['token'], 0, 10) . '...',
-            'masked_pan' => $payload['masked_pan'],
-            'card_subtype' => $payload['card_subtype'] ?? null,
-            'merchant_id' => $payload['merchant_id'] ?? null,
-            'order_id' => $payload['order_id'] ?? null,
-            'email' => $payload['email'] ?? null,
-        ]);
-
-        // Find payment - try multiple strategies
-        $payment = null;
-        
-        // STRATEGY 1: Search by paymob_order_id (most reliable for Unified Checkout)
-        if (isset($payload['order_id'])) {
-            $payment = PaymobPayment::where('paymob_order_id', $payload['order_id'])->first();
-            
-            Log::info('🔍 Searching by paymob_order_id', [
-                'order_id' => $payload['order_id'],
-                'found' => $payment ? true : false,
-            ]);
-        }
-        
-        // STRATEGY 2: If merchant_id matches internal_order_id pattern
-        if (!$payment && isset($payload['merchant_id'])) {
-            $merchantId = (string) $payload['merchant_id'];
-            
-            // Try exact match
-            $payment = PaymobPayment::where('internal_order_id', $merchantId)->first();
-            
-            // Fallback: partial match (in case of truncation)
-            if (!$payment) {
-                $payment = PaymobPayment::where('internal_order_id', 'LIKE', $merchantId . '%')->first();
-            }
-            
-            Log::info('🔍 Searching by merchant_id', [
-                'merchant_id' => $merchantId,
-                'found' => $payment ? true : false,
-            ]);
-        }
-
-        if (!$payment) {
-            Log::warning('⚠️ Token webhook: Payment not found', [
-                'merchant_id' => $payload['merchant_id'] ?? null,
-                'order_id' => $payload['order_id'] ?? null,
-                'strategies_tried' => ['paymob_order_id', 'merchant_id'],
-            ]);
-            
-            // Return 200 (not 404) to prevent Paymob retries
-            return response()->json(['message' => 'Payment not found, will retry on transaction webhook'], 200);
-        }
-
-        if (!$payment->save_card_requested) {
-            Log::info('ℹ️ Token webhook: Card save not requested', [
-                'payment_id' => $payment->id,
-            ]);
-            return response()->json(['message' => 'Card save not requested'], 200);
-        }
-
-        $order = $payment->order;
-        
-        if (!$order) {
-            Log::error('❌ Token webhook: Order not found for payment', [
-                'payment_id' => $payment->id,
-            ]);
-            return response()->json(['message' => 'Order not found'], 404);
-        }
-        
-        // Create card data structure from token webhook
-        $cardData = [
-            'token' => $payload['token'],
-            'source_data' => [
-                'pan' => substr($payload['masked_pan'], -4),
-                'sub_type' => $payload['card_subtype'] ?? 'other',
-            ],
-            'masked_pan' => $payload['masked_pan'],
-        ];
-        
-        // Save card token
-        $this->saveCardToken($order->user_id, $cardData);
-        
-        Log::info('✅ Card token saved from token webhook', [
-            'payment_id' => $payment->id,
-            'user_id' => $order->user_id,
-            'card_last4' => substr($payload['masked_pan'], -4),
-            'card_brand' => $payload['card_subtype'] ?? 'other',
-        ]);
-
-        return response()->json(['message' => 'Token webhook processed successfully'], 200);
-    }
-
-    /**
-     * Extract card token from callback and save to payment_methods table.
-     *
-     * CRITICAL: This method does NOT throw exceptions on failure.
-     * Card save failure MUST NOT break payment completion.
-     *
-     * @param int $userId
-     * @param array $payload Paymob webhook payload
-     * @return void
-     */
-    private function saveCardToken(int $userId, array $payload): void
-    {
-        try {
-            // ✅ NEW: Use extractCardTokenFromIntention() which handles both Intention and Classic flows
-            $cardData = $this->paymobService->extractCardTokenFromIntention($payload);
-
-            if (!$cardData) {
-                Log::warning('💳 Failed to extract card data from callback', [
-                    'user_id' => $userId,
-                    'has_token_object' => isset($payload['token']),
-                    'has_source_data_token' => isset($payload['source_data']['token']),
-                ]);
-                return; // Silent return - payment already succeeded
-            }
-
-            // Calculate token fingerprint for duplicate detection
-            $tokenFingerprint = hash('sha256', $cardData['token']);
-
-            // Check if this exact card was previously deleted (restore strategy)
-            $restored = PaymentMethod::findOrRestoreDeleted($userId, $tokenFingerprint);
-
-            if ($restored) {
-                Log::info('💳 Restored previously deleted payment method', [
-                    'payment_method_id' => $restored->id,
-                    'user_id' => $userId,
-                    'card_last_four' => $restored->card_last_four,
-                ]);
-                return; // Restored successfully
-            }
-
-            // Check if card already exists (active, non-deleted)
-            $exists = PaymentMethod::where('user_id', $userId)
-                ->where('token_fingerprint', $tokenFingerprint)
-                ->whereNull('deleted_at')
-                ->exists();
-
-            if ($exists) {
-                Log::info('💳 Card already saved (duplicate)', [
-                    'user_id' => $userId,
-                    'last4' => $cardData['last4'],
-                ]);
-                return; // Already exists
-            }
-
-            // Determine if this is first card (auto-default)
-            $isFirstCard = PaymentMethod::where('user_id', $userId)
-                ->whereNull('deleted_at')
-                ->count() === 0;
-
-            // Build expiry date if provided
-            $expiresAt = null;
-            if (isset($cardData['expiry_month']) && isset($cardData['expiry_year'])) {
-                $expiresAt = Carbon::createFromFormat(
-                    'Y-m',
-                    $cardData['expiry_year'] . '-' . str_pad($cardData['expiry_month'], 2, '0', STR_PAD_LEFT)
-                )->endOfMonth();
-            }
-
-            // Extract card holder name from billing data (if available)
-            $cardHolderName = null;
-            if (isset($payload['billing_data'])) {
-                $billing = $payload['billing_data'];
-                $cardHolderName = trim(
-                    ($billing['first_name'] ?? '') . ' ' . ($billing['last_name'] ?? '')
-                );
-            }
-
-            // ✅ NEW: Save to paymob_card_token column (proper Paymob token)
-            $paymentMethod = PaymentMethod::create([
-                'user_id' => $userId,
-                'type' => 'card',
-                'card_last_four' => $cardData['last4'],
-                'card_brand' => $cardData['brand'],
-                'card_holder_name' => $cardHolderName,
-                'paymob_card_token' => $cardData['token'], // ← NEW: Proper Paymob token
-                'token_type' => 'paymob_saved_card',
-                'status' => 'active',
-                'is_default' => $isFirstCard,
-                'is_verified' => true, // Verified since payment succeeded
-                'expires_at' => $expiresAt,
-            ]);
-
-            Log::info('✅ Card saved successfully', [
-                'payment_method_id' => $paymentMethod->id,
-                'user_id' => $userId,
-                'card_last_four' => $paymentMethod->card_last_four,
-                'card_brand' => $paymentMethod->card_brand,
-                'is_default' => $paymentMethod->is_default,
-                'token_type' => 'paymob_saved_card',
-            ]);
-
-        } catch (\Exception $e) {
-            // CRITICAL: Log but DON'T throw - payment completion must not break
-            Log::error('💳 Failed to save card token - payment still succeeded', [
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            // Silent return - payment already succeeded, user just won't have saved card
-        }
-    }
 
     /**
      * Initiate payment with a saved card token (Phase 3).
@@ -1310,8 +929,10 @@ class PaymentController extends Controller
             $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
 
             // Store payment record
+            // ✅ P0 FIX: Added user_id, removed payment_token (column dropped in migration)
             $payment = PaymobPayment::create([
                 'order_id' => $order->id,
+                'user_id' => auth()->id(),
                 'internal_order_id' => $internalOrderId,
                 'paymob_order_id' => $paymobOrderId,
                 'amount_cents' => $amountCents,
@@ -1321,7 +942,6 @@ class PaymentController extends Controller
                 'integration_id' => $integrationId,
                 'status' => 'PENDING',
                 'billing_data' => $billingData,
-                'payment_token' => $paymentToken,
             ]);
 
             // Update order payment status
@@ -1368,7 +988,8 @@ class PaymentController extends Controller
             $payment = PaymobPayment::findOrFail($paymentId);
 
             // Security: Only return status to payment owner or admin
-            if ($payment->user_id && $payment->user_id !== auth()->id()) {
+            $ownerId = $payment->user_id ?? $payment->order?->user_id;
+            if ($ownerId && $ownerId !== auth()->id()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access to payment status',
@@ -1376,77 +997,29 @@ class PaymentController extends Controller
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // WEBHOOK FALLBACK: If payment is PENDING, check Paymob directly
-            // This handles localhost development where webhook can't reach us
+            // READ-ONLY: Fetch remote status for display only.
+            // ✅ P0 FIX: Polling NEVER mutates DB. Only the webhook
+            //    (processedCallback) can transition payment state.
+            //    The reconciliation job handles missed webhooks.
             // ═══════════════════════════════════════════════════════════════
+            $paymobStatus = null;
+            $paymobSuccess = null;
+
             if ($payment->status === 'PENDING' && $payment->paymob_intention_id) {
-                Log::info('🔄 Payment still PENDING - fetching from Paymob', [
-                    'payment_id' => $payment->id,
-                    'intention_id' => $payment->paymob_intention_id,
-                ]);
-
-                $transactionData = $this->paymobService->getTransactionByIntention(
-                    $payment->paymob_intention_id
-                );
-
-                if ($transactionData && isset($transactionData['status'])) {
-                    $paymobStatus = $transactionData['status'];
-                    $latestTxn = $transactionData['latest_transaction'] ?? null;
-
-                    Log::info('📊 Paymob transaction status', [
-                        'intention_id' => $payment->paymob_intention_id,
-                        'status' => $paymobStatus,
-                        'transaction_id' => $latestTxn['id'] ?? null,
-                        'success' => $latestTxn['success'] ?? null,
-                    ]);
-
-                    // If Paymob shows PROCESSED and transaction successful, update locally
-                    if ($paymobStatus === 'PROCESSED' && $latestTxn && ($latestTxn['success'] ?? false)) {
-                        DB::beginTransaction();
-                        try {
-                            $order = $payment->order;
-
-                            // Update payment status
-                            $payment->markAsPaid($latestTxn['id'], $latestTxn);
-
-                            // Update order
-                            $order->update([
-                                'payment_status' => 'completed',
-                                'status' => 'confirmed',
-                            ]);
-
-                            // Save card token if applicable
-                            if ($this->shouldSaveCardToken($payment, $latestTxn)) {
-                                $this->saveCardToken($order->user_id, $latestTxn);
-                            }
-
-                            // Clear cart
-                            $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
-                            if ($cart) {
-                                app(\App\Services\CartService::class)->clearCart($cart);
-                            }
-
-                            DB::commit();
-                            
-                            // Dispatch async processing (notifications, analytics)
-                            ProcessOrderAsync::dispatch($order, 'confirmed');
-
-                            Log::info('✅ Payment auto-updated from Paymob fetch', [
-                                'payment_id' => $payment->id,
-                                'transaction_id' => $latestTxn['id'],
-                            ]);
-
-                            // Refresh payment to get updated status
-                            $payment->refresh();
-
-                        } catch (Exception $e) {
-                            DB::rollBack();
-                            Log::error('❌ Failed to auto-update payment', [
-                                'payment_id' => $payment->id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
+                try {
+                    $transactionData = $this->paymobService->getTransactionByIntention(
+                        $payment->paymob_intention_id
+                    );
+                    if ($transactionData && isset($transactionData['status'])) {
+                        $paymobStatus = $transactionData['status'];
+                        $latestTxn = $transactionData['latest_transaction'] ?? null;
+                        $paymobSuccess = $latestTxn['success'] ?? null;
                     }
+                } catch (Exception $e) {
+                    Log::warning('Could not fetch Paymob status for display', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
@@ -1455,12 +1028,17 @@ class PaymentController extends Controller
                 'data' => [
                     'payment_id' => $payment->id,
                     'order_id' => $payment->order_id,
-                    'status' => $payment->status, // PENDING, PAID, FAILED
-                    'transaction_id' => $payment->transaction_id,
+                    'status' => $payment->status,
+                    'order_payment_status' => $payment->order?->payment_status ?? null,
+                    'order_status' => $payment->order?->status ?? null,
+                    'transaction_id' => $payment->paymob_transaction_id,
                     'amount' => $payment->amount_cents / 100,
                     'currency' => $payment->currency,
                     'flow' => $payment->flow ?? 'classic_iframe',
                     'updated_at' => $payment->updated_at->toISOString(),
+                    'paymob_status' => $paymobStatus,
+                    'paymob_success' => $paymobSuccess,
+                    'message' => 'Final confirmation is webhook-based. Polling is for display only.',
                 ],
             ]);
 
@@ -1509,7 +1087,7 @@ class PaymentController extends Controller
                 'order_id' => $order->id,
                 'amount_cents' => $amountCents,
                 'saved_card_id' => $savedCard->id,
-                'card_last4' => $savedCard->last4,
+                'card_last4' => $savedCard->card_last_four,
                 'card_brand' => $savedCard->card_brand,
             ]);
 
@@ -1539,6 +1117,7 @@ class PaymentController extends Controller
             // Create payment record
             $payment = PaymobPayment::create([
                 'order_id' => $order->id,
+                'user_id' => $order->user_id,
                 'internal_order_id' => $internalOrderId,
                 'paymob_order_id' => $paymobOrderId,
                 'amount_cents' => $amountCents,
@@ -1560,7 +1139,7 @@ class PaymentController extends Controller
                     'order_id' => $order->id,
                 ]);
 
-                $payment->markAsFallbackTo3DS();
+                $payment->markAsFallbackTo3DS('MOTO declined - bank requires 3DS authentication');
 
                 // Fallback to Unified Checkout with saved card pre-filled
                 return $this->initiateUnifiedCheckout(
@@ -1681,13 +1260,13 @@ class PaymentController extends Controller
                     'order_total' => $amountCents,
                     'difference' => $difference,
                 ]);
-                
+
                 $items[] = [
                     'name' => 'Adjustment',
                     'amount' => $difference,
                     'quantity' => 1,
                 ];
-                
+
                 $itemsTotal = $amountCents; // Force match
             }
 
@@ -1724,6 +1303,13 @@ class PaymentController extends Controller
                 $intentionData['saved_card_token'] = $savedCardToken;
             }
 
+            // ✅ FIX: Pass save_card flag to Paymob via extras
+            // This enables card tokenization in the Unified Checkout flow.
+            // Without this, Paymob won't return a token in the webhook.
+            if ($saveCard) {
+                $intentionData['extras'] = ['save_card' => true];
+            }
+
             // Create Paymob Intention
             $intention = $this->paymobService->createIntention($intentionData);
 
@@ -1739,6 +1325,7 @@ class PaymentController extends Controller
                 // New Unified Checkout payment
                 $payment = PaymobPayment::create([
                     'order_id' => $order->id,
+                    'user_id' => $order->user_id,
                     'internal_order_id' => $internalOrderId,
                     'paymob_order_id' => null, // Intention API doesn't return order_id upfront
                     'amount_cents' => $amountCents,
@@ -1750,6 +1337,7 @@ class PaymentController extends Controller
                     'billing_data' => $billingData,
                     'flow' => 'unified_3ds',
                     'paymob_intention_id' => $intention['intention_id'],
+                    'special_reference' => $intentionData['internal_reference'],
                 ]);
             }
 
@@ -1827,6 +1415,7 @@ class PaymentController extends Controller
             // Store payment record
             $payment = PaymobPayment::create([
                 'order_id' => $order->id,
+                'user_id' => $order->user_id,
                 'internal_order_id' => $internalOrderId,
                 'paymob_order_id' => $paymobOrderId,
                 'amount_cents' => $amountCents,

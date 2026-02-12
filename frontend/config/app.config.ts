@@ -11,7 +11,7 @@
 export const API_CONFIG = {
   // Development URLs
   // For physical device testing on same WiFi, use local IP
-  BASE_URL: "https://c9e6-41-40-225-10.ngrok-free.app/api/v1",
+  BASE_URL: "https://c970-197-50-186-55.ngrok-free.app/api/v1",
 
   TIMEOUT: 30000, // 30 seconds
 };

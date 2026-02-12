@@ -167,18 +167,19 @@ class CheckoutService
 
         PaymobPayment::create([
             'order_id' => $order->id,
+            'user_id' => $order->user_id,
             'internal_order_id' => $internalOrderId,
             'paymob_order_id' => $paymobOrderId,
             'amount_cents' => $amountCents,
             'currency' => 'EGP',
             'payment_method' => 'CARD',
+            'flow' => 'classic_iframe',
+            'save_card_requested' => false,
+            'special_reference' => $internalOrderId,
             'integration_id' => $integrationId,
             'status' => 'PENDING',
             'billing_data' => $billingData,
-            'payment_token' => $paymentToken,
         ]);
-
-        // Get iframe URL
         $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
 
         return [
@@ -226,15 +227,18 @@ class CheckoutService
         // Store payment record
         PaymobPayment::create([
             'order_id' => $order->id,
+            'user_id' => $order->user_id,
             'internal_order_id' => $internalOrderId,
             'paymob_order_id' => $paymobOrderId,
             'amount_cents' => $amountCents,
             'currency' => 'EGP',
             'payment_method' => 'CARD',
+            'flow' => 'classic_iframe',
+            'save_card_requested' => false,
+            'special_reference' => $internalOrderId,
             'integration_id' => $integrationId,
             'status' => 'PENDING',
             'billing_data' => $billingData,
-            'payment_token' => $paymentToken,
         ]);
 
         // Update order

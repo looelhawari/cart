@@ -143,7 +143,7 @@ class AdminOrderController extends Controller
         $currentStatus = $order->status;
         $newStatus = $validated['status'];
 
-        if (!isset($allowedTransitions[$currentStatus]) || 
+        if (!isset($allowedTransitions[$currentStatus]) ||
             !in_array($newStatus, $allowedTransitions[$currentStatus])) {
             return response()->json([
                 'message' => "Invalid status transition from {$currentStatus} to {$newStatus}"
@@ -161,9 +161,10 @@ class AdminOrderController extends Controller
             }
 
             DB::commit();
-            
+
             // Dispatch async processing (notifications, analytics)
-            ProcessOrderAsync::dispatch($order, $newStatus);
+            // CRITICAL FIX: ProcessOrderAsync expects int $orderId, NOT Order model
+            ProcessOrderAsync::dispatch($order->id, $newStatus);
 
             return response()->json([
                 'message' => 'Order status updated successfully',
@@ -244,7 +245,7 @@ class AdminOrderController extends Controller
     public function byStatus(Request $request, $status)
     {
         $validStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled', 'failed'];
-        
+
         if (!in_array($status, $validStatuses)) {
             return response()->json([
                 'message' => 'Invalid status',
