@@ -77,7 +77,12 @@ export default function OrderDetailPage() {
     const assignDriverMutation = useMutation({
         mutationFn: ({ orderId, driverId }: { orderId: number; driverId: number }) =>
             driverService.assignDriverToOrder(orderId, driverId),
-        onSuccess: () => {
+        onSuccess: (response) => {
+            // Optimistically update the cache with the fresh order data from the API
+            if (response?.data) {
+                queryClient.setQueryData(['order', id], response.data)
+            }
+            // Also invalidate to ensure consistency
             queryClient.invalidateQueries({ queryKey: ['order', id] })
             setSelectedDriverId('')
             toast({ title: 'Driver assigned', description: 'Driver has been assigned to this order.' })
