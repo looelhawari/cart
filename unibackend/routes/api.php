@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\PromoCodeController as AdminPromoCodeController;
 use App\Http\Controllers\Api\Admin\AdminStoreSettingsController;
 use App\Http\Controllers\Api\Admin\AdminReviewController;
+use App\Http\Controllers\Api\Admin\AdminRefundDashboardController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\Api\StaticPageController;
 use App\Http\Controllers\Api\StoreSettingsController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\RefundWebhookController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -285,11 +287,13 @@ Route::prefix('v1')->group(function () {
 
         // Order endpoints
         Route::prefix('orders')->group(function () {
+            Route::get('/cancellation-reasons', [OrderController::class, 'cancellationReasons']);
             Route::get('/', [OrderController::class, 'index']);
             Route::post('/', [OrderController::class, 'store']);
             Route::get('/{id}', [OrderController::class, 'show']);
             Route::get('/{id}/can-cancel', [OrderController::class, 'canCancel']);
             Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
+            Route::post('/{id}/partial-cancel', [OrderController::class, 'partialItemCancel']);
             Route::get('/{id}/refunds', [OrderController::class, 'refundHistory']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
         });
@@ -550,11 +554,20 @@ Route::prefix('v1')->group(function () {
                 Route::get('/export', [ComprehensiveAnalyticsController::class, 'exportAnalytics']);
             });
 
-            // Refunds
+            // Refunds (wallet-based)
             Route::prefix('refunds')->group(function () {
                 Route::post('/full', [AdminRefundController::class, 'fullRefund']);
                 Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
+            });
+
+            // Refund Dashboard (Paymob card refunds)
+            Route::prefix('refund-dashboard')->group(function () {
+                Route::get('/', [AdminRefundDashboardController::class, 'index']);
+                Route::get('/stats', [AdminRefundDashboardController::class, 'stats']);
+                Route::get('/{id}', [AdminRefundDashboardController::class, 'show']);
+                Route::post('/partial-item-refund', [AdminRefundDashboardController::class, 'partialItemRefund']);
+                Route::post('/reconcile', [AdminRefundDashboardController::class, 'reconcile']);
             });
 
             // Promo Code Analytics & Management
@@ -613,6 +626,7 @@ Route::prefix('v1')->group(function () {
     // Paymob callbacks (public - no auth required, HMAC verified internally)
     Route::middleware('throttle:60,1')->group(function () {
         Route::post('paymob/processed', [PaymentController::class, 'processedCallback']);
+        Route::post('paymob/refund-webhook', [RefundWebhookController::class, 'handle']);
         Route::get('payment/response', [PaymentController::class, 'responseCallback']);
     });
 

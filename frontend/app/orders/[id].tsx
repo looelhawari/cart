@@ -25,13 +25,22 @@ import {
   getOrder,
   cancelOrder as cancelOrderApi,
   checkCancellationEligibility,
+  getCancellationReasons,
+  partialItemCancel,
   Order,
   CancellationEligibility,
+  CancellationReason,
 } from "@/services/api/orderApi";
 import { createReview } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { Toast } from "@/components/Toast";
+
+/** Safely format a number to 2 decimal places, never crashes */
+const safePrice = (val: any): string => {
+  const n = typeof val === "number" ? val : parseFloat(String(val ?? "0"));
+  return isNaN(n) ? "0.00" : n.toFixed(2);
+};
 
 export default function OrderDetailsScreen() {
   const { isSmallDevice } = useResponsive();
@@ -48,6 +57,15 @@ export default function OrderDetailsScreen() {
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [refundResult, setRefundResult] = useState<any>(null);
   const [showRefundResult, setShowRefundResult] = useState(false);
+  const [cancellationReasons, setCancellationReasons] = useState<
+    CancellationReason[]
+  >([]);
+  const [selectedReasonKey, setSelectedReasonKey] = useState<string>("");
+  const [showPartialCancelDialog, setShowPartialCancelDialog] = useState(false);
+  const [selectedItemsForCancel, setSelectedItemsForCancel] = useState<
+    number[]
+  >([]);
+  const [partialCancelling, setPartialCancelling] = useState(false);
 
   // Rating state
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -459,15 +477,18 @@ export default function OrderDetailsScreen() {
       justifyContent: "center",
       gap: Spacing.sm,
       backgroundColor: Colors.neutralWhite,
-      paddingVertical: isSmallDevice ? Spacing.sm : Spacing.md,
+      paddingVertical: Spacing.md,
+      paddingHorizontal: Spacing.lg,
       borderRadius: isSmallDevice ? 12 : 16,
       borderWidth: 2,
       borderColor: Colors.accentRed,
+      minHeight: 48,
     },
     cancelText: {
       fontSize: isSmallDevice ? Typography.bodySmall : Typography.bodyBase,
       fontWeight: Typography.bold,
       color: Colors.accentRed,
+      flexShrink: 0,
     },
     modalOverlay: {
       position: "absolute",
@@ -578,8 +599,12 @@ export default function OrderDetailsScreen() {
   const handleOpenCancelDialog = async () => {
     setCheckingEligibility(true);
     try {
-      const eligibility = await checkCancellationEligibility(Number(id));
+      const [eligibility, reasons] = await Promise.all([
+        checkCancellationEligibility(Number(id)),
+        getCancellationReasons(),
+      ]);
       setCancelEligibility(eligibility);
+      setCancellationReasons(reasons);
       if (!eligibility.can_cancel) {
         setToastMessage(eligibility.reason);
         setToastType("error");
@@ -599,14 +624,22 @@ export default function OrderDetailsScreen() {
   };
 
   const handleCancelOrder = async () => {
+    // Build reason from selected predefined reason + optional custom text
+    const selectedReason = cancellationReasons.find(
+      (r) => r.key === selectedReasonKey,
+    );
+    const reasonText = selectedReason
+      ? cancelReason.trim()
+        ? `${selectedReason.label_en}: ${cancelReason.trim()}`
+        : selectedReason.label_en
+      : cancelReason.trim() || "Cancelled by user";
+
     setCancelling(true);
     try {
-      const result = await cancelOrderApi(
-        Number(id),
-        cancelReason.trim() || "Cancelled by user",
-      );
+      const result = await cancelOrderApi(Number(id), reasonText);
       setShowCancelDialog(false);
       setCancelReason("");
+      setSelectedReasonKey("");
 
       if (result.data?.refund) {
         setRefundResult(result.data.refund);
@@ -624,6 +657,69 @@ export default function OrderDetailsScreen() {
     } finally {
       setCancelling(false);
     }
+  };
+
+  const handlePartialItemCancel = async () => {
+    if (selectedItemsForCancel.length === 0) {
+      setToastMessage("Please select at least one item to cancel");
+      setToastType("error");
+      setToastVisible(true);
+      return;
+    }
+
+    const selectedReason = cancellationReasons.find(
+      (r) => r.key === selectedReasonKey,
+    );
+    const reasonText = selectedReason
+      ? cancelReason.trim()
+        ? `${selectedReason.label_en}: ${cancelReason.trim()}`
+        : selectedReason.label_en
+      : cancelReason.trim() || "Item no longer needed";
+
+    setPartialCancelling(true);
+    try {
+      const result = await partialItemCancel(
+        Number(id),
+        selectedItemsForCancel,
+        reasonText,
+      );
+      setShowPartialCancelDialog(false);
+      setSelectedItemsForCancel([]);
+      setCancelReason("");
+      setSelectedReasonKey("");
+
+      if (result.refund) {
+        // Normalize partial refund shape to match full cancel refund shape
+        setRefundResult({
+          ...result.refund,
+          refund_amount:
+            result.refund.refund_amount ?? result.refund.amount ?? 0,
+          penalty_amount: result.refund.penalty_amount ?? 0,
+          penalty_percent: result.refund.penalty_percent ?? 0,
+          estimated_days: result.refund.estimated_days ?? "3-5 business days",
+        });
+        setShowRefundResult(true);
+      }
+
+      setToastMessage(result.message || "Items cancelled successfully");
+      setToastType("success");
+      setToastVisible(true);
+      fetchOrderDetails();
+    } catch (error: any) {
+      setToastMessage(error.message || "Failed to cancel items");
+      setToastType("error");
+      setToastVisible(true);
+    } finally {
+      setPartialCancelling(false);
+    }
+  };
+
+  const toggleItemForCancel = (itemId: number) => {
+    setSelectedItemsForCancel((prev) =>
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId],
+    );
   };
 
   const handleOpenRating = (product: any) => {
@@ -1334,7 +1430,7 @@ export default function OrderDetailsScreen() {
                   )}
                 </View>
                 <Text style={styles.itemPrice}>
-                  {parseFloat(item.subtotal.toString()).toFixed(2)} EGP
+                  {safePrice(item.subtotal)} EGP
                 </Text>
               </View>
             ))}
@@ -1348,7 +1444,7 @@ export default function OrderDetailsScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
               <Text style={styles.summaryValue}>
-                {parseFloat(order.subtotal.toString()).toFixed(2)} EGP
+                {safePrice(order.subtotal)} EGP
               </Text>
             </View>
             <View style={styles.summaryRow}>
@@ -1356,13 +1452,13 @@ export default function OrderDetailsScreen() {
               <Text style={styles.summaryValue}>
                 {order.delivery_fee === 0
                   ? "FREE"
-                  : `${parseFloat(order.delivery_fee.toString()).toFixed(2)} EGP`}
+                  : `${safePrice(order.delivery_fee)} EGP`}
               </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tax (14%)</Text>
               <Text style={styles.summaryValue}>
-                {parseFloat(order.tax.toString()).toFixed(2)} EGP
+                {safePrice(order.tax)} EGP
               </Text>
             </View>
             {order.discount > 0 && (
@@ -1371,7 +1467,7 @@ export default function OrderDetailsScreen() {
                   Discount
                 </Text>
                 <Text style={[styles.summaryValue, styles.discountValue]}>
-                  -{parseFloat(order.discount.toString()).toFixed(2)} EGP
+                  -{safePrice(order.discount)} EGP
                 </Text>
               </View>
             )}
@@ -1386,7 +1482,7 @@ export default function OrderDetailsScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>
-                {parseFloat(order.total.toString()).toFixed(2)} EGP
+                {safePrice(order.total)} EGP
               </Text>
             </View>
           </View>
@@ -1399,9 +1495,13 @@ export default function OrderDetailsScreen() {
       {canCancelOrder(order.status) && (
         <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[
+              styles.cancelButton,
+              isSmallDevice ? { width: "100%" } : { flex: 1 },
+            ]}
             onPress={handleOpenCancelDialog}
             disabled={checkingEligibility}
+            activeOpacity={0.7}
           >
             {checkingEligibility ? (
               <ActivityIndicator size="small" color={Colors.accentRed} />
@@ -1416,6 +1516,38 @@ export default function OrderDetailsScreen() {
               </>
             )}
           </TouchableOpacity>
+          {order.payment_method !== "cash_on_delivery" &&
+            order.items &&
+            order.items.length > 1 && (
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  {
+                    borderColor: Colors.accentOrange,
+                  },
+                  isSmallDevice ? { width: "100%" } : { flex: 1 },
+                ]}
+                onPress={async () => {
+                  try {
+                    const reasons = await getCancellationReasons();
+                    setCancellationReasons(reasons);
+                  } catch {}
+                  setShowPartialCancelDialog(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="remove-circle-outline"
+                  size={20}
+                  color={Colors.accentOrange}
+                />
+                <Text
+                  style={[styles.cancelText, { color: Colors.accentOrange }]}
+                >
+                  Cancel Items
+                </Text>
+              </TouchableOpacity>
+            )}
         </View>
       )}
 
@@ -1515,16 +1647,78 @@ export default function OrderDetailsScreen() {
             )}
 
             <Text style={styles.modalMessage}>
-              Please provide a reason for cancellation:
+              Select a reason for cancellation:
             </Text>
+
+            {/* Predefined Reasons Dropdown */}
+            <View style={{ marginBottom: Spacing.sm }}>
+              {cancellationReasons.map((reason) => (
+                <TouchableOpacity
+                  key={reason.key}
+                  onPress={() => setSelectedReasonKey(reason.key)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 10,
+                    paddingHorizontal: Spacing.sm,
+                    backgroundColor:
+                      selectedReasonKey === reason.key
+                        ? "#E8F5E9"
+                        : "transparent",
+                    borderRadius: 8,
+                    marginBottom: 4,
+                    borderWidth: selectedReasonKey === reason.key ? 1 : 0,
+                    borderColor: Colors.primary900,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      borderWidth: 2,
+                      borderColor:
+                        selectedReasonKey === reason.key
+                          ? Colors.primary900
+                          : Colors.neutralGray,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginRight: 10,
+                    }}
+                  >
+                    {selectedReasonKey === reason.key && (
+                      <View
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: Colors.primary900,
+                        }}
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: Typography.bodySmall,
+                      color: Colors.neutralCharcoal,
+                      flex: 1,
+                    }}
+                  >
+                    {reason.label_en}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Optional additional details */}
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g., Changed my mind, Found better price"
+              placeholder="Additional details (optional)"
               placeholderTextColor={Colors.neutralGray}
               value={cancelReason}
               onChangeText={setCancelReason}
               multiline
-              numberOfLines={3}
+              numberOfLines={2}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1532,6 +1726,7 @@ export default function OrderDetailsScreen() {
                 onPress={() => {
                   setShowCancelDialog(false);
                   setCancelReason("");
+                  setSelectedReasonKey("");
                   setCancelEligibility(null);
                 }}
               >
@@ -1549,6 +1744,201 @@ export default function OrderDetailsScreen() {
                     {cancelEligibility?.refund_type === "penalty"
                       ? "Cancel & Accept Fee"
                       : "Cancel Order"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Partial Cancel Dialog */}
+      {showPartialCancelDialog && order?.items && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "80%" }]}>
+            <Text style={styles.modalTitle}>Cancel Specific Items</Text>
+            <Text style={[styles.modalMessage, { marginBottom: Spacing.sm }]}>
+              Select items you want to cancel and get refunded:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 250, marginBottom: Spacing.sm }}>
+              {order.items
+                .filter((item: any) => !item.refunded)
+                .map((item: any) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => toggleItemForCancel(item.id)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 10,
+                      paddingHorizontal: Spacing.sm,
+                      backgroundColor: selectedItemsForCancel.includes(item.id)
+                        ? "#E8F5E9"
+                        : "#F8F9FA",
+                      borderRadius: 8,
+                      marginBottom: 6,
+                      borderWidth: selectedItemsForCancel.includes(item.id)
+                        ? 1
+                        : 0,
+                      borderColor: Colors.primary900,
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        selectedItemsForCancel.includes(item.id)
+                          ? "checkbox"
+                          : "square-outline"
+                      }
+                      size={22}
+                      color={
+                        selectedItemsForCancel.includes(item.id)
+                          ? Colors.primary900
+                          : Colors.neutralGray
+                      }
+                      style={{ marginRight: 10 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: Typography.bodySmall,
+                          fontWeight: "600",
+                          color: Colors.neutralCharcoal,
+                        }}
+                      >
+                        {item.product_name}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: Colors.neutralGray }}>
+                        Qty: {item.quantity} × {safePrice(item.price)} EGP
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        fontWeight: "700",
+                        color: Colors.neutralCharcoal,
+                      }}
+                    >
+                      {safePrice(item.subtotal)} EGP
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            {selectedItemsForCancel.length > 0 && (
+              <View
+                style={{
+                  backgroundColor: "#E8F5E9",
+                  borderRadius: 8,
+                  padding: Spacing.sm,
+                  marginBottom: Spacing.sm,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall,
+                    color: Colors.primary900,
+                    fontWeight: "600",
+                  }}
+                >
+                  {selectedItemsForCancel.length} item(s) selected for refund
+                </Text>
+              </View>
+            )}
+
+            {/* Reason selection */}
+            <Text
+              style={{
+                fontSize: Typography.bodySmall,
+                fontWeight: "600",
+                marginBottom: 6,
+              }}
+            >
+              Reason:
+            </Text>
+            <View style={{ maxHeight: 120, marginBottom: Spacing.sm }}>
+              <ScrollView>
+                {cancellationReasons.map((reason) => (
+                  <TouchableOpacity
+                    key={reason.key}
+                    onPress={() => setSelectedReasonKey(reason.key)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 6,
+                      paddingHorizontal: 8,
+                      backgroundColor:
+                        selectedReasonKey === reason.key
+                          ? "#E8F5E9"
+                          : "transparent",
+                      borderRadius: 6,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 8,
+                        borderWidth: 2,
+                        borderColor:
+                          selectedReasonKey === reason.key
+                            ? Colors.primary900
+                            : Colors.neutralGray,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 8,
+                      }}
+                    >
+                      {selectedReasonKey === reason.key && (
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: Colors.primary900,
+                          }}
+                        />
+                      )}
+                    </View>
+                    <Text
+                      style={{ fontSize: 13, color: Colors.neutralCharcoal }}
+                    >
+                      {reason.label_en}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setShowPartialCancelDialog(false);
+                  setSelectedItemsForCancel([]);
+                  setCancelReason("");
+                  setSelectedReasonKey("");
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  {
+                    opacity: selectedItemsForCancel.length === 0 ? 0.5 : 1,
+                  },
+                ]}
+                onPress={handlePartialItemCancel}
+                disabled={
+                  partialCancelling || selectedItemsForCancel.length === 0
+                }
+              >
+                {partialCancelling ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Text style={styles.modalButtonTextPrimary}>
+                    Refund Selected
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1623,7 +2013,7 @@ export default function OrderDetailsScreen() {
                       color: Colors.accentRed,
                     }}
                   >
-                    -{refundResult.penalty_amount.toFixed(2)} EGP
+                    -{safePrice(refundResult.penalty_amount)} EGP
                   </Text>
                 </View>
               )}
@@ -1649,7 +2039,7 @@ export default function OrderDetailsScreen() {
                     color: "#28A745",
                   }}
                 >
-                  {refundResult.refund_amount.toFixed(2)} EGP
+                  {safePrice(refundResult.refund_amount)} EGP
                 </Text>
               </View>
               <View
@@ -1698,7 +2088,7 @@ export default function OrderDetailsScreen() {
                   textAlign: "center",
                 }}
               >
-                Got It
+                Alright
               </Text>
             </TouchableOpacity>
           </View>

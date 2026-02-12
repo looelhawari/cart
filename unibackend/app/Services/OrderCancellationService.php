@@ -2,15 +2,36 @@
 
 namespace App\Services;
 
+use App\Mail\RefundReceiptMail;
 use App\Models\Order;
 use App\Models\OrderRefund;
 use App\Models\PaymobPayment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Exception;
 
 /**
  * OrderCancellationService — Enterprise-grade order cancellation with Paymob refund.
+ *
+ * ARCHITECTURE:
+ *   Phase 1 (inside DB::transaction + lockForUpdate):
+ *     - Validate order, check race condition, set status = 'cancelling'
+ *   Phase 2 (outside transaction):
+ *     - Create refund record + call Paymob API (non-reversible)
+ *   Phase 3 (try/catch best-effort):
+ *     - Finalize DB updates, restore stock, rollback promo, notify + email
+ *
+ * FEATURES:
+ *   - Race condition guard via 'cancelling' transient status
+ *   - Idempotency key per refund attempt
+ *   - Rate limiting (1 cancel per order per 30 seconds)
+ *   - Sales_count negative protection
+ *   - Predefined cancellation reasons
+ *   - Email refund receipt
+ *   - Customer partial item cancel
+ *   - Refund webhook reconciliation support
  *
  * SCENARIO 1 — CARD PAYMENT (Prepaid):
  *   A. Before preparation → Full refund (100%) via Paymob Refund API
@@ -29,6 +50,22 @@ class OrderCancellationService
     private OrderService $orderService;
     private PushNotificationService $pushNotificationService;
 
+    /**
+     * Predefined cancellation reasons for the frontend dropdown.
+     * Each reason has an id, label (English), and label_ar (Arabic).
+     */
+    public const CANCELLATION_REASONS = [
+        ['id' => 'changed_mind', 'label' => 'Changed my mind', 'label_ar' => 'غيرت رأيي'],
+        ['id' => 'found_better_price', 'label' => 'Found a better price elsewhere', 'label_ar' => 'وجدت سعر أفضل'],
+        ['id' => 'ordered_by_mistake', 'label' => 'Ordered by mistake', 'label_ar' => 'طلبت بالخطأ'],
+        ['id' => 'duplicate_order', 'label' => 'Duplicate order', 'label_ar' => 'طلب مكرر'],
+        ['id' => 'delivery_too_long', 'label' => 'Delivery time is too long', 'label_ar' => 'وقت التوصيل طويل'],
+        ['id' => 'wrong_items', 'label' => 'Ordered wrong items', 'label_ar' => 'طلبت منتجات خاطئة'],
+        ['id' => 'wrong_address', 'label' => 'Wrong delivery address', 'label_ar' => 'عنوان التوصيل خاطئ'],
+        ['id' => 'payment_issue', 'label' => 'Payment issue', 'label_ar' => 'مشكلة في الدفع'],
+        ['id' => 'other', 'label' => 'Other reason', 'label_ar' => 'سبب آخر'],
+    ];
+
     public function __construct(
         PaymobService $paymobService,
         OrderService $orderService,
@@ -42,6 +79,14 @@ class OrderCancellationService
     // ═══════════════════════════════════════════════════════════════
     // PUBLIC API — Entry Points
     // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Get predefined cancellation reasons for the frontend dropdown.
+     */
+    public function getCancellationReasons(): array
+    {
+        return self::CANCELLATION_REASONS;
+    }
 
     /**
      * Cancel an order (customer-initiated).
@@ -59,27 +104,51 @@ class OrderCancellationService
      */
     public function cancelOrder(int $orderId, int $userId, string $reason): array
     {
-        // Phase 1: Validate + lock (inside transaction)
-        $order = DB::transaction(function () use ($orderId, $userId) {
+        // ── Rate limiting: 1 cancel per order per 30 seconds ──
+        $rateLimitKey = "cancel_order:{$orderId}:{$userId}";
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+            $retryAfter = RateLimiter::availableIn($rateLimitKey);
+            throw new Exception("Please wait {$retryAfter} seconds before trying to cancel again.");
+        }
+        RateLimiter::hit($rateLimitKey, 30);
+
+        // Phase 1: Validate + lock + set 'cancelling' (inside transaction)
+        [$order, $previousStatus] = DB::transaction(function () use ($orderId, $userId) {
             $order = Order::where('id', $orderId)
                 ->where('user_id', $userId)
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            if ($order->status === 'cancelling') {
+                throw new Exception('This order is already being cancelled. Please wait.');
+            }
+
             if (in_array($order->status, ['cancelled', 'failed'])) {
                 throw new Exception('This order has already been cancelled or failed.');
             }
 
-            return $order;
+            // Capture the real status BEFORE setting cancelling
+            $previousStatus = $order->status;
+
+            // ── Race condition guard: set transient 'cancelling' status ──
+            $order->update(['status' => 'cancelling']);
+
+            return [$order, $previousStatus];
         });
 
-        // Phase 2: Execute (outside transaction so Paymob call can't cause rollback)
-        $isCod = $order->payment_method === 'cash_on_delivery';
+        try {
+            // Phase 2: Execute (outside transaction so Paymob call can't cause rollback)
+            $isCod = $order->payment_method === 'cash_on_delivery';
 
-        if ($isCod) {
-            return DB::transaction(fn() => $this->handleCodCancellation($order->fresh(), $reason));
-        } else {
-            return $this->handleCardCancellation($order->fresh(), $reason);
+            if ($isCod) {
+                return DB::transaction(fn() => $this->handleCodCancellation($order->fresh(), $reason, 'customer', null, $previousStatus));
+            } else {
+                return $this->handleCardCancellation($order->fresh(), $reason, 'customer', null, null, $previousStatus);
+            }
+        } catch (\Exception $e) {
+            // If Phase 2 fails, revert the 'cancelling' status back
+            $this->revertCancellingStatus($order, $previousStatus);
+            throw $e;
         }
     }
 
@@ -95,8 +164,8 @@ class OrderCancellationService
         string $reason,
         ?float $overridePenaltyPercent = null
     ): array {
-        // Phase 1: Validate + lock
-        $order = DB::transaction(function () use ($orderId) {
+        // Phase 1: Validate + lock + set 'cancelling'
+        [$order, $previousStatus] = DB::transaction(function () use ($orderId) {
             $order = Order::where('id', $orderId)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -105,26 +174,39 @@ class OrderCancellationService
                 throw new Exception('Cannot cancel a delivered order. Use the return/refund process instead.');
             }
 
+            if ($order->status === 'cancelling') {
+                throw new Exception('This order is already being cancelled.');
+            }
+
             if (in_array($order->status, ['cancelled', 'failed'])) {
                 throw new Exception('This order has already been cancelled or failed.');
             }
 
-            return $order;
+            $previousStatus = $order->status;
+            $order->update(['status' => 'cancelling']);
+
+            return [$order, $previousStatus];
         });
 
-        // Phase 2: Execute (outside transaction for card payments)
-        $isCod = $order->payment_method === 'cash_on_delivery';
+        try {
+            // Phase 2: Execute (outside transaction for card payments)
+            $isCod = $order->payment_method === 'cash_on_delivery';
 
-        if ($isCod) {
-            return DB::transaction(fn() => $this->handleCodCancellation($order->fresh(), $reason, 'admin', $adminId));
-        } else {
-            return $this->handleCardCancellation($order->fresh(), $reason, 'admin', $adminId, $overridePenaltyPercent);
+            if ($isCod) {
+                return DB::transaction(fn() => $this->handleCodCancellation($order->fresh(), $reason, 'admin', $adminId, $previousStatus));
+            } else {
+                return $this->handleCardCancellation($order->fresh(), $reason, 'admin', $adminId, $overridePenaltyPercent, $previousStatus);
+            }
+        } catch (\Exception $e) {
+            $this->revertCancellingStatus($order, $previousStatus);
+            throw $e;
         }
     }
 
     /**
-     * Partial item refund for a card-paid order (admin-only).
+     * Partial item refund for a card-paid order.
      *
+     * Supports both admin and customer-initiated partial refunds.
      * Refunds the exact amount for specific items.
      * Prevents over-refund by checking already-refunded total.
      */
@@ -132,15 +214,23 @@ class OrderCancellationService
         int $orderId,
         array $itemIds,
         string $reason,
-        int $adminId
+        ?int $adminId = null,
+        string $initiatedBy = 'admin'
     ): array {
         // Phase 1: Validate inside transaction
         [$order, $payment, $items, $itemRefundAmount, $amountCents, $alreadyRefunded, $refundedItemsLog] =
-            DB::transaction(function () use ($orderId, $itemIds) {
+            DB::transaction(function () use ($orderId, $itemIds, $initiatedBy) {
                 $order = Order::where('id', $orderId)
                     ->lockForUpdate()
                     ->with('items')
                     ->firstOrFail();
+
+                // Customer can only partial-refund confirmed/preparing/delivered orders
+                if ($initiatedBy === 'customer') {
+                    if (!in_array($order->status, ['confirmed', 'preparing', 'delivered'])) {
+                        throw new Exception('You can only request a partial refund for confirmed, preparing, or delivered orders.');
+                    }
+                }
 
                 if ($order->payment_method === 'cash_on_delivery') {
                     throw new Exception('Partial refunds are only available for card-paid orders.');
@@ -161,7 +251,6 @@ class OrderCancellationService
 
                 $alreadyRefunded = OrderRefund::totalRefundedForOrder($orderId);
 
-                // Also cap against Paymob transaction amount
                 $paymobMaxCents = $payment->amount_cents ?? (int) round((float) $order->total * 100);
                 $paymobMaxEgp = $paymobMaxCents / 100;
                 $maxRefundable = min((float) $order->total, $paymobMaxEgp) - $alreadyRefunded;
@@ -182,6 +271,32 @@ class OrderCancellationService
                 return [$order, $payment, $items, $itemRefundAmount, $amountCents, $alreadyRefunded, $refundedItemsLog];
             });
 
+        // ── Idempotency check ──
+        $idempotencyKey = $this->generateIdempotencyKey($order->id, 'partial', $amountCents);
+        $existingRefund = OrderRefund::where('idempotency_key', $idempotencyKey)
+            ->whereIn('status', ['processing', 'completed'])
+            ->first();
+
+        if ($existingRefund) {
+            Log::warning('[PARTIAL REFUND] Idempotent duplicate blocked', [
+                'order_id' => $order->id,
+                'idempotency_key' => $idempotencyKey,
+                'existing_refund_id' => $existingRefund->id,
+            ]);
+            return [
+                'success' => true,
+                'message' => 'This refund has already been processed.',
+                'refund' => [
+                    'id' => $existingRefund->id,
+                    'type' => $existingRefund->type,
+                    'amount' => $existingRefund->refund_amount,
+                    'items' => $existingRefund->refunded_items,
+                    'status' => $existingRefund->status,
+                ],
+                'order' => $order->fresh(['items.product', 'refunds']),
+            ];
+        }
+
         // Phase 2: Create refund record + call Paymob (outside transaction)
         $refund = OrderRefund::create([
             'order_id' => $order->id,
@@ -196,9 +311,10 @@ class OrderCancellationService
             'refund_method' => 'paymob',
             'status' => 'processing',
             'reason' => $reason,
-            'initiated_by' => 'admin',
+            'initiated_by' => $initiatedBy,
             'admin_id' => $adminId,
             'refunded_items' => $refundedItemsLog,
+            'idempotency_key' => $idempotencyKey,
         ]);
 
         $paymobResult = $this->executePaymobRefund($payment, $amountCents, $refund);
@@ -222,7 +338,11 @@ class OrderCancellationService
                 'refunded_by' => $adminId,
             ]);
 
+            // Restore stock for refunded items
+            $this->restoreStockForItems($items);
+
             $this->notifyCustomer($order, $itemRefundAmount, 'partial');
+            $this->sendRefundEmail($order, $refund, 'partial', $itemRefundAmount);
         } catch (\Exception $e) {
             Log::critical('[PARTIAL REFUND] DB update failed after Paymob success', [
                 'order_id' => $order->id,
@@ -235,6 +355,7 @@ class OrderCancellationService
             'order_id' => $order->id,
             'items_refunded' => $itemIds,
             'amount' => $itemRefundAmount,
+            'initiated_by' => $initiatedBy,
         ]);
 
         return [
@@ -249,6 +370,34 @@ class OrderCancellationService
             ],
             'order' => $order->fresh(['items.product', 'refunds']),
         ];
+    }
+
+    /**
+     * Customer-initiated partial item cancel/refund.
+     *
+     * Allows customers to cancel specific items from confirmed/preparing orders
+     * without cancelling the entire order.
+     */
+    public function customerPartialItemCancel(
+        int $orderId,
+        int $userId,
+        array $itemIds,
+        string $reason
+    ): array {
+        // Verify ownership
+        Order::where('id', $orderId)
+            ->where('user_id', $userId)
+            ->firstOrFail();
+
+        // Rate limiting
+        $rateLimitKey = "partial_cancel:{$orderId}:{$userId}";
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 2)) {
+            $retryAfter = RateLimiter::availableIn($rateLimitKey);
+            throw new Exception("Please wait {$retryAfter} seconds before trying again.");
+        }
+        RateLimiter::hit($rateLimitKey, 30);
+
+        return $this->partialItemRefund($orderId, $itemIds, $reason, null, 'customer');
     }
 
     /**
@@ -268,8 +417,25 @@ class OrderCancellationService
                 'refund_type' => null,
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
+                'can_partial_cancel' => false,
             ];
         }
+
+        if ($order->status === 'cancelling') {
+            return [
+                'can_cancel' => false,
+                'reason' => 'This order is currently being cancelled.',
+                'refund_type' => null,
+                'refund_percent' => 0,
+                'penalty_percent' => 0,
+                'can_partial_cancel' => false,
+            ];
+        }
+
+        // Check partial item cancel eligibility for card-paid orders
+        $canPartialCancel = !$isCod
+            && in_array($order->status, ['confirmed', 'preparing', 'delivered'])
+            && $order->successfulPayment();
 
         if ($isCod) {
             $canCancel = in_array($order->status, $config['cod_cancel_statuses']);
@@ -281,24 +447,38 @@ class OrderCancellationService
                 'refund_type' => 'none',
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
+                'can_partial_cancel' => false,
             ];
         }
 
         // Card payment
         if (in_array($order->status, $config['full_refund_statuses'])) {
+            $payment = $order->successfulPayment();
+            $estimatedRefund = $payment
+                ? min((float) $order->total, ($payment->amount_cents / 100))
+                : (float) $order->total;
+
             return [
                 'can_cancel' => true,
                 'reason' => 'Full refund will be processed to your card. Refunds typically take 5-14 business days.',
                 'refund_type' => 'full',
                 'refund_percent' => 100,
                 'penalty_percent' => 0,
+                'estimated_refund' => round($estimatedRefund, 2),
+                'can_partial_cancel' => $canPartialCancel,
             ];
         }
 
         if (in_array($order->status, $config['penalty_refund_statuses'])) {
             $penalty = $config['penalty_percent'];
             $refundPercent = 100 - $penalty;
-            $refundAmount = round((float) $order->total * ($refundPercent / 100), 2);
+
+            $payment = $order->successfulPayment();
+            $baseAmount = $payment
+                ? min((float) $order->total, ($payment->amount_cents / 100))
+                : (float) $order->total;
+            $refundAmount = round($baseAmount * ($refundPercent / 100), 2);
+
             return [
                 'can_cancel' => true,
                 'reason' => "A {$penalty}% preparation fee will be deducted. You will receive {$refundAmount} EGP ({$refundPercent}% of the order total) back to your card within 5-14 business days.",
@@ -306,6 +486,7 @@ class OrderCancellationService
                 'refund_percent' => $refundPercent,
                 'penalty_percent' => $penalty,
                 'estimated_refund' => $refundAmount,
+                'can_partial_cancel' => $canPartialCancel,
             ];
         }
 
@@ -316,6 +497,7 @@ class OrderCancellationService
             'refund_type' => null,
             'refund_percent' => 0,
             'penalty_percent' => 0,
+            'can_partial_cancel' => $canPartialCancel,
         ];
     }
 
@@ -338,17 +520,33 @@ class OrderCancellationService
     /**
      * Handle cancellation for card-paid orders.
      *
-     * Routes to full refund, penalty refund, or blocks based on status.
+     * Routes to full refund, penalty refund, or blocks based on the PREVIOUS status
+     * (captured before setting 'cancelling' in Phase 1).
      */
     private function handleCardCancellation(
         Order $order,
         string $reason,
         string $initiatedBy = 'customer',
         ?int $adminId = null,
-        ?float $overridePenaltyPercent = null
+        ?float $overridePenaltyPercent = null,
+        ?string $previousStatus = null
     ): array {
         $config = config('payments.cancellation');
-        $status = $order->status;
+        $status = $previousStatus ?? $order->status;
+
+        // If no payment completed, just cancel without refund
+        $payment = $order->successfulPayment();
+        if (!$payment || !$payment->isPaid()) {
+            $this->cancelOrderRecord($order, $reason);
+            $this->restoreStock($order);
+            $this->rollbackPromo($order);
+            return [
+                'success' => true,
+                'message' => 'Order cancelled. No payment was completed, so no refund is needed.',
+                'refund' => null,
+                'order' => $order->fresh(['items.product', 'refunds']),
+            ];
+        }
 
         // ── CASE A: Full refund (before preparation) ──
         if (in_array($status, $config['full_refund_statuses'])) {
@@ -380,7 +578,18 @@ class OrderCancellationService
             throw new Exception($this->getBlockedMessage($status, false));
         }
 
-        // Should never reach here, but safety net
+        // Admin can force-cancel any non-blocked status with full refund
+        if ($initiatedBy === 'admin') {
+            return $this->processCardCancellationWithRefund(
+                $order,
+                $reason,
+                $overridePenaltyPercent ?? 0,
+                $overridePenaltyPercent ? 'penalty' : 'full',
+                $initiatedBy,
+                $adminId
+            );
+        }
+
         throw new Exception('Order is in an unexpected status and cannot be cancelled.');
     }
 
@@ -462,8 +671,41 @@ class OrderCancellationService
 
         $refundAmountCents = (int) round($refundAmount * 100);
 
-        // ── Step 1: Create refund audit record (committed immediately, not in a
-        //    transaction, so it survives even if later steps fail) ──
+        // ── Idempotency check ──
+        $idempotencyKey = $this->generateIdempotencyKey($order->id, $refundType, $refundAmountCents);
+        $existingRefund = OrderRefund::where('idempotency_key', $idempotencyKey)
+            ->whereIn('status', ['processing', 'completed'])
+            ->first();
+
+        if ($existingRefund) {
+            Log::warning('[REFUND] Idempotent duplicate blocked', [
+                'order_id' => $order->id,
+                'idempotency_key' => $idempotencyKey,
+                'existing_refund_id' => $existingRefund->id,
+            ]);
+            // Still cancel the order since the refund already went through
+            $this->cancelOrderRecord($order, $reason);
+            $this->restoreStock($order);
+            $this->rollbackPromo($order);
+
+            return [
+                'success' => true,
+                'message' => 'Order cancelled. The refund was already processed.',
+                'refund' => [
+                    'id' => $existingRefund->id,
+                    'type' => $existingRefund->type,
+                    'original_amount' => $existingRefund->original_amount,
+                    'penalty_percent' => $existingRefund->penalty_percent,
+                    'penalty_amount' => $existingRefund->penalty_amount,
+                    'refund_amount' => $existingRefund->refund_amount,
+                    'status' => $existingRefund->status,
+                    'estimated_days' => '5-14 business days',
+                ],
+                'order' => $order->fresh(['items.product', 'refunds']),
+            ];
+        }
+
+        // ── Step 1: Create refund audit record ──
         $refund = OrderRefund::create([
             'order_id' => $order->id,
             'user_id' => $order->user_id,
@@ -479,6 +721,7 @@ class OrderCancellationService
             'reason' => $reason,
             'initiated_by' => $initiatedBy,
             'admin_id' => $adminId,
+            'idempotency_key' => $idempotencyKey,
         ]);
 
         // ── Step 2: Call Paymob refund API ──
@@ -548,6 +791,7 @@ class OrderCancellationService
 
         // Notify customer
         $this->notifyCustomer($order, $refundAmount, $refundType, $penaltyPercent);
+        $this->sendRefundEmail($order, $refund, $refundType, $refundAmount, $penaltyAmount, $penaltyPercent);
 
         Log::info('✅ [CANCELLATION] Card order cancelled with refund', [
             'order_id' => $order->id,
@@ -590,15 +834,18 @@ class OrderCancellationService
      *
      * CASE A+B: Cancel before delivery → restock, no refund
      * CASE C: Out for delivery / Delivered → BLOCKED
+     *
+     * @param string $previousStatus The status before 'cancelling' was set (race condition guard)
      */
     private function handleCodCancellation(
         Order $order,
         string $reason,
         string $initiatedBy = 'customer',
-        ?int $adminId = null
+        ?int $adminId = null,
+        string $previousStatus = ''
     ): array {
         $config = config('payments.cancellation');
-        $status = $order->status;
+        $status = $previousStatus ?: $order->status;
 
         // ── CASE A+B: Cancellable ──
         if (in_array($status, $config['cod_cancel_statuses'])) {
@@ -606,8 +853,9 @@ class OrderCancellationService
             $this->restoreStock($order);
             $this->rollbackPromo($order);
 
-            // Notify customer
+            // Notify customer + send email receipt
             $this->notifyCustomer($order, 0, 'cod_cancel');
+            $this->sendRefundEmail($order, null, 'cod_cancel', 0, 0, 0);
 
             Log::info('✅ [CANCELLATION] COD order cancelled', [
                 'order_id' => $order->id,
@@ -717,14 +965,20 @@ class OrderCancellationService
     }
 
     /**
-     * Restore stock for all order items.
+     * Restore stock for all order items with sales_count negative protection.
      */
     private function restoreStock(Order $order): void
     {
         foreach ($order->items as $item) {
             if ($item->product) {
                 $item->product->increment('stock_quantity', $item->quantity);
-                $item->product->decrement('sales_count', $item->quantity);
+
+                // Negative protection: never decrement sales_count below 0
+                $currentSalesCount = (int) ($item->product->sales_count ?? 0);
+                $decrementBy = min($item->quantity, $currentSalesCount);
+                if ($decrementBy > 0) {
+                    $item->product->decrement('sales_count', $decrementBy);
+                }
             }
         }
 
@@ -732,6 +986,24 @@ class OrderCancellationService
             'order_id' => $order->id,
             'items_count' => $order->items->count(),
         ]);
+    }
+
+    /**
+     * Restore stock for specific items (used by partial item refund).
+     */
+    private function restoreStockForItems(iterable $items): void
+    {
+        foreach ($items as $item) {
+            if ($item->product) {
+                $item->product->increment('stock_quantity', $item->quantity);
+
+                $currentSalesCount = (int) ($item->product->sales_count ?? 0);
+                $decrementBy = min($item->quantity, $currentSalesCount);
+                if ($decrementBy > 0) {
+                    $item->product->decrement('sales_count', $decrementBy);
+                }
+            }
+        }
     }
 
     /**
@@ -793,5 +1065,85 @@ class OrderCancellationService
             'failed' => 'This order has already failed.',
             default => 'This order cannot be cancelled in its current status.',
         };
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRIVATE — Enterprise Helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Revert order from 'cancelling' back to its previous status.
+     * Called when Phase 2 (Paymob API / COD logic) fails.
+     */
+    private function revertCancellingStatus(Order $order, string $previousStatus): void
+    {
+        try {
+            if ($order->status === 'cancelling') {
+                $order->update(['status' => $previousStatus]);
+                Log::info('[REVERT] Reverted cancelling status', [
+                    'order_id' => $order->id,
+                    'reverted_to' => $previousStatus,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::critical('[REVERT] Failed to revert cancelling status', [
+                'order_id' => $order->id,
+                'previous_status' => $previousStatus,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Send refund receipt email to customer (queued).
+     */
+    private function sendRefundEmail(
+        Order $order,
+        ?OrderRefund $refund,
+        string $refundType,
+        float $refundAmount,
+        float $penaltyAmount = 0,
+        float $penaltyPercent = 0
+    ): void {
+        try {
+            $user = $order->user;
+            if (!$user || !$user->email) {
+                Log::info('[EMAIL] Skipped refund email — no user email', ['order_id' => $order->id]);
+                return;
+            }
+
+            Mail::to($user->email)->queue(
+                new RefundReceiptMail(
+                    order: $order,
+                    refund: $refund,
+                    refundType: $refundType,
+                    refundAmount: $refundAmount,
+                    penaltyAmount: $penaltyAmount,
+                    penaltyPercent: $penaltyPercent
+                )
+            );
+
+            Log::info('[EMAIL] Refund receipt queued', [
+                'order_id' => $order->id,
+                'email' => $user->email,
+                'type' => $refundType,
+            ]);
+        } catch (\Exception $e) {
+            // Email failure should never block the refund flow
+            Log::warning('[EMAIL] Failed to queue refund receipt', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Generate a deterministic idempotency key for refund deduplication.
+     *
+     * Format: SHA-256 of "refund:{orderId}:{type}:{amountCents}"
+     */
+    private function generateIdempotencyKey(int $orderId, string $type, int $amountCents): string
+    {
+        return hash('sha256', "refund:{$orderId}:{$type}:{$amountCents}");
     }
 }

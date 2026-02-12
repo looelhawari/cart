@@ -32,6 +32,7 @@ class OrderRefund extends Model
         'paymob_response',
         'refunded_items',
         'completed_at',
+        'idempotency_key',
     ];
 
     protected $casts = [

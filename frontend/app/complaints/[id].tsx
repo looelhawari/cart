@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Dimensions,
   Vibration,
   Modal,
-} from 'react-native';
+} from "react-native";
 import Animated, {
   FadeInDown,
   FadeIn,
@@ -22,9 +22,9 @@ import Animated, {
   withRepeat,
   withTiming,
   withSequence,
-} from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams, Stack } from 'expo-router';
+} from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams, Stack } from "expo-router";
 import {
   ArrowLeft,
   Send,
@@ -38,10 +38,10 @@ import {
   Clock,
   Sparkles,
   MessageCircle,
-} from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
-import Colors from '@/constants/Colors';
+import Colors from "@/constants/Colors";
 import {
   getComplaint,
   replyToComplaint,
@@ -51,14 +51,17 @@ import {
   closeComplaint,
   type ComplaintDetail,
   type ComplaintMessage,
-} from '@/services/api/complaintsApi';
-import echo from '@/services/echo';
+} from "@/services/api/complaintsApi";
+import { getEcho } from "@/services/echo";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Format time
 const formatTime = (date: string) => {
-  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(date).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 const formatDate = (date: string) => {
@@ -66,9 +69,9 @@ const formatDate = (date: string) => {
   const then = new Date(date);
   const diffDays = Math.floor((now.getTime() - then.getTime()) / 86400000);
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
 // Animated Typing Dot
@@ -80,18 +83,18 @@ const TypingDot = ({ delay }: { delay: number }) => {
     opacity.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 400 }),
-        withTiming(0.3, { duration: 400 })
+        withTiming(0.3, { duration: 400 }),
       ),
       -1,
-      false
+      false,
     );
     translateY.value = withRepeat(
       withSequence(
         withTiming(-4, { duration: 200 }),
-        withTiming(0, { duration: 200 })
+        withTiming(0, { duration: 200 }),
       ),
       -1,
-      false
+      false,
     );
   }, []);
 
@@ -115,7 +118,12 @@ const TypingIndicator = ({ isBot }: { isBot: boolean }) => {
       style={styles.typingContainer}
       entering={FadeIn.duration(300)}
     >
-      <View style={[styles.avatarSmall, isBot ? styles.avatarBot : styles.avatarAgent]}>
+      <View
+        style={[
+          styles.avatarSmall,
+          isBot ? styles.avatarBot : styles.avatarAgent,
+        ]}
+      >
         {isBot ? (
           <Bot size={14} color="#fff" />
         ) : (
@@ -138,7 +146,7 @@ const QuickAction = ({
   icon: Icon,
   label,
   onPress,
-  color = '#22c55e'
+  color = "#22c55e",
 }: {
   icon: any;
   label: string;
@@ -159,14 +167,14 @@ const QuickAction = ({
 const RatingModal = ({
   visible,
   onClose,
-  onSubmit
+  onSubmit,
 }: {
   visible: boolean;
   onClose: () => void;
   onSubmit: (rating: number, feedback: string) => void;
 }) => {
   const [rating, setRating] = useState(0);
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState("");
 
   const handleSubmit = () => {
     if (rating > 0) {
@@ -191,7 +199,9 @@ const RatingModal = ({
               <Sparkles size={24} color="#f59e0b" />
             </View>
             <Text style={styles.ratingTitle}>Rate Your Experience</Text>
-            <Text style={styles.ratingSubtitle}>How was your chat with our assistant?</Text>
+            <Text style={styles.ratingSubtitle}>
+              How was your chat with our assistant?
+            </Text>
           </View>
 
           <View style={styles.starsContainer}>
@@ -206,8 +216,8 @@ const RatingModal = ({
               >
                 <Star
                   size={40}
-                  color={star <= rating ? '#f59e0b' : '#e2e8f0'}
-                  fill={star <= rating ? '#f59e0b' : 'transparent'}
+                  color={star <= rating ? "#f59e0b" : "#e2e8f0"}
+                  fill={star <= rating ? "#f59e0b" : "transparent"}
                 />
               </TouchableOpacity>
             ))}
@@ -231,7 +241,10 @@ const RatingModal = ({
               <Text style={styles.ratingBtnSecondaryText}>Skip</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.ratingBtnPrimary, rating === 0 && styles.ratingBtnDisabled]}
+              style={[
+                styles.ratingBtnPrimary,
+                rating === 0 && styles.ratingBtnDisabled,
+              ]}
               onPress={handleSubmit}
               disabled={rating === 0}
             >
@@ -247,7 +260,7 @@ const RatingModal = ({
 // Message Bubble Component
 const MessageBubble = ({
   message,
-  isLast
+  isLast,
 }: {
   message: ComplaintMessage;
   isLast: boolean;
@@ -264,10 +277,12 @@ const MessageBubble = ({
       entering={FadeInDown.duration(300).delay(50)}
     >
       {!isFromUser && (
-        <View style={[
-          styles.avatarSmall,
-          isBot ? styles.avatarBot : styles.avatarAgent,
-        ]}>
+        <View
+          style={[
+            styles.avatarSmall,
+            isBot ? styles.avatarBot : styles.avatarAgent,
+          ]}
+        >
           {isBot ? (
             <Bot size={14} color="#fff" />
           ) : (
@@ -276,27 +291,36 @@ const MessageBubble = ({
         </View>
       )}
 
-      <View style={[
-        styles.messageBubble,
-        isFromUser ? styles.messageBubbleUser : styles.messageBubbleOther,
-        isBot && styles.messageBubbleBot,
-        isLast && (isFromUser ? styles.messageBubbleLastRight : styles.messageBubbleLastLeft),
-      ]}>
+      <View
+        style={[
+          styles.messageBubble,
+          isFromUser ? styles.messageBubbleUser : styles.messageBubbleOther,
+          isBot && styles.messageBubbleBot,
+          isLast &&
+            (isFromUser
+              ? styles.messageBubbleLastRight
+              : styles.messageBubbleLastLeft),
+        ]}
+      >
         {!isFromUser && (
           <Text style={styles.senderLabel}>
-            {isBot ? '🤖 ElBaraka Assistant' : '👤 Support Agent'}
+            {isBot ? "🤖 ElBaraka Assistant" : "👤 Support Agent"}
           </Text>
         )}
-        <Text style={[
-          styles.messageText,
-          isFromUser ? styles.messageTextUser : styles.messageTextOther,
-        ]}>
+        <Text
+          style={[
+            styles.messageText,
+            isFromUser ? styles.messageTextUser : styles.messageTextOther,
+          ]}
+        >
           {message.message}
         </Text>
-        <Text style={[
-          styles.messageTime,
-          isFromUser ? styles.messageTimeUser : styles.messageTimeOther,
-        ]}>
+        <Text
+          style={[
+            styles.messageTime,
+            isFromUser ? styles.messageTimeUser : styles.messageTimeOther,
+          ]}
+        >
           {formatTime(message.created_at)}
         </Text>
       </View>
@@ -308,7 +332,7 @@ const MessageBubble = ({
 export default function ComplaintChatScreen() {
   const { id } = useLocalSearchParams();
   const [complaint, setComplaint] = useState<ComplaintDetail | null>(null);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -316,7 +340,9 @@ export default function ComplaintChatScreen() {
   const [showRating, setShowRating] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sendTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const loadComplaint = async () => {
     if (!id) return;
@@ -324,11 +350,11 @@ export default function ComplaintChatScreen() {
       setError(null);
       const response = await getComplaint(Number(id));
       if (!response.success || !response.data?.complaint) {
-        throw new Error('Failed to load complaint');
+        throw new Error("Failed to load complaint");
       }
       setComplaint(response.data.complaint);
     } catch (err: any) {
-      setError(err.message || 'Failed to load');
+      setError(err.message || "Failed to load");
     } finally {
       setLoading(false);
     }
@@ -342,30 +368,55 @@ export default function ComplaintChatScreen() {
   useEffect(() => {
     if (!id) return;
 
-    const channel = echo.private(`complaints.${id}`)
-      .listen('.message.sent', (event: { message: ComplaintMessage }) => {
-        setComplaint(prev => {
-          if (!prev) return prev;
-          if (prev.messages?.some(m => m.id === event.message.id)) return prev;
-          return { ...prev, messages: [...(prev.messages || []), event.message] };
-        });
-        setIsTyping(false);
-        Vibration.vibrate(100);
-      })
-      .listen('.user.typing', (event: { is_typing: boolean; is_admin: boolean }) => {
-        if (event.is_admin) {
-          setIsTyping(event.is_typing);
-          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-          if (event.is_typing) {
-            typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
-          }
-        }
-      });
+    let cancelled = false;
+    let echoRef: any = null;
+
+    (async () => {
+      const echo = await getEcho();
+      if (cancelled) return;
+      echoRef = echo;
+
+      echo
+        .private(`complaints.${id}`)
+        .listen(".message.sent", (event: { message: ComplaintMessage }) => {
+          setComplaint((prev) => {
+            if (!prev) return prev;
+            if (prev.messages?.some((m) => m.id === event.message.id))
+              return prev;
+            return {
+              ...prev,
+              messages: [...(prev.messages || []), event.message],
+            };
+          });
+          setIsTyping(false);
+          Vibration.vibrate(100);
+        })
+        .listen(
+          ".user.typing",
+          (event: { is_typing: boolean; is_admin: boolean }) => {
+            if (event.is_admin) {
+              setIsTyping(event.is_typing);
+              if (typingTimeoutRef.current)
+                clearTimeout(typingTimeoutRef.current);
+              if (event.is_typing) {
+                typingTimeoutRef.current = setTimeout(
+                  () => setIsTyping(false),
+                  3000,
+                );
+              }
+            }
+          },
+        );
+    })();
 
     return () => {
-      echo.leave(`complaints.${id}`);
+      cancelled = true;
+      if (echoRef) {
+        echoRef.leave(`complaints.${id}`);
+      }
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
+      if (sendTypingTimeoutRef.current)
+        clearTimeout(sendTypingTimeoutRef.current);
     };
   }, [id]);
 
@@ -382,7 +433,7 @@ export default function ComplaintChatScreen() {
     if (!message.trim() || !id) return;
 
     const text = message.trim();
-    setMessage('');
+    setMessage("");
     setSending(true);
 
     // Optimistic update
@@ -394,8 +445,8 @@ export default function ComplaintChatScreen() {
       created_at: new Date().toISOString(),
     };
 
-    setComplaint(prev =>
-      prev ? { ...prev, messages: [...(prev.messages || []), tempMsg] } : prev
+    setComplaint((prev) =>
+      prev ? { ...prev, messages: [...(prev.messages || []), tempMsg] } : prev,
     );
 
     // Show typing indicator for bot
@@ -409,15 +460,22 @@ export default function ComplaintChatScreen() {
 
       // If bot responded, it will come via WebSocket
       if (response.data?.bot_response?.escalated) {
-        setComplaint(prev => prev ? { ...prev, escalated_to_agent: true } : prev);
+        setComplaint((prev) =>
+          prev ? { ...prev, escalated_to_agent: true } : prev,
+        );
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to send');
+      setError(err.message || "Failed to send");
       setMessage(text);
       setIsTyping(false);
       // Revert optimistic update
-      setComplaint(prev =>
-        prev ? { ...prev, messages: prev.messages?.filter(m => m.id !== tempMsg.id) } : prev
+      setComplaint((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages?.filter((m) => m.id !== tempMsg.id),
+            }
+          : prev,
       );
     } finally {
       setSending(false);
@@ -444,7 +502,9 @@ export default function ComplaintChatScreen() {
     if (!id) return;
     try {
       await escalateToAgent(Number(id));
-      setComplaint(prev => prev ? { ...prev, escalated_to_agent: true } : prev);
+      setComplaint((prev) =>
+        prev ? { ...prev, escalated_to_agent: true } : prev,
+      );
       Vibration.vibrate(100);
     } catch (err: any) {
       setError(err.message);
@@ -456,9 +516,11 @@ export default function ComplaintChatScreen() {
     try {
       await rateBotExperience(Number(id), rating, feedback);
       setShowRating(false);
-      setComplaint(prev => prev ? { ...prev, bot_satisfaction_rating: rating } : prev);
+      setComplaint((prev) =>
+        prev ? { ...prev, bot_satisfaction_rating: rating } : prev,
+      );
     } catch (err) {
-      console.error('Failed to rate:', err);
+      console.error("Failed to rate:", err);
     }
   };
 
@@ -466,7 +528,7 @@ export default function ComplaintChatScreen() {
     if (!id) return;
     try {
       await closeComplaint(Number(id));
-      setComplaint(prev => prev ? { ...prev, status: 'closed' } : prev);
+      setComplaint((prev) => (prev ? { ...prev, status: "closed" } : prev));
       setShowRating(true);
     } catch (err: any) {
       setError(err.message);
@@ -475,19 +537,26 @@ export default function ComplaintChatScreen() {
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'open': return { color: '#f97316', bg: '#fff7ed', label: 'Open' };
-      case 'in_progress': return { color: '#3b82f6', bg: '#eff6ff', label: 'In Progress' };
-      case 'awaiting_response': return { color: '#8b5cf6', bg: '#f5f3ff', label: 'Awaiting Response' };
-      case 'resolved': return { color: '#22c55e', bg: '#f0fdf4', label: 'Resolved' };
-      case 'closed': return { color: '#6b7280', bg: '#f9fafb', label: 'Closed' };
-      default: return { color: '#6b7280', bg: '#f9fafb', label: status };
+      case "open":
+        return { color: "#f97316", bg: "#fff7ed", label: "Open" };
+      case "in_progress":
+        return { color: "#3b82f6", bg: "#eff6ff", label: "In Progress" };
+      case "awaiting_response":
+        return { color: "#8b5cf6", bg: "#f5f3ff", label: "Awaiting Response" };
+      case "resolved":
+        return { color: "#22c55e", bg: "#f0fdf4", label: "Resolved" };
+      case "closed":
+        return { color: "#6b7280", bg: "#f9fafb", label: "Closed" };
+      default:
+        return { color: "#6b7280", bg: "#f9fafb", label: status };
     }
   };
 
   const renderHeader = () => {
     if (!complaint) return null;
     const status = getStatusConfig(complaint.status);
-    const isBotHandling = complaint.bot_handled && !complaint.escalated_to_agent;
+    const isBotHandling =
+      complaint.bot_handled && !complaint.escalated_to_agent;
 
     return (
       <View style={styles.headerSection}>
@@ -497,16 +566,24 @@ export default function ComplaintChatScreen() {
           entering={FadeIn.duration(400)}
         >
           <LinearGradient
-            colors={['#f0fdf4', '#ecfdf5']}
+            colors={["#f0fdf4", "#ecfdf5"]}
             style={styles.ticketCardGradient}
           >
             <View style={styles.ticketHeader}>
               <View style={styles.ticketHeaderLeft}>
-                <Text style={styles.ticketNumber}>{complaint.ticket_number}</Text>
-                <Text style={styles.ticketSubject} numberOfLines={2}>{complaint.subject}</Text>
+                <Text style={styles.ticketNumber}>
+                  {complaint.ticket_number}
+                </Text>
+                <Text style={styles.ticketSubject} numberOfLines={2}>
+                  {complaint.subject}
+                </Text>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                <View style={[styles.statusDot, { backgroundColor: status.color }]} />
+              <View
+                style={[styles.statusBadge, { backgroundColor: status.bg }]}
+              >
+                <View
+                  style={[styles.statusDot, { backgroundColor: status.color }]}
+                />
                 <Text style={[styles.statusText, { color: status.color }]}>
                   {status.label}
                 </Text>
@@ -533,9 +610,11 @@ export default function ComplaintChatScreen() {
                 </View>
               )}
               {complaint.escalated_to_agent && (
-                <View style={[styles.botBadge, { backgroundColor: '#eff6ff' }]}>
+                <View style={[styles.botBadge, { backgroundColor: "#eff6ff" }]}>
                   <User size={12} color="#3b82f6" />
-                  <Text style={[styles.botBadgeText, { color: '#3b82f6' }]}>Live Agent</Text>
+                  <Text style={[styles.botBadgeText, { color: "#3b82f6" }]}>
+                    Live Agent
+                  </Text>
                 </View>
               )}
             </View>
@@ -543,22 +622,24 @@ export default function ComplaintChatScreen() {
         </Animated.View>
 
         {/* Quick Actions */}
-        {!complaint.escalated_to_agent && complaint.status !== 'closed' && complaint.status !== 'resolved' && (
-          <View style={styles.quickActions}>
-            <QuickAction
-              icon={Phone}
-              label="Talk to Agent"
-              onPress={handleEscalate}
-              color="#8b5cf6"
-            />
-            <QuickAction
-              icon={CheckCircle}
-              label="Issue Resolved"
-              onPress={handleClose}
-              color="#22c55e"
-            />
-          </View>
-        )}
+        {!complaint.escalated_to_agent &&
+          complaint.status !== "closed" &&
+          complaint.status !== "resolved" && (
+            <View style={styles.quickActions}>
+              <QuickAction
+                icon={Phone}
+                label="Talk to Agent"
+                onPress={handleEscalate}
+                color="#8b5cf6"
+              />
+              <QuickAction
+                icon={CheckCircle}
+                label="Issue Resolved"
+                onPress={handleClose}
+                color="#22c55e"
+              />
+            </View>
+          )}
 
         {/* Chat Divider */}
         <View style={styles.chatDivider}>
@@ -566,7 +647,7 @@ export default function ComplaintChatScreen() {
           <View style={styles.dividerCenter}>
             <MessageCircle size={12} color="#94a3b8" />
             <Text style={styles.dividerText}>
-              {isBotHandling ? 'Chat with Assistant' : 'Chat with Support'}
+              {isBotHandling ? "Chat with Assistant" : "Chat with Support"}
             </Text>
           </View>
           <View style={styles.dividerLine} />
@@ -575,7 +656,13 @@ export default function ComplaintChatScreen() {
     );
   };
 
-  const renderMessage = ({ item, index }: { item: ComplaintMessage; index: number }) => (
+  const renderMessage = ({
+    item,
+    index,
+  }: {
+    item: ComplaintMessage;
+    index: number;
+  }) => (
     <MessageBubble
       message={item}
       isLast={index === (complaint?.messages?.length || 0) - 1}
@@ -584,7 +671,13 @@ export default function ComplaintChatScreen() {
 
   const renderFooter = () => {
     if (isTyping) {
-      return <TypingIndicator isBot={Boolean(complaint?.bot_handled && !complaint?.escalated_to_agent)} />;
+      return (
+        <TypingIndicator
+          isBot={Boolean(
+            complaint?.bot_handled && !complaint?.escalated_to_agent,
+          )}
+        />
+      );
     }
     return null;
   };
@@ -603,24 +696,32 @@ export default function ComplaintChatScreen() {
       <SafeAreaView style={styles.errorContainer}>
         <AlertCircle size={64} color="#d1d5db" />
         <Text style={styles.errorTitle}>Ticket Not Found</Text>
-        <Text style={styles.errorSubtitle}>This support ticket doesn't exist or was deleted.</Text>
-        <TouchableOpacity style={styles.errorButton} onPress={() => router.back()}>
+        <Text style={styles.errorSubtitle}>
+          This support ticket doesn't exist or was deleted.
+        </Text>
+        <TouchableOpacity
+          style={styles.errorButton}
+          onPress={() => router.back()}
+        >
           <Text style={styles.errorButtonText}>Go Back</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
   }
 
-  const isClosedOrResolved = ['closed', 'resolved'].includes(complaint.status);
+  const isClosedOrResolved = ["closed", "resolved"].includes(complaint.status);
 
   return (
     <>
       <Stack.Screen
         options={{
           headerShown: true,
-          title: '',
+          title: "",
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
               <ArrowLeft size={22} color={Colors.neutralCharcoal} />
             </TouchableOpacity>
           ),
@@ -632,7 +733,7 @@ export default function ComplaintChatScreen() {
           ),
           headerBackground: () => (
             <LinearGradient
-              colors={['#ffffff', '#f8fafc']}
+              colors={["#ffffff", "#f8fafc"]}
               style={StyleSheet.absoluteFill}
             />
           ),
@@ -640,10 +741,10 @@ export default function ComplaintChatScreen() {
         }}
       />
 
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
           style={styles.keyboardView}
         >
           {error && (
@@ -733,61 +834,61 @@ export default function ComplaintChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
   },
   keyboardView: {
     flex: 1,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
   },
   loadingText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#64748b',
-    fontFamily: 'Poppins-Medium',
+    color: "#64748b",
+    fontFamily: "Poppins-Medium",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
     padding: 24,
   },
   errorTitle: {
     marginTop: 16,
     fontSize: 20,
-    fontFamily: 'Poppins-SemiBold',
-    color: '#1e293b',
+    fontFamily: "Poppins-SemiBold",
+    color: "#1e293b",
   },
   errorSubtitle: {
     marginTop: 8,
     fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
+    color: "#64748b",
+    textAlign: "center",
   },
   errorButton: {
     marginTop: 24,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#22c55e',
+    backgroundColor: "#22c55e",
     borderRadius: 12,
   },
   errorButtonText: {
-    color: '#fff',
-    fontFamily: 'Poppins-SemiBold',
+    color: "#fff",
+    fontFamily: "Poppins-SemiBold",
     fontSize: 15,
   },
   backButton: {
-    marginLeft: Platform.OS === 'ios' ? -8 : 0,
+    marginLeft: Platform.OS === "ios" ? -8 : 0,
     padding: 8,
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingRight: 4,
   },
@@ -795,17 +896,17 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#22c55e',
+    backgroundColor: "#22c55e",
   },
   headerRightText: {
     fontSize: 12,
-    color: '#64748b',
-    fontFamily: 'Poppins-Medium',
+    color: "#64748b",
+    fontFamily: "Poppins-Medium",
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ef4444',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ef4444",
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
@@ -815,9 +916,9 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     flex: 1,
-    color: '#fff',
+    color: "#fff",
     fontSize: 13,
-    fontFamily: 'Poppins-Medium',
+    fontFamily: "Poppins-Medium",
   },
   messageList: {
     padding: 16,
@@ -828,8 +929,8 @@ const styles = StyleSheet.create({
   },
   ticketCard: {
     borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -839,9 +940,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   ticketHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
     gap: 12,
   },
@@ -850,18 +951,18 @@ const styles = StyleSheet.create({
   },
   ticketNumber: {
     fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    color: '#64748b',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    color: "#64748b",
     marginBottom: 4,
   },
   ticketSubject: {
     fontSize: 16,
-    fontFamily: 'Poppins-SemiBold',
-    color: '#1e293b',
+    fontFamily: "Poppins-SemiBold",
+    color: "#1e293b",
   },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -874,35 +975,35 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-    fontFamily: 'Poppins-SemiBold',
-    textTransform: 'capitalize',
+    fontFamily: "Poppins-SemiBold",
+    textTransform: "capitalize",
   },
   ticketDescription: {
     fontSize: 13,
-    color: '#64748b',
+    color: "#64748b",
     lineHeight: 18,
     marginBottom: 12,
   },
   ticketMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
     gap: 8,
   },
   ticketMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   ticketMetaText: {
     fontSize: 11,
-    color: '#64748b',
+    color: "#64748b",
   },
   botBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f3ff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f3ff",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -910,97 +1011,97 @@ const styles = StyleSheet.create({
   },
   botBadgeText: {
     fontSize: 10,
-    color: '#8b5cf6',
-    fontFamily: 'Poppins-SemiBold',
+    color: "#8b5cf6",
+    fontFamily: "Poppins-SemiBold",
   },
   quickActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginTop: 12,
   },
   quickAction: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1.5,
     gap: 6,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   quickActionText: {
     fontSize: 12,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: "Poppins-SemiBold",
   },
   chatDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 20,
     gap: 12,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: "#e2e8f0",
   },
   dividerCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   dividerText: {
     fontSize: 11,
-    fontFamily: 'Poppins-SemiBold',
-    color: '#94a3b8',
+    fontFamily: "Poppins-SemiBold",
+    color: "#94a3b8",
   },
   messageRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginVertical: 6,
-    maxWidth: '85%',
+    maxWidth: "85%",
   },
   messageRowLeft: {
-    alignSelf: 'flex-start',
-    alignItems: 'flex-end',
+    alignSelf: "flex-start",
+    alignItems: "flex-end",
   },
   messageRowRight: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   avatarSmall: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 8,
     marginBottom: 4,
   },
   avatarBot: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: "#8b5cf6",
   },
   avatarAgent: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: "#3b82f6",
   },
   messageBubble: {
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    maxWidth: '100%',
+    maxWidth: "100%",
   },
   messageBubbleUser: {
-    backgroundColor: '#22c55e',
+    backgroundColor: "#22c55e",
     borderBottomRightRadius: 6,
   },
   messageBubbleOther: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomLeftRadius: 6,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
   },
   messageBubbleBot: {
-    backgroundColor: '#faf5ff',
-    borderColor: '#e9d5ff',
+    backgroundColor: "#faf5ff",
+    borderColor: "#e9d5ff",
   },
   messageBubbleLastLeft: {
     borderBottomLeftRadius: 6,
@@ -1010,119 +1111,119 @@ const styles = StyleSheet.create({
   },
   senderLabel: {
     fontSize: 10,
-    color: '#64748b',
+    color: "#64748b",
     marginBottom: 4,
-    fontFamily: 'Poppins-Medium',
+    fontFamily: "Poppins-Medium",
   },
   messageText: {
     fontSize: 14,
     lineHeight: 20,
   },
   messageTextUser: {
-    color: '#fff',
+    color: "#fff",
   },
   messageTextOther: {
-    color: '#1e293b',
+    color: "#1e293b",
   },
   messageTime: {
     fontSize: 10,
     marginTop: 4,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   messageTimeUser: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: "rgba(255, 255, 255, 0.7)",
   },
   messageTimeOther: {
-    color: '#94a3b8',
+    color: "#94a3b8",
   },
   typingContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    alignSelf: "flex-start",
     marginVertical: 6,
   },
   typingBubble: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 18,
     borderBottomLeftRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
   },
   typingDots: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 4,
   },
   typingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#94a3b8',
+    backgroundColor: "#94a3b8",
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 12,
-    backgroundColor: '#fff',
+    paddingBottom: Platform.OS === "ios" ? 8 : 12,
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: "#f1f5f9",
     gap: 10,
   },
   inputWrapper: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    paddingVertical: Platform.OS === "ios" ? 10 : 6,
     maxHeight: 120,
   },
   textInput: {
     fontSize: 14,
-    color: '#1e293b',
-    fontFamily: 'Poppins-Regular',
+    color: "#1e293b",
+    fontFamily: "Poppins-Regular",
     maxHeight: 100,
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#22c55e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#22c55e',
+    backgroundColor: "#22c55e",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#22c55e",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: "#d1d5db",
     shadowOpacity: 0,
   },
   closedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: 16,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: "#f0fdf4",
     borderTopWidth: 1,
-    borderTopColor: '#dcfce7',
+    borderTopColor: "#dcfce7",
     gap: 8,
   },
   closedBannerText: {
     fontSize: 14,
-    color: '#15803d',
-    fontFamily: 'Poppins-Medium',
-    textTransform: 'capitalize',
+    color: "#15803d",
+    fontFamily: "Poppins-Medium",
+    textTransform: "capitalize",
   },
   rateBannerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fef3c7',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
@@ -1131,96 +1232,96 @@ const styles = StyleSheet.create({
   },
   rateBannerButtonText: {
     fontSize: 12,
-    color: '#d97706',
-    fontFamily: 'Poppins-SemiBold',
+    color: "#d97706",
+    fontFamily: "Poppins-SemiBold",
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   ratingModal: {
     width: SCREEN_WIDTH - 48,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     padding: 24,
-    alignItems: 'center',
+    alignItems: "center",
   },
   ratingHeader: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   ratingIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#fef3c7',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#fef3c7",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
   ratingTitle: {
     fontSize: 20,
-    fontFamily: 'Poppins-Bold',
-    color: '#1e293b',
+    fontFamily: "Poppins-Bold",
+    color: "#1e293b",
     marginBottom: 4,
   },
   ratingSubtitle: {
     fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
+    color: "#64748b",
+    textAlign: "center",
   },
   starsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 20,
   },
   feedbackInput: {
-    width: '100%',
+    width: "100%",
     height: 80,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#1e293b',
-    textAlignVertical: 'top',
+    color: "#1e293b",
+    textAlignVertical: "top",
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
   },
   ratingButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    width: '100%',
+    width: "100%",
   },
   ratingBtnSecondary: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center',
+    borderColor: "#e2e8f0",
+    alignItems: "center",
   },
   ratingBtnSecondaryText: {
     fontSize: 15,
-    color: '#64748b',
-    fontFamily: 'Poppins-SemiBold',
+    color: "#64748b",
+    fontFamily: "Poppins-SemiBold",
   },
   ratingBtnPrimary: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#22c55e',
-    alignItems: 'center',
+    backgroundColor: "#22c55e",
+    alignItems: "center",
   },
   ratingBtnDisabled: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: "#d1d5db",
   },
   ratingBtnPrimaryText: {
     fontSize: 15,
-    color: '#fff',
-    fontFamily: 'Poppins-SemiBold',
+    color: "#fff",
+    fontFamily: "Poppins-SemiBold",
   },
 });

@@ -384,4 +384,68 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get predefined cancellation reasons.
+     * GET /api/v1/orders/cancellation-reasons
+     */
+    public function cancellationReasons(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->cancellationService->getCancellationReasons(),
+        ]);
+    }
+
+    /**
+     * Customer-initiated partial item cancellation/refund.
+     * POST /api/v1/orders/{id}/partial-cancel
+     */
+    public function partialItemCancel(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'item_ids' => 'required|array|min:1',
+                'item_ids.*' => 'integer|exists:order_items,id',
+                'reason' => 'required|string|max:500',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $result = $this->cancellationService->customerPartialItemCancel(
+                $id,
+                $user->id,
+                $request->input('item_ids'),
+                $request->input('reason')
+            );
+
+            return response()->json($result, 200, [], JSON_UNESCAPED_UNICODE);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found or does not belong to you',
+            ], 404);
+        } catch (\Exception $e) {
+            $statusCode = str_contains($e->getMessage(), 'Please wait') ? 429 : 400;
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], $statusCode);
+        }
+    }
 }

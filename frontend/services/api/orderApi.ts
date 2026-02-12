@@ -95,11 +95,40 @@ export interface OrderRefund {
 
 export interface CancellationEligibility {
   can_cancel: boolean;
+  can_partial_cancel: boolean;
   reason: string;
   refund_type: "full" | "penalty" | "none" | null;
   refund_percent: number;
   penalty_percent: number;
   estimated_refund?: number;
+}
+
+export interface CancellationReason {
+  key: string;
+  label_en: string;
+  label_ar: string;
+}
+
+export interface PartialCancelResult {
+  success: boolean;
+  message: string;
+  refund?: {
+    id: number;
+    type: string;
+    amount: number;
+    refund_amount?: number;
+    penalty_amount?: number;
+    penalty_percent?: number;
+    estimated_days?: string;
+    items: Array<{
+      item_id: number;
+      product_name: string;
+      quantity: number;
+      amount: number;
+    }>;
+    status: string;
+  };
+  order?: Order;
 }
 
 export interface CancelResult {
@@ -335,6 +364,67 @@ export const orderApi = {
 
     return await safeJsonParse(response);
   },
+
+  /**
+   * Get predefined cancellation reasons
+   */
+  getCancellationReasons: async (): Promise<CancellationReason[]> => {
+    const token = await getAuthToken();
+    const response = await fetch(
+      `${API_BASE_URL}/orders/cancellation-reasons`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json; charset=utf-8",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      },
+    );
+
+    const data = await safeResponseJson(response);
+    // Backend returns { id, label, label_ar } — map to { key, label_en, label_ar }
+    const reasons = data?.data || [];
+    return reasons.map((r: any) => ({
+      key: r.key || r.id || r.value,
+      label_en: r.label_en || r.label || r.name,
+      label_ar: r.label_ar || r.label,
+    }));
+  },
+
+  /**
+   * Customer partial item cancel/refund
+   */
+  partialItemCancel: async (
+    orderId: number,
+    itemIds: number[],
+    reason: string,
+  ): Promise<PartialCancelResult> => {
+    const token = await getAuthToken();
+    const response = await fetch(
+      `${API_BASE_URL}/orders/${orderId}/partial-cancel`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json; charset=utf-8",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({ item_ids: itemIds, reason }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await safeJsonParse(response);
+      throw error;
+    }
+
+    return await safeJsonParse(response);
+  },
 };
 
 // Export convenience methods
@@ -346,3 +436,5 @@ export const checkCancellationEligibility =
   orderApi.checkCancellationEligibility;
 export const getRefundHistory = orderApi.getRefundHistory;
 export const reorder = orderApi.reorder;
+export const getCancellationReasons = orderApi.getCancellationReasons;
+export const partialItemCancel = orderApi.partialItemCancel;
