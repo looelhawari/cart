@@ -57,6 +57,10 @@ export default function NotificationsScreen() {
   const [activeFilter, setActiveFilter] = useState<"all" | "read" | "unread">(
     "all",
   );
+  // IDs of notifications that were unread when screen opened — keeps visual highlight
+  const [recentlyUnreadIds, setRecentlyUnreadIds] = useState<Set<number>>(
+    new Set(),
+  );
 
   const fetchNotifications = useCallback(
     async (
@@ -112,6 +116,40 @@ export default function NotificationsScreen() {
   useEffect(() => {
     fetchNotifications(1);
   }, [fetchNotifications]);
+
+  // Enterprise notification flow (like Facebook/Instagram):
+  // 1. Capture which notifications are unread when screen opens
+  // 2. Mark all as read on server immediately (badge count drops)
+  // 3. Keep visual highlight on those notifications for 30 seconds
+  // 4. After 30s, remove visual highlight gracefully
+  const hasNotifications = notifications.length > 0;
+  useEffect(() => {
+    if (isAuthenticated && hasNotifications && unreadCount > 0) {
+      // Capture currently unread notification IDs for visual highlight
+      const unreadIds = new Set(
+        notifications.filter((n) => !n.is_read).map((n) => n.id),
+      );
+      setRecentlyUnreadIds(unreadIds);
+
+      // Mark all as read on server immediately (badge count goes to 0)
+      markAllRead().then((success) => {
+        if (success) {
+          setNotifications((prev) =>
+            prev.map((n) => ({ ...n, is_read: true })),
+          );
+          setUnreadCount(0);
+        }
+      });
+
+      // Remove visual highlight after 30 seconds
+      const timer = setTimeout(() => {
+        setRecentlyUnreadIds(new Set());
+      }, 30000);
+
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, hasNotifications]); // Only trigger once when notifications first load
 
   const handleFilterChange = (filter: "all" | "read" | "unread") => {
     if (filter === activeFilter) return;
@@ -271,7 +309,8 @@ export default function NotificationsScreen() {
 
   const renderNotification = ({ item }: { item: NotificationData }) => {
     const iconConfig = getIconConfig(item.type);
-    const isUnread = !item.is_read;
+    // Show highlight if: still actually unread OR was unread when screen opened (30s visual persist)
+    const isUnread = !item.is_read || recentlyUnreadIds.has(item.id);
 
     return (
       <Swipeable

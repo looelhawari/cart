@@ -383,7 +383,7 @@ class OrderCancellationService
         string $reason
     ): array {
         // Verify ownership
-        Order::where('id', $orderId)
+        $order = Order::where('id', $orderId)
             ->where('user_id', $userId)
             ->firstOrFail();
 
@@ -395,7 +395,127 @@ class OrderCancellationService
         }
         RateLimiter::hit($rateLimitKey, 30);
 
+        // Route to COD-specific handler if cash on delivery
+        if ($order->payment_method === 'cash_on_delivery') {
+            return $this->codPartialItemCancel($orderId, $itemIds, $reason, null, 'customer');
+        }
+
         return $this->partialItemRefund($orderId, $itemIds, $reason, null, 'customer');
+    }
+
+    /**
+     * COD partial item cancel — no payment refund needed.
+     *
+     * Marks selected items as cancelled/refunded, restocks them,
+     * updates order totals, and creates an audit refund record.
+     * No Paymob API calls are needed since no payment was made.
+     */
+    public function codPartialItemCancel(
+        int $orderId,
+        array $itemIds,
+        string $reason,
+        ?int $adminId = null,
+        string $initiatedBy = 'admin'
+    ): array {
+        [$order, $items, $itemCancelAmount, $refundedItemsLog] =
+            DB::transaction(function () use ($orderId, $itemIds, $reason, $initiatedBy) {
+                $order = Order::where('id', $orderId)
+                    ->lockForUpdate()
+                    ->with('items')
+                    ->firstOrFail();
+
+                if ($order->payment_method !== 'cash_on_delivery') {
+                    throw new Exception('This method is only for COD orders.');
+                }
+
+                if ($initiatedBy === 'customer') {
+                    if (!in_array($order->status, ['pending', 'confirmed', 'preparing'])) {
+                        throw new Exception('You can only cancel items from pending, confirmed, or preparing orders.');
+                    }
+                }
+
+                $items = $order->items()->whereIn('id', $itemIds)->where('refunded', false)->get();
+                if ($items->isEmpty()) {
+                    throw new Exception('No valid items found to cancel. Items may already be cancelled.');
+                }
+
+                // Ensure at least one item remains active
+                $activeItems = $order->items()->where('refunded', false)->count();
+                if ($items->count() >= $activeItems) {
+                    throw new Exception('Cannot cancel all items. Use full order cancellation instead.');
+                }
+
+                $itemCancelAmount = $items->sum('subtotal');
+
+                $refundedItemsLog = $items->map(fn($item) => [
+                    'item_id' => $item->id,
+                    'product_name' => $item->product_name,
+                    'quantity' => $item->quantity,
+                    'amount' => $item->subtotal,
+                ])->toArray();
+
+                // Mark items as refunded
+                $order->items()->whereIn('id', $itemIds)->update(['refunded' => true]);
+
+                // Update order totals
+                $alreadyCancelled = OrderRefund::where('order_id', $orderId)
+                    ->whereIn('status', ['completed'])
+                    ->sum('refund_amount');
+                $totalCancelled = $alreadyCancelled + $itemCancelAmount;
+
+                $order->update([
+                    'refunded_amount' => $totalCancelled,
+                    'refund_reason' => $reason,
+                ]);
+
+                return [$order, $items, $itemCancelAmount, $refundedItemsLog];
+            });
+
+        // Create audit refund record (no actual payment refund)
+        $refund = OrderRefund::create([
+            'order_id' => $order->id,
+            'user_id' => $order->user_id,
+            'type' => 'partial',
+            'original_amount' => $itemCancelAmount,
+            'penalty_percent' => 0,
+            'penalty_amount' => 0,
+            'refund_amount' => $itemCancelAmount,
+            'refund_method' => 'none',
+            'status' => 'completed',
+            'reason' => $reason,
+            'initiated_by' => $initiatedBy,
+            'admin_id' => $adminId,
+            'refunded_items' => $refundedItemsLog,
+            'completed_at' => now(),
+        ]);
+
+        // Restore stock
+        $this->restoreStockForItems($items);
+
+        // Notify customer
+        $this->notifyCustomer($order, $itemCancelAmount, 'partial');
+
+        Log::info('✅ [COD PARTIAL CANCEL] Completed', [
+            'order_id' => $order->id,
+            'items_cancelled' => $itemIds,
+            'amount_removed' => $itemCancelAmount,
+            'initiated_by' => $initiatedBy,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Items cancelled successfully. {$itemCancelAmount} EGP removed from your order.",
+            'refund' => [
+                'id' => $refund->id,
+                'type' => 'partial',
+                'amount' => $itemCancelAmount,
+                'refund_amount' => $itemCancelAmount,
+                'items' => $refundedItemsLog,
+                'status' => 'completed',
+                'refund_method' => 'none',
+            ],
+            'order' => $order->fresh(['items.product', 'refunds']),
+        ];
     }
 
     /**
@@ -430,10 +550,12 @@ class OrderCancellationService
             ];
         }
 
-        // Check partial item cancel eligibility for card-paid orders
-        $canPartialCancel = !$isCod
-            && in_array($order->status, ['confirmed', 'preparing', 'delivered'])
-            && $order->successfulPayment();
+        // Check partial item cancel eligibility for all payment methods
+        $canPartialCancel = $isCod
+            ? in_array($order->status, ['pending', 'confirmed', 'preparing'])
+                && $order->items()->where('refunded', false)->count() > 1
+            : in_array($order->status, ['confirmed', 'preparing', 'delivered'])
+                && $order->successfulPayment();
 
         if ($isCod) {
             $canCancel = in_array($order->status, $config['cod_cancel_statuses']);
@@ -445,20 +567,28 @@ class OrderCancellationService
                 'refund_type' => 'none',
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
-                'can_partial_cancel' => false,
+                'can_partial_cancel' => $canPartialCancel,
             ];
         }
 
         // Card payment
+        // Calculate how much has already been refunded (partial item cancels)
+        $alreadyRefunded = OrderRefund::totalRefundedForOrder($order->id);
+
         if (in_array($order->status, $config['full_refund_statuses'])) {
             $payment = $order->successfulPayment();
-            $estimatedRefund = $payment
+            $maxPayable = $payment
                 ? min((float) $order->total, ($payment->amount_cents / 100))
                 : (float) $order->total;
+            $estimatedRefund = max(0, $maxPayable - $alreadyRefunded);
+
+            $reason = $alreadyRefunded > 0
+                ? "Full refund of the remaining amount ({$estimatedRefund} EGP) will be processed to your card. Previously refunded: {$alreadyRefunded} EGP. Refunds typically take 5-14 business days."
+                : 'Full refund will be processed to your card. Refunds typically take 5-14 business days.';
 
             return [
                 'can_cancel' => true,
-                'reason' => 'Full refund will be processed to your card. Refunds typically take 5-14 business days.',
+                'reason' => $reason,
                 'refund_type' => 'full',
                 'refund_percent' => 100,
                 'penalty_percent' => 0,
@@ -472,14 +602,20 @@ class OrderCancellationService
             $refundPercent = 100 - $penalty;
 
             $payment = $order->successfulPayment();
-            $baseAmount = $payment
+            $maxPayable = $payment
                 ? min((float) $order->total, ($payment->amount_cents / 100))
                 : (float) $order->total;
-            $refundAmount = round($baseAmount * ($refundPercent / 100), 2);
+            $remainingAmount = max(0, $maxPayable - $alreadyRefunded);
+            $penaltyAmount = round($remainingAmount * ($penalty / 100), 2);
+            $refundAmount = round($remainingAmount - $penaltyAmount, 2);
+
+            $reason = $alreadyRefunded > 0
+                ? "A {$penalty}% preparation fee will be deducted from the remaining amount. You will receive {$refundAmount} EGP ({$refundPercent}% of {$remainingAmount} EGP remaining) back to your card within 5-14 business days."
+                : "A {$penalty}% preparation fee will be deducted. You will receive {$refundAmount} EGP ({$refundPercent}% of the order total) back to your card within 5-14 business days.";
 
             return [
                 'can_cancel' => true,
-                'reason' => "A {$penalty}% preparation fee will be deducted. You will receive {$refundAmount} EGP ({$refundPercent}% of the order total) back to your card within 5-14 business days.",
+                'reason' => $reason,
                 'refund_type' => 'penalty',
                 'refund_percent' => $refundPercent,
                 'penalty_percent' => $penalty,
@@ -652,8 +788,10 @@ class OrderCancellationService
             ];
         }
 
-        $penaltyAmount = round($originalAmount * ($penaltyPercent / 100), 2);
-        $refundAmount = round($originalAmount - $penaltyAmount, 2);
+        // Calculate penalty on the REMAINING amount (after any previous partial refunds)
+        $remainingAmount = max(0, min($originalAmount, $paymobMaxEgp) - $alreadyRefunded);
+        $penaltyAmount = round($remainingAmount * ($penaltyPercent / 100), 2);
+        $refundAmount = round($remainingAmount - $penaltyAmount, 2);
 
         // Safety: don't refund more than what Paymob allows
         if ($refundAmount > $maxRefundable) {

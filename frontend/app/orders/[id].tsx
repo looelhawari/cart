@@ -2087,38 +2087,34 @@ export default function OrderDetailsScreen() {
               </>
             )}
           </TouchableOpacity>
-          {order.payment_method !== "cash_on_delivery" &&
-            order.items &&
-            order.items.filter((i) => !i.refunded).length > 1 && (
-              <TouchableOpacity
-                style={[
-                  styles.cancelButton,
-                  {
-                    borderColor: Colors.accentOrange,
-                  },
-                  isSmallDevice ? { width: "100%" } : { flex: 1 },
-                ]}
-                onPress={async () => {
-                  try {
-                    const reasons = await getCancellationReasons();
-                    setCancellationReasons(reasons);
-                  } catch {}
-                  setShowPartialCancelDialog(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="remove-circle-outline"
-                  size={20}
-                  color={Colors.accentOrange}
-                />
-                <Text
-                  style={[styles.cancelText, { color: Colors.accentOrange }]}
-                >
-                  Cancel Items
-                </Text>
-              </TouchableOpacity>
-            )}
+          {order.items && order.items.filter((i) => !i.refunded).length > 1 && (
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                {
+                  borderColor: Colors.accentOrange,
+                },
+                isSmallDevice ? { width: "100%" } : { flex: 1 },
+              ]}
+              onPress={async () => {
+                try {
+                  const reasons = await getCancellationReasons();
+                  setCancellationReasons(reasons);
+                } catch {}
+                setShowPartialCancelDialog(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="remove-circle-outline"
+                size={20}
+                color={Colors.accentOrange}
+              />
+              <Text style={[styles.cancelText, { color: Colors.accentOrange }]}>
+                Cancel Items
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -2304,16 +2300,25 @@ export default function OrderDetailsScreen() {
                 <Text style={styles.modalButtonTextSecondary}>Keep Order</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  cancelEligibility?.refund_type === "penalty" && { flex: 1.4 },
+                ]}
                 onPress={handleCancelOrder}
                 disabled={cancelling}
               >
                 {cancelling ? (
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
-                  <Text style={styles.modalButtonTextPrimary}>
+                  <Text
+                    style={[
+                      styles.modalButtonTextPrimary,
+                      { textAlign: "center" },
+                    ]}
+                  >
                     {cancelEligibility?.refund_type === "penalty"
-                      ? "Cancel & Accept Fee"
+                      ? "Cancel & Accept\nFee"
                       : "Cancel Order"}
                   </Text>
                 )}
@@ -2523,17 +2528,30 @@ export default function OrderDetailsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={{ alignItems: "center", marginBottom: Spacing.md }}>
-              <Ionicons name="checkmark-circle" size={48} color="#28A745" />
+              <View
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 32,
+                  backgroundColor: "#DCFCE7",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="checkmark-circle" size={40} color="#16A34A" />
+              </View>
             </View>
             <Text style={[styles.modalTitle, { textAlign: "center" }]}>
               Refund Processed
             </Text>
             <View
               style={{
-                backgroundColor: Colors.neutralCloud,
+                backgroundColor: "#F1F5F9",
                 borderRadius: 12,
                 padding: Spacing.md,
                 marginBottom: Spacing.lg,
+                borderWidth: 1,
+                borderColor: "#E2E8F0",
               }}
             >
               <View
@@ -2556,6 +2574,7 @@ export default function OrderDetailsScreen() {
                     fontWeight: Typography.bold,
                     fontSize: Typography.bodySmall,
                     textTransform: "capitalize",
+                    color: Colors.neutralCharcoal,
                   }}
                 >
                   {refundResult.type}
@@ -2571,7 +2590,7 @@ export default function OrderDetailsScreen() {
                 >
                   <Text
                     style={{
-                      color: Colors.neutralMedium,
+                      color: "#64748B",
                       fontSize: Typography.bodySmall,
                     }}
                   >
@@ -2631,6 +2650,7 @@ export default function OrderDetailsScreen() {
                   style={{
                     fontWeight: Typography.bold,
                     fontSize: Typography.bodySmall,
+                    color: Colors.neutralCharcoal,
                   }}
                 >
                   {refundResult.estimated_days}

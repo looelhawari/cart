@@ -75,10 +75,11 @@ class PaymentConfirmationService
             ]
         );
 
-        // 3. Update order status
+        // 3. Update order status — set to 'pending' (same as COD)
+        // Admin will manually confirm the order via dashboard
         $order->update([
             'payment_status' => 'completed',
-            'status' => 'confirmed',
+            'status' => 'pending',
         ]);
 
         // 4. Finalize promo + clear cart
@@ -95,7 +96,7 @@ class PaymentConfirmationService
 
         // 5. Async processing (notifications, analytics)
         // CRITICAL FIX: ProcessOrderAsync expects int $orderId, NOT Order model
-        ProcessOrderAsync::dispatch($order->id, 'confirmed');
+        ProcessOrderAsync::dispatch($order->id, 'pending');
 
         Log::info("✅ [{$source}] Payment confirmed — all tables updated", [
             'payment_id' => $payment->id,
