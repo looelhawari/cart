@@ -168,6 +168,90 @@ export interface CreateOrderData {
   promo_code?: string;
 }
 
+/** Structured invoice data returned by GET /orders/{id}/invoice */
+export interface InvoiceData {
+  store: {
+    name: string;
+    legal_name: string;
+    address: string;
+    phone: string;
+    email: string;
+    vat_reg: string;
+    tax_rate: number;
+  };
+  invoice_number: string;
+  order_number: string;
+  order_id: number;
+  order_date: string;
+  status: string;
+  status_label: string;
+
+  customer: {
+    name: string;
+    email: string | null;
+    phone: string | null;
+  };
+
+  delivery_address: {
+    label: string;
+    street: string;
+    building: string | null;
+    floor: string | null;
+    apartment: string | null;
+    city: string;
+    area: string | null;
+    landmark: string | null;
+  } | null;
+  delivery_date: string | null;
+  delivery_slot: string | null;
+
+  items: Array<{
+    name: string;
+    sku: string;
+    quantity: number;
+    unit_price: string;
+    subtotal: string;
+    refunded: boolean;
+  }>;
+
+  subtotal: string;
+  delivery_fee: string;
+  tax: string;
+  tax_rate: number;
+  discount: string;
+  promo: any | null;
+  total: string;
+
+  payment_method: string;
+  payment_label: string;
+  payment_status: string;
+
+  refunds: Array<{
+    id: number;
+    type: "full" | "partial" | "penalty";
+    original_amount: string;
+    penalty_percent: number;
+    penalty_amount: string;
+    refund_amount: string;
+    refund_method: string;
+    status: string;
+    reason: string | null;
+    refunded_items: Array<{
+      product_name?: string;
+      quantity?: number;
+      amount?: number;
+    }>;
+    created_at: string;
+  }>;
+  total_refunded: string;
+  net_paid: string;
+
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+
+  generated_at: string;
+}
+
 export const orderApi = {
   /**
    * Get user's orders with optional status filter
@@ -434,6 +518,39 @@ export const orderApi = {
 
     return await safeJsonParse(response);
   },
+
+  /**
+   * Get invoice data as JSON (for in-app receipt view)
+   */
+  getInvoiceData: async (orderId: number): Promise<InvoiceData> => {
+    const token = await getAuthToken();
+
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/invoice`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=utf-8",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "ElBaraka-Mobile-App",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    const data = await safeJsonParse(response);
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to load invoice");
+    }
+
+    return data.data;
+  },
+
+  /**
+   * Get the download URL for the invoice PDF
+   */
+  getInvoiceDownloadUrl: (orderId: number): string => {
+    return `${API_BASE_URL}/orders/${orderId}/invoice/download`;
+  },
 };
 
 // Export convenience methods
@@ -447,3 +564,5 @@ export const getRefundHistory = orderApi.getRefundHistory;
 export const reorder = orderApi.reorder;
 export const getCancellationReasons = orderApi.getCancellationReasons;
 export const partialItemCancel = orderApi.partialItemCancel;
+export const getInvoiceData = orderApi.getInvoiceData;
+export const getInvoiceDownloadUrl = orderApi.getInvoiceDownloadUrl;

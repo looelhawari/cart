@@ -8,6 +8,7 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\PromoCode;
 use App\Services\CartService;
+use App\Services\InvoiceService;
 use App\Services\OrderCancellationService;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
@@ -19,15 +20,18 @@ class OrderController extends Controller
     protected OrderService $orderService;
     protected CartService $cartService;
     protected OrderCancellationService $cancellationService;
+    protected InvoiceService $invoiceService;
 
     public function __construct(
         OrderService $orderService,
         CartService $cartService,
-        OrderCancellationService $cancellationService
+        OrderCancellationService $cancellationService,
+        InvoiceService $invoiceService
     ) {
         $this->orderService = $orderService;
         $this->cartService = $cartService;
         $this->cancellationService = $cancellationService;
+        $this->invoiceService = $invoiceService;
     }
 
     /**
@@ -446,6 +450,107 @@ class OrderController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
             ], $statusCode);
+        }
+    }
+
+    /**
+     * Get invoice data as JSON (for in-app receipt view).
+     * GET /api/v1/orders/{id}/invoice
+     */
+    public function invoice(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $order = Order::where('id', $id)
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+
+            $data = $this->invoiceService->buildInvoiceData($order);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+            ], 200, [], JSON_UNESCAPED_UNICODE);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('[INVOICE] Error', [
+                'order_id' => $id,
+                'error'    => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate invoice data.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Download invoice as PDF.
+     * GET /api/v1/orders/{id}/invoice/download
+     */
+    public function invoiceDownload(Request $request, int $id)
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            $order = Order::where('id', $id)
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+
+            // Try PDF generation first
+            $pdfBytes = $this->invoiceService->generatePdf($order);
+
+            if ($pdfBytes) {
+                $filename = 'Invoice-' . $order->getOrCreateInvoiceNumber() . '.pdf';
+
+                return response($pdfBytes, 200, [
+                    'Content-Type'        => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Content-Length'      => strlen($pdfBytes),
+                ]);
+            }
+
+            // Fallback: return HTML for download
+            $html = $this->invoiceService->renderHtml($order);
+            $filename = 'Invoice-' . $order->getOrCreateInvoiceNumber() . '.html';
+
+            return response($html, 200, [
+                'Content-Type'        => 'text/html; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('[INVOICE-DOWNLOAD] Error', [
+                'order_id' => $id,
+                'error'    => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate invoice.',
+            ], 500);
         }
     }
 }

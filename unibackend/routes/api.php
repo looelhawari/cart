@@ -296,6 +296,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/partial-cancel', [OrderController::class, 'partialItemCancel']);
             Route::get('/{id}/refunds', [OrderController::class, 'refundHistory']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
+            Route::get('/{id}/invoice', [OrderController::class, 'invoice']);
+            Route::get('/{id}/invoice/download', [OrderController::class, 'invoiceDownload']);
         });
 
         // Notification endpoints
