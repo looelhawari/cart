@@ -426,9 +426,9 @@ export default function OrderDetailPage() {
                                 <div key={step.status} className="flex items-start gap-3 mb-4 last:mb-0">
                                     <div className="flex flex-col items-center">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${isCancelled && stepIdx > 0 ? 'bg-gray-300' :
-                                                isCompleted ? 'bg-green-500' :
-                                                    isCurrent ? 'bg-blue-500 ring-4 ring-blue-100' :
-                                                        'bg-gray-300'
+                                            isCompleted ? 'bg-green-500' :
+                                                isCurrent ? 'bg-blue-500 ring-4 ring-blue-100' :
+                                                    'bg-gray-300'
                                             }`}>
                                             {isCompleted && !isCurrent ? <CheckCircle className="h-4 w-4" /> : i + 1}
                                         </div>

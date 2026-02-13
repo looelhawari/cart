@@ -107,7 +107,7 @@ export default function CartScreen() {
   const handleRemovePromo = async () => {
     try {
       await removePromoCodeFromCart();
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleCheckout = () => {
@@ -213,7 +213,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await clearCart();
-                } catch (_) {}
+                } catch (_) { }
               }}
               style={styles.clearButton}
             >
@@ -283,7 +283,7 @@ export default function CartScreen() {
                       } else {
                         await removeFromCart(item.id);
                       }
-                    } catch (_) {}
+                    } catch (_) { }
                   }}
                 >
                   {item.quantity === 1 ? (
@@ -318,7 +318,7 @@ export default function CartScreen() {
                     }
                     try {
                       await updateQuantity(item.id, item.quantity + 1);
-                    } catch (_) {}
+                    } catch (_) { }
                   }}
                   disabled={(() => {
                     const m = getMaxPerOrder(item.product?.barcode);
@@ -343,7 +343,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await removeFromCart(item.id);
-                } catch (_) {}
+                } catch (_) { }
               }}
             >
               <X size={18} color={Colors.neutralMedium} />
@@ -410,7 +410,7 @@ export default function CartScreen() {
                 style={[
                   styles.applyButton,
                   (!promoCode.trim() || isApplyingPromo) &&
-                    styles.applyButtonDisabled,
+                  styles.applyButtonDisabled,
                 ]}
                 onPress={handleApplyPromo}
                 disabled={!promoCode.trim() || isApplyingPromo}
