@@ -365,7 +365,7 @@ export default {
     languageChangedMessage:
       "Language has been changed to {lang}. Some changes may require app restart.",
     about: "About",
-    appName: "ElBaraka Hypermarket",
+    appName: "CART Hypermarket",
     version: "Version",
     appVersion: "Version",
     termsOfService: "Terms of Service",

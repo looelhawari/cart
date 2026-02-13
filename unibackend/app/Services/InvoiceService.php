@@ -12,13 +12,11 @@ class InvoiceService
      * Store info — hardcoded for now, can be moved to a settings table later.
      */
     private const STORE = [
-        'name'        => 'ElBaraka Hypermarket',
-        'legal_name'  => 'ElBaraka Hypermarket Co.',
+        'name'        => 'CART',
+        'legal_name'  => 'CART Hypermarket',
         'address'     => 'Cairo, Egypt',
         'phone'       => '+20 123 456 7890',
         'email'       => 'support@elbaraka.com',
-        'vat_reg'     => '123-456-789',   // Placeholder — replace with real VAT registration
-        'tax_rate'    => 14,              // Egyptian VAT rate %
     ];
 
     /**
@@ -125,7 +123,7 @@ class InvoiceService
             'subtotal'    => number_format((float) $order->subtotal, 2, '.', ''),
             'delivery_fee'=> number_format((float) $order->delivery_fee, 2, '.', ''),
             'tax'         => number_format((float) $order->tax, 2, '.', ''),
-            'tax_rate'    => self::STORE['tax_rate'],
+            'tax_rate'    => 14, // Egyptian VAT rate %
             'discount'    => number_format((float) $order->discount, 2, '.', ''),
             'promo'       => $promo,
             'total'       => number_format((float) $order->total, 2, '.', ''),

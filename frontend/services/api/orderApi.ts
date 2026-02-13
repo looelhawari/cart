@@ -551,6 +551,35 @@ export const orderApi = {
   getInvoiceDownloadUrl: (orderId: number): string => {
     return `${API_BASE_URL}/orders/${orderId}/invoice/download`;
   },
+
+  /**
+   * Email invoice PDF to the customer's email address
+   */
+  emailInvoice: async (orderId: number): Promise<{ success: boolean; message: string }> => {
+    const token = await getAuthToken();
+
+    const response = await fetch(
+      `${API_BASE_URL}/orders/${orderId}/invoice/email`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json; charset=utf-8",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      },
+    );
+
+    const data = await safeJsonParse(response);
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to send invoice email");
+    }
+
+    return data;
+  },
 };
 
 // Export convenience methods
@@ -566,3 +595,5 @@ export const getCancellationReasons = orderApi.getCancellationReasons;
 export const partialItemCancel = orderApi.partialItemCancel;
 export const getInvoiceData = orderApi.getInvoiceData;
 export const getInvoiceDownloadUrl = orderApi.getInvoiceDownloadUrl;
+export const emailInvoice = orderApi.emailInvoice;
+

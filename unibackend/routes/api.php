@@ -298,6 +298,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
             Route::get('/{id}/invoice', [OrderController::class, 'invoice']);
             Route::get('/{id}/invoice/download', [OrderController::class, 'invoiceDownload']);
+            Route::post('/{id}/invoice/email', [OrderController::class, 'emailInvoice']);
         });
 
         // Notification endpoints

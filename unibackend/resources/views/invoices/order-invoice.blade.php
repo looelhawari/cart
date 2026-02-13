@@ -102,7 +102,6 @@
                         {{ $store['legal_name'] }}<br>
                         {{ $store['address'] }}<br>
                         {{ $store['phone'] }}<br>
-                        VAT Reg: {{ $store['vat_reg'] }}
                     </div>
                 </td>
                 <td style="width: 40%;">
@@ -196,11 +195,10 @@
         <thead>
             <tr>
                 <th style="width: 5%;">#</th>
-                <th style="width: 40%;">Item</th>
-                <th style="width: 12%;">SKU</th>
-                <th style="width: 10%;">Qty</th>
-                <th style="width: 15%;">Unit Price</th>
-                <th style="width: 18%;">Subtotal</th>
+                <th style="width: 45%;">Item</th>
+                <th style="width: 12%;">Qty</th>
+                <th style="width: 18%;">Unit Price</th>
+                <th style="width: 20%;">Subtotal</th>
             </tr>
         </thead>
         <tbody>
@@ -213,7 +211,7 @@
                             <span class="refunded-badge">Refunded</span>
                         @endif
                     </td>
-                    <td class="{{ $item['refunded'] ? 'item-refunded' : '' }}">{{ $item['sku'] }}</td>
+
                     <td class="{{ $item['refunded'] ? 'item-refunded' : '' }}">{{ $item['quantity'] }}</td>
                     <td class="{{ $item['refunded'] ? 'item-refunded' : '' }}">{{ $item['unit_price'] }} EGP</td>
                     <td class="{{ $item['refunded'] ? 'item-refunded' : '' }}">{{ $item['subtotal'] }} EGP</td>
@@ -324,9 +322,7 @@
     {{-- ═══════ FOOTER ═══════ --}}
     <div class="footer">
         <p class="thank-you">Thank you for shopping with {{ $store['name'] }}!</p>
-        <p>{{ $store['legal_name'] }} · VAT Reg: {{ $store['vat_reg'] }}</p>
         <p>{{ $store['address'] }} · {{ $store['phone'] }} · {{ $store['email'] }}</p>
-        <p style="margin-top: 8px;">This is a computer-generated invoice. No signature required.</p>
     </div>
 </div>
 </body>

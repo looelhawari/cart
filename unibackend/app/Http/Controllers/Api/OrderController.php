@@ -13,7 +13,10 @@ use App\Services\OrderCancellationService;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
+use App\Mail\InvoiceMail;
 
 class OrderController extends Controller
 {
@@ -550,6 +553,75 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to generate invoice.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Email invoice PDF to the authenticated customer.
+     * POST /api/v1/orders/{id}/invoice/email
+     */
+    public function emailInvoice(Request $request, int $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required',
+                ], 401);
+            }
+
+            if (!$user->email) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No email address on your account. Please add one in your profile.',
+                ], 422);
+            }
+
+            $order = Order::where('id', $id)
+                ->where('user_id', $user->id)
+                ->firstOrFail();
+
+            // Generate PDF
+            $pdfBytes = $this->invoiceService->generatePdf($order);
+
+            if (!$pdfBytes) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to generate invoice PDF. Please try again later.',
+                ], 500);
+            }
+
+            $filename = 'Invoice-' . $order->getOrCreateInvoiceNumber() . '.pdf';
+            $invoiceData = $this->invoiceService->buildInvoiceData($order);
+
+            Mail::to($user->email)->send(new InvoiceMail(
+                $order->order_number,
+                $user->name ?? 'Customer',
+                $invoiceData['total'],
+                $pdfBytes,
+                $filename
+            ));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Invoice sent to ' . $user->email,
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('[INVOICE-EMAIL] Error', [
+                'order_id' => $id,
+                'error'    => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send invoice email. Please try again.',
             ], 500);
         }
     }

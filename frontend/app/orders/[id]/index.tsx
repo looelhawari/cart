@@ -10,12 +10,16 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  Share,
+  Linking,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { ArrowLeft, Package, Clock } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { useResponsive } from "@/hooks/useResponsive";
 
 import { Colors } from "@/constants/Colors";
@@ -27,12 +31,11 @@ import {
   checkCancellationEligibility,
   getCancellationReasons,
   partialItemCancel,
-  getInvoiceData,
   getInvoiceDownloadUrl,
+  emailInvoice,
   Order,
   CancellationEligibility,
   CancellationReason,
-  InvoiceData,
 } from "@/services/api/orderApi";
 import { getAuthToken } from "@/services/api/base";
 import { createReview } from "@/services/api/reviewsApi";
@@ -86,11 +89,11 @@ export default function OrderDetailsScreen() {
     "success",
   );
 
-  // Invoice / Receipt state
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
-  const [loadingInvoice, setLoadingInvoice] = useState(false);
-  const [sharingInvoice, setSharingInvoice] = useState(false);
+  // Order actions menu state
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [emailingInvoice, setEmailingInvoice] = useState(false);
+  const [sharingOrder, setSharingOrder] = useState(false);
 
   // Create responsive styles
   const styles = StyleSheet.create({
@@ -581,7 +584,7 @@ export default function OrderDetailsScreen() {
         setOrder((prevOrder) => {
           if (prevOrder && newOrder.status !== prevOrder.status) {
             console.log(
-              "📦 [ORDER] Status changed:",
+              "ðŸ“¦ [ORDER] Status changed:",
               prevOrder.status,
               "->",
               newOrder.status,
@@ -778,77 +781,88 @@ export default function OrderDetailsScreen() {
     }
   };
 
-  /** Open in-app receipt view */
-  const handleViewReceipt = async () => {
-    setLoadingInvoice(true);
+  /** Download invoice PDF in background and open with system viewer */
+  const handleDownloadInvoice = async () => {
+    setShowActionsMenu(false);
+    setDownloadingInvoice(true);
     try {
-      const data = await getInvoiceData(Number(id));
-      setInvoiceData(data);
-      setShowInvoiceModal(true);
-    } catch (error: any) {
-      setToastMessage(error.message || "Failed to load receipt");
-      setToastType("error");
-      setToastVisible(true);
-    } finally {
-      setLoadingInvoice(false);
-    }
-  };
-
-  /** Download PDF and open native share sheet */
-  const handleShareInvoice = async () => {
-    setSharingInvoice(true);
-    try {
-      // Dynamic imports to avoid crash when native modules aren't available
-      const FileSystem = await import("expo-file-system/legacy");
-      const Sharing = await import("expo-sharing");
-
-      const token = await getAuthToken();
       const downloadUrl = getInvoiceDownloadUrl(Number(id));
+      const token = await getAuthToken();
+      const filename = `Invoice-Order-${id}.pdf`;
+      const destination = new FileSystem.File(FileSystem.Paths.cache, filename);
 
-      // Download to temp dir
-      const fileUri = FileSystem.cacheDirectory + `invoice-order-${id}.pdf`;
-      const downloadResult = await FileSystem.downloadAsync(
+      // Stream PDF directly to disk with auth headers
+      const downloadedFile = await FileSystem.File.downloadFileAsync(
         downloadUrl,
-        fileUri,
+        destination,
         {
           headers: {
+            Authorization: token ? `Bearer ${token}` : "",
             Accept: "application/pdf",
             "ngrok-skip-browser-warning": "true",
             "User-Agent": "ElBaraka-Mobile-App",
-            ...(token && { Authorization: `Bearer ${token}` }),
           },
+          idempotent: true, // overwrite if file already exists
         },
       );
 
-      if (downloadResult.status !== 200) {
-        throw new Error("Failed to download invoice");
-      }
-
-      // Check if sharing is available
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) {
-        setToastMessage("Sharing is not available on this device");
-        setToastType("error");
-        setToastVisible(true);
-        return;
-      }
-
-      await Sharing.shareAsync(downloadResult.uri, {
-        mimeType: "application/pdf",
-        dialogTitle: "Share Invoice",
-        UTI: "com.adobe.pdf",
-      });
+      // Open the downloaded PDF with the system viewer
+      const openUri =
+        Platform.OS === "android"
+          ? downloadedFile.contentUri // content:// URI works on Android
+          : downloadedFile.uri;       // file:// URI works on iOS
+      await Linking.openURL(openUri);
     } catch (error: any) {
-      console.error("Share invoice error:", error);
-      setToastMessage(error.message || "Failed to share invoice");
+      setToastMessage(error.message || "Failed to download invoice");
       setToastType("error");
       setToastVisible(true);
     } finally {
-      setSharingInvoice(false);
+      setDownloadingInvoice(false);
     }
   };
 
-  /** Helper: whether invoice buttons should show */
+  /** Email invoice PDF to the customer's registered email */
+  const handleEmailInvoice = async () => {
+    setShowActionsMenu(false);
+    setEmailingInvoice(true);
+    try {
+      const result = await emailInvoice(Number(id));
+      setToastMessage(result.message || "Invoice sent to your email");
+      setToastType("success");
+      setToastVisible(true);
+    } catch (error: any) {
+      setToastMessage(error.message || "Failed to send invoice email");
+      setToastType("error");
+      setToastVisible(true);
+    } finally {
+      setEmailingInvoice(false);
+    }
+  };
+
+  /** Share order info via OS share sheet */
+  const handleShareOrder = async () => {
+    setShowActionsMenu(false);
+    setSharingOrder(true);
+    try {
+      const shareText = `Order #${order?.order_number}\nTotal: ${safePrice(order?.total)} EGP\nStatus: ${order?.status_label || order?.status}`;
+      const result = await Share.share(
+        {
+          title: `Order #${order?.order_number}`,
+          message: shareText,
+        },
+        { dialogTitle: "Share Order" },
+      );
+      if (result.action === Share.dismissedAction) return;
+    } catch (error: any) {
+      setToastMessage(error.message || "Failed to share order");
+      setToastType("error");
+      setToastVisible(true);
+    } finally {
+      setSharingOrder(false);
+    }
+  };
+
+  /** Helper: whether invoice/order actions should show */
   const canShowInvoice = (status: string) => {
     return [
       "delivered",
@@ -1052,7 +1066,21 @@ export default function OrderDetailsScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order Details</Text>
-        <View style={{ width: 40 }} />
+        {order && canShowInvoice(order.status) ? (
+          <TouchableOpacity
+            onPress={() => setShowActionsMenu(true)}
+            style={styles.headerButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="ellipsis-vertical"
+              size={22}
+              color={Colors.neutralCharcoal}
+            />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -1791,106 +1819,7 @@ export default function OrderDetailsScreen() {
           </View>
         </View>
 
-        {/* Invoice / Receipt Actions */}
-        {order && canShowInvoice(order.status) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Invoice</Text>
-            <View
-              style={{
-                flexDirection: "row",
-                gap: Spacing.sm,
-              }}
-            >
-              {/* View Receipt Button */}
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor: Colors.neutralWhite,
-                  paddingVertical: Spacing.md,
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: Colors.primary900,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                  elevation: 3,
-                }}
-                onPress={handleViewReceipt}
-                disabled={loadingInvoice}
-                activeOpacity={0.7}
-              >
-                {loadingInvoice ? (
-                  <ActivityIndicator size="small" color={Colors.primary900} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="receipt-outline"
-                      size={20}
-                      color={Colors.primary900}
-                    />
-                    <Text
-                      style={{
-                        fontSize: Typography.bodyBase,
-                        fontWeight: Typography.bold,
-                        color: Colors.primary900,
-                      }}
-                    >
-                      View Receipt
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
 
-              {/* Share / Export PDF Button */}
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor: Colors.primary900,
-                  paddingVertical: Spacing.md,
-                  borderRadius: 16,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                  elevation: 3,
-                }}
-                onPress={handleShareInvoice}
-                disabled={sharingInvoice}
-                activeOpacity={0.7}
-              >
-                {sharingInvoice ? (
-                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="share-outline"
-                      size={20}
-                      color={Colors.neutralWhite}
-                    />
-                    <Text
-                      style={{
-                        fontSize: Typography.bodyBase,
-                        fontWeight: Typography.bold,
-                        color: Colors.neutralWhite,
-                      }}
-                    >
-                      Share PDF
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Refund History */}
         {order.refunds && order.refunds.length > 0 && (
@@ -2123,10 +2052,10 @@ export default function OrderDetailsScreen() {
                         }}
                       >
                         {refund.refund_method === "paymob"
-                          ? "💳 Card"
+                          ? "ðŸ’³ Card"
                           : refund.refund_method === "wallet"
-                            ? "👛 Wallet"
-                            : "💵 Cash"}
+                            ? "ðŸ‘› Wallet"
+                            : "ðŸ’µ Cash"}
                       </Text>
                     </View>
                   </View>
@@ -2172,7 +2101,7 @@ export default function OrderDetailsScreen() {
                               }}
                               numberOfLines={1}
                             >
-                              {ri.product_name} × {ri.quantity}
+                              {ri.product_name} Ã— {ri.quantity}
                             </Text>
                             <Text
                               style={{
@@ -2337,7 +2266,7 @@ export default function OrderDetailsScreen() {
                     marginBottom: 4,
                   }}
                 >
-                  ⚠️ Cancellation Fee Applies
+                  âš ï¸ Cancellation Fee Applies
                 </Text>
                 <Text
                   style={{
@@ -2370,7 +2299,7 @@ export default function OrderDetailsScreen() {
                     marginBottom: 4,
                   }}
                 >
-                  ✅ Full Refund
+                  âœ… Full Refund
                 </Text>
                 <Text
                   style={{
@@ -2578,7 +2507,7 @@ export default function OrderDetailsScreen() {
                         {item.product_name}
                       </Text>
                       <Text style={{ fontSize: 12, color: Colors.neutralGray }}>
-                        Qty: {item.quantity} × {safePrice(item.price)} EGP
+                        Qty: {item.quantity} Ã— {safePrice(item.price)} EGP
                       </Text>
                     </View>
                     <Text
@@ -2879,945 +2808,158 @@ export default function OrderDetailsScreen() {
         </View>
       )}
 
-      {/* Invoice Receipt Modal */}
+      {/* Order Actions Menu */}
       <Modal
-        visible={showInvoiceModal}
+        visible={showActionsMenu}
         transparent
-        animationType="slide"
-        onRequestClose={() => setShowInvoiceModal(false)}
+        animationType="fade"
+        onRequestClose={() => setShowActionsMenu(false)}
       >
-        <SafeAreaView
-          style={{ flex: 1, backgroundColor: Colors.neutralCloud }}
-          edges={["top"]}
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.3)",
+          }}
+          activeOpacity={1}
+          onPress={() => setShowActionsMenu(false)}
         >
-          {/* Modal Header */}
           <View
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: Spacing.md,
-              paddingVertical: Spacing.md,
+              position: "absolute",
+              top: 90,
+              right: 16,
               backgroundColor: Colors.neutralWhite,
-              borderBottomWidth: 1,
-              borderBottomColor: Colors.neutralLight,
+              borderRadius: 16,
+              paddingVertical: 8,
+              minWidth: 220,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.15,
+              shadowRadius: 24,
+              elevation: 12,
             }}
           >
+            {/* Download Invoice */}
             <TouchableOpacity
-              onPress={() => setShowInvoiceModal(false)}
+              onPress={handleDownloadInvoice}
+              disabled={downloadingInvoice}
+              activeOpacity={0.6}
               style={{
-                width: 40,
-                height: 40,
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 20,
-                backgroundColor: Colors.neutralCloud,
+                paddingHorizontal: 20,
+                paddingVertical: 14,
+                gap: 14,
               }}
             >
-              <Ionicons name="close" size={24} color={Colors.neutralCharcoal} />
-            </TouchableOpacity>
-            <Text
-              style={{
-                fontSize: Typography.h4,
-                fontWeight: Typography.bold,
-                color: Colors.neutralCharcoal,
-              }}
-            >
-              Receipt
-            </Text>
-            <TouchableOpacity
-              onPress={handleShareInvoice}
-              disabled={sharingInvoice}
-              style={{
-                width: 40,
-                height: 40,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 20,
-                backgroundColor: Colors.primary900 + "15",
-              }}
-            >
-              {sharingInvoice ? (
+              {downloadingInvoice ? (
                 <ActivityIndicator size="small" color={Colors.primary900} />
               ) : (
                 <Ionicons
-                  name="share-outline"
-                  size={22}
+                  name="download-outline"
+                  size={20}
                   color={Colors.primary900}
                 />
               )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Receipt Content */}
-          {invoiceData ? (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: Spacing.md }}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Store Header */}
-              <View
-                style={{
-                  backgroundColor: Colors.neutralWhite,
-                  borderRadius: 20,
-                  padding: Spacing.lg,
-                  marginBottom: Spacing.md,
-                  alignItems: "center",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 12,
-                  elevation: 4,
-                }}
-              >
-                <View
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                    backgroundColor: Colors.primary900 + "15",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: Spacing.sm,
-                  }}
-                >
-                  <Ionicons
-                    name="storefront"
-                    size={28}
-                    color={Colors.primary900}
-                  />
-                </View>
-                <Text
-                  style={{
-                    fontSize: Typography.h3,
-                    fontWeight: Typography.bold,
-                    color: Colors.primary900,
-                    marginBottom: 4,
-                  }}
-                >
-                  {invoiceData.store.name}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: Typography.bodySmall,
-                    color: Colors.neutralMedium,
-                    textAlign: "center",
-                  }}
-                >
-                  {invoiceData.store.address}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: Typography.bodySmall,
-                    color: Colors.neutralMedium,
-                  }}
-                >
-                  VAT: {invoiceData.store.vat_reg}
-                </Text>
-
-                {/* Invoice Number */}
-                <View
-                  style={{
-                    marginTop: Spacing.md,
-                    paddingTop: Spacing.md,
-                    borderTopWidth: 1,
-                    borderTopColor: Colors.neutralLight,
-                    width: "100%",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: Colors.neutralMedium,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                    }}
-                  >
-                    Invoice
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodyLarge,
-                      fontWeight: Typography.bold,
-                      color: Colors.neutralCharcoal,
-                      marginTop: 2,
-                    }}
-                  >
-                    {invoiceData.invoice_number}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralMedium,
-                      marginTop: 2,
-                    }}
-                  >
-                    Order: {invoiceData.order_number}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralMedium,
-                    }}
-                  >
-                    {invoiceData.order_date}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Status Badge */}
-              <View
-                style={{
-                  backgroundColor:
-                    invoiceData.status === "delivered"
-                      ? "#DCFCE7"
-                      : invoiceData.status === "cancelled"
-                        ? "#FEE2E2"
-                        : "#DBEAFE",
-                  borderRadius: 12,
-                  padding: Spacing.sm,
-                  marginBottom: Spacing.md,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: Typography.bodySmall,
-                    fontWeight: Typography.bold,
-                    color:
-                      invoiceData.status === "delivered"
-                        ? "#166534"
-                        : invoiceData.status === "cancelled"
-                          ? "#991B1B"
-                          : "#1E40AF",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  {invoiceData.status_label}
-                </Text>
-              </View>
-
-              {/* Cancelled Info */}
-              {invoiceData.cancelled_at && (
-                <View
-                  style={{
-                    backgroundColor: "#FEF2F2",
-                    borderRadius: 12,
-                    padding: Spacing.md,
-                    marginBottom: Spacing.md,
-                    borderLeftWidth: 4,
-                    borderLeftColor: "#DC2626",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      fontWeight: Typography.bold,
-                      color: "#991B1B",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Order Cancelled
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: "#64748B",
-                    }}
-                  >
-                    {invoiceData.cancelled_at}
-                    {invoiceData.cancellation_reason
-                      ? ` — ${invoiceData.cancellation_reason}`
-                      : ""}
-                  </Text>
-                </View>
-              )}
-
-              {/* Customer & Delivery Info */}
-              <View
-                style={{
-                  backgroundColor: Colors.neutralWhite,
-                  borderRadius: 16,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.md,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                  elevation: 3,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: Colors.primary900,
-                        fontWeight: Typography.bold,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        marginBottom: 6,
-                      }}
-                    >
-                      Customer
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.bodySmall,
-                        color: Colors.neutralCharcoal,
-                        fontWeight: Typography.semibold,
-                      }}
-                    >
-                      {invoiceData.customer.name}
-                    </Text>
-                    {invoiceData.customer.phone && (
-                      <Text
-                        style={{
-                          fontSize: Typography.bodySmall,
-                          color: Colors.neutralMedium,
-                        }}
-                      >
-                        {invoiceData.customer.phone}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={{ flex: 1, alignItems: "flex-end" }}>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: Colors.primary900,
-                        fontWeight: Typography.bold,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        marginBottom: 6,
-                      }}
-                    >
-                      Payment
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.bodySmall,
-                        color: Colors.neutralCharcoal,
-                        fontWeight: Typography.semibold,
-                      }}
-                    >
-                      {invoiceData.payment_label}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.bodySmall,
-                        color: Colors.neutralMedium,
-                      }}
-                    >
-                      {invoiceData.payment_status.charAt(0).toUpperCase() +
-                        invoiceData.payment_status.slice(1).replace("_", " ")}
-                    </Text>
-                  </View>
-                </View>
-
-                {invoiceData.delivery_address && (
-                  <>
-                    <View
-                      style={{
-                        height: 1,
-                        backgroundColor: Colors.neutralLight,
-                        marginVertical: Spacing.sm,
-                      }}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: Colors.primary900,
-                        fontWeight: Typography.bold,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        marginBottom: 6,
-                      }}
-                    >
-                      Delivery Address
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.bodySmall,
-                        color: Colors.neutralCharcoal,
-                        lineHeight: 18,
-                      }}
-                    >
-                      {invoiceData.delivery_address.street}
-                      {invoiceData.delivery_address.building
-                        ? `, Bldg ${invoiceData.delivery_address.building}`
-                        : ""}
-                      {invoiceData.delivery_address.floor
-                        ? `, Floor ${invoiceData.delivery_address.floor}`
-                        : ""}
-                      {"\n"}
-                      {invoiceData.delivery_address.city}
-                      {invoiceData.delivery_address.area
-                        ? `, ${invoiceData.delivery_address.area}`
-                        : ""}
-                    </Text>
-                  </>
-                )}
-              </View>
-
-              {/* Items */}
-              <View
-                style={{
-                  backgroundColor: Colors.neutralWhite,
-                  borderRadius: 16,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.md,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                  elevation: 3,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 10,
-                    color: Colors.primary900,
-                    fontWeight: Typography.bold,
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                    marginBottom: Spacing.sm,
-                  }}
-                >
-                  Items
-                </Text>
-                {invoiceData.items.map((item, idx) => (
-                  <View
-                    key={idx}
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      paddingVertical: 8,
-                      borderBottomWidth:
-                        idx < invoiceData.items.length - 1 ? 1 : 0,
-                      borderBottomColor: Colors.neutralLight,
-                    }}
-                  >
-                    <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                      <Text
-                        style={{
-                          fontSize: Typography.bodySmall,
-                          color: item.refunded
-                            ? Colors.neutralGray
-                            : Colors.neutralCharcoal,
-                          fontWeight: Typography.semibold,
-                          textDecorationLine: item.refunded
-                            ? "line-through"
-                            : "none",
-                        }}
-                        numberOfLines={2}
-                      >
-                        {item.name}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          color: Colors.neutralMedium,
-                          marginTop: 2,
-                        }}
-                      >
-                        {item.quantity} × {item.unit_price} EGP
-                      </Text>
-                      {item.refunded && (
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginTop: 4,
-                            gap: 4,
-                          }}
-                        >
-                          <Ionicons
-                            name="return-down-back"
-                            size={10}
-                            color="#DC2626"
-                          />
-                          <Text
-                            style={{
-                              fontSize: 10,
-                              fontWeight: "700",
-                              color: "#DC2626",
-                            }}
-                          >
-                            Refunded
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: Typography.bodyBase,
-                        fontWeight: Typography.bold,
-                        color: item.refunded
-                          ? Colors.neutralGray
-                          : Colors.primary900,
-                        textDecorationLine: item.refunded
-                          ? "line-through"
-                          : "none",
-                      }}
-                    >
-                      {item.subtotal} EGP
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Promo Badge */}
-              {invoiceData.promo && (
-                <View
-                  style={{
-                    backgroundColor: "#DCFCE7",
-                    borderRadius: 12,
-                    padding: Spacing.sm,
-                    marginBottom: Spacing.md,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                  }}
-                >
-                  <Ionicons name="pricetag" size={16} color="#166534" />
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      fontWeight: Typography.bold,
-                      color: "#166534",
-                    }}
-                  >
-                    Promo Code Applied
-                  </Text>
-                </View>
-              )}
-
-              {/* Price Summary */}
-              <View
-                style={{
-                  backgroundColor: Colors.neutralWhite,
-                  borderRadius: 16,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.md,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                  elevation: 3,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 10,
-                    color: Colors.primary900,
-                    fontWeight: Typography.bold,
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                    marginBottom: Spacing.sm,
-                  }}
-                >
-                  Summary
-                </Text>
-                {/* Subtotal */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralMedium,
-                    }}
-                  >
-                    Subtotal
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralCharcoal,
-                    }}
-                  >
-                    {invoiceData.subtotal} EGP
-                  </Text>
-                </View>
-                {/* Delivery */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralMedium,
-                    }}
-                  >
-                    Delivery Fee
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralCharcoal,
-                    }}
-                  >
-                    {invoiceData.delivery_fee === "0.00"
-                      ? "FREE"
-                      : `${invoiceData.delivery_fee} EGP`}
-                  </Text>
-                </View>
-                {/* Tax */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralMedium,
-                    }}
-                  >
-                    Tax ({invoiceData.tax_rate}% VAT)
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall,
-                      color: Colors.neutralCharcoal,
-                    }}
-                  >
-                    {invoiceData.tax} EGP
-                  </Text>
-                </View>
-                {/* Discount */}
-                {parseFloat(invoiceData.discount) > 0 && (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: Typography.bodySmall,
-                        color: Colors.accentRed,
-                      }}
-                    >
-                      Discount
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.bodySmall,
-                        color: Colors.accentRed,
-                      }}
-                    >
-                      -{invoiceData.discount} EGP
-                    </Text>
-                  </View>
-                )}
-                {/* Total Divider */}
-                <View
-                  style={{
-                    height: 1,
-                    backgroundColor: Colors.neutralLight,
-                    marginVertical: Spacing.sm,
-                  }}
-                />
-                {/* Total */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    marginBottom: 4,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.bodyLarge,
-                      fontWeight: Typography.bold,
-                      color: Colors.neutralCharcoal,
-                    }}
-                  >
-                    Total
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.h4,
-                      fontWeight: Typography.bold,
-                      color: Colors.primary900,
-                    }}
-                  >
-                    {invoiceData.total} EGP
-                  </Text>
-                </View>
-                {/* Refunded */}
-                {parseFloat(invoiceData.total_refunded) > 0 && (
-                  <>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        marginTop: 6,
-                      }}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Ionicons
-                          name="return-down-back"
-                          size={14}
-                          color="#DC2626"
-                        />
-                        <Text
-                          style={{
-                            fontSize: Typography.bodySmall,
-                            color: "#DC2626",
-                            fontWeight: Typography.semibold,
-                          }}
-                        >
-                          Refunded
-                        </Text>
-                      </View>
-                      <Text
-                        style={{
-                          fontSize: Typography.bodySmall,
-                          color: "#DC2626",
-                          fontWeight: Typography.bold,
-                        }}
-                      >
-                        -{invoiceData.total_refunded} EGP
-                      </Text>
-                    </View>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        marginTop: 4,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: Typography.bodyLarge,
-                          fontWeight: Typography.bold,
-                          color: Colors.neutralCharcoal,
-                        }}
-                      >
-                        Net Paid
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: Typography.h4,
-                          fontWeight: Typography.bold,
-                          color: Colors.primary900,
-                        }}
-                      >
-                        {invoiceData.net_paid} EGP
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </View>
-
-              {/* Refund History (in receipt) */}
-              {invoiceData.refunds.length > 0 && (
-                <View
-                  style={{
-                    backgroundColor: Colors.neutralWhite,
-                    borderRadius: 16,
-                    padding: Spacing.md,
-                    marginBottom: Spacing.md,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.06,
-                    shadowRadius: 8,
-                    elevation: 3,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      color: "#DC2626",
-                      fontWeight: Typography.bold,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      marginBottom: Spacing.sm,
-                    }}
-                  >
-                    Refunds ({invoiceData.refunds.length})
-                  </Text>
-                  {invoiceData.refunds.map((refund, rIdx) => {
-                    const typeColor =
-                      refund.type === "full"
-                        ? "#DC2626"
-                        : refund.type === "partial"
-                          ? "#D97706"
-                          : "#9333EA";
-                    const typeBg =
-                      refund.type === "full"
-                        ? "#FEE2E2"
-                        : refund.type === "partial"
-                          ? "#FEF3C7"
-                          : "#F3E8FF";
-                    const typeLabel =
-                      refund.type === "full"
-                        ? "Full"
-                        : refund.type === "partial"
-                          ? "Partial"
-                          : "Penalty";
-
-                    return (
-                      <View
-                        key={refund.id}
-                        style={{
-                          paddingVertical: 8,
-                          borderBottomWidth:
-                            rIdx < invoiceData.refunds.length - 1 ? 1 : 0,
-                          borderBottomColor: Colors.neutralLight,
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <View
-                            style={{
-                              backgroundColor: typeBg,
-                              borderRadius: 6,
-                              paddingHorizontal: 8,
-                              paddingVertical: 2,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 10,
-                                fontWeight: "700",
-                                color: typeColor,
-                              }}
-                            >
-                              {typeLabel}
-                            </Text>
-                          </View>
-                          <Text
-                            style={{
-                              fontSize: Typography.bodyBase,
-                              fontWeight: Typography.bold,
-                              color: "#16A34A",
-                            }}
-                          >
-                            {refund.refund_amount} EGP
-                          </Text>
-                        </View>
-                        {parseFloat(refund.penalty_amount) > 0 && (
-                          <Text
-                            style={{
-                              fontSize: 11,
-                              color: Colors.neutralMedium,
-                              marginTop: 4,
-                            }}
-                          >
-                            Penalty ({refund.penalty_percent}%): -
-                            {refund.penalty_amount} EGP
-                          </Text>
-                        )}
-                        {refund.reason && (
-                          <Text
-                            style={{
-                              fontSize: 11,
-                              color: Colors.neutralMedium,
-                              marginTop: 2,
-                            }}
-                          >
-                            {refund.reason}
-                          </Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Footer */}
-              <View
-                style={{
-                  alignItems: "center",
-                  paddingVertical: Spacing.lg,
-                  marginBottom: Spacing.xl,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: Typography.bodyLarge,
-                    fontWeight: Typography.bold,
-                    color: Colors.primary900,
-                    marginBottom: 8,
-                  }}
-                >
-                  Thank you for shopping with us!
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: Colors.neutralMedium,
-                    textAlign: "center",
-                    lineHeight: 16,
-                  }}
-                >
-                  {invoiceData.store.legal_name} · VAT:{" "}
-                  {invoiceData.store.vat_reg}
-                  {"\n"}
-                  {invoiceData.store.phone} · {invoiceData.store.email}
-                  {"\n"}
-                  Generated: {invoiceData.generated_at}
-                </Text>
-              </View>
-            </ScrollView>
-          ) : (
-            <View
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <ActivityIndicator size="large" color={Colors.primary900} />
               <Text
                 style={{
-                  marginTop: Spacing.md,
                   fontSize: Typography.bodyBase,
-                  color: Colors.neutralMedium,
+                  fontWeight: "600" as const,
+                  color: Colors.neutralCharcoal,
                 }}
               >
-                Loading receipt...
+                Download Invoice
               </Text>
-            </View>
-          )}
-        </SafeAreaView>
+            </TouchableOpacity>
+
+            {/* Separator */}
+            <View
+              style={{
+                height: 1,
+                backgroundColor: Colors.neutralLight,
+                marginHorizontal: 16,
+              }}
+            />
+
+            {/* Email Invoice */}
+            <TouchableOpacity
+              onPress={handleEmailInvoice}
+              disabled={emailingInvoice}
+              activeOpacity={0.6}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 20,
+                paddingVertical: 14,
+                gap: 14,
+              }}
+            >
+              {emailingInvoice ? (
+                <ActivityIndicator size="small" color={Colors.primary900} />
+              ) : (
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color={Colors.primary900}
+                />
+              )}
+              <Text
+                style={{
+                  fontSize: Typography.bodyBase,
+                  fontWeight: "600" as const,
+                  color: Colors.neutralCharcoal,
+                }}
+              >
+                Email Me Invoice
+              </Text>
+            </TouchableOpacity>
+
+            {/* Separator */}
+            <View
+              style={{
+                height: 1,
+                backgroundColor: Colors.neutralLight,
+                marginHorizontal: 16,
+              }}
+            />
+
+            {/* Share Order */}
+            <TouchableOpacity
+              onPress={handleShareOrder}
+              disabled={sharingOrder}
+              activeOpacity={0.6}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 20,
+                paddingVertical: 14,
+                gap: 14,
+              }}
+            >
+              {sharingOrder ? (
+                <ActivityIndicator size="small" color={Colors.primary900} />
+              ) : (
+                <Ionicons
+                  name="share-social-outline"
+                  size={20}
+                  color={Colors.primary900}
+                />
+              )}
+              <Text
+                style={{
+                  fontSize: Typography.bodyBase,
+                  fontWeight: "600" as const,
+                  color: Colors.neutralCharcoal,
+                }}
+              >
+                Share Order
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
+
+
 
       {/* Rating Modal */}
       <Modal
