@@ -55,8 +55,6 @@ class OrderCancellationService
      * Each reason has an id, label (English), and label_ar (Arabic).
      */
     public const CANCELLATION_REASONS = [
-        ['id' => 'changed_mind', 'label' => 'Changed my mind', 'label_ar' => 'غيرت رأيي'],
-        ['id' => 'found_better_price', 'label' => 'Found a better price elsewhere', 'label_ar' => 'وجدت سعر أفضل'],
         ['id' => 'ordered_by_mistake', 'label' => 'Ordered by mistake', 'label_ar' => 'طلبت بالخطأ'],
         ['id' => 'duplicate_order', 'label' => 'Duplicate order', 'label_ar' => 'طلب مكرر'],
         ['id' => 'delivery_too_long', 'label' => 'Delivery time is too long', 'label_ar' => 'وقت التوصيل طويل'],

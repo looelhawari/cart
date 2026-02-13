@@ -1362,78 +1362,239 @@ export default function OrderDetailsScreen() {
 
         {/* Order Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Order Items</Text>
-          <View style={styles.itemsContainer}>
-            {order.items?.map((item) => (
-              <View key={item.id} style={styles.orderItem}>
-                {item.product?.image && (
-                  <Image
-                    source={{ uri: item.product.image }}
-                    style={styles.itemImage}
-                  />
-                )}
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.product_name}</Text>
-                  <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
-                  <Text style={styles.itemSku}>SKU: {item.product_sku}</Text>
-                  {/* Rate button for delivered orders */}
-                  {order.status === "delivered" &&
-                    !reviewedProducts.includes(item.product_id) && (
-                      <TouchableOpacity
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          backgroundColor: Colors.primary100,
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: 12,
-                          marginTop: 6,
-                          alignSelf: "flex-start",
-                          gap: 4,
-                        }}
-                        onPress={() => handleOpenRating(item)}
-                      >
-                        <Ionicons
-                          name="star-outline"
-                          size={14}
-                          color={Colors.primary900}
-                        />
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            fontWeight: "600",
-                            color: Colors.primary900,
-                          }}
-                        >
-                          Rate
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  {reviewedProducts.includes(item.product_id) && (
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: Spacing.md,
+            }}
+          >
+            <Text style={styles.sectionTitle}>Order Items</Text>
+            {order.items &&
+              (() => {
+                const refundedCount = order.items.filter(
+                  (i: any) => i.refunded,
+                ).length;
+                if (refundedCount > 0) {
+                  return (
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginTop: 6,
+                        backgroundColor: Colors.accentOrange + "15",
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 12,
                         gap: 4,
                       }}
                     >
                       <Ionicons
-                        name="checkmark-circle"
+                        name="information-circle"
                         size={14}
-                        color={Colors.primary700}
+                        color={Colors.accentOrange}
                       />
-                      <Text style={{ fontSize: 12, color: Colors.primary700 }}>
-                        Reviewed
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "600",
+                          color: Colors.accentOrange,
+                        }}
+                      >
+                        {refundedCount} of {order.items.length} refunded
                       </Text>
                     </View>
+                  );
+                }
+                return null;
+              })()}
+          </View>
+          <View style={styles.itemsContainer}>
+            {order.items?.map((item) => {
+              const isRefunded = !!(item as any).refunded;
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.orderItem,
+                    isRefunded && {
+                      backgroundColor: "#FEF2F2",
+                      borderBottomColor: "#FECACA",
+                      borderRadius: 12,
+                      padding: Spacing.sm,
+                      marginBottom: 4,
+                    },
+                  ]}
+                >
+                  {item.product?.image && (
+                    <Image
+                      source={{ uri: item.product.image }}
+                      style={[styles.itemImage, isRefunded && { opacity: 0.5 }]}
+                    />
                   )}
+                  <View style={styles.itemInfo}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.itemName,
+                          isRefunded && {
+                            textDecorationLine: "line-through",
+                            color: Colors.neutralMedium,
+                          },
+                        ]}
+                      >
+                        {item.product_name}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.itemQuantity,
+                        isRefunded && { color: Colors.neutralGray },
+                      ]}
+                    >
+                      Qty: {item.quantity}
+                    </Text>
+                    {item.product_sku ? (
+                      <Text
+                        style={[
+                          styles.itemSku,
+                          isRefunded && { color: Colors.neutralGray },
+                        ]}
+                      >
+                        SKU: {item.product_sku}
+                      </Text>
+                    ) : null}
+
+                    {/* Refunded Badge */}
+                    {isRefunded && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: "#FEE2E2",
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          borderRadius: 8,
+                          marginTop: 6,
+                          alignSelf: "flex-start",
+                          gap: 4,
+                          borderWidth: 1,
+                          borderColor: "#FECACA",
+                        }}
+                      >
+                        <Ionicons
+                          name="return-down-back"
+                          size={12}
+                          color="#DC2626"
+                        />
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: "#DC2626",
+                          }}
+                        >
+                          Refunded
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Rate button for delivered orders - only non-refunded */}
+                    {!isRefunded &&
+                      order.status === "delivered" &&
+                      !reviewedProducts.includes(item.product_id) && (
+                        <TouchableOpacity
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: Colors.primary100,
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 12,
+                            marginTop: 6,
+                            alignSelf: "flex-start",
+                            gap: 4,
+                          }}
+                          onPress={() => handleOpenRating(item)}
+                        >
+                          <Ionicons
+                            name="star-outline"
+                            size={14}
+                            color={Colors.primary900}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "600",
+                              color: Colors.primary900,
+                            }}
+                          >
+                            Rate
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    {!isRefunded &&
+                      reviewedProducts.includes(item.product_id) && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginTop: 6,
+                            gap: 4,
+                          }}
+                        >
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={14}
+                            color={Colors.primary700}
+                          />
+                          <Text
+                            style={{ fontSize: 12, color: Colors.primary700 }}
+                          >
+                            Reviewed
+                          </Text>
+                        </View>
+                      )}
+                  </View>
+                  <View
+                    style={{ alignItems: "flex-end", justifyContent: "center" }}
+                  >
+                    <Text
+                      style={[
+                        styles.itemPrice,
+                        isRefunded && {
+                          textDecorationLine: "line-through",
+                          color: Colors.neutralGray,
+                          fontSize: isSmallDevice
+                            ? Typography.bodySmall
+                            : Typography.bodyBase,
+                        },
+                      ]}
+                    >
+                      {safePrice(item.subtotal)} EGP
+                    </Text>
+                    {isRefunded && (
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: "#DC2626",
+                          fontWeight: "600",
+                          marginTop: 2,
+                        }}
+                      >
+                        Refunded
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                <Text style={styles.itemPrice}>
-                  {safePrice(item.subtotal)} EGP
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </View>
 
@@ -1485,8 +1646,418 @@ export default function OrderDetailsScreen() {
                 {safePrice(order.total)} EGP
               </Text>
             </View>
+            {order.refunded_amount && order.refunded_amount > 0 ? (
+              <>
+                <View style={[styles.summaryRow, { marginTop: 8 }]}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Ionicons
+                      name="return-down-back"
+                      size={14}
+                      color="#DC2626"
+                    />
+                    <Text
+                      style={[
+                        styles.summaryLabel,
+                        { color: "#DC2626", fontWeight: "600" as const },
+                      ]}
+                    >
+                      Refunded
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.summaryValue,
+                      { color: "#DC2626", fontWeight: "700" as const },
+                    ]}
+                  >
+                    -{safePrice(order.refunded_amount)} EGP
+                  </Text>
+                </View>
+                <View style={[styles.summaryRow, { marginTop: 4 }]}>
+                  <Text
+                    style={[
+                      styles.totalLabel,
+                      { fontSize: Typography.bodyBase },
+                    ]}
+                  >
+                    Net Paid
+                  </Text>
+                  <Text
+                    style={[styles.totalValue, { color: Colors.primary900 }]}
+                  >
+                    {safePrice(order.total - order.refunded_amount)} EGP
+                  </Text>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
+
+        {/* Refund History */}
+        {order.refunds && order.refunds.length > 0 && (
+          <View style={styles.section}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: Spacing.sm,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Ionicons name="receipt-outline" size={20} color="#DC2626" />
+                <Text style={styles.sectionTitle}>Refund History</Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#FEE2E2",
+                  borderRadius: 12,
+                  paddingHorizontal: 10,
+                  paddingVertical: 3,
+                }}
+              >
+                <Text
+                  style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}
+                >
+                  {order.refunds.length}{" "}
+                  {order.refunds.length === 1 ? "Refund" : "Refunds"}
+                </Text>
+              </View>
+            </View>
+
+            {order.refunds.map((refund, idx) => {
+              const typeConfig = {
+                full: {
+                  label: "Full Order",
+                  color: "#DC2626",
+                  bg: "#FEE2E2",
+                  icon: "close-circle" as const,
+                },
+                partial: {
+                  label: "Partial Items",
+                  color: "#F59E0B",
+                  bg: "#FEF3C7",
+                  icon: "remove-circle" as const,
+                },
+                penalty: {
+                  label: "With Penalty",
+                  color: "#9333EA",
+                  bg: "#F3E8FF",
+                  icon: "alert-circle" as const,
+                },
+              };
+              const statusConfig = {
+                pending: { label: "Pending", color: "#F59E0B", bg: "#FEF3C7" },
+                processing: {
+                  label: "Processing",
+                  color: "#3B82F6",
+                  bg: "#DBEAFE",
+                },
+                completed: {
+                  label: "Completed",
+                  color: "#16A34A",
+                  bg: "#DCFCE7",
+                },
+                failed: { label: "Failed", color: "#DC2626", bg: "#FEE2E2" },
+              };
+              const tc = typeConfig[refund.type] || typeConfig.full;
+              const sc = statusConfig[refund.status] || statusConfig.pending;
+              const refundDate = new Date(refund.created_at);
+              const formattedDate = refundDate.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+              const formattedTime = refundDate.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+
+              return (
+                <View
+                  key={refund.id}
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 16,
+                    padding: Spacing.md,
+                    marginBottom:
+                      idx < order.refunds!.length - 1 ? Spacing.sm : 0,
+                    borderWidth: 1,
+                    borderColor: "#F1F5F9",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 3,
+                    elevation: 1,
+                  }}
+                >
+                  {/* Top row: type badge + status badge */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons name={tc.icon} size={16} color={tc.color} />
+                      <View
+                        style={{
+                          backgroundColor: tc.bg,
+                          borderRadius: 8,
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: tc.color,
+                          }}
+                        >
+                          {tc.label}
+                        </Text>
+                      </View>
+                    </View>
+                    <View
+                      style={{
+                        backgroundColor: sc.bg,
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "700",
+                          color: sc.color,
+                        }}
+                      >
+                        {sc.label}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Amount row */}
+                  <View
+                    style={{
+                      backgroundColor: "#F8FAFC",
+                      borderRadius: 12,
+                      padding: 12,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        style={{ fontSize: 13, color: Colors.neutralMedium }}
+                      >
+                        Refund Amount
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 18,
+                          fontWeight: "800",
+                          color: "#16A34A",
+                        }}
+                      >
+                        {safePrice(refund.refund_amount)} EGP
+                      </Text>
+                    </View>
+                    {refund.penalty_amount > 0 && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          marginTop: 6,
+                        }}
+                      >
+                        <Text
+                          style={{ fontSize: 12, color: Colors.neutralMedium }}
+                        >
+                          Penalty ({refund.penalty_percent}%)
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#DC2626",
+                            fontWeight: "600",
+                          }}
+                        >
+                          -{safePrice(refund.penalty_amount)} EGP
+                        </Text>
+                      </View>
+                    )}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text
+                        style={{ fontSize: 12, color: Colors.neutralMedium }}
+                      >
+                        Method
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: Colors.neutralCharcoal,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {refund.refund_method === "paymob"
+                          ? "💳 Card"
+                          : refund.refund_method === "wallet"
+                            ? "👛 Wallet"
+                            : "💵 Cash"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Refunded items list (for partial refunds) */}
+                  {refund.refunded_items &&
+                    refund.refunded_items.length > 0 && (
+                      <View
+                        style={{
+                          backgroundColor: "#FFF7ED",
+                          borderRadius: 10,
+                          padding: 10,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "700",
+                            color: "#92400E",
+                            marginBottom: 6,
+                          }}
+                        >
+                          Cancelled Items:
+                        </Text>
+                        {refund.refunded_items.map((ri: any, riIdx: number) => (
+                          <View
+                            key={riIdx}
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              paddingVertical: 4,
+                              borderTopWidth: riIdx > 0 ? 1 : 0,
+                              borderTopColor: "#FDE68A",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: "#78350F",
+                                flex: 1,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {ri.product_name} × {ri.quantity}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                fontWeight: "600",
+                                color: "#DC2626",
+                              }}
+                            >
+                              {safePrice(ri.amount)} EGP
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                  {/* Reason */}
+                  {refund.reason && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        gap: 6,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={14}
+                        color={Colors.neutralMedium}
+                        style={{ marginTop: 1 }}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: Colors.neutralMedium,
+                          flex: 1,
+                        }}
+                      >
+                        {refund.reason}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Date & initiated by */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={13}
+                        color={Colors.neutralMedium}
+                      />
+                      <Text
+                        style={{ fontSize: 11, color: Colors.neutralMedium }}
+                      >
+                        {formattedDate} at {formattedTime}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: Colors.neutralMedium }}>
+                      by {refund.initiated_by === "customer" ? "You" : "Admin"}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -1518,7 +2089,7 @@ export default function OrderDetailsScreen() {
           </TouchableOpacity>
           {order.payment_method !== "cash_on_delivery" &&
             order.items &&
-            order.items.length > 1 && (
+            order.items.filter((i) => !i.refunded).length > 1 && (
               <TouchableOpacity
                 style={[
                   styles.cancelButton,

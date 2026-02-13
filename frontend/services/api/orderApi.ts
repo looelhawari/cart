@@ -16,6 +16,7 @@ export interface OrderItem {
   quantity: number;
   price: number;
   subtotal: number;
+  refunded: boolean;
   created_at: string;
   updated_at: string;
   product?: {
@@ -77,6 +78,13 @@ export interface Order {
   refunds?: OrderRefund[];
 }
 
+export interface RefundedItemDetail {
+  item_id: number;
+  product_name: string;
+  quantity: number;
+  amount: number;
+}
+
 export interface OrderRefund {
   id: number;
   order_id: number;
@@ -89,6 +97,7 @@ export interface OrderRefund {
   status: "pending" | "processing" | "completed" | "failed";
   reason: string | null;
   initiated_by: "customer" | "admin";
+  refunded_items: RefundedItemDetail[] | null;
   completed_at: string | null;
   created_at: string;
 }
