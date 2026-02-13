@@ -456,7 +456,7 @@ export default function PaymentMethodsScreen() {
               <View style={styles.footerSecurity}>
                 <ShieldCheck size={14} color={Colors.primary900} />
                 <Text style={styles.footerSecurityText}>
-                  All cards are encrypted with AES-256-CBC
+                  All cards are stored securely encrypted
                 </Text>
               </View>
             </View>
