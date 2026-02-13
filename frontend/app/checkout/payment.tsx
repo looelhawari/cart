@@ -347,7 +347,7 @@ export default function CheckoutPaymentScreen() {
                 <View style={styles.securityBadge}>
                   <ShieldCheck size={16} color={Colors.primary900} />
                   <Text style={styles.securityBadgeText}>
-                    PCI-DSS compliant • 256-bit encryption
+                    PCI-DSS compliant
                   </Text>
                 </View>
               </View>
@@ -371,12 +371,6 @@ export default function CheckoutPaymentScreen() {
                 <Check size={16} color={Colors.primary900} />
                 <Text style={styles.codFeatureText}>
                   Pay when your order arrives
-                </Text>
-              </View>
-              <View style={styles.codFeatureRow}>
-                <Check size={16} color={Colors.primary900} />
-                <Text style={styles.codFeatureText}>
-                  No card details required
                 </Text>
               </View>
               <View style={styles.codFeatureRow}>

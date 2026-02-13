@@ -343,24 +343,6 @@ export default function EditProfileScreen() {
                   {t.editProfile.female}
                 </Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.genderButton,
-                  gender === "other" && styles.genderButtonActive,
-                ]}
-                onPress={() => setGender("other")}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.genderText,
-                    gender === "other" && styles.genderTextActive,
-                  ]}
-                >
-                  {t.editProfile.other}
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
 
