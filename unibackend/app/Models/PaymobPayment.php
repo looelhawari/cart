@@ -17,21 +17,22 @@ class PaymobPayment extends Model
         'user_id',
         'internal_order_id',
         'paymob_order_id',
-        'paymob_intention_id',   // NEW: For Unified Checkout
-        'transaction_id',
+        'paymob_intention_id',   // For Unified Checkout
+        'paymob_transaction_id', // FIXED: Matches actual DB column name
+        'special_reference',     // P0 FIX: Unified Checkout merchant reference — was silently discarded
         'amount_cents',
         'currency',
         'payment_method',
-        'flow',                  // NEW: classic_iframe, unified_3ds, moto
+        'flow',                  // classic_iframe, unified_3ds, moto
         'save_card_requested',
-        'moto_attempts',         // NEW: Track MOTO retry attempts
-        'moto_attempted_at',     // NEW: When MOTO was last attempted
-        'is_fallback_from_moto', // NEW: Track if fell back from MOTO to 3DS
+        'moto_attempts',         // Track MOTO retry attempts
+        'moto_attempted_at',     // When MOTO was last attempted
+        'is_fallback_from_moto', // Track if fell back from MOTO to 3DS
         'integration_id',
         'status',
         'billing_data',
         'paymob_response',
-        'failure_reason',
+        'error_message',         // FIXED: Matches actual DB column name
         'paid_at',
     ];
 
@@ -56,14 +57,44 @@ class PaymobPayment extends Model
         return $this->belongsTo(Order::class);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // PAYMENT STATE MACHINE — Enforced transitions
+    // PENDING → PAID | FAILED
+    // PAID → REFUNDED
+    // FAILED → (terminal)
+    // REFUNDED → (terminal)
+    // ═══════════════════════════════════════════════════════════════
+
+    private const ALLOWED_TRANSITIONS = [
+        'PENDING'  => ['PAID', 'FAILED'],
+        'PAID'     => ['REFUNDED'],
+        'FAILED'   => [],
+        'REFUNDED' => [],
+    ];
+
+    /**
+     * Enforce legal state transitions.
+     * @throws \LogicException if transition is illegal.
+     */
+    public function transitionTo(string $newStatus): void
+    {
+        $allowed = self::ALLOWED_TRANSITIONS[$this->status] ?? [];
+        if (!in_array($newStatus, $allowed, true)) {
+            throw new \LogicException(
+                "Illegal payment state transition: {$this->status} → {$newStatus} (payment #{$this->id})"
+            );
+        }
+    }
+
     /**
      * Mark payment as paid.
      */
     public function markAsPaid(string $transactionId, array $response): void
     {
+        $this->transitionTo('PAID');
         $this->update([
             'status' => 'PAID',
-            'transaction_id' => $transactionId,  // FIXED: Match actual database column name
+            'paymob_transaction_id' => $transactionId,
             'paymob_response' => $response,
             'paid_at' => now(),
         ]);
@@ -74,9 +105,22 @@ class PaymobPayment extends Model
      */
     public function markAsFailed(string $errorMessage, array $response = null): void
     {
+        $this->transitionTo('FAILED');
         $this->update([
             'status' => 'FAILED',
+            'error_message' => $errorMessage,
             'paymob_response' => array_merge($response ?? [], ['error' => $errorMessage]),
+        ]);
+    }
+
+    /**
+     * Keep payment PENDING but store gateway response (e.g. authorized-not-captured).
+     */
+    public function markAsPending(string $reason, array $response = null): void
+    {
+        $this->update([
+            'paymob_response' => $response ?? $this->paymob_response,
+            'error_message' => $reason,
         ]);
     }
 
@@ -105,6 +149,26 @@ class PaymobPayment extends Model
     }
 
     /**
+     * Mark payment as refunded.
+     */
+    public function markAsRefunded(string $refundId = null): void
+    {
+        $this->transitionTo('REFUNDED');
+        $this->update([
+            'status' => 'REFUNDED',
+            'error_message' => 'Refunded' . ($refundId ? " (Paymob refund ID: {$refundId})" : ''),
+        ]);
+    }
+
+    /**
+     * Check if payment is refunded.
+     */
+    public function isRefunded(): bool
+    {
+        return $this->status === 'REFUNDED';
+    }
+
+    /**
      * NEW: Mark payment as MOTO attempted.
      */
     public function markMotoAttempted(): void
@@ -117,23 +181,26 @@ class PaymobPayment extends Model
     /**
      * NEW: Mark as fallback to 3DS after MOTO failure.
      */
-    public function markAsFallbackTo3DS(string $reason): void
+    public function markAsFallbackTo3DS(string $reason = 'MOTO failed, falling back to 3DS'): void
     {
         $this->update([
             'is_fallback_from_moto' => true,
             'flow' => 'unified_3ds',
-            'failure_reason' => $reason,
+            'error_message' => $reason,          // FIXED: Matches actual DB column
         ]);
     }
 
     /**
      * Scope: Get recent failed payments for a user.
+     * Uses order relationship since user_id may not exist on all records.
      */
     public function scopeRecentFailures($query, int $userId, int $days = 30)
     {
-        return $query->where('user_id', $userId)
-                     ->where('status', 'FAILED')
-                     ->where('created_at', '>=', now()->subDays($days));
+        return $query->whereHas('order', function ($q) use ($userId) {
+                    $q->where('user_id', $userId);
+                })
+                ->where('status', 'FAILED')
+                ->where('created_at', '>=', now()->subDays($days));
     }
 
     /**

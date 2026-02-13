@@ -73,10 +73,11 @@ class PaymentDecisionService
 
         // RULE 4: High value order → Force 3DS for security
         $highValueThreshold = config('payments.high_value_threshold', 200000); // 2000 EGP in cents
-        if ($order->total_cents > $highValueThreshold) {
+        $amountCents = (int) ($order->total * 100);
+        if ($amountCents > $highValueThreshold) {
             Log::info('💳 Decision: Unified 3DS (high value order)', [
                 'order_id' => $order->id,
-                'amount_cents' => $order->total_cents,
+                'amount_cents' => $amountCents,
                 'threshold' => $highValueThreshold,
             ]);
 
@@ -152,7 +153,7 @@ class PaymentDecisionService
         Log::info('💳 Decision: MOTO (one-click payment)', [
             'order_id' => $order->id,
             'payment_method_id' => $savedCard->id,
-            'amount_cents' => $order->total_cents,
+            'amount_cents' => (int) ($order->total * 100),
         ]);
 
         return [
@@ -174,7 +175,9 @@ class PaymentDecisionService
     {
         $lookbackDays = config('payments.recent_failure_lookback_days', 30);
 
-        return PaymobPayment::where('user_id', $userId)
+        return PaymobPayment::whereHas('order', function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            })
             ->where('status', 'FAILED')
             ->where('created_at', '>=', now()->subDays($lookbackDays))
             ->count();

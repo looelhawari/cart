@@ -28,7 +28,7 @@ import {
   Lock as LockIcon,
   Fingerprint,
 } from "lucide-react-native";
-import { useGoogleAuth, isAppleAuthAvailable } from "@/services/socialAuth";
+import { signInWithGoogle, isAppleAuthAvailable } from "@/services/socialAuth";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { authApi } from "@/services/api";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
@@ -62,10 +62,6 @@ export default function LoginScreen() {
   });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
-  // Google Auth
-  const { promptAsync: promptGoogleAsync, response: googleResponse } =
-    useGoogleAuth();
-
   // Check Apple availability and biometric support
   useEffect(() => {
     isAppleAuthAvailable().then(setAppleAvailable);
@@ -80,42 +76,33 @@ export default function LoginScreen() {
     }
   }, [biometricEnabled, biometricSupport.available]);
 
-  // Handle Google response
-  useEffect(() => {
-    if (googleResponse?.type === "success") {
-      handleGoogleAuth();
-    }
-  }, [googleResponse]);
-
+  // Google Sign-In using native SDK (no browser redirect)
   const handleGoogleAuth = async () => {
-    if (googleResponse?.type !== "success") return;
-
     try {
       setGoogleLoading(true);
 
-      // Extract the id_token from Google's response
-      const idToken = googleResponse.authentication?.idToken;
+      // Native Google Sign-In — always shows account picker, returns id_token
+      const idToken = await signInWithGoogle();
 
       if (!idToken) {
         Alert.alert(
           t.common.error,
-          "Google Sign-In configuration error: no ID token received. Please try again.",
+          "Failed to get credentials from Google. Please try again.",
         );
         return;
       }
 
       // Use store's socialLogin to properly set auth state
-      const { requiresPhoneVerification } = await socialLogin(
-        "google",
-        idToken,
-      );
+      // socialLogin calls the backend, saves Sanctum tokens to AsyncStorage,
+      // and sets isAuthenticated + user in Zustand state.
+      await socialLogin("google", idToken);
 
-      if (requiresPhoneVerification) {
-        router.push("/phone-verification");
-      } else {
-        router.replace("/(tabs)");
-      }
+      // Login successful — go straight to home
+      router.replace("/(tabs)");
     } catch (error: any) {
+      // User cancelled — don't show error
+      if (error?.message === "CANCELLED") return;
+
       const message = error?.message || t.login.googleSignInFailed;
       // Handle specific backend error codes
       if (error?.error_code === "ACCOUNT_DEACTIVATED") {
@@ -125,6 +112,9 @@ export default function LoginScreen() {
         );
       } else if (error?.error_code === "SOCIAL_CONFLICT") {
         Alert.alert(t.common.error, message);
+      } else if (error?.error_code === "TOKEN_EXPIRED") {
+        // Token was cleared by a concurrent refresh — user needs to retry
+        Alert.alert(t.common.error, "Please try signing in again.");
       } else {
         Alert.alert(t.common.error, message);
       }
@@ -172,11 +162,8 @@ export default function LoginScreen() {
         });
       }
 
-      if (result.data?.requires_phone_verification) {
-        router.push("/phone-verification");
-      } else {
-        router.replace("/(tabs)");
-      }
+      // Login successful — go straight to home
+      router.replace("/(tabs)");
     } catch (error: any) {
       if (error.message !== "Apple Sign-In was canceled") {
         Alert.alert(t.common.error, error.message || t.login.appleSignInFailed);
@@ -640,7 +627,7 @@ export default function LoginScreen() {
                   (googleLoading || loading) && styles.buttonDisabled,
                 ]}
                 activeOpacity={0.8}
-                onPress={() => promptGoogleAsync()}
+                onPress={() => handleGoogleAuth()}
                 disabled={googleLoading || loading || appleLoading}
               >
                 {googleLoading ? (

@@ -18,8 +18,7 @@ import {
   getPendingPayment,
   clearPendingPayment,
 } from "@/services/payment/paymentRecovery";
-import { getPaymentStatus } from "@/services/api/paymentsApi";
-import { orderApi } from "@/services/api/orderApi";
+import { getPaymentStatus } from "@/services/paymentMethodsApi";
 import { useStore } from "@/store";
 import { mapPaymentError } from "@/services/payment/paymentMessages";
 
@@ -59,11 +58,16 @@ export default function PaymentRecoveryScreen() {
         return;
       }
 
-      const { orderId, orderNumber: orderNum } = pendingPayment;
+      const {
+        orderId,
+        orderNumber: orderNum,
+        paymentAttemptId,
+      } = pendingPayment;
       setOrderNumber(orderNum);
 
-      // Poll payment status from backend
-      await pollPaymentStatus(orderId, orderNum);
+      // Poll payment status from backend using paymentId (preferred) or orderId
+      const pollId = paymentAttemptId || orderId;
+      await pollPaymentStatus(pollId, orderId, orderNum);
     } catch (error: any) {
       console.error("Payment recovery error:", error);
       setStatus("failed");
@@ -74,6 +78,7 @@ export default function PaymentRecoveryScreen() {
   };
 
   const pollPaymentStatus = async (
+    pollId: number,
     orderId: number,
     orderNum: string,
     attempts: number = 0,
@@ -81,8 +86,8 @@ export default function PaymentRecoveryScreen() {
     const MAX_ATTEMPTS = 5;
 
     try {
-      // Get payment status
-      const statusResponse = await getPaymentStatus(orderId);
+      // Get payment status by paymentId
+      const statusResponse = await getPaymentStatus(pollId);
 
       if (statusResponse.success && statusResponse.data) {
         const paymentStatus = statusResponse.data.status;
@@ -104,10 +109,9 @@ export default function PaymentRecoveryScreen() {
         }
 
         if (paymentStatus === "FAILED") {
-          // Payment failed
-          const errorMsg = mapPaymentError(
-            statusResponse.data.transaction_id || undefined,
-          );
+          // Payment failed - use a generic failure message for mapPaymentError
+          // (checkStatus does not return the Paymob error detail)
+          const errorMsg = mapPaymentError("Payment failed");
           setStatus("failed");
           setErrorMessage(errorMsg.message);
           await clearPendingPayment();
@@ -118,7 +122,7 @@ export default function PaymentRecoveryScreen() {
         if (paymentStatus === "PENDING" && attempts < MAX_ATTEMPTS) {
           setStatus("pending");
           setTimeout(() => {
-            pollPaymentStatus(orderId, orderNum, attempts + 1);
+            pollPaymentStatus(pollId, orderId, orderNum, attempts + 1);
           }, 2000); // Poll every 2 seconds
           return;
         }
@@ -132,7 +136,7 @@ export default function PaymentRecoveryScreen() {
       if (attempts < MAX_ATTEMPTS) {
         // Retry on error
         setTimeout(() => {
-          pollPaymentStatus(orderId, orderNum, attempts + 1);
+          pollPaymentStatus(pollId, orderId, orderNum, attempts + 1);
         }, 2000);
       } else {
         setStatus("failed");

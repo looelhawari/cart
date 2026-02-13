@@ -718,7 +718,7 @@ function handleEnterpriseNotification(
     templateCode?.startsWith("minimum_order") ||
     templateCode?.startsWith("free_delivery")
   ) {
-    router.push("/cart");
+    router.push("/(tabs)/cart");
     return;
   }
 

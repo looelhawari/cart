@@ -137,6 +137,11 @@ export const ProductCard = memo(function ProductCard({
           </View>
         )}
 
+        {/* Packaging */}
+        {product.packaging ? (
+          <Text style={styles.unitText}>{product.packaging}</Text>
+        ) : null}
+
         <View style={styles.priceRow}>
           {hasDiscount ? (
             <>
@@ -300,6 +305,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.medium,
     color: Colors.neutralMedium,
     textDecorationLine: "line-through",
+  },
+  unitText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginBottom: Spacing.sm,
+    marginTop: -2,
   },
 
   addButton: {

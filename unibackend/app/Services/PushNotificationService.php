@@ -701,6 +701,8 @@ class PushNotificationService
 
     /**
      * Send refund notification.
+     *
+     * @param string $type One of: 'full', 'penalty', 'partial', 'cod_cancel'
      */
     public function sendRefundNotification(
         int $userId,
@@ -708,22 +710,48 @@ class PushNotificationService
         float $amount,
         string $type = 'full'
     ): ?Notification {
-        $title = $type === 'full' ? '💰 Full Refund Processed' : '💰 Partial Refund Processed';
-        $titleAr = $type === 'full' ? '💰 تم استرداد المبلغ بالكامل' : '💰 تم استرداد جزء من المبلغ';
+        $isCardRefund = in_array($type, ['full', 'penalty', 'partial']);
+
+        $title = match ($type) {
+            'full' => '💰 Full Refund Processed',
+            'penalty' => '💰 Refund Processed (Fee Applied)',
+            'partial' => '💰 Partial Refund Processed',
+            'cod_cancel' => '📦 Order Cancelled',
+            default => '💰 Refund Processed',
+        };
+
+        $titleAr = match ($type) {
+            'full' => '💰 تم استرداد المبلغ بالكامل',
+            'penalty' => '💰 تم استرداد المبلغ (مع خصم رسوم)',
+            'partial' => '💰 تم استرداد جزء من المبلغ',
+            'cod_cancel' => '📦 تم إلغاء الطلب',
+            default => '💰 تم استرداد المبلغ',
+        };
+
+        if ($type === 'cod_cancel') {
+            $body = sprintf("Your order #%s has been cancelled successfully.", $orderNumber);
+            $bodyAr = sprintf("تم إلغاء طلبك رقم #%s بنجاح.", $orderNumber);
+        } elseif ($isCardRefund) {
+            $body = sprintf("%.2f EGP has been refunded to your card for order #%s. Please allow 5-14 business days for the refund to appear.", $amount, $orderNumber);
+            $bodyAr = sprintf("تم استرداد %.2f جنيه إلى بطاقتك للطلب رقم #%s. يرجى الانتظار 5-14 يوم عمل.", $amount, $orderNumber);
+        } else {
+            $body = sprintf("%.2f EGP has been refunded to your wallet for order #%s.", $amount, $orderNumber);
+            $bodyAr = sprintf("تم استرداد %.2f جنيه إلى محفظتك للطلب رقم #%s.", $amount, $orderNumber);
+        }
 
         return $this->sendToUser(
             $userId,
-            'wallet',
+            $type === 'cod_cancel' ? 'order' : 'wallet',
             $title,
-            sprintf("%.2f EGP has been refunded to your wallet for order #%s", $amount, $orderNumber),
+            $body,
             [
                 'amount' => $amount,
                 'order_number' => $orderNumber,
                 'refund_type' => $type,
             ],
             $titleAr,
-            sprintf("تم استرداد %.2f جنيه إلى محفظتك للطلب رقم #%s", $amount, $orderNumber),
-            '/profile/wallet'
+            $bodyAr,
+            $type === 'cod_cancel' ? '/orders' : '/profile/wallet'
         );
     }
 }

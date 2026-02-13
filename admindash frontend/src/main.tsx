@@ -1,115 +1,289 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import './index.css'
-import '@/i18n' // Import i18n for internationalization
-import { Toaster } from '@/components/ui/toaster'
-import ProtectedRoute from '@/components/ProtectedRoute'
-import DashboardLayout from '@/components/DashboardLayout'
-import ErrorBoundary from '@/components/ErrorBoundary'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./index.css";
+import "@/i18n"; // Import i18n for internationalization
+import { Toaster } from "@/components/ui/toaster";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import DashboardLayout from "@/components/DashboardLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Pages
-import LoginPage from '@/pages/LoginPage'
-import DashboardPage from '@/pages/DashboardPage'
-import ProductsPage from '@/pages/products/ProductsPage'
-import CategoriesPage from '@/pages/categories/CategoriesPage'
-import OrdersPage from '@/pages/orders/OrdersPage'
-import OrderDetailPage from '@/pages/orders/OrderDetailPage'
-import OrderReceiptPage from '@/pages/orders/OrderReceiptPage'
-import SupportPage from '@/pages/support/SupportPage'
-import TicketDetailPage from '@/pages/support/TicketDetailPage'
-import SupportAnalyticsPage from '@/pages/support/SupportAnalyticsPage'
-import FinancialPage from '@/pages/financial/FinancialPage'
-import UsersPage from '@/pages/users/UsersPage'
-import CustomersPage from '@/pages/customers/CustomersPage'
-import CustomerDetailsPage from '@/pages/customers/CustomerDetailsPage'
-import ComprehensiveAnalyticsPage from '@/pages/analytics/ComprehensiveAnalyticsPage'
-import PromotionsPage from '@/pages/promotions/PromotionsPage'
-import PromoCodesPage from '@/pages/promo-codes/PromoCodesPage'
-import PromoCodeAnalyticsPage from '@/pages/promo-codes/PromoCodeAnalyticsPage'
-import ActivityLogsPage from '@/pages/ActivityLogsPage'
-import AdminLogsPage from '@/pages/AdminLogsPage'
-import ContentManagementPage from '@/pages/content/ContentManagementPage'
-import StoreSettingsPage from '@/pages/settings/StoreSettingsPage'
-import ReviewsPage from '@/pages/reviews/ReviewsPage'
-import DeliveryZonesPage from '@/pages/delivery-zones/DeliveryZonesPage'
-import DriversPage from '@/pages/drivers/DriversPage'
+import LoginPage from "@/pages/LoginPage";
+import DashboardPage from "@/pages/DashboardPage";
+import ProductsPage from "@/pages/products/ProductsPage";
+import CategoriesPage from "@/pages/categories/CategoriesPage";
+import OrdersPage from "@/pages/orders/OrdersPage";
+import OrderDetailPage from "@/pages/orders/OrderDetailPage";
+import OrderReceiptPage from "@/pages/orders/OrderReceiptPage";
+import SupportPage from "@/pages/support/SupportPage";
+import TicketDetailPage from "@/pages/support/TicketDetailPage";
+import SupportAnalyticsPage from "@/pages/support/SupportAnalyticsPage";
+import FinancialPage from "@/pages/financial/FinancialPage";
+import UsersPage from "@/pages/users/UsersPage";
+import CustomersPage from "@/pages/customers/CustomersPage";
+import CustomerDetailsPage from "@/pages/customers/CustomerDetailsPage";
+import ComprehensiveAnalyticsPage from "@/pages/analytics/ComprehensiveAnalyticsPage";
+import PromotionsPage from "@/pages/promotions/PromotionsPage";
+import PromoCodesPage from "@/pages/promo-codes/PromoCodesPage";
+import PromoCodeAnalyticsPage from "@/pages/promo-codes/PromoCodeAnalyticsPage";
+import ActivityLogsPage from "@/pages/ActivityLogsPage";
+import AdminLogsPage from "@/pages/AdminLogsPage";
+import ContentManagementPage from "@/pages/content/ContentManagementPage";
+import StoreSettingsPage from "@/pages/settings/StoreSettingsPage";
+import ReviewsPage from "@/pages/reviews/ReviewsPage";
+import RefundDashboardPage from "@/pages/refunds/RefundDashboardPage";
+import DeliveryZonesPage from "@/pages/delivery-zones/DeliveryZonesPage";
+import DriversPage from "@/pages/drivers/DriversPage";
 
 const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            refetchOnWindowFocus: false,
-            retry: 1,
-            staleTime: 5 * 60 * 1000, // 5 minutes
-        },
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
     },
-})
+  },
+});
 
 function App() {
-    return (
-        <ErrorBoundary>
-            <QueryClientProvider client={queryClient}>
-                <BrowserRouter>
-                    <Routes>
-                        <Route path="/login" element={<LoginPage />} />
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
 
-                        <Route element={<ProtectedRoute />}>
-                            <Route element={<DashboardLayout><DashboardPage /></DashboardLayout>} path="/dashboard" />
+            <Route element={<ProtectedRoute />}>
+              <Route
+                element={
+                  <DashboardLayout>
+                    <DashboardPage />
+                  </DashboardLayout>
+                }
+                path="/dashboard"
+              />
 
-                            <Route element={<DashboardLayout><ProductsPage /></DashboardLayout>} path="/products" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <ProductsPage />
+                  </DashboardLayout>
+                }
+                path="/products"
+              />
 
-                            <Route element={<DashboardLayout><CategoriesPage /></DashboardLayout>} path="/categories" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <CategoriesPage />
+                  </DashboardLayout>
+                }
+                path="/categories"
+              />
 
-                            <Route element={<DashboardLayout><PromotionsPage /></DashboardLayout>} path="/promotions" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <PromotionsPage />
+                  </DashboardLayout>
+                }
+                path="/promotions"
+              />
 
-                            <Route element={<DashboardLayout><PromoCodesPage /></DashboardLayout>} path="/promo-codes" />
-                            <Route element={<DashboardLayout><PromoCodeAnalyticsPage /></DashboardLayout>} path="/promo-codes/:id/analytics" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <PromoCodesPage />
+                  </DashboardLayout>
+                }
+                path="/promo-codes"
+              />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <PromoCodeAnalyticsPage />
+                  </DashboardLayout>
+                }
+                path="/promo-codes/:id/analytics"
+              />
 
-                            <Route element={<DashboardLayout><OrdersPage /></DashboardLayout>} path="/orders" />
-                            <Route element={<DashboardLayout><OrderDetailPage /></DashboardLayout>} path="/orders/:id" />
-                            <Route path="/orders/:id/receipt" element={<OrderReceiptPage />} />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <OrdersPage />
+                  </DashboardLayout>
+                }
+                path="/orders"
+              />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <OrderDetailPage />
+                  </DashboardLayout>
+                }
+                path="/orders/:id"
+              />
+              <Route
+                path="/orders/:id/receipt"
+                element={<OrderReceiptPage />}
+              />
 
-                            <Route element={<DashboardLayout><SupportPage /></DashboardLayout>} path="/support" />
-                            <Route element={<DashboardLayout><SupportAnalyticsPage /></DashboardLayout>} path="/support/analytics" />
-                            <Route element={<DashboardLayout><TicketDetailPage /></DashboardLayout>} path="/support/:id" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <RefundDashboardPage />
+                  </DashboardLayout>
+                }
+                path="/refunds"
+              />
 
-                            <Route element={<DashboardLayout><FinancialPage /></DashboardLayout>} path="/financial" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <SupportPage />
+                  </DashboardLayout>
+                }
+                path="/support"
+              />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <SupportAnalyticsPage />
+                  </DashboardLayout>
+                }
+                path="/support/analytics"
+              />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <TicketDetailPage />
+                  </DashboardLayout>
+                }
+                path="/support/:id"
+              />
 
-                            <Route element={<DashboardLayout><UsersPage /></DashboardLayout>} path="/users" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <FinancialPage />
+                  </DashboardLayout>
+                }
+                path="/financial"
+              />
 
-                            <Route element={<DashboardLayout><CustomersPage /></DashboardLayout>} path="/customers" />
-                            <Route element={<DashboardLayout><CustomerDetailsPage /></DashboardLayout>} path="/customers/:id" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <UsersPage />
+                  </DashboardLayout>
+                }
+                path="/users"
+              />
 
-                            <Route element={<DashboardLayout><ComprehensiveAnalyticsPage /></DashboardLayout>} path="/analytics" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <CustomersPage />
+                  </DashboardLayout>
+                }
+                path="/customers"
+              />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <CustomerDetailsPage />
+                  </DashboardLayout>
+                }
+                path="/customers/:id"
+              />
 
-                            <Route element={<DashboardLayout><ActivityLogsPage /></DashboardLayout>} path="/activity-logs" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <ComprehensiveAnalyticsPage />
+                  </DashboardLayout>
+                }
+                path="/analytics"
+              />
 
-                            <Route element={<DashboardLayout><AdminLogsPage /></DashboardLayout>} path="/admin-logs" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <ActivityLogsPage />
+                  </DashboardLayout>
+                }
+                path="/activity-logs"
+              />
 
-                            <Route element={<DashboardLayout><ContentManagementPage /></DashboardLayout>} path="/content" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <AdminLogsPage />
+                  </DashboardLayout>
+                }
+                path="/admin-logs"
+              />
 
-                            <Route element={<DashboardLayout><StoreSettingsPage /></DashboardLayout>} path="/settings" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <ContentManagementPage />
+                  </DashboardLayout>
+                }
+                path="/content"
+              />
 
-                            <Route element={<DashboardLayout><ReviewsPage /></DashboardLayout>} path="/reviews" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <StoreSettingsPage />
+                  </DashboardLayout>
+                }
+                path="/settings"
+              />
 
-                            <Route element={<DashboardLayout><DeliveryZonesPage /></DashboardLayout>} path="/delivery-zones" />
+              <Route
+                element={
+                  <DashboardLayout>
+                    <ReviewsPage />
+                  </DashboardLayout>
+                }
+                path="/reviews"
+              />
 
-                            <Route element={<DashboardLayout><DriversPage /></DashboardLayout>} path="/drivers" />
-                        </Route>
+              <Route
+                element={
+                  <DashboardLayout>
+                    <DeliveryZonesPage />
+                  </DashboardLayout>
+                }
+                path="/delivery-zones"
+              />
 
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                    </Routes>
-                </BrowserRouter>
-                <Toaster />
-            </QueryClientProvider>
-        </ErrorBoundary>
-    )
+              <Route
+                element={
+                  <DashboardLayout>
+                    <DriversPage />
+                  </DashboardLayout>
+                }
+                path="/drivers"
+              />
+            </Route>
+
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-        <App />
-    </React.StrictMode>
-)
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

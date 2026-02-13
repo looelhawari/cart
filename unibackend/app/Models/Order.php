@@ -11,6 +11,7 @@ class Order extends Model
     protected $fillable = [
         'user_id',
         'order_number',
+        'invoice_number',
         'status',
         'subtotal',
         'delivery_fee',
@@ -133,6 +134,14 @@ class Order extends Model
     }
 
     /**
+     * Get refund records for this order
+     */
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(OrderRefund::class);
+    }
+
+    /**
      * Get the latest successful Paymob payment
      */
     public function successfulPayment()
@@ -168,6 +177,7 @@ class Order extends Model
             'completed' => 'Completed',
             'failed' => 'Failed',
             'refunded' => 'Refunded',
+            'partially_refunded' => 'Partially Refunded',
             default => 'Unknown',
         };
     }
@@ -230,5 +240,30 @@ class Order extends Model
         } while (self::where('order_number', $orderNumber)->exists());
 
         return $orderNumber;
+    }
+
+    /**
+     * Generate unique sequential invoice number (INV-YYYYMMDD-XXXXXX)
+     */
+    public static function generateInvoiceNumber(): string
+    {
+        do {
+            $invoiceNumber = 'INV-' . date('Ymd') . '-' . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        } while (self::where('invoice_number', $invoiceNumber)->exists());
+
+        return $invoiceNumber;
+    }
+
+    /**
+     * Get or create an invoice number for this order (lazy generation).
+     */
+    public function getOrCreateInvoiceNumber(): string
+    {
+        if (!$this->invoice_number) {
+            $this->invoice_number = self::generateInvoiceNumber();
+            $this->save();
+        }
+
+        return $this->invoice_number;
     }
 }

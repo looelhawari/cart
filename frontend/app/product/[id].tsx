@@ -31,7 +31,6 @@ import {
   Send,
   X,
   ThumbsUp,
-  Award,
   Check,
   User,
 } from "lucide-react-native";
@@ -59,6 +58,8 @@ import {
 import type { Offer } from "@/services/api/types";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
+import { getMaxPerOrder } from "@/utils/quantityLimits";
+import { Ionicons } from "@expo/vector-icons";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
 const { width } = Dimensions.get("window");
@@ -382,6 +383,22 @@ export default function ProductDetailScreen() {
       : null;
 
   const handleAddToCart = async () => {
+    // Check per-order quantity limit for restricted products
+    const maxQty = getMaxPerOrder(product.barcode);
+    if (maxQty !== null) {
+      const existingQty = cartItem?.quantity || 0;
+      if (existingQty + quantity > maxQty) {
+        const limitMsg = (
+          t.quantityLimit?.maxPerOrder ||
+          "Maximum {{max}} units per order for this product."
+        ).replace("{{max}}", String(maxQty));
+        setToastType("error");
+        setToastMessage(limitMsg);
+        setShowToast(true);
+        return;
+      }
+    }
+
     try {
       if (cartItem) {
         await updateQuantity(cartItem.id, cartItem.quantity + quantity);
@@ -392,7 +409,6 @@ export default function ProductDetailScreen() {
       setToastMessage(`${quantity} ${t.cart.itemAdded}`);
       setShowToast(true);
     } catch (error) {
-      console.error("Failed to add to cart:", error);
       const err: any = error;
       const msg = err?.message || err?.error || t.products.failedToAddToCart;
       setToastType("error");
@@ -409,7 +425,7 @@ export default function ProductDetailScreen() {
       return;
     }
     await handleAddToCart();
-    router.push("/cart");
+    router.push("/(tabs)/cart");
   };
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -480,7 +496,7 @@ export default function ProductDetailScreen() {
           <Share2 size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => router.push("/cart")}
+          onPress={() => router.push("/(tabs)/cart")}
           style={styles.headerButton}
         >
           <ShoppingCart size={24} color={Colors.neutralCharcoal} />
@@ -622,7 +638,9 @@ export default function ProductDetailScreen() {
                     ? salePrice.toFixed(2)
                     : price.toFixed(2)}
               </Text>
-              <Text style={styles.unit}>/{product.unit || "pc"}</Text>
+              <Text style={styles.unit}>
+                {product.packaging ? `/ ${product.packaging}` : ""}
+              </Text>
             </View>
           </View>
           {(discount > 0 || promoPrice !== null) && (
@@ -688,30 +706,42 @@ export default function ProductDetailScreen() {
     </View>
   );
 
-  const renderQuantitySelector = () => (
-    <View style={styles.quantitySection}>
-      <Text style={styles.quantityLabel}>{t.products.quantity}</Text>
-      <View style={styles.quantityControls}>
-        <TouchableOpacity
-          onPress={() => setQuantity(Math.max(1, quantity - 1))}
-          style={styles.quantityButton}
-          disabled={quantity <= 1}
-        >
-          <Minus
-            size={20}
-            color={quantity <= 1 ? Colors.neutralGray : Colors.primary900}
-          />
-        </TouchableOpacity>
-        <Text style={styles.quantityValue}>{quantity}</Text>
-        <TouchableOpacity
-          onPress={() => setQuantity(quantity + 1)}
-          style={styles.quantityButton}
-        >
-          <Plus size={20} color={Colors.primary900} />
-        </TouchableOpacity>
+  const renderQuantitySelector = () => {
+    const maxQty = getMaxPerOrder(product.barcode);
+    const existingQty = cartItem?.quantity || 0;
+    const canIncrease = maxQty === null || existingQty + quantity < maxQty;
+
+    return (
+      <View style={styles.quantitySection}>
+        <Text style={styles.quantityLabel}>{t.products.quantity}</Text>
+        <View style={styles.quantityControls}>
+          <TouchableOpacity
+            onPress={() => setQuantity(Math.max(1, quantity - 1))}
+            style={styles.quantityButton}
+            disabled={quantity <= 1}
+          >
+            <Minus
+              size={20}
+              color={quantity <= 1 ? Colors.neutralGray : Colors.primary900}
+            />
+          </TouchableOpacity>
+          <Text style={styles.quantityValue}>{quantity}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (canIncrease) setQuantity(quantity + 1);
+            }}
+            style={styles.quantityButton}
+            disabled={!canIncrease}
+          >
+            <Plus
+              size={20}
+              color={canIncrease ? Colors.primary900 : Colors.neutralGray}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderExpandableSection = (
     key: keyof typeof expandedSections,
@@ -859,10 +889,10 @@ export default function ProductDetailScreen() {
       "specs",
       "Product Details & Specifications",
       <View style={styles.specsTable}>
-        {product.unit && (
+        {product.packaging && (
           <View style={styles.specRow}>
             <Text style={styles.specLabel}>Packaging</Text>
-            <Text style={styles.specValue}>{product.unit}</Text>
+            <Text style={styles.specValue}>{product.packaging}</Text>
           </View>
         )}
         {product.weight && (
@@ -1362,16 +1392,20 @@ export default function ProductDetailScreen() {
                   <Text style={styles.relatedName} numberOfLines={2}>
                     {getName(item)}
                   </Text>
+                  {item.packaging ? (
+                    <Text style={styles.relatedUnit}>{item.packaging}</Text>
+                  ) : null}
                   <View style={styles.relatedPriceRow}>
-                    <Text style={styles.relatedPrice}>
+                    <Text style={styles.relatedPrice} numberOfLines={1}>
                       {t.common.currency} {finalPrice.toFixed(2)}
                     </Text>
                     {itemDiscount > 0 && (
-                      <Text style={styles.relatedOldPrice}>
+                      <Text style={styles.relatedOldPrice} numberOfLines={1}>
                         {t.common.currency} {itemPrice.toFixed(2)}
                       </Text>
                     )}
                   </View>
+
                   <TouchableOpacity
                     style={[
                       styles.relatedAddToCartBtn,
@@ -1473,6 +1507,23 @@ export default function ProductDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {renderImageGallery()}
+        {getMaxPerOrder(product.barcode) !== null && (
+          <View style={styles.quantityLimitBanner}>
+            <View style={styles.quantityLimitIconContainer}>
+              <Ionicons
+                name="alert-circle"
+                size={18}
+                color={Colors.accentOrange}
+              />
+            </View>
+            <Text style={styles.quantityLimitBannerText}>
+              {(
+                t.quantityLimit?.maxPerOrder ||
+                "Maximum {{max}} units per order for this product."
+              ).replace("{{max}}", String(getMaxPerOrder(product.barcode)))}
+            </Text>
+          </View>
+        )}
         {renderProductInfo()}
         {renderCategories()}
         {renderQuantitySelector()}
@@ -1508,6 +1559,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.neutralCloud,
+  },
+  quantityLimitBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.accentOrange + "14",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.accentOrange + "30",
+  },
+  quantityLimitIconContainer: {
+    marginRight: 10,
+  },
+  quantityLimitBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.accentOrange,
+    lineHeight: 18,
   },
   centered: {
     justifyContent: "center",
@@ -1917,16 +1991,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
+    flexWrap: "wrap",
   },
   relatedPrice: {
     fontSize: Typography.bodyLarge,
     fontWeight: "bold",
     color: Colors.primary900,
+    flexShrink: 1,
   },
   relatedOldPrice: {
     fontSize: Typography.bodySmall,
     color: Colors.neutralMedium,
     textDecorationLine: "line-through",
+    flexShrink: 1,
+  },
+  relatedUnit: {
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    marginTop: -2,
   },
   relatedDiscountBadge: {
     position: "absolute",

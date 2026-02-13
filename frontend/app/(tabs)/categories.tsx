@@ -22,12 +22,14 @@ import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
 import { getCategories } from "@/services/api/categoryApi";
 import type { Category } from "@/types";
+import type { Offer } from "@/services/api/types";
 import { useStore } from "@/store";
 import {
   getCachedImage,
   preloadImages,
   initImageCache,
 } from "@/services/cache/imageCache";
+import { fetchActiveOffersCached } from "@/utils/offerPricing";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { useLocalizedValue, useTranslation } from "@/i18n";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
@@ -39,9 +41,17 @@ export default function CategoriesScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [cachedImages, setCachedImages] = useState<Map<number, string>>(new Map());
+  const [cachedImages, setCachedImages] = useState<Map<number, string>>(
+    new Map(),
+  );
+  // Map category ID → best discount percentage for badge display
+  const [categoryDiscounts, setCategoryDiscounts] = useState<
+    Map<number, number>
+  >(new Map());
   const { cart } = useStore();
-  const cartItemsCount = cart?.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+  const cartItemsCount =
+    cart?.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) ||
+    0;
   const { getName } = useLocalizedValue();
   const { t, isRTL } = useTranslation();
 
@@ -53,9 +63,61 @@ export default function CategoriesScreen() {
     initImageCache();
     const task = InteractionManager.runAfterInteractions(() => {
       loadCategories();
+      loadCategoryOffers();
     });
     return () => task.cancel();
   }, []);
+
+  /**
+   * Fetch active offers and compute which root categories have discounts.
+   * Covers both direct category targets and subcategory targets via include_subcategories.
+   */
+  const loadCategoryOffers = async (rootCategories?: Category[]) => {
+    try {
+      const offers = await fetchActiveOffersCached();
+      const discountMap = new Map<number, number>();
+
+      // Get the category list — use passed-in or current state
+      const cats = rootCategories || categories;
+
+      for (const offer of offers) {
+        if (offer.status !== "active") continue;
+        if (offer.applies_to !== "category") continue;
+        if (offer.type !== "percentage" && offer.type !== "fixed_amount")
+          continue;
+
+        for (const target of offer.targets.categories) {
+          // Direct match: the target IS a root category
+          const directMatch = cats.find((c) => c.id === target.id);
+          if (directMatch) {
+            const existing = discountMap.get(directMatch.id) || 0;
+            if (offer.type === "percentage" && offer.value > existing) {
+              discountMap.set(directMatch.id, offer.value);
+            }
+          }
+
+          // Subcategory match: the target is a child of a root category
+          if (target.include_subcategories) {
+            // The target category itself could be a root — already handled above
+            // But also find any root category that is the parent of this target
+            const parentMatch = cats.find((c) =>
+              c.subcategories?.some((sub) => sub.id === target.id),
+            );
+            if (parentMatch && offer.type === "percentage") {
+              const existing = discountMap.get(parentMatch.id) || 0;
+              if (offer.value > existing) {
+                discountMap.set(parentMatch.id, offer.value);
+              }
+            }
+          }
+        }
+      }
+
+      setCategoryDiscounts(discountMap);
+    } catch (error) {
+      // Silently fail — badges are optional enhancement
+    }
+  };
 
   const loadCategories = async (forceRefresh = false) => {
     try {
@@ -65,9 +127,15 @@ export default function CategoriesScreen() {
       if (response.success) {
         const rootCategories = response.data.categories
           .filter((cat: Category) => !cat.parent_id)
-          .sort((a: Category, b: Category) => (a.sort_order || 0) - (b.sort_order || 0));
+          .sort(
+            (a: Category, b: Category) =>
+              (a.sort_order || 0) - (b.sort_order || 0),
+          );
 
         setCategories(rootCategories);
+
+        // Load category offer badges with the fresh root categories
+        loadCategoryOffers(rootCategories);
 
         // Preload images
         const imageUrls = rootCategories
@@ -109,7 +177,10 @@ export default function CategoriesScreen() {
       Alert.alert(
         t.common?.error || "Error",
         "Unable to load categories. Please check your connection.",
-        [{ text: t.common?.retry || "Retry", onPress: () => loadCategories() }, { text: t.common?.ok || "OK" }],
+        [
+          { text: t.common?.retry || "Retry", onPress: () => loadCategories() },
+          { text: t.common?.ok || "OK" },
+        ],
       );
     } finally {
       setLoading(false);
@@ -122,17 +193,25 @@ export default function CategoriesScreen() {
     setRefreshing(false);
   };
 
-  const renderCategoryCard = ({ item, index }: { item: Category; index: number }) => {
-    const defaultImage = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800";
+  const renderCategoryCard = ({
+    item,
+    index,
+  }: {
+    item: Category;
+    index: number;
+  }) => {
+    const defaultImage =
+      "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800";
     const imageUri = cachedImages.get(item.id) || item.image || defaultImage;
+    const discount = categoryDiscounts.get(item.id);
 
     return (
       <Animated.View
         style={[
           {
             opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
         <TouchableOpacity
@@ -150,10 +229,29 @@ export default function CategoriesScreen() {
               colors={["transparent", "rgba(0,0,0,0.75)"]}
               style={styles.gradient}
             >
+              {/* Discount badge */}
+              {discount && discount > 0 && (
+                <View style={styles.discountBadge}>
+                  <Ionicons
+                    name="pricetag"
+                    size={10}
+                    color={Colors.neutralWhite}
+                  />
+                  <Text style={styles.discountBadgeText}>
+                    {(t.offers?.upToOff || "Up to {value}% OFF").replace(
+                      "{value}",
+                      discount.toString(),
+                    )}
+                  </Text>
+                </View>
+              )}
+
               {/* Products count badge */}
               {item.products_count !== undefined && item.products_count > 0 && (
                 <View style={styles.productsBadge}>
-                  <Text style={styles.productsBadgeText}>{item.products_count}</Text>
+                  <Text style={styles.productsBadgeText}>
+                    {item.products_count}
+                  </Text>
                 </View>
               )}
 
@@ -163,7 +261,9 @@ export default function CategoriesScreen() {
                   {getName(item)}
                 </Text>
                 <View style={styles.exploreButton}>
-                  <Text style={styles.exploreText}>{t.common?.browse || "Browse"}</Text>
+                  <Text style={styles.exploreText}>
+                    {t.common?.browse || "Browse"}
+                  </Text>
                   <ChevronRight size={14} color={Colors.neutralWhite} />
                 </View>
               </View>
@@ -201,7 +301,11 @@ export default function CategoriesScreen() {
           <View style={styles.gridContainer}>
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <View key={i} style={styles.skeletonCard}>
-                <SkeletonLoader width={CARD_WIDTH} height={CARD_WIDTH * 1.2} borderRadius={20} />
+                <SkeletonLoader
+                  width={CARD_WIDTH}
+                  height={CARD_WIDTH * 1.2}
+                  borderRadius={20}
+                />
               </View>
             ))}
           </View>
@@ -229,7 +333,9 @@ export default function CategoriesScreen() {
               <View style={styles.brandIcon}>
                 <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
               </View>
-              <Text style={styles.brandName}>ElBaraka</Text>
+              <Text style={styles.brandName}>
+                {t.nav?.categories || "Categories"}
+              </Text>
             </View>
 
             <View style={styles.headerActions}>
@@ -265,9 +371,12 @@ export default function CategoriesScreen() {
       ═══════════════════════════════════════════════════════════════════════════ */}
       <View style={styles.sectionHeader}>
         <View>
-          <Text style={styles.sectionTitle}>{t.nav?.categories || "Categories"}</Text>
+          <Text style={styles.sectionTitle}>
+            {t.nav?.categories || "Categories"}
+          </Text>
           <Text style={styles.sectionSubtitle}>
-            {t.common?.browse || "Browse"} {categories.length} {t.nav?.categories?.toLowerCase() || "categories"}
+            {t.common?.browse || "Browse"} {categories.length}{" "}
+            {t.nav?.categories?.toLowerCase() || "categories"}
           </Text>
         </View>
         <View style={styles.countBadge}>
@@ -470,6 +579,23 @@ const styles = StyleSheet.create({
   productsBadgeText: {
     color: Colors.neutralWhite,
     fontSize: 11,
+    fontFamily: "Poppins-Bold",
+  },
+  discountBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.accentRed,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  discountBadgeText: {
+    color: Colors.neutralWhite,
+    fontSize: 10,
     fontFamily: "Poppins-Bold",
   },
   cardContent: {

@@ -57,6 +57,26 @@ class OtpService
     }
 
     /**
+     * Create OTP for email change verification.
+     * OTP is sent to the NEW email to prove ownership.
+     */
+    public function createEmailChangeOtp(string $newEmail): Otp
+    {
+        // Delete old unused OTPs for this new email
+        Otp::where('identifier', $newEmail)
+            ->where('type', 'email_change')
+            ->where('is_used', false)
+            ->delete();
+
+        return Otp::create([
+            'identifier' => $newEmail,
+            'otp' => $this->generate(),
+            'type' => 'email_change',
+            'expires_at' => Carbon::now()->addMinutes(10),
+        ]);
+    }
+
+    /**
      * Verify OTP.
      */
     public function verify(string $identifier, string $otp, string $type): ?Otp
@@ -73,7 +93,7 @@ class OtpService
 
     /**
      * Send OTP via email - QUEUED for performance.
-     * 
+     *
      * This uses a queue job to prevent blocking the API response.
      * On a single server, this is CRITICAL for performance.
      */
@@ -82,12 +102,12 @@ class OtpService
         try {
             // Dispatch to queue instead of sending synchronously
             SendOtpEmail::dispatch($email, $otp, $purpose);
-            
+
             Log::info("OTP queued for {$email}");
             return true;
         } catch (\Exception $e) {
             Log::error("Failed to queue OTP for {$email}: " . $e->getMessage());
-            
+
             // Fallback to sync send if queue fails
             try {
                 Mail::to($email)->send(new \App\Mail\OtpMail($otp, $purpose));

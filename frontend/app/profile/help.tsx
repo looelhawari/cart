@@ -503,7 +503,7 @@ export default function HelpScreen() {
                 size={20}
                 color="#666"
               />
-              <Text style={styles.linkText}>About ElBaraka</Text>
+              <Text style={styles.linkText}>About CART</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
           </View>
@@ -511,9 +511,9 @@ export default function HelpScreen() {
 
         {/* App Version */}
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>ElBaraka App v1.0.0</Text>
+          <Text style={styles.versionText}>CART App v1.0.0</Text>
           <Text style={styles.copyrightText}>
-            © 2024 ElBaraka Hypermarket. All rights reserved.
+            © 2024 CART Hypermarket. All rights reserved.
           </Text>
         </View>
       </ScrollView>

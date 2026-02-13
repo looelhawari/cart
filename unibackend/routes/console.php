@@ -10,6 +10,7 @@ use App\Jobs\ProcessFlashSaleNotifications;
 use App\Jobs\ProcessReorderReminders;
 use App\Jobs\ProcessProductWatchlistNotifications;
 use App\Jobs\ProcessCouponExpirationReminders;
+use App\Jobs\ReconcilePendingPayments;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -40,4 +41,12 @@ Schedule::job(new ProcessProductWatchlistNotifications)->everyThirtyMinutes()
 // Coupon expiration reminders - daily at 9 AM
 Schedule::job(new ProcessCouponExpirationReminders)->dailyAt('09:00')
     ->name('process-coupon-expiration')
+    ->withoutOverlapping();
+
+// ==================== PAYMENT RECONCILIATION ====================
+
+// P1: Reconcile stale PENDING payments every 5 minutes
+// Safety net for missed webhooks — queries Paymob server-to-server
+Schedule::job(new ReconcilePendingPayments)->everyFiveMinutes()
+    ->name('reconcile-pending-payments')
     ->withoutOverlapping();

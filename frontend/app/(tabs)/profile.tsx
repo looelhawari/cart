@@ -253,7 +253,9 @@ export default function ProfileScreen() {
                 <View style={styles.brandIcon}>
                   <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
                 </View>
-                <Text style={styles.brandName}>ElBaraka</Text>
+                <Text style={styles.brandName}>
+                  {t.nav?.profile || "Profile"}
+                </Text>
               </View>
             </View>
           </LinearGradient>
@@ -322,7 +324,9 @@ export default function ProfileScreen() {
               <View style={styles.brandIcon}>
                 <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
               </View>
-              <Text style={styles.brandName}>ElBaraka</Text>
+              <Text style={styles.brandName}>
+                {t.nav?.profile || "Profile"}
+              </Text>
             </View>
 
             <TouchableOpacity

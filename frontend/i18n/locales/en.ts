@@ -264,6 +264,42 @@ export default {
       "Are you sure you want to delete your profile picture?",
     pictureDeleted: "Profile picture deleted",
     failedToDelete: "Failed to delete picture",
+    emailManagedByGoogle:
+      "Email is managed by your Google account and cannot be changed.",
+    changeEmail: "Change Email",
+    relinkGoogle: "Switch Google Account",
+    relinkSuccess:
+      "Google account switched successfully. Your email and profile have been updated.",
+    relinkFailed: "Failed to switch Google account. Please try again.",
+    relinkConfirm:
+      "Switch to a different Google account? Your email will change to match the new account.",
+  },
+
+  // Change Email
+  changeEmail: {
+    title: "Change Email",
+    currentEmail: "Current Email",
+    newEmail: "New Email Address",
+    enterNewEmail: "Enter your new email address",
+    confirmPassword: "Current Password",
+    enterPassword: "Enter your current password",
+    invalidEmail: "Please enter a valid email address.",
+    sameEmail: "New email must be different from your current email.",
+    securityNotice:
+      "For your security, a verification code will be sent to your new email address. You must also confirm your current password.",
+    sendCode: "Send Verification Code",
+    otpSent: "Verification code sent to your new email.",
+    requestFailed: "Failed to send verification code. Please try again.",
+    verifyTitle: "Verify Email",
+    verifySubtitle: "Enter the 6-digit code sent to {email}",
+    enterOtp: "Please enter the 6-digit verification code.",
+    resendCode: "Resend Code",
+    verify: "Verify & Change Email",
+    verifyFailed: "Invalid or expired code. Please try again.",
+    back: "Go Back",
+    successTitle: "Email Changed!",
+    successSubtitle: "Your email has been updated and verified successfully.",
+    done: "Done",
   },
 
   // Favorites
@@ -329,7 +365,7 @@ export default {
     languageChangedMessage:
       "Language has been changed to {lang}. Some changes may require app restart.",
     about: "About",
-    appName: "ElBaraka Hypermarket",
+    appName: "CART Hypermarket",
     version: "Version",
     appVersion: "Version",
     termsOfService: "Terms of Service",
@@ -795,29 +831,6 @@ export default {
     continueShopping: "Continue Shopping",
   },
 
-  // Phone Verification
-  phoneVerification: {
-    verifyPhone: "Verify Your Phone",
-    enterCode: "Enter Verification Code",
-    needPhoneForDelivery: "We need your phone number for delivery updates 🚚",
-    sentCodeTo: "We sent a 6-digit code to {phone}",
-    phoneNumber: "Phone Number",
-    sendCode: "Send Code",
-    verificationCode: "Verification Code",
-    verify: "Verify",
-    didntReceiveCode: "Didn't receive the code?",
-    resendIn: "Resend in {seconds}s",
-    resend: "Resend",
-    changePhone: "Change Phone Number",
-    enterValidPhone: "Please enter a valid phone number",
-    otpSent: "OTP sent to your phone number",
-    failedToSendOtp: "Failed to send OTP",
-    enterSixDigitCode: "Please enter the 6-digit code",
-    successTitle: "Success! 🎉",
-    phoneVerified: "Your phone number has been verified. Welcome to ElBaraka!",
-    invalidOtp: "Invalid OTP",
-  },
-
   // Notifications
   notifications: {
     title: "Notifications",
@@ -868,6 +881,7 @@ export default {
     viewOffer: "View Offer",
     useCode: "Use Code",
     validUntil: "Valid until",
+    upToOff: "Up to {value}% OFF",
   },
 
   // Search
@@ -1018,5 +1032,18 @@ export default {
     howWasYourOrder: "How was your order?",
     thankYouForReview: "Thank you for your review!",
     ratingsAndReviews: "Ratings & Reviews",
+  },
+
+  // Delivery
+  delivery: {
+    areaRestrictionTitle: "Delivery Area",
+    areaRestrictionNote:
+      "We currently deliver only to Al Tagamoa and Al Rehab areas.",
+  },
+
+  // Quantity Limits
+  quantityLimit: {
+    maxPerOrder: "Maximum {{max}} units per order for this product.",
+    limitReached: "Limit Reached",
   },
 };

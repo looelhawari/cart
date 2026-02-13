@@ -17,7 +17,22 @@ class CartService
 {
     protected const CART_CACHE_TTL = 3600; // 1 hour cache
     protected const CART_DETAILS_CACHE_TTL = 300; // 5 minutes for cart details
-    
+
+    /**
+     * Products with per-order quantity limits.
+     * Barcode => max quantity per order.
+     */
+    protected const QUANTITY_LIMITED_PRODUCTS = [
+        '6224010081116' => 2,
+        '6224008513025' => 2,
+        '6223001930600' => 2,
+        '6223001930594' => 2,
+        '6223001930556' => 2,
+        '6223001930518' => 2,
+        '5449000232045' => 2,
+        '5449000200976' => 2,
+    ];
+
     /**
      * Get cart cache key
      */
@@ -28,7 +43,7 @@ class CartService
         }
         return "cart:session:{$sessionId}";
     }
-    
+
     /**
      * Clear cart cache
      */
@@ -42,7 +57,7 @@ class CartService
             Cache::forget("cart_details:session:{$sessionId}");
         }
     }
-    
+
     /**
      * Get or create cart for guest or authenticated user
      * STEP 1: Newest Cart Wins - NO MERGING
@@ -210,6 +225,22 @@ class CartService
             throw new \Exception('Product is not available');
         }
 
+        // Check per-order quantity limit for restricted products
+        $maxPerOrder = self::QUANTITY_LIMITED_PRODUCTS[$product->barcode] ?? null;
+        if ($maxPerOrder !== null) {
+            // Check existing quantity in cart
+            $existingQty = CartItem::where('cart_id', $cart->id)
+                ->where('product_id', $productId)
+                ->value('quantity') ?? 0;
+
+            if (($existingQty + $quantity) > $maxPerOrder) {
+                throw new \Exception(
+                    "Maximum {$maxPerOrder} units per order for this product.",
+                    422
+                );
+            }
+        }
+
         // Check if item already exists in cart
         $cartItem = CartItem::where('cart_id', $cart->id)
             ->where('product_id', $productId)
@@ -239,7 +270,7 @@ class CartService
                 'price' => $effectivePrice,
             ]);
         }
-        
+
         // Clear cart cache after modification
         $this->clearCartCache($cart->user_id, $cart->session_id);
 
@@ -262,8 +293,17 @@ class CartService
             throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
         }
 
+        // Check per-order quantity limit for restricted products
+        $maxPerOrder = self::QUANTITY_LIMITED_PRODUCTS[$product->barcode] ?? null;
+        if ($maxPerOrder !== null && $quantity > $maxPerOrder) {
+            throw new \Exception(
+                "Maximum {$maxPerOrder} units per order for this product.",
+                422
+            );
+        }
+
         $cartItem->update(['quantity' => $quantity]);
-        
+
         // Clear cart cache after modification
         $cart = $cartItem->cart;
         $this->clearCartCache($cart->user_id, $cart->session_id);
@@ -278,7 +318,7 @@ class CartService
     {
         $cart = $cartItem->cart;
         $cartItem->delete();
-        
+
         // Clear cart cache after modification
         $this->clearCartCache($cart->user_id, $cart->session_id);
     }
@@ -289,7 +329,7 @@ class CartService
     public function clearCart(Cart $cart): void
     {
         $cart->items()->delete();
-        
+
         // Clear cart cache
         $this->clearCartCache($cart->user_id, $cart->session_id);
     }

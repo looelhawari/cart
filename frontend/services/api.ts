@@ -171,7 +171,15 @@ const apiRequest = async <T>(
     // Handle token expiration - try to refresh
     if (response.status === 401 && retryCount === 0) {
       // Check if it's a token expiration issue
-      if (data.message?.includes("expired") || data.message?.includes("Unauthenticated")) {
+      if (
+        data.message?.includes("expired") ||
+        data.message?.includes("Unauthenticated")
+      ) {
+        // Snapshot the token that was used for THIS request.
+        // If a concurrent socialLogin has since written a NEW token,
+        // we must NOT clear it — we should retry with the new token instead.
+        const tokenBeforeRefresh = token;
+
         try {
           // Use shared refresh promise to prevent multiple refresh attempts
           if (isRefreshing && refreshPromise) {
@@ -187,7 +195,16 @@ const apiRequest = async <T>(
           // Retry the original request with new token
           return await apiRequest<T>(endpoint, options, retryCount + 1);
         } catch (refreshError) {
-          // Refresh failed - clear auth data and throw
+          // Before clearing auth, check if the token has changed since
+          // we started this request. If it has, a concurrent socialLogin
+          // issued a fresh token — DO NOT wipe it.
+          const currentToken = await getAuthToken();
+          if (currentToken && currentToken !== tokenBeforeRefresh) {
+            // A new token was saved by socialLogin — retry with it
+            return await apiRequest<T>(endpoint, options, retryCount + 1);
+          }
+
+          // Token hasn't changed — genuinely expired, safe to clear
           await clearAuthData();
           throw {
             success: false,
@@ -444,22 +461,6 @@ export const authApi = {
     );
 
     return response;
-  },
-
-  // Send Phone OTP (for social login users)
-  async sendPhoneOtp(data: { phone: string }) {
-    return apiRequest("/auth/send-phone-otp", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
-
-  // Verify Phone OTP (for social login users)
-  async verifyPhoneOtp(data: { phone: string; otp: string }) {
-    return apiRequest("/auth/verify-phone-otp", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
   },
 
   // Profile Management

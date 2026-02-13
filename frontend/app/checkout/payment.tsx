@@ -10,7 +10,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, CreditCard, Banknote, Check } from "lucide-react-native";
+import {
+  ArrowLeft,
+  CreditCard,
+  Banknote,
+  Check,
+  ShieldCheck,
+  Plus,
+  Shield,
+} from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
@@ -53,6 +61,21 @@ export default function CheckoutPaymentScreen() {
   }, []);
 
   /**
+   * Auto-enable saved card mode when eligible cards exist
+   */
+  useEffect(() => {
+    if (savedCards.length > 0 && paymentType === "card") {
+      const eligibleCards = getEligiblePaymentMethods(savedCards);
+      if (eligibleCards.length > 0) {
+        setUseSavedCard(true);
+        const defaultCard =
+          eligibleCards.find((c) => c.is_default) || eligibleCards[0];
+        setSelectedCardId(defaultCard.id);
+      }
+    }
+  }, [savedCards, paymentType]);
+
+  /**
    * Fetch saved cards from API
    */
   const loadSavedCards = async () => {
@@ -60,15 +83,6 @@ export default function CheckoutPaymentScreen() {
       setLoadingCards(true);
       const cards = await getPaymentMethods();
       setSavedCards(cards);
-
-      // Auto-select default card if using saved cards
-      const defaultCard = cards.find((c) => c.is_default);
-      if (
-        defaultCard &&
-        getEligiblePaymentMethods(cards).includes(defaultCard)
-      ) {
-        setSelectedCardId(defaultCard.id);
-      }
     } catch (error) {
       console.error("Failed to load saved cards:", error);
       setToastType("error");
@@ -87,12 +101,10 @@ export default function CheckoutPaymentScreen() {
     if (!value) {
       setSelectedCardId(null);
     } else {
-      // Auto-select default card
-      const defaultCard = savedCards.find((c) => c.is_default);
-      if (
-        defaultCard &&
-        getEligiblePaymentMethods(savedCards).includes(defaultCard)
-      ) {
+      const eligibleCards = getEligiblePaymentMethods(savedCards);
+      const defaultCard =
+        eligibleCards.find((c) => c.is_default) || eligibleCards[0];
+      if (defaultCard) {
         setSelectedCardId(defaultCard.id);
       }
     }
@@ -122,33 +134,68 @@ export default function CheckoutPaymentScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Progress */}
-        <View style={styles.progressBar}>
-          <View style={[styles.progressDot, styles.progressDotActive]}>
-            <Check size={18} color={Colors.neutralWhite} />
-          </View>
-          <View style={[styles.progressLine, styles.progressLineActive]} />
-          <View style={[styles.progressDot, styles.progressDotActive]}>
-            <Text style={styles.progressText}>2</Text>
-          </View>
-          <View style={styles.progressLine} />
-          <View style={styles.progressDot}>
-            <Text style={styles.progressTextInactive}>3</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Progress Stepper */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            {/* Step 1 — Complete */}
+            <View style={[styles.progressDot, styles.progressDotCompleted]}>
+              <Check size={16} color={Colors.neutralWhite} />
+            </View>
+            <View style={[styles.progressLine, styles.progressLineActive]} />
+            {/* Step 2 — Current */}
+            <View style={[styles.progressDot, styles.progressDotActive]}>
+              <Text style={styles.progressText}>2</Text>
+            </View>
+            <View style={styles.progressLine} />
+            {/* Step 3 — Pending */}
+            <View style={styles.progressDot}>
+              <Text style={styles.progressTextInactive}>3</Text>
+            </View>
           </View>
         </View>
 
-        {/* Payment Types */}
-        <View style={styles.paymentTypes}>
+        {/* Payment Type Selection */}
+        <View style={styles.paymentTypesContainer}>
           <TouchableOpacity
             style={[
               styles.paymentTypeCard,
               paymentType === "card" && styles.paymentTypeCardActive,
             ]}
             onPress={() => setPaymentType("card")}
+            activeOpacity={0.7}
           >
-            <CreditCard size={24} color={Colors.primary900} />
-            <Text style={styles.paymentTypeText}>{t.checkout.card}</Text>
+            <View
+              style={[
+                styles.paymentTypeIconWrapper,
+                paymentType === "card" && styles.paymentTypeIconWrapperActive,
+              ]}
+            >
+              <CreditCard
+                size={26}
+                color={
+                  paymentType === "card"
+                    ? Colors.neutralWhite
+                    : Colors.primary900
+                }
+              />
+            </View>
+            <Text
+              style={[
+                styles.paymentTypeText,
+                paymentType === "card" && styles.paymentTypeTextActive,
+              ]}
+            >
+              {t.checkout.card}
+            </Text>
+            {paymentType === "card" && (
+              <View style={styles.paymentTypeCheck}>
+                <Check size={14} color={Colors.neutralWhite} />
+              </View>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -157,21 +204,51 @@ export default function CheckoutPaymentScreen() {
               paymentType === "cod" && styles.paymentTypeCardActive,
             ]}
             onPress={() => setPaymentType("cod")}
+            activeOpacity={0.7}
           >
-            <Banknote size={24} color={Colors.primary900} />
-            <Text style={styles.paymentTypeText}>{t.checkout.cash}</Text>
+            <View
+              style={[
+                styles.paymentTypeIconWrapper,
+                paymentType === "cod" && styles.paymentTypeIconWrapperActive,
+              ]}
+            >
+              <Banknote
+                size={26}
+                color={
+                  paymentType === "cod"
+                    ? Colors.neutralWhite
+                    : Colors.primary900
+                }
+              />
+            </View>
+            <Text
+              style={[
+                styles.paymentTypeText,
+                paymentType === "cod" && styles.paymentTypeTextActive,
+              ]}
+            >
+              {t.checkout.cash}
+            </Text>
+            {paymentType === "cod" && (
+              <View style={styles.paymentTypeCheck}>
+                <Check size={14} color={Colors.neutralWhite} />
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
-        {/* Card Payment Description */}
+        {/* Card Payment Section */}
         {paymentType === "card" && (
           <View style={styles.cardPaymentSection}>
-            {/* Saved Cards Toggle */}
+            {/* Saved Cards Toggle — only when cards exist */}
             {savedCards.length > 0 && (
               <View style={styles.toggleContainer}>
-                <Text style={styles.toggleLabel}>
-                  {t.checkout.useSavedCard}
-                </Text>
+                <View style={styles.toggleLeft}>
+                  <CreditCard size={20} color={Colors.primary900} />
+                  <Text style={styles.toggleLabel}>
+                    {t.checkout.useSavedCard}
+                  </Text>
+                </View>
                 <Switch
                   value={useSavedCard}
                   onValueChange={handleCardModeToggle}
@@ -192,8 +269,8 @@ export default function CheckoutPaymentScreen() {
                 </Text>
               </View>
             ) : useSavedCard ? (
-              // Show saved cards list
-              <View style={styles.savedCardsContainer}>
+              /* ── Saved Cards List ── */
+              <View style={styles.savedCardsWrapper}>
                 <Text style={styles.sectionTitle}>{t.checkout.selectCard}</Text>
                 <SavedCardsList
                   cards={getEligiblePaymentMethods(savedCards)}
@@ -202,6 +279,7 @@ export default function CheckoutPaymentScreen() {
                 />
                 {getEligiblePaymentMethods(savedCards).length === 0 && (
                   <View style={styles.noEligibleCards}>
+                    <CreditCard size={40} color={Colors.neutralMedium} />
                     <Text style={styles.noEligibleText}>
                       {t.checkout.noEligibleCards}
                     </Text>
@@ -213,22 +291,34 @@ export default function CheckoutPaymentScreen() {
                       onPress={() => router.push("/profile/payment")}
                       activeOpacity={0.7}
                     >
-                      <CreditCard size={20} color={Colors.neutralWhite} />
+                      <Plus size={18} color={Colors.neutralWhite} />
                       <Text style={styles.addPaymentButtonText}>
                         {t.checkout.addPaymentMethod}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 )}
+
+                {/* Security note */}
+                <View style={styles.securityNote}>
+                  <ShieldCheck size={16} color={Colors.primary900} />
+                  <Text style={styles.securityNoteText}>
+                    Your card details are encrypted and securely stored
+                  </Text>
+                </View>
               </View>
             ) : (
-              // Show new card description with save option
-              <View style={styles.paymentDescription}>
-                <CreditCard size={48} color={Colors.primary900} />
-                <Text style={styles.descriptionTitle}>
+              /* ── New Card Description ── */
+              <View style={styles.newCardSection}>
+                <View style={styles.newCardIconContainer}>
+                  <View style={styles.newCardIconCircle}>
+                    <Shield size={28} color={Colors.primary900} />
+                  </View>
+                </View>
+                <Text style={styles.newCardTitle}>
                   {t.checkout.secureCardPayment}
                 </Text>
-                <Text style={styles.descriptionText}>
+                <Text style={styles.newCardDescription}>
                   {t.checkout.redirectToPayment}
                 </Text>
 
@@ -245,37 +335,77 @@ export default function CheckoutPaymentScreen() {
                     ]}
                   >
                     {saveNewCard && (
-                      <Check size={16} color={Colors.neutralWhite} />
+                      <Check size={14} color={Colors.neutralWhite} />
                     )}
                   </View>
                   <Text style={styles.saveCardText}>
                     {t.checkout.saveCardForFuture}
                   </Text>
                 </TouchableOpacity>
+
+                {/* Security badge */}
+                <View style={styles.securityBadge}>
+                  <ShieldCheck size={16} color={Colors.primary900} />
+                  <Text style={styles.securityBadgeText}>
+                    PCI-DSS compliant
+                  </Text>
+                </View>
               </View>
             )}
           </View>
         )}
 
-        {/* COD */}
+        {/* Cash on Delivery Section */}
         {paymentType === "cod" && (
-          <View style={styles.codInfo}>
-            <Banknote size={48} color={Colors.primary900} />
+          <View style={styles.codSection}>
+            <View style={styles.codIconContainer}>
+              <View style={styles.codIconCircle}>
+                <Banknote size={32} color={Colors.primary900} />
+              </View>
+            </View>
             <Text style={styles.codTitle}>{t.checkout.cashOnDelivery}</Text>
             <Text style={styles.codDescription}>{t.checkout.payOnArrival}</Text>
+
+            <View style={styles.codFeatures}>
+              <View style={styles.codFeatureRow}>
+                <Check size={16} color={Colors.primary900} />
+                <Text style={styles.codFeatureText}>
+                  Pay when your order arrives
+                </Text>
+              </View>
+              <View style={styles.codFeatureRow}>
+                <Check size={16} color={Colors.primary900} />
+                <Text style={styles.codFeatureText}>
+                  Please have exact change ready
+                </Text>
+              </View>
+            </View>
           </View>
         )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Bottom */}
+      {/* Bottom CTA */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.continueButton}
+          style={[
+            styles.continueButton,
+            paymentType === "card" &&
+              useSavedCard &&
+              !selectedCardId &&
+              styles.continueButtonDisabled,
+          ]}
           onPress={handleContinue}
+          disabled={paymentType === "card" && useSavedCard && !selectedCardId}
+          activeOpacity={0.8}
         >
           <Text style={styles.continueText}>{t.common.next}</Text>
+          <ArrowLeft
+            size={18}
+            color={Colors.neutralWhite}
+            style={{ transform: [{ rotate: "180deg" }] }}
+          />
         </TouchableOpacity>
       </View>
 
@@ -296,12 +426,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
 
+  scrollContent: {
+    paddingBottom: Spacing.xl,
+  },
+
+  /* ── Header ── */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     backgroundColor: Colors.neutralWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutralLight,
   },
 
   backButton: {
@@ -319,10 +457,15 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
 
+  /* ── Progress Stepper ── */
+  progressContainer: {
+    paddingVertical: Spacing.lg,
+    alignItems: "center",
+  },
+
   progressBar: {
     flexDirection: "row",
-    justifyContent: "center",
-    padding: Spacing.lg,
+    alignItems: "center",
   },
 
   progressDot: {
@@ -334,78 +477,115 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  progressDotCompleted: {
+    backgroundColor: Colors.primary900,
+  },
+
   progressDotActive: {
     backgroundColor: Colors.primary900,
+    shadowColor: Colors.primary900,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
 
   progressText: {
     color: Colors.neutralWhite,
-    fontWeight: "bold",
+    fontWeight: "700",
+    fontSize: 14,
   },
 
   progressTextInactive: {
     color: Colors.neutralMedium,
+    fontWeight: "600",
+    fontSize: 14,
   },
 
   progressLine: {
     width: 60,
-    height: 2,
+    height: 3,
     backgroundColor: Colors.neutralGray,
+    borderRadius: 1.5,
   },
 
   progressLineActive: {
     backgroundColor: Colors.primary900,
   },
 
-  paymentTypes: {
+  /* ── Payment Type Cards ── */
+  paymentTypesContainer: {
     flexDirection: "row",
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
 
   paymentTypeCard: {
     flex: 1,
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
-    padding: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: Colors.neutralLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
 
   paymentTypeCardActive: {
-    borderWidth: 2,
     borderColor: Colors.primary900,
+    backgroundColor: "#f0fdf4",
+    shadowColor: Colors.primary900,
+    shadowOpacity: 0.1,
+    elevation: 3,
+  },
+
+  paymentTypeIconWrapper: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#dcfce7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+
+  paymentTypeIconWrapperActive: {
+    backgroundColor: Colors.primary900,
   },
 
   paymentTypeText: {
+    fontSize: Typography.bodyBase,
     fontWeight: "600",
     color: Colors.neutralCharcoal,
   },
 
-  paymentDescription: {
-    backgroundColor: Colors.neutralWhite,
-    margin: Spacing.md,
-    padding: Spacing.xl,
-    borderRadius: 16,
+  paymentTypeTextActive: {
+    color: Colors.primary900,
+    fontWeight: "700",
+  },
+
+  paymentTypeCheck: {
+    position: "absolute",
+    top: Spacing.xs,
+    right: Spacing.xs,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.primary900,
     alignItems: "center",
+    justifyContent: "center",
   },
 
-  descriptionTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-    color: Colors.neutralCharcoal,
-  },
-
-  descriptionText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-
+  /* ── Card Payment Section ── */
   cardPaymentSection: {
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
   },
 
   toggleContainer: {
@@ -413,9 +593,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: Colors.neutralWhite,
-    padding: Spacing.md,
-    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 14,
     marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+
+  toggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
 
   toggleLabel: {
@@ -426,31 +615,37 @@ const styles = StyleSheet.create({
 
   loadingContainer: {
     backgroundColor: Colors.neutralWhite,
-    padding: Spacing.xl,
+    padding: Spacing.xxl,
     borderRadius: 16,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
   },
 
   loadingText: {
     marginTop: Spacing.sm,
     color: Colors.neutralMedium,
+    fontSize: Typography.bodyMedium,
   },
 
-  savedCardsContainer: {
+  /* ── Saved Cards ── */
+  savedCardsWrapper: {
     backgroundColor: Colors.neutralWhite,
     padding: Spacing.md,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
   },
 
   sectionTitle: {
-    fontSize: Typography.h4,
+    fontSize: Typography.bodyLarge,
     fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.sm,
   },
 
   noEligibleCards: {
-    padding: Spacing.xl,
+    paddingVertical: Spacing.xl,
     alignItems: "center",
   },
 
@@ -459,6 +654,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.neutralCharcoal,
     textAlign: "center",
+    marginTop: Spacing.sm,
   },
 
   noEligibleSubtext: {
@@ -473,7 +669,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.primary900,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     borderRadius: 12,
     marginTop: Spacing.md,
@@ -481,21 +677,78 @@ const styles = StyleSheet.create({
   },
 
   addPaymentButtonText: {
-    fontSize: Typography.bodyBase,
+    fontSize: Typography.bodyMedium,
     fontWeight: "600",
     color: Colors.neutralWhite,
+  },
+
+  securityNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.md,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralLight,
+    gap: Spacing.xs,
+  },
+
+  securityNoteText: {
+    flex: 1,
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+  },
+
+  /* ── New Card ── */
+  newCardSection: {
+    backgroundColor: Colors.neutralWhite,
+    padding: Spacing.xl,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+
+  newCardIconContainer: {
+    marginBottom: Spacing.md,
+  },
+
+  newCardIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#dcfce7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  newCardTitle: {
+    fontSize: Typography.h4,
+    fontWeight: Typography.bold,
+    color: Colors.neutralCharcoal,
+    marginBottom: Spacing.xs,
+  },
+
+  newCardDescription: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.md,
   },
 
   saveCardOption: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    alignSelf: "stretch",
+    backgroundColor: Colors.neutralCloud,
+    padding: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.md,
   },
 
   checkbox: {
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     borderRadius: 6,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
@@ -511,45 +764,119 @@ const styles = StyleSheet.create({
 
   saveCardText: {
     flex: 1,
-    fontSize: Typography.bodyBase,
+    fontSize: Typography.bodyMedium,
     color: Colors.neutralCharcoal,
+    fontWeight: "500",
   },
 
-  codInfo: {
+  securityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 20,
+    gap: Spacing.xs,
+  },
+
+  securityBadgeText: {
+    fontSize: Typography.bodySmall,
+    color: Colors.primary900,
+    fontWeight: "500",
+  },
+
+  /* ── Cash on Delivery ── */
+  codSection: {
     backgroundColor: Colors.neutralWhite,
-    margin: Spacing.md,
+    marginHorizontal: Spacing.md,
     padding: Spacing.xl,
     borderRadius: 16,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.neutralLight,
+  },
+
+  codIconContainer: {
+    marginBottom: Spacing.md,
+  },
+
+  codIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#dcfce7",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   codTitle: {
-    fontSize: Typography.h3,
+    fontSize: Typography.h4,
     fontWeight: Typography.bold,
-    marginTop: Spacing.sm,
     color: Colors.neutralCharcoal,
+    marginBottom: Spacing.xs,
   },
 
   codDescription: {
     color: Colors.neutralMedium,
     textAlign: "center",
-    marginTop: Spacing.sm,
+    fontSize: Typography.bodyMedium,
+    marginBottom: Spacing.lg,
   },
 
+  codFeatures: {
+    alignSelf: "stretch",
+    gap: Spacing.sm,
+  },
+
+  codFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.neutralCloud,
+    borderRadius: 10,
+  },
+
+  codFeatureText: {
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralCharcoal,
+    fontWeight: "500",
+  },
+
+  /* ── Bottom Bar ── */
   bottomBar: {
     backgroundColor: Colors.neutralWhite,
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutralLight,
   },
 
   continueButton: {
+    flexDirection: "row",
     backgroundColor: Colors.primary900,
-    padding: Spacing.md,
-    borderRadius: 12,
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    shadowColor: Colors.primary900,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  continueButtonDisabled: {
+    backgroundColor: Colors.neutralGray,
+    shadowOpacity: 0,
+    elevation: 0,
   },
 
   continueText: {
     color: Colors.neutralWhite,
-    fontWeight: "bold",
+    fontWeight: "700",
+    fontSize: Typography.bodyBase,
   },
 });

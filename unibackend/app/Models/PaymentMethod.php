@@ -185,11 +185,6 @@ class PaymentMethod extends Model
             && $this->paymob_card_token !== null;
     }
 
-    /**
-     * LEGACY: Encrypt token before saving to database.
-     * Kept for backward compatibility.   }
-    }
-
     // ═══════════════════════════════════════════════════════
     // RELATIONSHIPS
     // ═══════════════════════════════════════════════════════

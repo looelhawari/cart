@@ -169,7 +169,7 @@ function RootLayoutNav() {
     const checkPendingPaymentOnResume = async () => {
       // Skip if we're in the middle of payment flow
       if (
-        pathname === "/payment" ||
+        pathname === "/payment-webview" ||
         pathname === "/payment-recovery" ||
         pathname?.startsWith("/checkout")
       ) {

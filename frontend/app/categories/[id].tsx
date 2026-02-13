@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   ImageBackground,
   ScrollView,
   Dimensions,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -39,6 +39,7 @@ import {
 import type { Offer } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
+const HERO_HEIGHT = 200;
 
 export default function CategoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -54,6 +55,19 @@ export default function CategoryDetailScreen() {
   const [showSortModal, setShowSortModal] = useState(false);
   const [cachedHeroImage, setCachedHeroImage] = useState<string | undefined>();
   const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
+
+  // Scroll-driven hero collapse animation
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const heroHeight = scrollY.interpolate({
+    inputRange: [0, HERO_HEIGHT],
+    outputRange: [HERO_HEIGHT, 0],
+    extrapolate: "clamp",
+  });
+  const heroOpacity = scrollY.interpolate({
+    inputRange: [0, HERO_HEIGHT * 0.6],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
 
   // Pagination state for infinite scrolling
   const [currentPage, setCurrentPage] = useState(1);
@@ -206,23 +220,27 @@ export default function CategoryDetailScreen() {
     const heroImageUri = cachedHeroImage || category.image;
 
     return (
-      <ImageBackground
-        source={{ uri: heroImageUri }}
-        style={styles.heroImage}
-        resizeMode="cover"
+      <Animated.View
+        style={{ height: heroHeight, opacity: heroOpacity, overflow: "hidden" }}
       >
-        <LinearGradient
-          colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.6)"]}
-          style={styles.heroGradient}
+        <ImageBackground
+          source={{ uri: heroImageUri }}
+          style={styles.heroImage}
+          resizeMode="cover"
         >
-          <Text style={styles.heroTitle}>{category.name_en}</Text>
-          {category.description_en && (
-            <Text style={styles.heroDescription} numberOfLines={2}>
-              {category.description_en}
-            </Text>
-          )}
-        </LinearGradient>
-      </ImageBackground>
+          <LinearGradient
+            colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.6)"]}
+            style={styles.heroGradient}
+          >
+            <Text style={styles.heroTitle}>{category.name_en}</Text>
+            {category.description_en && (
+              <Text style={styles.heroDescription} numberOfLines={2}>
+                {category.description_en}
+              </Text>
+            )}
+          </LinearGradient>
+        </ImageBackground>
+      </Animated.View>
     );
   };
 
@@ -442,18 +460,21 @@ export default function CategoryDetailScreen() {
       {/* Hero Image */}
       {renderHeroImage()}
 
-      {/* Subcategory Chips */}
-      {renderSubcategoryChips()}
+      {/* Sticky Subcategory + Sort/Filter section */}
+      <View style={styles.stickyControls}>
+        {/* Subcategory Chips */}
+        {renderSubcategoryChips()}
 
-      {/* Sort & Filter Bar */}
-      {renderSortFilterBar()}
+        {/* Sort & Filter Bar */}
+        {renderSortFilterBar()}
 
-      {/* Sort Modal */}
-      {renderSortModal()}
+        {/* Sort Modal */}
+        {renderSortModal()}
+      </View>
 
       {/* Products */}
       {products.length > 0 ? (
-        <FlatList
+        <Animated.FlatList
           data={products}
           renderItem={renderProduct}
           keyExtractor={(item, index) => `${item.barcode}-${index}`}
@@ -464,6 +485,11 @@ export default function CategoryDetailScreen() {
           style={{ opacity: refreshing ? 0.6 : 1 }}
           onEndReached={loadMoreProducts}
           onEndReachedThreshold={0.5}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false },
+          )}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -557,7 +583,7 @@ const styles = StyleSheet.create({
   // Hero Image Styles
   heroImage: {
     width: "100%",
-    height: 200,
+    height: HERO_HEIGHT,
   },
   heroGradient: {
     flex: 1,
@@ -580,6 +606,11 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  // Sticky controls wrapper
+  stickyControls: {
+    backgroundColor: Colors.neutralWhite,
+    zIndex: 10,
   },
   // Subcategory Chips Styles
   chipsSection: {

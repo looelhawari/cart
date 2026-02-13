@@ -63,9 +63,17 @@ return [
         'iframe_id' => env('PAYMOB_IFRAME_ID'),
         'card_integration_id' => env('PAYMOB_CARD_INTEGRATION_ID'),
         'integration_id_3ds' => env('PAYMOB_INTEGRATION_ID_3DS'), // For Intention API
+        'moto_integration_id' => env('PAYMOB_MOTO_INTEGRATION_ID'), // For MOTO (one-click) payments
         'wallet_integration_id' => env('PAYMOB_WALLET_INTEGRATION_ID'),
         'callback_url' => env('PAYMOB_CALLBACK_URL', env('APP_URL') . '/api/v1/paymob/processed'),
         'currency' => env('PAYMOB_CURRENCY', 'EGP'),
+        'base_url' => env('PAYMOB_BASE_URL', 'https://accept.paymob.com/api'), // Configurable per region
+    ],
+
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'verify_service_sid' => env('TWILIO_VERIFY_SERVICE_SID'),
     ],
 
 ];

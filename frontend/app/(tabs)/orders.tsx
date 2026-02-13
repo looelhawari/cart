@@ -336,7 +336,9 @@ export default function OrdersScreen() {
                 <View style={styles.brandIcon}>
                   <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
                 </View>
-                <Text style={styles.brandName}>ElBaraka</Text>
+                <Text style={styles.brandName}>
+                  {t.nav?.orders || "Orders"}
+                </Text>
               </View>
             </View>
           </LinearGradient>
@@ -613,7 +615,7 @@ export default function OrdersScreen() {
               <View style={styles.brandIcon}>
                 <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
               </View>
-              <Text style={styles.brandName}>ElBaraka</Text>
+              <Text style={styles.brandName}>{t.nav?.orders || "Orders"}</Text>
             </View>
 
             <View style={styles.orderCountBadge}>

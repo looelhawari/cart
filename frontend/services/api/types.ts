@@ -41,8 +41,12 @@ export interface User {
   language: "en" | "ar";
   role: "customer" | "admin" | "super_admin";
   is_verified: boolean;
+  is_social_only: boolean;
+  has_google: boolean;
+  has_apple: boolean;
   email_verified_at: string | null;
   phone_verified_at: string | null;
+  registration_source: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,14 +102,30 @@ export interface AddressData {
 export interface UpdateProfileData {
   first_name?: string;
   last_name?: string;
-  email?: string;
   phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  language?: string;
 }
 
 export interface ChangePasswordData {
   current_password: string;
   password: string;
   password_confirmation: string;
+}
+
+export interface RequestEmailChangeData {
+  new_email: string;
+  current_password: string;
+}
+
+export interface VerifyEmailChangeData {
+  new_email: string;
+  otp: string;
+}
+
+export interface RelinkGoogleData {
+  id_token: string;
 }
 
 // Cart Types

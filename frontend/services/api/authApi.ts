@@ -152,20 +152,4 @@ export const authApi = {
 
     return response;
   },
-
-  // Send phone OTP for social login users
-  async sendPhoneOtp(data: { phone: string }) {
-    return apiRequest("/auth/send-phone-otp", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
-
-  // Verify phone OTP
-  async verifyPhoneOtp(data: { phone: string; otp: string }) {
-    return apiRequest("/auth/verify-phone-otp", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
 };

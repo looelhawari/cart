@@ -35,7 +35,7 @@ const FALLBACK_CONTENT = `
 <h2>Follow Us</h2>
 <p>Stay connected with us on social media for the latest updates, offers, and more!</p>
 
-<p>© 2025 ElBaraka Hypermarket. All rights reserved.</p>
+<p>© 2025 CART Hypermarket. All rights reserved.</p>
 `;
 
 export default function AboutScreen() {

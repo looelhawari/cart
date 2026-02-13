@@ -44,8 +44,14 @@ async function httpRequest<T>(
 
   // Handle 401 Unauthorized - session expired
   if (response.status === 401) {
-    // Clear auth data to trigger logout
-    await clearAuthData();
+    // Before clearing auth, check if the token has changed since we sent
+    // this request. A concurrent socialLogin may have revoked the old token
+    // (causing this 401) and issued a new one. If so, do NOT wipe it.
+    const currentToken = await getAuthToken();
+    if (!currentToken || currentToken === token) {
+      // Token hasn't changed — genuinely expired, safe to clear
+      await clearAuthData();
+    }
 
     throw new Error("Session expired. Please login again.");
   }

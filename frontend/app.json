@@ -92,7 +92,13 @@
           "color": "#ffffff"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.113273912716-2rf483g4a0qe43kk1vo857fhp643vjv5"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -102,8 +108,9 @@
         "origin": "https://rork.com/"
       },
       "eas": {
-        "projectId": "715776f2-baec-4bf9-a749-29e831ca4fd1"
+        "projectId": "0fafbfcd-51a3-4c94-a03d-448be8401d6a"
       }
-    }
+    },
+    "owner": "kareemh122"
   }
 }

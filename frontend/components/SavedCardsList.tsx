@@ -1,14 +1,13 @@
 /**
- * SavedCardsList Component (Phase 5)
+ * SavedCardsList Component
  *
- * Reusable component for displaying and selecting saved cards.
- * Used in checkout flow.
+ * Reusable component for displaying and selecting saved cards in checkout flow.
  *
  * Features:
- * - Display all cards with eligibility status
- * - Disable selection for expired/unverified cards
- * - Highlight default card
- * - Single selection mode
+ * - Premium card UI with brand colors
+ * - Radio selection with smooth styling
+ * - Disabled state for expired/unverified cards
+ * - Default card indicator
  */
 
 import React from "react";
@@ -19,10 +18,16 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
+  Clock,
+  Star,
+} from "lucide-react-native";
 import { PaymentMethod } from "@/types";
-import { formatCardDisplay } from "@/services/paymentMethodsApi";
-import { Colors } from "@/constants/Colors";
+import Colors from "@/constants/Colors";
+import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 
 interface SavedCardsListProps {
@@ -31,6 +36,22 @@ interface SavedCardsListProps {
   onSelectCard: (card: PaymentMethod) => void;
   disabled?: boolean;
 }
+
+/**
+ * Get brand-specific accent color
+ */
+const getCardBrandColor = (brand: string) => {
+  switch (brand?.toLowerCase()) {
+    case "visa":
+      return "#1A1F71";
+    case "mastercard":
+      return "#EB001B";
+    case "amex":
+      return "#006FCF";
+    default:
+      return Colors.primary900;
+  }
+};
 
 export default function SavedCardsList({
   cards,
@@ -45,6 +66,7 @@ export default function SavedCardsList({
     const isSelected = selectedCardId === item.id;
     const isEligible = item.is_verified && !item.is_expired;
     const canSelect = isEligible && !disabled;
+    const brandColor = getCardBrandColor(item.card_brand);
 
     return (
       <TouchableOpacity
@@ -59,58 +81,62 @@ export default function SavedCardsList({
       >
         {/* Selection Radio */}
         <View style={styles.radioContainer}>
-          <View style={[styles.radio, isSelected && styles.radioSelected]}>
+          <View
+            style={[
+              styles.radio,
+              isSelected && styles.radioSelected,
+              !canSelect && styles.radioDisabled,
+            ]}
+          >
             {isSelected && <View style={styles.radioInner} />}
           </View>
         </View>
 
+        {/* Card brand strip */}
+        <View style={[styles.brandStrip, { backgroundColor: brandColor }]}>
+          <CreditCard size={18} color={Colors.neutralWhite} />
+        </View>
+
         {/* Card Info */}
         <View style={styles.cardInfo}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="card-outline"
-              size={20}
-              color={!canSelect ? Colors.textSecondary : Colors.text}
-            />
-            <Text
-              style={[styles.cardNumber, !canSelect && styles.textDisabled]}
-            >
-              {item.masked_card}
-            </Text>
-          </View>
-
+          <Text style={[styles.cardNumber, !canSelect && styles.textMuted]}>
+            {item.masked_card}
+          </Text>
           <View style={styles.cardMeta}>
-            <Text style={[styles.cardBrand, !canSelect && styles.textDisabled]}>
-              {item.card_brand.toUpperCase()}
+            <Text style={[styles.cardBrand, !canSelect && styles.textMuted]}>
+              {item.card_brand?.toUpperCase()}
             </Text>
-            {item.expires_at && (
-              <Text
-                style={[styles.expiryDate, !canSelect && styles.textDisabled]}
-              >
-                • Exp: {item.expires_at}
-              </Text>
+            {item.is_default && (
+              <View style={styles.defaultBadge}>
+                <Star size={9} color={Colors.primary900} />
+                <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+              </View>
             )}
           </View>
 
-          {/* Status Badges */}
-          <View style={styles.badges}>
-            {item.is_default && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>DEFAULT</Text>
-              </View>
-            )}
-            {item.is_expired && (
-              <View style={[styles.badge, styles.badgeExpired]}>
-                <Text style={styles.badgeText}>EXPIRED</Text>
-              </View>
-            )}
-            {!item.is_verified && (
-              <View style={[styles.badge, styles.badgeUnverified]}>
-                <Text style={styles.badgeText}>UNVERIFIED</Text>
-              </View>
-            )}
-          </View>
+          {/* Status indicators for ineligible cards */}
+          {item.is_expired && (
+            <View style={styles.statusRow}>
+              <Clock size={11} color={Colors.accentRed} />
+              <Text style={styles.statusExpired}>Expired</Text>
+            </View>
+          )}
+          {!item.is_verified && (
+            <View style={styles.statusRow}>
+              <AlertCircle size={11} color={Colors.accentOrange} />
+              <Text style={styles.statusUnverified}>Unverified</Text>
+            </View>
+          )}
         </View>
+
+        {/* Selected checkmark */}
+        {isSelected && (
+          <CheckCircle
+            size={22}
+            color={Colors.primary900}
+            style={styles.selectedCheck}
+          />
+        )}
       </TouchableOpacity>
     );
   };
@@ -118,9 +144,9 @@ export default function SavedCardsList({
   if (cards.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="card-outline" size={48} color={Colors.textSecondary} />
-        <Text style={styles.emptyText}>No saved cards</Text>
-        <Text style={styles.emptySubtext}>Add a new card to get started</Text>
+        <CreditCard size={36} color={Colors.neutralMedium} />
+        <Text style={styles.emptyText}>No eligible cards</Text>
+        <Text style={styles.emptySubtext}>Add a new card during checkout</Text>
       </View>
     );
   }
@@ -130,7 +156,7 @@ export default function SavedCardsList({
       data={cards}
       renderItem={renderCard}
       keyExtractor={(item) => item.id.toString()}
-      scrollEnabled={false} // Nested scroll handled by parent
+      scrollEnabled={false}
       contentContainerStyle={styles.listContent}
     />
   );
@@ -138,114 +164,154 @@ export default function SavedCardsList({
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
   },
+
   cardContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 14,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
     borderWidth: 2,
-    borderColor: "transparent",
+    borderColor: Colors.neutralLight,
   },
+
   cardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: "#f0f7ff",
+    borderColor: Colors.primary900,
+    backgroundColor: "#f0fdf4",
   },
+
   cardDisabled: {
     opacity: 0.5,
   },
+
+  /* ── Radio ── */
   radioContainer: {
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
+
   radio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: Colors.neutralGray,
     justifyContent: "center",
     alignItems: "center",
   },
+
   radioSelected: {
-    borderColor: Colors.primary,
+    borderColor: Colors.primary900,
+    borderWidth: 2,
   },
+
+  radioDisabled: {
+    borderColor: Colors.neutralGray,
+  },
+
   radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primary900,
   },
+
+  /* ── Brand Strip ── */
+  brandStrip: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+
+  /* ── Card Info ── */
   cardInfo: {
     flex: 1,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
+
   cardNumber: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: Spacing.sm,
-    color: Colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.neutralCharcoal,
+    letterSpacing: 0.3,
   },
+
   cardMeta: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 28, // Align with card number
+    marginTop: 2,
+    gap: Spacing.xs,
   },
+
   cardBrand: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: "500",
+    fontSize: Typography.bodySmall,
+    color: Colors.neutralMedium,
+    fontWeight: "600",
   },
-  expiryDate: {
-    fontSize: 13,
-    color: Colors.textSecondary,
+
+  defaultBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    gap: 3,
+  },
+
+  defaultBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: Colors.primary900,
+  },
+
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+    gap: 4,
+  },
+
+  statusExpired: {
+    fontSize: 11,
+    color: Colors.accentRed,
+    fontWeight: "600",
+  },
+
+  statusUnverified: {
+    fontSize: 11,
+    color: Colors.accentOrange,
+    fontWeight: "600",
+  },
+
+  textMuted: {
+    color: Colors.neutralMedium,
+  },
+
+  /* ── Selected Check ── */
+  selectedCheck: {
     marginLeft: Spacing.xs,
   },
-  textDisabled: {
-    color: Colors.textSecondary,
-  },
-  badges: {
-    flexDirection: "row",
-    marginTop: Spacing.xs,
-    marginLeft: 28, // Align with card number
-  },
-  badge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: Spacing.xs,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  badgeExpired: {
-    backgroundColor: Colors.error,
-  },
-  badgeUnverified: {
-    backgroundColor: "#ff9800",
-  },
+
+  /* ── Empty ── */
   emptyContainer: {
     alignItems: "center",
-    padding: Spacing.xl,
+    paddingVertical: Spacing.xl,
   },
+
   emptyText: {
-    fontSize: 16,
+    fontSize: Typography.bodyBase,
     fontWeight: "600",
-    color: Colors.text,
+    color: Colors.neutralCharcoal,
     marginTop: Spacing.sm,
   },
+
   emptySubtext: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+    fontSize: Typography.bodyMedium,
+    color: Colors.neutralMedium,
     marginTop: Spacing.xs,
   },
 });

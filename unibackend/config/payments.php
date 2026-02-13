@@ -31,4 +31,20 @@ return [
     'status_polling_interval_ms' => 2000, // 2 seconds
     'status_polling_max_duration_ms' => 60000, // 60 seconds max
 
+    // ── Cancellation & Refund Config ──
+    'cancellation' => [
+        // Card-paid: stages where full refund is allowed
+        'full_refund_statuses' => ['pending', 'pending_payment', 'confirmed'],
+        // Card-paid: stages where penalty refund applies (86% refund)
+        'penalty_refund_statuses' => ['preparing'],
+        // Penalty percentage deducted from refund (14% = customer gets 86%)
+        'penalty_percent' => env('CANCELLATION_PENALTY_PERCENT', 14),
+        // Card-paid: statuses that BLOCK cancellation entirely
+        'blocked_statuses' => ['out_for_delivery', 'delivered', 'cancelled', 'failed'],
+        // COD: stages where cancellation is allowed
+        'cod_cancel_statuses' => ['pending', 'pending_payment', 'confirmed', 'preparing'],
+        // COD: statuses that BLOCK cancellation
+        'cod_blocked_statuses' => ['out_for_delivery', 'delivered', 'cancelled', 'failed'],
+    ],
+
 ];

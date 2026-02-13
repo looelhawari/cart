@@ -14,11 +14,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('paymob_payments', function (Blueprint $table) {
-            // Add save_card_requested flag
-            $table->boolean('save_card_requested')->default(false)->after('payment_method')
-                ->comment('True if user checked "Save this card"');
-            $table->dropColumn('save_card_requested');
-        });
+        if (!Schema::hasColumn('paymob_payments', 'save_card_requested')) {
+            Schema::table('paymob_payments', function (Blueprint $table) {
+                // Add save_card_requested flag
+                $table->boolean('save_card_requested')->default(false)->after('payment_method')
+                    ->comment('True if user checked "Save this card"');
+            });
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        if (Schema::hasColumn('paymob_payments', 'save_card_requested')) {
+            Schema::table('paymob_payments', function (Blueprint $table) {
+                $table->dropColumn('save_card_requested');
+            });
+        }
     }
 };

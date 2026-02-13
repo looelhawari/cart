@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\PromoCodeController as AdminPromoCodeController;
 use App\Http\Controllers\Api\Admin\AdminStoreSettingsController;
 use App\Http\Controllers\Api\Admin\AdminReviewController;
+use App\Http\Controllers\Api\Admin\AdminRefundDashboardController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\V1\RatingController;
 use App\Http\Controllers\Api\Admin\AdminDeliveryZoneController;
 use App\Http\Controllers\Api\Admin\AdminDriverController;
+use App\Http\Controllers\Api\RefundWebhookController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
@@ -262,6 +264,16 @@ Route::prefix('v1')->group(function () {
         Route::put('profile/change-password', [AuthController::class, 'changePassword']);
         Route::post('profile/avatar', [AuthController::class, 'uploadAvatar']);
 
+        // Email change - verified OTP flow (password users only)
+        Route::post('profile/request-email-change', [AuthController::class, 'requestEmailChange'])
+            ->middleware('throttle:5,1'); // max 5 requests per minute
+        Route::post('profile/verify-email-change', [AuthController::class, 'verifyEmailChange'])
+            ->middleware('throttle:10,1');
+
+        // Relink Google account (social-only users)
+        Route::post('profile/relink-google', [SocialAuthController::class, 'relinkGoogle'])
+            ->middleware('throttle:5,1');
+
         // Address management endpoints
         Route::get('addresses', [AddressController::class, 'index']);
         Route::post('addresses', [AddressController::class, 'store']);
@@ -310,17 +322,24 @@ Route::prefix('v1')->group(function () {
 
         // Order endpoints
         Route::prefix('orders')->group(function () {
+            Route::get('/cancellation-reasons', [OrderController::class, 'cancellationReasons']);
             Route::get('/', [OrderController::class, 'index']);
             Route::post('/', [OrderController::class, 'store']);
             Route::get('/{id}', [OrderController::class, 'show']);
             Route::get('/{id}/tracking', [OrderController::class, 'tracking']);
+            Route::get('/{id}/can-cancel', [OrderController::class, 'canCancel']);
             Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
+            Route::post('/{id}/partial-cancel', [OrderController::class, 'partialItemCancel']);
+            Route::get('/{id}/refunds', [OrderController::class, 'refundHistory']);
             Route::post('/{id}/reorder', [OrderController::class, 'reorder']);
 
             // Customer rates driver
             Route::post('/{id}/rate-driver', [RatingController::class, 'rateDriver']);
             Route::get('/{id}/can-rate-driver', [RatingController::class, 'canRateDriver']);
             Route::get('/{id}/driver-rating', [RatingController::class, 'getDriverRating']);
+            Route::get('/{id}/invoice', [OrderController::class, 'invoice']);
+            Route::get('/{id}/invoice/download', [OrderController::class, 'invoiceDownload']);
+            Route::post('/{id}/invoice/email', [OrderController::class, 'emailInvoice']);
         });
 
         // Notification endpoints
@@ -360,10 +379,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/transactions', [WalletController::class, 'transactions']);
             Route::post('/recharge', [WalletController::class, 'recharge']);
         });
-
-        // Phone verification for social login users
-        Route::post('auth/send-phone-otp', [SocialAuthController::class, 'sendPhoneOtp']);
-        Route::post('auth/verify-phone-otp', [SocialAuthController::class, 'verifyPhoneOtp']);
 
         // Favorites endpoints
         Route::prefix('favorites')->group(function () {
@@ -583,11 +598,20 @@ Route::prefix('v1')->group(function () {
                 Route::get('/export', [ComprehensiveAnalyticsController::class, 'exportAnalytics']);
             });
 
-            // Refunds
+            // Refunds (wallet-based)
             Route::prefix('refunds')->group(function () {
                 Route::post('/full', [AdminRefundController::class, 'fullRefund']);
                 Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
+            });
+
+            // Refund Dashboard (Paymob card refunds)
+            Route::prefix('refund-dashboard')->group(function () {
+                Route::get('/', [AdminRefundDashboardController::class, 'index']);
+                Route::get('/stats', [AdminRefundDashboardController::class, 'stats']);
+                Route::get('/{id}', [AdminRefundDashboardController::class, 'show']);
+                Route::post('/partial-item-refund', [AdminRefundDashboardController::class, 'partialItemRefund']);
+                Route::post('/reconcile', [AdminRefundDashboardController::class, 'reconcile']);
             });
 
             // Promo Code Analytics & Management
@@ -675,65 +699,8 @@ Route::prefix('v1')->group(function () {
     // Paymob callbacks (public - no auth required, HMAC verified internally)
     Route::middleware('throttle:60,1')->group(function () {
         Route::post('paymob/processed', [PaymentController::class, 'processedCallback']);
+        Route::post('paymob/refund-webhook', [RefundWebhookController::class, 'handle']);
         Route::get('payment/response', [PaymentController::class, 'responseCallback']);
-    });
-
-    // TESTING ONLY - Manual webhook completion (remove in production)
-    // Use when Paymob webhook can't reach localhost during development
-    Route::post('test/complete-payment/{orderId}', function ($orderId) {
-        $order = \App\Models\Order::find($orderId);
-        $payment = \App\Models\PaymobPayment::where('order_id', $orderId)->first();
-
-        if (!$order || !$payment) {
-            return response()->json(['error' => 'Order or payment not found'], 404);
-        }
-
-        if ($payment->status !== 'PENDING') {
-            return response()->json([
-                'error' => 'Payment already processed',
-                'current_status' => $payment->status
-            ], 400);
-        }
-
-        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $payment) {
-            $txnId = 'TEST-' . time();
-
-            $payment->update([
-                'status' => 'PAID',
-                'transaction_id' => $txnId,
-                'paid_at' => now(),
-                'paymob_response' => ['test_completion' => true],
-            ]);
-
-            \App\Models\PaymentTransaction::create([
-                'order_id' => $order->id,
-                'transaction_id' => $txnId,
-                'payment_method' => 'card',
-                'amount' => $order->total,
-                'status' => 'completed',
-                'gateway_response' => ['test_completion' => true],
-                'processed_at' => now(),
-            ]);
-
-            $order->update([
-                'status' => 'confirmed',
-                'payment_status' => 'completed',
-            ]);
-
-            $cart = \App\Models\Cart::where('user_id', $order->user_id)->first();
-            if ($cart) {
-                $cart->items()->delete();
-                $cart->delete();
-            }
-        });
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment completed successfully',
-            'order_id' => $orderId,
-            'status' => 'PAID',
-            'payment_status' => 'completed',
-        ]);
     });
 
 });
