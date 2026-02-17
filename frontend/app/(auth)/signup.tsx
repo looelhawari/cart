@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Animated,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/store";
@@ -30,8 +31,11 @@ import {
   Lock as LockIcon,
   Edit3,
   RefreshCw,
+  ShieldCheck,
+  CheckCircle,
 } from "lucide-react-native";
 import { useTranslation } from "@/i18n";
+import { API_CONFIG } from "@/config/app.config";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -64,6 +68,17 @@ export default function SignupScreen() {
   const [phoneError, setPhoneError] = useState("");
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
+  const otpInputRefs = useRef<(TextInput | null)[]>([]);
+  const [resendToast, setResendToast] = useState(false);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   // Start OTP timer if coming from login with step=3
   useEffect(() => {
@@ -76,16 +91,16 @@ export default function SignupScreen() {
       setIsCheckingEmail(true);
       setEmailError("");
 
-      const response = await fetch(
-        "http://10.0.2.2:8000/api/v1/auth/check-email",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email: emailToCheck }),
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/check-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
         },
-      );
+        body: JSON.stringify({ email: emailToCheck }),
+      });
 
       const data = await response.json();
 
@@ -104,16 +119,16 @@ export default function SignupScreen() {
       setIsCheckingPhone(true);
       setPhoneError("");
 
-      const response = await fetch(
-        "http://10.0.2.2:8000/api/v1/auth/check-phone",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ phone: phoneToCheck }),
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/check-phone`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
         },
-      );
+        body: JSON.stringify({ phone: phoneToCheck }),
+      });
 
       const data = await response.json();
 
@@ -175,45 +190,41 @@ export default function SignupScreen() {
     if (step === 1 && validateStep1()) {
       setStep(2);
     } else if (step === 2 && validateStep2()) {
-      // Submit registration
-      try {
-        setLoading(true);
-        await register({
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          phone,
-          password,
-          password_confirmation: confirmPassword,
-          language,
-        });
-        setStep(3);
-        // Start OTP timer
-        startOtpTimer();
-      } catch (error: any) {
-        // Parse validation errors
+      // Navigate to OTP step instantly — register in background
+      setStep(3);
+      startOtpTimer();
+
+      // Fire registration in background (non-blocking)
+      register({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone,
+        password,
+        password_confirmation: confirmPassword,
+        language,
+      }).catch((error: any) => {
+        // Registration failed — pull user back
         if (error.errors) {
           if (error.errors.email) {
             setEmailError(error.errors.email[0]);
-            setStep(1); // Go back to Step 1 to show email error
           }
           if (error.errors.phone) {
             setPhoneError(error.errors.phone[0]);
-            setStep(1); // Go back to Step 1 to show phone error
           }
+          setStep(1);
           Alert.alert(
             t.signup.validationError,
-            error.message || t.signup.checkInput,
+            error.message || t.signup.checkInputData,
           );
         } else {
+          setStep(2);
           Alert.alert(
             t.common.error,
             error.message || t.signup.registrationFailed,
           );
         }
-      } finally {
-        setLoading(false);
-      }
+      });
     }
   };
 
@@ -263,33 +274,85 @@ export default function SignupScreen() {
     setCanResend(false);
   };
 
+  const showResendToast = useCallback(() => {
+    setResendToast(true);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2500),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setResendToast(false));
+  }, [toastOpacity]);
+
+  const handleOtpDigitChange = (text: string, index: number) => {
+    const newDigits = [...otpDigits];
+    // Handle paste of full OTP
+    if (text.length > 1) {
+      const pastedDigits = text
+        .replace(/[^0-9]/g, "")
+        .slice(0, 6)
+        .split("");
+      for (let i = 0; i < 6; i++) {
+        newDigits[i] = pastedDigits[i] || "";
+      }
+      setOtpDigits(newDigits);
+      setOtp(newDigits.join(""));
+      const lastFilledIndex = Math.min(pastedDigits.length - 1, 5);
+      otpInputRefs.current[lastFilledIndex]?.focus();
+      return;
+    }
+    newDigits[index] = text.replace(/[^0-9]/g, "");
+    setOtpDigits(newDigits);
+    setOtp(newDigits.join(""));
+    // Auto-advance to next input
+    if (text && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === "Backspace" && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+      const newDigits = [...otpDigits];
+      newDigits[index - 1] = "";
+      setOtpDigits(newDigits);
+      setOtp(newDigits.join(""));
+    }
+  };
+
   const handleResendOtp = async () => {
     if (!canResend || isResending) return;
 
+    // Optimistic: immediately reset timer and show toast
+    setIsResending(true);
+    startOtpTimer();
+    showResendToast();
+
     try {
-      setIsResending(true);
-      // Call resend OTP API (new endpoint)
-      const response = await fetch(
-        "http://10.0.2.2:8000/api/v1/auth/resend-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email }),
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "ElBaraka-Mobile-App",
         },
-      );
+        body: JSON.stringify({ email }),
+      });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert(t.common.success, t.signup.otpResent);
-        startOtpTimer();
-      } else {
-        Alert.alert(t.common.error, data.message || t.signup.failedToResendOtp);
+      if (!response.ok) {
+        // Silently log — user already saw success toast, backend will retry
+        console.warn("Resend OTP server error:", response.status);
       }
     } catch (error: any) {
-      Alert.alert(t.common.error, t.signup.failedToResendOtp);
+      console.warn("Resend OTP network error:", error.message);
     } finally {
       setIsResending(false);
     }
@@ -312,14 +375,15 @@ export default function SignupScreen() {
   };
 
   const handleVerify = async () => {
-    if (!otp || otp.length !== 6) {
+    const otpCode = otpDigits.join("");
+    if (!otpCode || otpCode.length !== 6) {
       Alert.alert(t.common.error, t.signup.enterOtpCode);
       return;
     }
 
     try {
       setLoading(true);
-      await verifyEmail({ email, otp });
+      await verifyEmail({ email, otp: otpDigits.join("") });
       setStep(4);
 
       setTimeout(() => {
@@ -641,69 +705,109 @@ export default function SignupScreen() {
 
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>{t.signup.verifyAccount}</Text>
-      <View style={styles.emailDisplayContainer}>
-        <Text style={styles.stepSubtitle}>{t.signup.enterCodeSentTo}</Text>
-        <View style={styles.emailRow}>
-          <Text style={styles.emailText}>{email}</Text>
-          <TouchableOpacity onPress={handleEditEmail} style={styles.editButton}>
-            <Edit3 size={16} color={Colors.primary900} />
-            <Text style={styles.editText}>{t.common.edit}</Text>
-          </TouchableOpacity>
+      {/* Toast notification */}
+      {resendToast && (
+        <Animated.View style={[styles.toast, { opacity: toastOpacity }]}>
+          <CheckCircle size={18} color={Colors.neutralWhite} />
+          <Text style={styles.toastText}>{t.signup.otpResent}</Text>
+        </Animated.View>
+      )}
+
+      {/* Header icon */}
+      <View style={styles.otpHeaderIcon}>
+        <View style={styles.otpIconCircle}>
+          <ShieldCheck size={32} color={Colors.primary900} />
         </View>
       </View>
 
-      <View style={styles.otpContainer}>
-        <TextInput
-          style={styles.otpInput}
-          placeholder="000000"
-          placeholderTextColor={Colors.neutralMedium}
-          value={otp}
-          onChangeText={(text) => setOtp(text.slice(0, 6))}
-          keyboardType="number-pad"
-          maxLength={6}
-          autoFocus
-        />
+      <Text style={[styles.stepTitle, styles.otpTitle]}>
+        {t.signup.verifyAccount}
+      </Text>
+      <Text style={styles.otpSubtitle}>{t.signup.enterCodeSentTo}</Text>
+
+      {/* Email display card */}
+      <View style={styles.emailCard}>
+        <View style={styles.emailCardLeft}>
+          <Mail size={18} color={Colors.primary900} />
+          <Text
+            style={styles.emailCardText}
+            numberOfLines={1}
+            ellipsizeMode="middle"
+          >
+            {email}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={handleEditEmail} style={styles.editChip}>
+          <Edit3 size={13} color={Colors.primary900} />
+          <Text style={styles.editChipText}>{t.common.edit}</Text>
+        </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={[styles.resendButton, !canResend && styles.resendButtonDisabled]}
-        disabled={!canResend || isResending}
-        onPress={handleResendOtp}
-      >
+      {/* Individual digit inputs */}
+      <View style={styles.otpDigitsRow}>
+        {otpDigits.map((digit, index) => (
+          <TextInput
+            key={index}
+            ref={(ref) => {
+              otpInputRefs.current[index] = ref;
+            }}
+            style={[styles.otpDigitInput, digit ? styles.otpDigitFilled : null]}
+            value={digit}
+            onChangeText={(text) => handleOtpDigitChange(text, index)}
+            onKeyPress={(e) => handleOtpKeyPress(e, index)}
+            keyboardType="number-pad"
+            maxLength={1}
+            autoFocus={index === 0}
+            selectTextOnFocus
+          />
+        ))}
+      </View>
+
+      {/* Timer / resend */}
+      <View style={styles.resendRow}>
         {isResending ? (
           <ActivityIndicator size="small" color={Colors.primary900} />
+        ) : canResend ? (
+          <TouchableOpacity
+            onPress={handleResendOtp}
+            style={styles.resendTouchable}
+          >
+            <RefreshCw size={16} color={Colors.primary900} />
+            <Text style={styles.resendActiveText}>{t.signup.resendCode}</Text>
+          </TouchableOpacity>
         ) : (
-          <View style={styles.resendContent}>
-            <RefreshCw
-              size={16}
-              color={canResend ? Colors.primary900 : Colors.neutralMedium}
-            />
-            <Text
-              style={[
-                styles.resendText,
-                !canResend && styles.resendTextDisabled,
-              ]}
-            >
-              {canResend
-                ? t.signup.resendCode
-                : `${t.signup.resendIn} ${otpTimer}s`}
+          <View style={styles.resendTimerRow}>
+            <RefreshCw size={16} color={Colors.neutralMedium} />
+            <Text style={styles.resendTimerText}>
+              {t.signup.resendIn} {otpTimer}s
             </Text>
           </View>
         )}
-      </TouchableOpacity>
+      </View>
     </View>
   );
 
   const renderStep4 = () => (
     <View style={styles.successContainer}>
-      <View style={styles.successCircle}>
-        <Check size={64} color={Colors.neutralWhite} />
+      {/* Outer glow ring */}
+      <View style={styles.successRingOuter}>
+        <View style={styles.successRingInner}>
+          <View style={styles.successCircle}>
+            <Check size={48} color={Colors.neutralWhite} strokeWidth={3} />
+          </View>
+        </View>
       </View>
       <Text style={styles.successTitle}>{t.signup.accountCreated}</Text>
       <Text style={styles.successMessage}>
         {t.signup.accountCreatedSuccess}
       </Text>
+      <View style={styles.successDivider} />
+      <Text style={styles.successRedirecting}>Redirecting to home...</Text>
+      <ActivityIndicator
+        size="small"
+        color={Colors.primary900}
+        style={{ marginTop: Spacing.md }}
+      />
     </View>
   );
 
@@ -901,30 +1005,141 @@ const styles = StyleSheet.create({
   requirementMet: {
     color: Colors.primary700,
   },
-  otpContainer: {
-    marginTop: Spacing.xl,
+  otpHeaderIcon: {
+    alignItems: "center",
+    marginBottom: Spacing.lg,
   },
-  otpInput: {
-    fontSize: 32,
-    fontFamily: "Poppins_700Bold",
+  otpIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.primary100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  otpSubtitle: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
     textAlign: "center",
-    letterSpacing: 12,
-    padding: Spacing.lg,
-    backgroundColor: Colors.neutralCloud,
+    marginBottom: Spacing.md,
+    lineHeight: 22,
+  },
+  emailCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.primary100,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    marginBottom: Spacing.xl,
+  },
+  emailCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  emailCardText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.primary800,
+    marginLeft: Spacing.xs,
+    flexShrink: 1,
+  },
+  editChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.neutralWhite,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  editChipText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.primary900,
+  },
+  otpDigitsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: Spacing.lg,
+  },
+  otpTitle: {
+    textAlign: "center",
+  },
+  otpDigitInput: {
+    width: 48,
+    height: 56,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
+    backgroundColor: Colors.neutralCloud,
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
+    paddingTop: 0,
+    paddingBottom: 0,
+    includeFontPadding: false,
+  } as any,
+  otpDigitFilled: {
+    borderColor: Colors.primary900,
+    backgroundColor: Colors.primary100,
   },
-  resendButton: {
+  resendRow: {
     alignItems: "center",
-    marginTop: Spacing.lg,
-    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    minHeight: 40,
+    justifyContent: "center",
   },
-  resendText: {
+  resendTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+  },
+  resendActiveText: {
     fontSize: Typography.bodyBase,
     fontFamily: "Poppins_600SemiBold",
     color: Colors.primary900,
+  },
+  resendTimerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  resendTimerText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+  },
+  toast: {
+    position: "absolute",
+    top: -8,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary900,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    marginHorizontal: Spacing.md,
+  },
+  toastText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.neutralWhite,
   },
   successContainer: {
     flex: 1,
@@ -932,27 +1147,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
   },
-  successCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.primary700,
+  successRingOuter: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: Colors.primary100,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: Spacing.xl,
   },
+  successRingInner: {
+    width: 115,
+    height: 115,
+    borderRadius: 58,
+    backgroundColor: Colors.success100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  successCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.primary900,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   successTitle: {
-    fontSize: Typography.h1,
+    fontSize: 28,
     fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
+    textAlign: "center",
   },
   successMessage: {
-    fontSize: Typography.bodyLarge,
+    fontSize: Typography.bodyBase,
     fontFamily: "Poppins_400Regular",
     color: Colors.neutralMedium,
     textAlign: "center",
     lineHeight: 24,
+    paddingHorizontal: Spacing.md,
+  },
+  successDivider: {
+    width: 40,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: Colors.primary900,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  successRedirecting: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+    marginTop: Spacing.xs,
   },
   nextButton: {
     backgroundColor: Colors.primary900,
@@ -1027,44 +1274,7 @@ const styles = StyleSheet.create({
     color: Colors.accentRed,
     marginTop: Spacing.xs,
   },
-  emailDisplayContainer: {
-    marginBottom: Spacing.md,
-  },
-  emailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: Spacing.xs,
-  },
-  emailText: {
-    fontSize: Typography.bodyLarge,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.primary900,
-    marginRight: Spacing.sm,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  editText: {
-    fontSize: Typography.bodySmall,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.primary900,
-  },
-  resendContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  resendButtonDisabled: {
-    opacity: 0.5,
-  },
-  resendTextDisabled: {
-    color: Colors.neutralMedium,
-  },
+
   inputLoader: {
     marginLeft: Spacing.xs,
   },

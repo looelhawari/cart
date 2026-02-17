@@ -100,23 +100,14 @@ class OtpService
     public function sendEmail(string $email, string $otp, string $purpose = 'ElBaraka Email Verification'): bool
     {
         try {
-            // Dispatch to queue instead of sending synchronously
-            SendOtpEmail::dispatch($email, $otp, $purpose);
-
-            Log::info("OTP queued for {$email}");
+            // Send synchronously to guarantee delivery (queue worker may not be running)
+            // For production with a queue worker, switch to: SendOtpEmail::dispatch($email, $otp, $purpose);
+            Mail::to($email)->send(new \App\Mail\OtpMail($otp, $purpose));
+            Log::info("OTP sent to {$email} for purpose: {$purpose}");
             return true;
         } catch (\Exception $e) {
-            Log::error("Failed to queue OTP for {$email}: " . $e->getMessage());
-
-            // Fallback to sync send if queue fails
-            try {
-                Mail::to($email)->send(new \App\Mail\OtpMail($otp, $purpose));
-                Log::info("OTP sent synchronously to {$email} (fallback)");
-                return true;
-            } catch (\Exception $fallbackError) {
-                Log::error("Fallback OTP send also failed: " . $fallbackError->getMessage());
-                return false;
-            }
+            Log::error("Failed to send OTP to {$email}: " . $e->getMessage());
+            return false;
         }
     }
 
