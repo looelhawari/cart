@@ -10,7 +10,7 @@
 // Backend API Configuration
 export const API_CONFIG = {
   // Production URL - Make sure to use production URL for release builds
-  BASE_URL: "http://192.168.1.10:8000/api/v1",
+  BASE_URL: "https://e49c-197-50-186-55.ngrok-free.app/api/v1",
 
   // Development URL - Uncomment for local testing
   // BASE_URL: "http://192.168.1.10:8000/api/v1",
@@ -28,7 +28,7 @@ export const APP_CONFIG = {
 // Map Configuration (Leaflet + OpenStreetMap - 100% free, no API keys)
 export const MAP_CONFIG = {
   // Optional: Self-hosted Nominatim URL for geocoding (falls back to public server)
-  NOMINATIM_URL: 'https://nominatim.openstreetmap.org',
+  NOMINATIM_URL: "https://nominatim.openstreetmap.org",
 };
 
 // Token Configuration

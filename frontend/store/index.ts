@@ -300,11 +300,34 @@ export const useStore = create<StoreState>()(
 
         const response = await apiCall;
 
+        // Tokens are already saved by authApi.socialGoogle/socialApple
+        // Set user from response immediately
         set({
           isAuthenticated: true,
           user: response.data.user,
           pendingUser: null,
         });
+
+        // Double-check: verify tokens were saved and fetch profile
+        // This ensures the auth flow is complete before navigation
+        const savedToken = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+        if (__DEV__) {
+          console.log('[socialLogin] Token saved:', savedToken ? 'YES' : 'NO');
+          console.log('[socialLogin] User set:', response.data.user?.email);
+        }
+
+        // Fetch fresh profile to ensure everything is in sync
+        try {
+          const profileResponse = await authApi.getProfile();
+          set({
+            user: profileResponse.data,
+          });
+        } catch (error) {
+          // If profile fetch fails but we have tokens, keep the user from login response
+          if (__DEV__) {
+            console.log('[socialLogin] Profile fetch failed (using login response user):', error);
+          }
+        }
       },
 
       // Cart (integrated with backend API)
