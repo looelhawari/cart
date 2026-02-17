@@ -10,7 +10,7 @@
 // Backend API Configuration
 export const API_CONFIG = {
   // Production URL - Make sure to use production URL for release builds
-  BASE_URL: "https://82a7-197-50-154-121.ngrok-free.app/api/v1",
+  BASE_URL: "https://c7e8-197-50-154-121.ngrok-free.app/api/v1",
 
   // Development URL - Uncomment for local testing
   // BASE_URL: "http://192.168.1.10:8000/api/v1",

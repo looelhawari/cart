@@ -38,7 +38,7 @@ import {
   CancellationReason,
 } from "@/services/api/orderApi";
 import { getAuthToken } from "@/services/api/base";
-import { createReview } from "@/services/api/reviewsApi";
+import { createReview, rateDriver } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { Toast } from "@/components/Toast";
@@ -81,6 +81,13 @@ export default function OrderDetailsScreen() {
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewedProducts, setReviewedProducts] = useState<number[]>([]);
+
+  // Driver rating state
+  const [showDriverRatingModal, setShowDriverRatingModal] = useState(false);
+  const [driverRating, setDriverRating] = useState(0);
+  const [driverReviewComment, setDriverReviewComment] = useState("");
+  const [submittingDriverReview, setSubmittingDriverReview] = useState(false);
+  const [driverRated, setDriverRated] = useState(false);
 
   // Toast state
   const [toastVisible, setToastVisible] = useState(false);
@@ -580,6 +587,11 @@ export default function OrderDetailsScreen() {
         const response = await getOrder(Number(id));
         const newOrder = response.data.order;
 
+        // Check if driver was already rated
+        if (newOrder.driver_rating) {
+          setDriverRated(true);
+        }
+
         // Check if status changed
         setOrder((prevOrder) => {
           if (prevOrder && newOrder.status !== prevOrder.status) {
@@ -781,6 +793,41 @@ export default function OrderDetailsScreen() {
     }
   };
 
+  const handleSubmitDriverReview = async () => {
+    if (driverRating === 0) {
+      setToastMessage("Please select a rating");
+      setToastType("error");
+      setToastVisible(true);
+      return;
+    }
+
+    setSubmittingDriverReview(true);
+    try {
+      await rateDriver(Number(id), {
+        rating: driverRating,
+        comment: driverReviewComment.trim() || undefined,
+      });
+
+      setToastMessage("Thank you for rating the driver!");
+      setToastType("success");
+      setToastVisible(true);
+      setDriverRated(true);
+      setShowDriverRatingModal(false);
+      setDriverRating(0);
+      setDriverReviewComment("");
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to submit driver rating";
+      setToastMessage(errorMessage);
+      setToastType("error");
+      setToastVisible(true);
+    } finally {
+      setSubmittingDriverReview(false);
+    }
+  };
+
   /** Download invoice PDF in background and open with system viewer */
   const handleDownloadInvoice = async () => {
     setShowActionsMenu(false);
@@ -810,7 +857,7 @@ export default function OrderDetailsScreen() {
       const openUri =
         Platform.OS === "android"
           ? downloadedFile.contentUri // content:// URI works on Android
-          : downloadedFile.uri;       // file:// URI works on iOS
+          : downloadedFile.uri; // file:// URI works on iOS
       await Linking.openURL(openUri);
     } catch (error: any) {
       setToastMessage(error.message || "Failed to download invoice");
@@ -1285,6 +1332,78 @@ export default function OrderDetailsScreen() {
                 />
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Rate Driver Banner for Delivered Orders */}
+        {order.status === "delivered" && order.driver_id && !driverRated && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowDriverRatingModal(true)}
+            style={{
+              backgroundColor: "#eff6ff",
+              marginHorizontal: Spacing.md,
+              marginTop: Spacing.md,
+              padding: Spacing.md,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "#bfdbfe",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <Ionicons name="car-outline" size={24} color="#3b82f6" />
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "700",
+                  color: Colors.neutralCharcoal,
+                  marginLeft: 8,
+                  flex: 1,
+                }}
+              >
+                Rate Your Driver
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
+            </View>
+            <Text
+              style={{
+                fontSize: 13,
+                color: Colors.neutralMedium,
+              }}
+            >
+              {order.driver
+                ? `How was your delivery by ${order.driver.first_name}? Tap to rate.`
+                : "How was your delivery experience? Tap to rate."}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Driver Already Rated Badge */}
+        {order.status === "delivered" && driverRated && (
+          <View
+            style={{
+              backgroundColor: "#f0fdf4",
+              marginHorizontal: Spacing.md,
+              marginTop: Spacing.md,
+              padding: Spacing.md,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "#bbf7d0",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+            <Text style={{ fontSize: 14, color: "#16a34a", fontWeight: "600" }}>
+              Driver rated — thank you!
+            </Text>
           </View>
         )}
 
@@ -1819,8 +1938,6 @@ export default function OrderDetailsScreen() {
           </View>
         </View>
 
-
-
         {/* Refund History */}
         {order.refunds && order.refunds.length > 0 && (
           <View style={styles.section}>
@@ -2185,58 +2302,86 @@ export default function OrderDetailsScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      {canCancelOrder(order.status) && (
+      {!["delivered", "cancelled", "failed"].includes(order.status) && (
         <View style={styles.footer}>
+          {/* Track Order button for active orders */}
           <TouchableOpacity
-            style={[
-              styles.cancelButton,
-              isSmallDevice ? { width: "100%" } : { flex: 1 },
-            ]}
-            onPress={handleOpenCancelDialog}
-            disabled={checkingEligibility}
-            activeOpacity={0.7}
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              backgroundColor: Colors.primary900,
+              paddingVertical: 14,
+              borderRadius: 16,
+            }}
+            onPress={() =>
+              router.push(`/orders/tracking?id=${order.id}` as any)
+            }
           >
-            {checkingEligibility ? (
-              <ActivityIndicator size="small" color={Colors.accentRed} />
-            ) : (
-              <>
-                <Ionicons
-                  name="close-circle-outline"
-                  size={20}
-                  color={Colors.accentRed}
-                />
-                <Text style={styles.cancelText}>Cancel Order</Text>
-              </>
-            )}
+            <Ionicons name="navigate" size={18} color="#fff" />
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>
+              Track Order
+            </Text>
           </TouchableOpacity>
-          {order.items && order.items.filter((i) => !i.refunded).length > 1 && (
+
+          {canCancelOrder(order.status) && (
             <TouchableOpacity
               style={[
                 styles.cancelButton,
-                {
-                  borderColor: Colors.accentOrange,
-                },
                 isSmallDevice ? { width: "100%" } : { flex: 1 },
               ]}
-              onPress={async () => {
-                try {
-                  const reasons = await getCancellationReasons();
-                  setCancellationReasons(reasons);
-                } catch {}
-                setShowPartialCancelDialog(true);
-              }}
+              onPress={handleOpenCancelDialog}
+              disabled={checkingEligibility}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name="remove-circle-outline"
-                size={20}
-                color={Colors.accentOrange}
-              />
-              <Text style={[styles.cancelText, { color: Colors.accentOrange }]}>
-                Cancel Items
-              </Text>
+              {checkingEligibility ? (
+                <ActivityIndicator size="small" color={Colors.accentRed} />
+              ) : (
+                <>
+                  <Ionicons
+                    name="close-circle-outline"
+                    size={20}
+                    color={Colors.accentRed}
+                  />
+                  <Text style={styles.cancelText}>Cancel Order</Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
+          {canCancelOrder(order.status) &&
+            order.items &&
+            order.items.filter((i) => !i.refunded).length > 1 && (
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  {
+                    borderColor: Colors.accentOrange,
+                  },
+                  isSmallDevice ? { width: "100%" } : { flex: 1 },
+                ]}
+                onPress={async () => {
+                  try {
+                    const reasons = await getCancellationReasons();
+                    setCancellationReasons(reasons);
+                  } catch {}
+                  setShowPartialCancelDialog(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="remove-circle-outline"
+                  size={20}
+                  color={Colors.accentOrange}
+                />
+                <Text
+                  style={[styles.cancelText, { color: Colors.accentOrange }]}
+                >
+                  Cancel Items
+                </Text>
+              </TouchableOpacity>
+            )}
         </View>
       )}
 
@@ -2959,7 +3104,117 @@ export default function OrderDetailsScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Driver Rating Modal */}
+      <Modal
+        visible={showDriverRatingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDriverRatingModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 4,
+              }}
+            >
+              <Ionicons name="car-outline" size={22} color="#3b82f6" />
+              <Text
+                style={[styles.modalTitle, { marginLeft: 8, marginBottom: 0 }]}
+              >
+                Rate Your Driver
+              </Text>
+            </View>
+            {order?.driver && (
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: Colors.neutralMedium,
+                  marginBottom: 16,
+                }}
+              >
+                How was your delivery by {order.driver.first_name}{" "}
+                {order.driver.last_name}?
+              </Text>
+            )}
 
+            {/* Star Rating */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                marginBottom: 20,
+                gap: 8,
+              }}
+            >
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setDriverRating(star)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={star <= driverRating ? "star" : "star-outline"}
+                    size={36}
+                    color={
+                      star <= driverRating
+                        ? Colors.accentOrange
+                        : Colors.neutralGray
+                    }
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text
+              style={{
+                fontSize: 14,
+                color: Colors.neutralMedium,
+                marginBottom: 8,
+              }}
+            >
+              Leave a comment (optional)
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="How was the delivery experience?"
+              placeholderTextColor={Colors.neutralGray}
+              value={driverReviewComment}
+              onChangeText={setDriverReviewComment}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setShowDriverRatingModal(false);
+                  setDriverRating(0);
+                  setDriverReviewComment("");
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: "#3b82f6" }]}
+                onPress={handleSubmitDriverReview}
+                disabled={submittingDriverReview || driverRating === 0}
+              >
+                {submittingDriverReview ? (
+                  <ActivityIndicator size="small" color={Colors.neutralWhite} />
+                ) : (
+                  <Text style={styles.modalButtonTextPrimary}>
+                    Submit Rating
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Rating Modal */}
       <Modal
