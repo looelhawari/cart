@@ -23,6 +23,15 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import Svg, {
+  Path,
+  Rect,
+  Circle,
+  G,
+  Defs,
+  ClipPath,
+  Polygon,
+} from "react-native-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -31,7 +40,6 @@ import {
   Trash,
   CheckCircle,
   ShieldCheck,
-  Star,
   AlertCircle,
   Clock,
   Info,
@@ -203,6 +211,107 @@ export default function PaymentMethodsScreen() {
   };
 
   /**
+   * Render real-world brand SVG logos
+   */
+  const renderBrandIcon = (brand: string) => {
+    const b = brand?.toLowerCase();
+    switch (b) {
+      case "visa":
+        return (
+          <Svg width={36} height={12} viewBox="0 0 750 244">
+            <Path
+              d="M278.2 2.2l-50.8 239.6h-64.9L213.3 2.2h64.9zm262.1 154.7l34.1-94.1 19.6 94.1h-53.7zm72.5 84.9h60l-52.3-239.6h-55.4c-12.5 0-23 7.2-27.7 18.3L434.1 241.8h68.2l13.5-37.4h83.3l7.7 37.4zm-169.6-78.2c.3-63.2-87.4-66.7-86.8-94.9.2-8.6 8.4-17.7 26.3-20 8.9-1.2 33.4-2.1 61.2 10.8l10.9-50.8C441.3 3.5 424.1 0 403 0c-64.2 0-109.4 34.2-109.8 83.1-.4 36.2 32.3 56.4 56.9 68.4 25.3 12.3 33.8 20.2 33.7 31.2-.2 16.8-20.2 24.3-38.8 24.5-32.6.5-51.5-8.8-66.6-15.8l-11.7 55c15.2 7 43.2 13.1 72.2 13.4 68.3 0 112.9-33.7 113.1-86.1zm-269-161.4L115.5 241.8h-68.7L12.5 25.3c-2.1-8.2-3.9-11.2-10.2-14.7C-4.4 7 7.9 3.4 0 0l1.5-7.6 73.2.1c18.6.1 23.7 12.4 26.5 24.5l18.1 96.9 44.7-121.3h68.2z"
+              fill="#FFFFFF"
+            />
+          </Svg>
+        );
+      case "mastercard":
+        return (
+          <Svg width={36} height={24} viewBox="0 0 152.407 108">
+            <G>
+              <Rect fill="none" width="152.407" height="108" />
+              <G>
+                <Circle fill="#EB001B" cx="46.211" cy="54" r="38" />
+                <Circle fill="#F79E1B" cx="106.196" cy="54" r="38" />
+                <Path
+                  fill="#FF5F00"
+                  d="M68.211,54c0-14.8,6.8-28,17.4-36.7c-7.7-6.1-17.4-9.7-28-9.7c-24.9,0-45.1,20.2-45.1,45.1s20.2,45.1,45.1,45.1c10.6,0,20.3-3.6,28-9.7C75.011,82,68.211,68.8,68.211,54z"
+                />
+              </G>
+            </G>
+          </Svg>
+        );
+      case "amex":
+        return (
+          <Svg width={36} height={24} viewBox="0 0 48 32">
+            <Rect
+              width="48"
+              height="32"
+              rx="4"
+              fill="#FFFFFF"
+              fillOpacity={0.15}
+            />
+            <G transform="translate(4, 8)">
+              <Path
+                d="M4.2 0L0 9h3l.8-1.9h4.4L9 9h3.1L8 0H4.2zm1.9 2.5L7.6 5.7H4.6l1.5-3.2z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M12.3 9V0h4.3l2.5 5.8L21.6 0H26v9h-2.7V3.3L20.5 9h-2.4l-2.8-5.7V9h-3z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M27 9V0h8.5v2.2h-5.8V3.5h5.6v2.1h-5.6v1.2h5.8V9H27z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M36 9V0h3l2.6 3.7 2.5-3.7H47v9h-2.7V3.6L41.6 7.5h-.1l-2.8-3.9V9H36z"
+                fill="#FFFFFF"
+              />
+            </G>
+            <G transform="translate(4, 18)">
+              <Path
+                d="M0 6V0h8.6v2h-5.8v.6h5.6V4.5H2.8v.6h5.8v1H0z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M8.8 6l3.5-3-3.5-3h3.5l1.8 2 1.8-2H19l-3.4 3L19 6h-3.4l-1.8-2-1.8 2H8.8z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M19.3 6V0h5.3c1.7 0 2.8.9 2.8 2.2 0 1.1-.7 1.8-1.5 2L28 6h-3l-1.7-1.7h-1.3V6h-2.7zm2.7-3.5h2.2c.6 0 .9-.3.9-.7s-.3-.7-.9-.7h-2.2v1.4z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M28 6V0h5.3c1.6 0 2.8.8 2.8 2.1 0 1.4-1.2 2.2-2.9 2.2H31.8V6H28zm2.7-3.4h2c.6 0 .9-.3.9-.6 0-.4-.3-.7-.9-.7h-2v1.3z"
+                fill="#FFFFFF"
+              />
+              <Path
+                d="M36 6V0h8.5v2H38.7v.5h5.6v1.9h-5.6v.5h5.8V7H36V6z"
+                fill="#FFFFFF"
+              />
+            </G>
+          </Svg>
+        );
+      case "meeza":
+        return (
+          <View style={styles.brandIconInner}>
+            <Text
+              style={[
+                styles.brandIconText,
+                { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+              ]}
+            >
+              MEEZA
+            </Text>
+          </View>
+        );
+      default:
+        return <CreditCard size={22} color={Colors.neutralWhite} />;
+    }
+  };
+
+  /**
    * Render individual card item
    */
   const renderCard = ({ item }: { item: PaymentMethod }) => {
@@ -212,18 +321,18 @@ export default function PaymentMethodsScreen() {
 
     return (
       <View style={[styles.cardContainer, isDisabled && styles.cardDisabled]}>
-        {/* Default badge */}
+        {/* Default badge – subtle pill at top-right */}
         {item.is_default && (
-          <View style={styles.defaultRibbon}>
-            <Star size={12} color={Colors.neutralWhite} />
-            <Text style={styles.defaultRibbonText}>Default</Text>
+          <View style={styles.defaultBadge}>
+            <CheckCircle size={11} color={Colors.primary900} />
+            <Text style={styles.defaultBadgeText}>Default</Text>
           </View>
         )}
 
         <View style={styles.cardContent}>
-          {/* Card visual strip */}
+          {/* Card brand icon */}
           <View style={[styles.cardStrip, { backgroundColor: brandColor }]}>
-            <CreditCard size={22} color={Colors.neutralWhite} />
+            {renderBrandIcon(item.card_brand)}
           </View>
 
           {/* Card details */}
@@ -527,21 +636,28 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
 
-  defaultRibbon: {
+  defaultBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.primary900,
-    paddingVertical: 4,
-    paddingHorizontal: Spacing.md,
+    backgroundColor: "#f0fdf4",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 10,
     gap: 4,
+    borderWidth: 1,
+    borderColor: "#dcfce7",
+    zIndex: 1,
   },
 
-  defaultRibbonText: {
-    fontSize: 11,
+  defaultBadgeText: {
+    fontSize: 10,
     fontWeight: "700",
-    color: Colors.neutralWhite,
+    color: Colors.primary900,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 
   cardContent: {
@@ -552,11 +668,21 @@ const styles = StyleSheet.create({
   },
 
   cardStrip: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 52,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  brandIconInner: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  brandIconText: {
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
 
   cardDetails: {

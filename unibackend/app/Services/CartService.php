@@ -364,12 +364,12 @@ class CartService
             'calculated_subtotal' => $subtotal,
         ]);
 
-        // Get tax rate from settings (14% for Egypt)
-        $taxRate = (float) (config('app.tax_rate') ?? 14);
+        // Tax removed from system
+        $tax = 0;
 
         // Get delivery fee from settings
         $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
-        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 20);
+        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 25);
         $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0.00 : $defaultDeliveryFee;
 
         // Apply promo code discount
@@ -392,12 +392,8 @@ class CartService
             }
         }
 
-        // Calculate tax on subtotal after discount
-        $taxableAmount = $subtotal + $deliveryFee - $discount;
-        $tax = $taxableAmount * ($taxRate / 100);
-
-        // Calculate total
-        $total = $subtotal - $discount + $tax + $deliveryFee;
+        // Calculate total (no tax)
+        $total = $subtotal - $discount + $deliveryFee;
 
         return [
             'subtotal' => round($subtotal, 2),

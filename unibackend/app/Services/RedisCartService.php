@@ -13,12 +13,12 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Redis-based Cart Service for HIGH PERFORMANCE
- * 
+ *
  * This service stores cart data in Redis instead of MySQL, reducing
  * database load by 50-80% for cart operations.
- * 
+ *
  * Cart is only persisted to DB at checkout time.
- * 
+ *
  * Redis Keys:
  * - cart:user:{userId}:items - Hash of product_id => {quantity, price, added_at}
  * - cart:user:{userId}:promo - Current promo code
@@ -150,15 +150,15 @@ class RedisCartService
 
         // Validate product
         $product = Product::where('barcode', $productId)->first();
-        
+
         if (!$product) {
             throw new \Exception('Product not found', 404);
         }
-        
+
         if (!$product->is_active) {
             throw new \Exception('Product is not available', 422);
         }
-        
+
         if (!$product->is_in_stock) {
             throw new \Exception('Product is out of stock', 422);
         }
@@ -221,11 +221,11 @@ class RedisCartService
         if (!$product) {
             throw new \Exception('Product not found', 404);
         }
-        
+
         if (!$product->is_in_stock) {
             throw new \Exception('Product is out of stock', 422);
         }
-        
+
         if ($product->stock_quantity < $quantity) {
             throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
         }
@@ -387,12 +387,12 @@ class RedisCartService
             $subtotal += $item['price'] * $item['quantity'];
         }
 
-        // Tax rate (14% for Egypt)
-        $taxRate = (float)(config('app.tax_rate') ?? 14);
+        // Tax removed from system
+        $tax = 0;
 
         // Delivery fee
         $freeDeliveryThreshold = (float)(config('app.free_delivery_threshold') ?? 200);
-        $defaultDeliveryFee = (float)(config('app.delivery_fee') ?? 20);
+        $defaultDeliveryFee = (float)(config('app.delivery_fee') ?? 25);
         $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0.00 : $defaultDeliveryFee;
 
         // Promo discount (simplified - full logic in CartService)
@@ -404,8 +404,7 @@ class RedisCartService
             $discount = $totals['discount'];
         }
 
-        $tax = round(($subtotal - $discount) * ($taxRate / 100), 2);
-        $total = round($subtotal - $discount + $deliveryFee + $tax, 2);
+        $total = round($subtotal - $discount + $deliveryFee, 2);
 
         return [
             'items_count' => $cart['items_count'],

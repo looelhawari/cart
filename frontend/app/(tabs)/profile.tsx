@@ -304,36 +304,52 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary900]}
-          />
-        }
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* ═══════════════════════════════════════════════════════════════════════════
-            COMPACT PROFILE HEADER
-        ═══════════════════════════════════════════════════════════════════════════ */}
-        <View style={styles.profileHeader}>
-          <View style={styles.profileRow}>
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          BRANDED HEADER – matches Home / Orders / Cart tabs
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <View style={styles.header}>
+        <LinearGradient
+          colors={[Colors.primary900, Colors.primary800]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerTop}>
+            <View style={styles.brandContainer}>
+              <View style={styles.brandIcon}>
+                <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
+              </View>
+              <Text style={styles.brandName}>
+                {t.nav?.profile || "Profile"}
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => router.push("/profile/edit")}
-              activeOpacity={0.8}
+              style={styles.headerEditBtn}
+              activeOpacity={0.7}
             >
-              <LinearGradient
-                colors={[Colors.primary700, Colors.primary900]}
-                style={styles.avatarPlaceholder}
-              >
-                <Text style={styles.avatarInitials}>
-                  {user?.first_name?.charAt(0) || "U"}
-                  {user?.last_name?.charAt(0) || ""}
-                </Text>
-              </LinearGradient>
+              <Ionicons
+                name="create-outline"
+                size={14}
+                color={Colors.neutralWhite}
+              />
+              <Text style={styles.headerEditText}>
+                {t.common?.edit || "Edit"}
+              </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Compact Profile Row inside header */}
+          <View style={styles.profileCardInline}>
+            <LinearGradient
+              colors={[Colors.primary700, Colors.primary900]}
+              style={styles.avatarPlaceholder}
+            >
+              <Text style={styles.avatarInitials}>
+                {user?.first_name?.charAt(0) || "U"}
+                {user?.last_name?.charAt(0) || ""}
+              </Text>
+            </LinearGradient>
 
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>
@@ -348,18 +364,6 @@ export default function ProfileScreen() {
                 </Text>
               )}
             </View>
-
-            <TouchableOpacity
-              onPress={() => router.push("/profile/edit")}
-              style={styles.editButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="create-outline"
-                size={18}
-                color={Colors.primary900}
-              />
-            </TouchableOpacity>
           </View>
 
           {/* Stats Row */}
@@ -369,20 +373,8 @@ export default function ProfileScreen() {
               onPress={() => router.push("/(tabs)/orders" as any)}
               activeOpacity={0.7}
             >
-              <View
-                style={[
-                  styles.statIconBg,
-                  { backgroundColor: Colors.accentOrange + "15" },
-                ]}
-              >
-                <Package size={16} color={Colors.accentOrange} />
-              </View>
-              <View>
-                <Text style={styles.statValue}>{ordersCount}</Text>
-                <Text style={styles.statLabel}>
-                  {t.nav?.orders || "Orders"}
-                </Text>
-              </View>
+              <Text style={styles.statValue}>{ordersCount}</Text>
+              <Text style={styles.statLabel}>{t.nav?.orders || "Orders"}</Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
             <TouchableOpacity
@@ -390,39 +382,31 @@ export default function ProfileScreen() {
               onPress={() => router.push("/profile/favorites" as any)}
               activeOpacity={0.7}
             >
-              <View
-                style={[
-                  styles.statIconBg,
-                  { backgroundColor: Colors.accentRed + "15" },
-                ]}
-              >
-                <Ionicons name="heart" size={16} color={Colors.accentRed} />
-              </View>
-              <View>
-                <Text style={styles.statValue}>{favorites?.length || 0}</Text>
-                <Text style={styles.statLabel}>
-                  {t.profile?.favorites || "Favorites"}
-                </Text>
-              </View>
+              <Text style={styles.statValue}>{favorites?.length || 0}</Text>
+              <Text style={styles.statLabel}>
+                {t.profile?.favorites || "Favorites"}
+              </Text>
             </TouchableOpacity>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <View
-                style={[
-                  styles.statIconBg,
-                  { backgroundColor: Colors.primary100 },
-                ]}
-              >
-                <Ionicons name="wallet" size={16} color={Colors.primary900} />
-              </View>
-              <View>
-                <Text style={styles.statValue}>{totalSpent.toFixed(0)}</Text>
-                <Text style={styles.statLabel}>{"Spent"}</Text>
-              </View>
+              <Text style={styles.statValue}>{totalSpent.toFixed(0)}</Text>
+              <Text style={styles.statLabel}>{"Spent"}</Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
+      </View>
 
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary900]}
+          />
+        }
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* ═══════════════════════════════════════════════════════════════════════════
             SEARCH BAR
         ═══════════════════════════════════════════════════════════════════════════ */}
@@ -570,33 +554,80 @@ const styles = StyleSheet.create({
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PROFILE HEADER
+  // HEADER – matches Home / Orders / Cart
   // ═══════════════════════════════════════════════════════════════════════════
-  profileHeader: {
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+  header: {
+    overflow: "hidden",
   },
-  profileRow: {
+  headerGradient: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
+  headerTop: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
   },
-  avatarPlaceholder: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+  brandContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  brandIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 10,
+  },
+  brandName: {
+    fontSize: 22,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+    letterSpacing: 0.3,
+  },
+  headerEditBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 6,
+  },
+  headerEditText: {
+    fontSize: 12,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralWhite,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROFILE CARD (inside header)
+  // ═══════════════════════════════════════════════════════════════════════════
+  profileCardInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+  },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
   },
   avatarInitials: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: "Poppins-Bold",
     color: Colors.neutralWhite,
   },
@@ -605,73 +636,54 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   profileName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Poppins-Bold",
-    color: Colors.neutralCharcoal,
-    lineHeight: 22,
+    color: Colors.neutralWhite,
+    lineHeight: 20,
   },
   profileEmail: {
     fontSize: 12,
     fontFamily: "Poppins-Regular",
-    color: Colors.neutralMedium,
+    color: "rgba(255,255,255,0.8)",
     lineHeight: 17,
   },
   profilePhone: {
     fontSize: 11,
     fontFamily: "Poppins-Regular",
-    color: Colors.neutralMedium,
-    lineHeight: 16,
-  },
-  editButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: Colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
+    color: "rgba(255,255,255,0.65)",
+    lineHeight: 15,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STATS ROW
+  // STATS ROW (inside header)
   // ═══════════════════════════════════════════════════════════════════════════
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.neutralCloud,
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 14,
     paddingVertical: 10,
-    paddingHorizontal: 4,
   },
   statItem: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  statIconBg: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
   },
   statValue: {
-    fontSize: 15,
+    fontSize: 17,
     fontFamily: "Poppins-Bold",
-    color: Colors.neutralCharcoal,
-    lineHeight: 20,
+    color: Colors.neutralWhite,
+    lineHeight: 22,
   },
   statLabel: {
     fontSize: 10,
     fontFamily: "Poppins-Medium",
-    color: Colors.neutralMedium,
+    color: "rgba(255,255,255,0.7)",
     lineHeight: 14,
   },
   statDivider: {
     width: 1,
     height: 28,
-    backgroundColor: Colors.neutralGray,
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

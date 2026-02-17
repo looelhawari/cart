@@ -358,23 +358,23 @@ export default function HomeScreen() {
     quickCategories.length > 0
       ? quickCategories
       : ([
-        { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
-        {
-          id: 2,
-          name_en: "Vegetables",
-          name_ar: "خضروات",
-          slug: "vegetables",
-        },
-        { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
-        { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
-        { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
-        {
-          id: 6,
-          name_en: "Beverages",
-          name_ar: "مشروبات",
-          slug: "beverages",
-        },
-      ] as Category[]);
+          { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
+          {
+            id: 2,
+            name_en: "Vegetables",
+            name_ar: "خضروات",
+            slug: "vegetables",
+          },
+          { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
+          { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
+          { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
+          {
+            id: 6,
+            name_en: "Beverages",
+            name_ar: "مشروبات",
+            slug: "beverages",
+          },
+        ] as Category[]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -460,7 +460,7 @@ export default function HomeScreen() {
                 onPress={() => router.push("/(tabs)/cart")}
                 activeOpacity={0.8}
               >
-                <Ionicons name="bag" size={21} color={Colors.neutralWhite} />
+                <Ionicons name="cart" size={21} color={Colors.neutralWhite} />
                 {cartItemsCount > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>

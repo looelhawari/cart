@@ -123,7 +123,7 @@ class InvoiceService
             'subtotal'    => number_format((float) $order->subtotal, 2, '.', ''),
             'delivery_fee'=> number_format((float) $order->delivery_fee, 2, '.', ''),
             'tax'         => number_format((float) $order->tax, 2, '.', ''),
-            'tax_rate'    => 14, // Egyptian VAT rate %
+            'tax_rate'    => 0, // Tax removed from system
             'discount'    => number_format((float) $order->discount, 2, '.', ''),
             'promo'       => $promo,
             'total'       => number_format((float) $order->total, 2, '.', ''),

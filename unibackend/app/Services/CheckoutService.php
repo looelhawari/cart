@@ -451,7 +451,7 @@ class CheckoutService
 
         // Calculate delivery fee - zone-based if address has coordinates
         $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
-        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 20);
+        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 25);
         $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0 : $defaultDeliveryFee;
         $zoneInfo = null;
 
@@ -502,12 +502,11 @@ class CheckoutService
             }
         }
 
-        // Calculate tax (14% for Egypt)
-        $taxRate = (float) (config('app.tax_rate') ?? 14);
-        $tax = ($subtotal + $deliveryFee - $discount) * ($taxRate / 100);
+        // Tax removed from system
+        $tax = 0;
 
-        // Calculate total
-        $total = $subtotal + $deliveryFee + $tax - $discount;
+        // Calculate total (no tax)
+        $total = $subtotal + $deliveryFee - $discount;
 
         return [
             'subtotal' => round($subtotal, 2),

@@ -72,7 +72,6 @@ export default function CheckoutConfirmationScreen() {
   const subtotal = cart?.subtotal || 0;
   const deliveryFee = cart?.delivery_fee || 0;
   const discount = cart?.discount || 0; // Total discount (promotions + promo code from cart)
-  const tax = cart?.tax || 0;
   const total = cart?.total || 0; // Already calculated with discount applied
 
   useEffect(() => {
@@ -129,10 +128,10 @@ export default function CheckoutConfirmationScreen() {
             : i === 1
               ? t.checkout.tomorrow
               : date.toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-              }),
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                }),
       });
     }
     return dates;
@@ -185,8 +184,8 @@ export default function CheckoutConfirmationScreen() {
         Alert.alert(
           t.store?.closed || "Store Closed",
           storeStatusResponse.data.message ||
-          t.store?.cannotOrderNow ||
-          "Sorry, we are not accepting orders right now",
+            t.store?.cannotOrderNow ||
+            "Sorry, we are not accepting orders right now",
         );
         return;
       }
@@ -599,12 +598,6 @@ export default function CheckoutConfirmationScreen() {
                 </Text>
               </View>
             )}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{t.checkout.tax}</Text>
-              <Text style={styles.priceValue}>
-                {tax.toFixed(2)} {t.common.currency}
-              </Text>
-            </View>
             <View style={[styles.priceRow, styles.totalRow]}>
               <Text style={styles.totalLabel}>{t.checkout.total}</Text>
               <Text style={styles.totalValue}>

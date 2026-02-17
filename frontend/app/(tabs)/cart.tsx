@@ -78,9 +78,7 @@ export default function CartScreen() {
   const cartItems = cart?.items || [];
   const subtotal = cart?.subtotal || 0;
   const discount = cart?.discount || 0;
-  const deliveryFee = cart?.delivery_fee || 0;
-  const tax = cart?.tax || 0;
-  const total = cart?.total || 0;
+  const total = Math.max(0, subtotal - discount);
   const appliedPromo = cart?.promo_code || null;
 
   const handleApplyPromo = async () => {
@@ -107,7 +105,7 @@ export default function CartScreen() {
   const handleRemovePromo = async () => {
     try {
       await removePromoCodeFromCart();
-    } catch (_) { }
+    } catch (_) {}
   };
 
   const handleCheckout = () => {
@@ -213,7 +211,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await clearCart();
-                } catch (_) { }
+                } catch (_) {}
               }}
               style={styles.clearButton}
             >
@@ -283,7 +281,7 @@ export default function CartScreen() {
                       } else {
                         await removeFromCart(item.id);
                       }
-                    } catch (_) { }
+                    } catch (_) {}
                   }}
                 >
                   {item.quantity === 1 ? (
@@ -318,7 +316,7 @@ export default function CartScreen() {
                     }
                     try {
                       await updateQuantity(item.id, item.quantity + 1);
-                    } catch (_) { }
+                    } catch (_) {}
                   }}
                   disabled={(() => {
                     const m = getMaxPerOrder(item.product?.barcode);
@@ -343,7 +341,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await removeFromCart(item.id);
-                } catch (_) { }
+                } catch (_) {}
               }}
             >
               <X size={18} color={Colors.neutralMedium} />
@@ -410,7 +408,7 @@ export default function CartScreen() {
                 style={[
                   styles.applyButton,
                   (!promoCode.trim() || isApplyingPromo) &&
-                  styles.applyButtonDisabled,
+                    styles.applyButtonDisabled,
                 ]}
                 onPress={handleApplyPromo}
                 disabled={!promoCode.trim() || isApplyingPromo}
@@ -458,35 +456,6 @@ export default function CartScreen() {
               </Text>
             </View>
           )}
-
-          <View style={styles.summaryRow}>
-            <View style={styles.deliveryLabelRow}>
-              <Ionicons name="car" size={12} color={Colors.neutralMedium} />
-              <Text style={styles.summaryLabel}>
-                {t.orders?.deliveryFee || "Delivery"}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.summaryValue,
-                deliveryFee === 0 && styles.freeDelivery,
-              ]}
-            >
-              {deliveryFee === 0
-                ? t.common?.free || "FREE"
-                : `${parseFloat(deliveryFee?.toString() || "0").toFixed(2)} ${t.common?.currency || "EGP"}`}
-            </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>
-              {t.orders?.tax || "Tax"} (14%)
-            </Text>
-            <Text style={styles.summaryValue}>
-              {parseFloat(tax?.toString() || "0").toFixed(2)}{" "}
-              {t.common?.currency || "EGP"}
-            </Text>
-          </View>
 
           <View style={styles.totalDivider} />
 

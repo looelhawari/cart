@@ -1126,9 +1126,8 @@ function FinancialTabContent({ data, loading, error, t, isRTL: _isRTL }: { data?
                 <MetricCard title={t('analytics.grossMargin')} value={`${data.profitability.gross_margin_percent.toFixed(1)}%`} icon={Percent} color="purple" />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
                 <MetricCard title={t('analytics.deliveryFees')} value={formatCurrency(data.revenue.delivery_fees)} icon={Truck} color="blue" />
-                <MetricCard title={t('analytics.taxCollected')} value={formatCurrency(data.revenue.tax_collected)} icon={FileText} color="cyan" />
                 <MetricCard title={t('analytics.refunds')} value={`${formatCurrency(data.refunds.total)} (${data.refunds.count})`} icon={AlertTriangle} color="red" />
             </div>
 
@@ -1201,7 +1200,7 @@ function InventoryTabContent({ data, loading, error, t, isRTL }: { data?: Invent
                 <MetricCard title={t('analytics.totalProducts')} value={data.total_inventory.total_products.toLocaleString()} icon={Package} color="blue" />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
                 <MetricCard title={t('analytics.totalUnits')} value={data.total_inventory.total_units.toLocaleString()} icon={Box} color="purple" />
                 <MetricCard title={t('analytics.retailValue')} value={formatCurrency(data.total_inventory.retail_value)} icon={DollarSign} color="green" />
                 <MetricCard title={t('analytics.costValue')} value={formatCurrency(data.total_inventory.cost_value)} icon={Tag} color="cyan" />
