@@ -414,6 +414,7 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   scrollContent: {
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xxl,
   },
   form: {
