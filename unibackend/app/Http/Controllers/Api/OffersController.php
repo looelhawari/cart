@@ -7,6 +7,7 @@ use App\Services\OfferService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class OffersController extends Controller
 {
@@ -25,7 +26,17 @@ class OffersController extends Controller
         $user = Auth::guard('sanctum')->user();
         $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
-        $data = $offerService->listOffers($filters, $user?->id, $sessionId);
+        // Personalized offers (for_you) bypass cache; generic lists cached for 5 min
+        $isPersonalized = $filters['for_you'] || $user;
+
+        if ($isPersonalized) {
+            $data = $offerService->listOffers($filters, $user?->id, $sessionId);
+        } else {
+            $cacheKey = 'offers:list:' . md5(json_encode($filters));
+            $data = Cache::remember($cacheKey, 300, function () use ($offerService, $filters, $sessionId) {
+                return $offerService->listOffers($filters, null, $sessionId);
+            });
+        }
 
         return response()->json([
             'success' => true,
@@ -38,7 +49,10 @@ class OffersController extends Controller
         $user = Auth::guard('sanctum')->user();
         $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
-        $summary = $offerService->getSummary($user?->id, $sessionId);
+        // Summary is generic (counts/highlights) — cache for 5 minutes
+        $summary = Cache::remember('offers:summary', 300, function () use ($offerService, $user, $sessionId) {
+            return $offerService->getSummary($user?->id, $sessionId);
+        });
 
         return response()->json([
             'success' => true,

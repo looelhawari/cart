@@ -35,7 +35,8 @@ class ProductController extends Controller
             $cacheKey = 'products:list:' . md5(json_encode($request->all()));
 
             $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($request) {
-                $query = Product::with(['categories'])
+                $query = Product::select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'stock_quantity', 'is_in_stock', 'weight', 'unit', 'rating', 'review_count', 'is_featured', 'sales_count', 'created_at', 'active_promotion_id')
+                    ->with(['categories:id,name_en,name_ar'])
                     ->where('is_active', true);
 
                 // Filter by category
@@ -77,9 +78,12 @@ class ProductController extends Controller
                     $query->where('is_in_stock', true)->where('stock_quantity', '>', 0);
                 }
 
-                // Sorting
-                $sortBy = $request->get('sort_by', 'created_at');
-                $sortOrder = $request->get('sort_order', 'desc');
+                // Sorting (whitelisted to prevent SQL injection)
+                $allowedSorts = ['price', 'rating', 'name_en', 'name_ar', 'popularity', 'created_at', 'sales_count'];
+                $sortBy = in_array($request->get('sort_by'), $allowedSorts)
+                    ? $request->get('sort_by')
+                    : 'created_at';
+                $sortOrder = strtolower($request->get('sort_order', 'desc')) === 'asc' ? 'asc' : 'desc';
 
                 switch ($sortBy) {
                     case 'price':
@@ -89,13 +93,15 @@ class ProductController extends Controller
                         $query->orderBy('rating', $sortOrder);
                         break;
                     case 'name_en':
-                        $query->orderBy('name_en', $sortOrder);
+                    case 'name_ar':
+                        $query->orderBy($sortBy, $sortOrder);
                         break;
                     case 'popularity':
+                    case 'sales_count':
                         $query->orderBy('sales_count', 'desc');
                         break;
                     default:
-                        $query->orderBy($sortBy, $sortOrder);
+                        $query->orderBy('created_at', $sortOrder);
                 }
 
                 $perPage = min($request->get('per_page', 20), 100); // Cap at 100
@@ -170,7 +176,8 @@ class ProductController extends Controller
         try {
             // Cache featured products for 5 minutes
             $products = Cache::remember('products:featured', self::CACHE_TTL, function () {
-                return Product::with(['categories'])
+                return Product::select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'stock_quantity', 'is_in_stock', 'weight', 'unit', 'rating', 'review_count', 'is_featured', 'sales_count')
+                    ->with(['categories:id,name_en,name_ar'])
                     ->where('is_active', true)
                     ->where('is_featured', true)
                     ->orderBy('created_at', 'desc')
@@ -200,7 +207,8 @@ class ProductController extends Controller
         try {
             // Cache flash deals for 5 minutes
             $products = Cache::remember('products:flash-deals', self::CACHE_TTL, function () {
-                return Product::with(['categories'])
+                return Product::select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'stock_quantity', 'is_in_stock', 'weight', 'unit', 'rating', 'review_count', 'sales_count')
+                    ->with(['categories:id,name_en,name_ar'])
                     ->where('is_active', true)
                     ->whereNotNull('sale_price')
                     ->orderByRaw('((price - sale_price) / price) DESC')

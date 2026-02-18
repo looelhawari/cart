@@ -114,14 +114,18 @@ class PromotionService
      */
     public function applyPromotionToProducts(Promotion $promotion): array
     {
-        $products = $this->getProductsForPromotion($promotion);
         $updated = 0;
 
-        foreach ($products as $product) {
-            $this->applyBestPromotionToProduct($product);
-            $product->save();
-            $updated++;
-        }
+        // Eager-load categories to prevent N+1, chunk to save memory
+        $this->getProductQueryForPromotion($promotion)
+            ->with('categories')
+            ->chunk(200, function ($products) use (&$updated) {
+                foreach ($products as $product) {
+                    $this->applyBestPromotionToProduct($product);
+                    $product->save();
+                    $updated++;
+                }
+            });
 
         Log::info('📦 Bulk promotion applied', [
             'promotion_id' => $promotion->id,
@@ -136,26 +140,26 @@ class PromotionService
     }
 
     /**
-     * Get products that should be affected by a promotion
-     * Based on linked products/categories or all products if no specific links
+     * Get products query builder for a promotion (supports ->chunk() and ->get()).
+     * Returns a query builder, not a collection — avoids double count+get queries.
      */
-    protected function getProductsForPromotion(Promotion $promotion): Collection
+    protected function getProductQueryForPromotion(Promotion $promotion)
     {
-        // If promotion has specific products linked
-        if ($promotion->products()->count() > 0) {
-            return $promotion->products()->where('products.is_active', true)->get();
+        // Eager-load counts once to avoid repeated queries
+        $promotion->loadCount(['products', 'categories']);
+
+        if ($promotion->products_count > 0) {
+            return $promotion->products()->where('products.is_active', true);
         }
 
-        // If promotion has categories linked
-        if ($promotion->categories()->count() > 0) {
-            $categoryIds = $promotion->categories->pluck('id');
+        if ($promotion->categories_count > 0) {
+            $categoryIds = $promotion->categories()->pluck('categories.id');
             return Product::whereHas('categories', function ($q) use ($categoryIds) {
                 $q->whereIn('categories.id', $categoryIds);
-            })->where('is_active', true)->get();
+            })->where('is_active', true);
         }
 
-        // No specific links - applies to all products
-        return Product::where('is_active', true)->get();
+        return Product::where('is_active', true);
     }
 
     /**
@@ -163,15 +167,18 @@ class PromotionService
      */
     public function removePromotionFromProducts(Promotion $promotion): array
     {
-        $products = Product::where('active_promotion_id', $promotion->id)->get();
         $updated = 0;
 
-        foreach ($products as $product) {
-            // Reapply promotions to check if there's another active one
-            $this->applyBestPromotionToProduct($product);
-            $product->save();
-            $updated++;
-        }
+        // Eager-load categories + chunk to prevent N+1 and memory overflow
+        Product::where('active_promotion_id', $promotion->id)
+            ->with('categories')
+            ->chunk(200, function ($products) use (&$updated) {
+                foreach ($products as $product) {
+                    $this->applyBestPromotionToProduct($product);
+                    $product->save();
+                    $updated++;
+                }
+            });
 
         Log::info('🗑️ Promotion removed from products', [
             'promotion_id' => $promotion->id,
@@ -189,14 +196,18 @@ class PromotionService
      */
     public function recalculateAllProductPrices(): array
     {
-        $products = Product::where('is_active', true)->get();
         $updated = 0;
 
-        foreach ($products as $product) {
-            $this->applyBestPromotionToProduct($product);
-            $product->save();
-            $updated++;
-        }
+        // Chunk + eager-load to prevent memory overflow and N+1 queries
+        Product::where('is_active', true)
+            ->with('categories')
+            ->chunk(200, function ($products) use (&$updated) {
+                foreach ($products as $product) {
+                    $this->applyBestPromotionToProduct($product);
+                    $product->save();
+                    $updated++;
+                }
+            });
 
         Log::info('🔄 All product prices recalculated', [
             'products_updated' => $updated,
@@ -339,8 +350,10 @@ class PromotionService
     {
         $promotion = Promotion::findOrFail($promotionId);
 
-        // Get products with this promotion
-        $products = Product::where('active_promotion_id', $promotionId)->get();
+        // Get products with this promotion — only fetch needed price columns
+        $products = Product::where('active_promotion_id', $promotionId)
+            ->select('barcode', 'price', 'original_price', 'sale_price', 'active_promotion_id')
+            ->get();
 
         // Basic analytics (can be extended with order data later)
         return [

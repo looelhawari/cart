@@ -119,6 +119,12 @@ interface StoreState {
   setSelectedPaymentMethod: (methodId: string | null) => void;
   applyPromoCode: (code: string) => void;
   removePromoCode: () => void;
+
+  // Search
+  recentSearches: string[];
+  addRecentSearch: (query: string) => void;
+  removeRecentSearch: (query: string) => void;
+  clearRecentSearches: () => void;
 }
 
 export const useStore = create<StoreState>()(
@@ -310,10 +316,12 @@ export const useStore = create<StoreState>()(
 
         // Double-check: verify tokens were saved and fetch profile
         // This ensures the auth flow is complete before navigation
-        const savedToken = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
+        const savedToken = await AsyncStorage.getItem(
+          TOKEN_CONFIG.ACCESS_TOKEN_KEY,
+        );
         if (__DEV__) {
-          console.log('[socialLogin] Token saved:', savedToken ? 'YES' : 'NO');
-          console.log('[socialLogin] User set:', response.data.user?.email);
+          console.log("[socialLogin] Token saved:", savedToken ? "YES" : "NO");
+          console.log("[socialLogin] User set:", response.data.user?.email);
         }
 
         // Fetch fresh profile to ensure everything is in sync
@@ -325,7 +333,10 @@ export const useStore = create<StoreState>()(
         } catch (error) {
           // If profile fetch fails but we have tokens, keep the user from login response
           if (__DEV__) {
-            console.log('[socialLogin] Profile fetch failed (using login response user):', error);
+            console.log(
+              "[socialLogin] Profile fetch failed (using login response user):",
+              error,
+            );
           }
         }
       },
@@ -362,7 +373,7 @@ export const useStore = create<StoreState>()(
 
         if (optimisticCart) {
           const existingItem = optimisticCart.items?.find(
-            (item: any) => item.product_id === productId
+            (item: any) => item.product_id === productId,
           );
 
           if (existingItem) {
@@ -370,7 +381,7 @@ export const useStore = create<StoreState>()(
             optimisticCart.items = optimisticCart.items?.map((item: any) =>
               item.product_id === productId
                 ? { ...item, quantity: item.quantity + quantity }
-                : item
+                : item,
             );
           }
 
@@ -416,7 +427,7 @@ export const useStore = create<StoreState>()(
 
         if (optimisticCart && optimisticCart.items) {
           optimisticCart.items = optimisticCart.items.map((item: any) =>
-            item.id === itemId ? { ...item, quantity } : item
+            item.id === itemId ? { ...item, quantity } : item,
           );
           set({ cart: optimisticCart });
         }
@@ -633,6 +644,24 @@ export const useStore = create<StoreState>()(
         set({ selectedPaymentMethod: methodId }),
       applyPromoCode: (code) => set({ promoCode: code }),
       removePromoCode: () => set({ promoCode: null }),
+
+      // Search — persisted across sessions, max 20 items
+      recentSearches: [],
+      addRecentSearch: (query: string) => {
+        const trimmed = query.trim();
+        if (!trimmed) return;
+        set((state) => {
+          const filtered = state.recentSearches.filter(
+            (s) => s.toLowerCase() !== trimmed.toLowerCase(),
+          );
+          return { recentSearches: [trimmed, ...filtered].slice(0, 20) };
+        });
+      },
+      removeRecentSearch: (query: string) =>
+        set((state) => ({
+          recentSearches: state.recentSearches.filter((s) => s !== query),
+        })),
+      clearRecentSearches: () => set({ recentSearches: [] }),
     }),
     {
       name: "elbaraka-storage",
@@ -648,6 +677,7 @@ export const useStore = create<StoreState>()(
         addresses: state.addresses,
         paymentMethods: state.paymentMethods,
         orders: state.orders,
+        recentSearches: state.recentSearches, // Persist recent searches
       }),
       version: 3, // Increment version to trigger migration
       migrate: (persistedState: any, version: number) => {

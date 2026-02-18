@@ -11,6 +11,13 @@ class Product extends Model
     public $incrementing = false;
     protected $keyType = 'int';
 
+    /**
+     * Attributes hidden from JSON serialization (security: never expose margins)
+     */
+    protected $hidden = [
+        'cost_price',
+    ];
+
     protected $fillable = [
         'barcode',
         'name_en',

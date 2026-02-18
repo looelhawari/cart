@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\Admin\AdminDeliveryZoneController;
 use App\Http\Controllers\Api\Admin\AdminDriverController;
 use App\Http\Controllers\Api\RefundWebhookController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
+use App\Http\Controllers\Api\SearchSuggestionsController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Http\Request;
@@ -55,15 +56,19 @@ use Illuminate\Http\Request;
 |--------------------------------------------------------------------------
 */
 
-// Health check endpoints (no rate limiting, no auth)
-Route::get('health', [HealthController::class, 'ping']);
-Route::get('health/detailed', [HealthController::class, 'detailed']);
-Route::get('health/metrics', [HealthController::class, 'metrics']);
+// Health check - basic ping (public, rate limited)
+Route::middleware('throttle:60,1')->get('health', [HealthController::class, 'ping']);
+
+// Health check - detailed & metrics (admin only — exposes system internals)
+Route::middleware(['auth:sanctum', 'admin', 'throttle:30,1'])->group(function () {
+    Route::get('health/detailed', [HealthController::class, 'detailed']);
+    Route::get('health/metrics', [HealthController::class, 'metrics']);
+});
 
 Route::prefix('v1')->group(function () {
 
-    // Auth routes (guest only) - throttled to 60 requests per minute (like big tech apps)
-    Route::middleware(['guest', 'throttle:60,1'])->group(function () {
+    // Auth routes (guest only) - using named 'auth' rate limiter (60/min by IP)
+    Route::middleware(['guest', 'throttle:auth'])->group(function () {
         Route::post('auth/register', [AuthController::class, 'register']);
         Route::post('auth/verify-email', [AuthController::class, 'verifyEmail']);
         Route::post('auth/resend-otp', [AuthController::class, 'resendOtp']);
@@ -84,8 +89,8 @@ Route::prefix('v1')->group(function () {
     // Refresh token (no auth required) - throttled to 60 requests per minute
     Route::middleware('throttle:60,1')->post('auth/refresh', [AuthController::class, 'refreshToken']);
 
-    // Cart routes (guest or authenticated) - throttled to 60 requests per minute
-    Route::middleware('throttle:60,1')->prefix('cart')->group(function () {
+    // Cart routes (guest or authenticated) - using named 'cart' rate limiter (200/min)
+    Route::middleware('throttle:cart')->prefix('cart')->group(function () {
         Route::get('/', [CartController::class, 'index']);
         Route::post('/items', [CartController::class, 'addItem']);
         Route::put('/items/{id}', [CartController::class, 'updateItem']);
@@ -117,6 +122,12 @@ Route::prefix('v1')->group(function () {
         Route::get('products/featured', [ProductController::class, 'featured']);
         Route::get('products/flash-deals', [ProductController::class, 'flashDeals']);
         Route::get('products/{barcode}', [ProductController::class, 'show']);
+    });
+
+    // Search suggestions (public) - high frequency, cached in Redis
+    Route::middleware('throttle:120,1')->prefix('search')->group(function () {
+        Route::get('suggestions', [SearchSuggestionsController::class, 'suggestions']);
+        Route::get('popular', [SearchSuggestionsController::class, 'popular']);
     });
 
     // Category routes (public) - throttled to 60 requests per minute

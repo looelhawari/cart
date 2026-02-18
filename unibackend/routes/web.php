@@ -22,15 +22,27 @@ Route::get('/payment-success', function () {
     ]);
 });
 
-// Payment Return - Redirect to deep link
+// Payment Return - Redirect to deep link (sanitized against XSS)
 Route::get('/payment-return', function () {
-    // Extract all query parameters from Paymob
-    $params = request()->all();
-    
-    // Return HTML that auto-redirects to deep link
-    $queryString = http_build_query($params);
-    $deepLink = "elbaraka://payment-return?" . $queryString;
-    
+    // Whitelist only known safe Paymob callback parameters
+    $allowedParams = ['id', 'pending', 'amount_cents', 'success', 'order',
+        'merchant_order_id', 'is_3d_secure', 'is_auth', 'is_capture',
+        'is_standalone_payment', 'is_voided', 'is_refunded', 'is_void',
+        'error_occured', 'has_parent_transaction', 'source_data_type',
+        'source_data_pan', 'source_data_sub_type', 'txn_response_code',
+        'currency', 'created_at', 'integration_id', 'owner', 'data_message',
+    ];
+    $params = array_intersect_key(request()->all(), array_flip($allowedParams));
+
+    // Sanitize all values — strip anything that could break JS/HTML context
+    $sanitizedParams = array_map(function ($value) {
+        return preg_replace('/[^a-zA-Z0-9_\-\.@:\/\s]/', '', (string) $value);
+    }, $params);
+
+    $queryString = http_build_query($sanitizedParams);
+    // HTML-encode the deep link before injection into JS string
+    $deepLink = htmlspecialchars("elbaraka://payment-return?" . $queryString, ENT_QUOTES, 'UTF-8');
+
     return <<<HTML
 <!DOCTYPE html>
 <html>
@@ -76,10 +88,10 @@ Route::get('/payment-return', function () {
     <script>
         // Attempt deep link redirect
         window.location.href = "{$deepLink}";
-        
+
         // Fallback: If deep link doesn't work after 2 seconds, show message
         setTimeout(function() {
-            document.querySelector('.container').innerHTML = 
+            document.querySelector('.container').innerHTML =
                 '<h2>Please return to the app</h2>' +
                 '<p>If the app did not open automatically, please manually return to ElBaraka.</p>';
         }, 2000);

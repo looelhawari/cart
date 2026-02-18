@@ -23,7 +23,8 @@ class CategoryController extends Controller
         try {
             // Cache categories for 10 minutes - they rarely change
             $categories = Cache::remember('categories:all', self::CACHE_TTL, function () {
-                return Category::with('subcategories')
+                return Category::with(['subcategories:id,parent_id,name_en,name_ar,slug,image,icon,sort_order,is_active'])
+                    ->select('id', 'parent_id', 'name_en', 'name_ar', 'slug', 'description_en', 'description_ar', 'image', 'icon', 'sort_order', 'is_active')
                     ->whereNull('parent_id')
                     ->withCount('products')
                     ->orderBy('sort_order')
@@ -47,7 +48,7 @@ class CategoryController extends Controller
     /**
      * Get categories with their products for home page
      * GET /api/v1/categories/featured-with-products
-     * 
+     *
      * HEAVY QUERY - Cache aggressively (5 minutes)
      */
     public function featuredWithProducts(): JsonResponse
@@ -65,17 +66,30 @@ class CategoryController extends Controller
                     ->limit(6)
                     ->get();
 
-                // For each category, get some products
-                return $categories->map(function ($category) {
-                    $products = \App\Models\Product::query()
-                        ->where('is_active', true)
-                        ->whereHas('categories', function ($q) use ($category) {
-                            $q->where('categories.id', $category->id);
-                        })
-                        ->orderBy('created_at', 'desc')
-                        ->limit(6)
-                        ->get();
+                // Batch-load products for ALL categories in ONE query (eliminates N+1)
+                $categoryIds = $categories->pluck('id');
 
+                // Single query: get all products for all featured categories
+                $allProducts = \App\Models\Product::query()
+                    ->select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'rating', 'sales_count', 'stock_quantity', 'is_in_stock', 'unit')
+                    ->where('is_active', true)
+                    ->whereHas('categories', function ($q) use ($categoryIds) {
+                        $q->whereIn('categories.id', $categoryIds);
+                    })
+                    ->with(['categories:id,name_en,name_ar'])
+                    ->orderBy('sales_count', 'desc')
+                    ->get();
+
+                // Group products by their categories (a product may belong to multiple)
+                $productsByCategory = collect();
+                foreach ($categoryIds as $catId) {
+                    $productsByCategory[$catId] = $allProducts
+                        ->filter(fn($p) => $p->categories->contains('id', $catId))
+                        ->take(6)
+                        ->values();
+                }
+
+                return $categories->map(function ($category) use ($productsByCategory) {
                     return [
                         'id' => $category->id,
                         'name_en' => $category->name_en,
@@ -83,7 +97,7 @@ class CategoryController extends Controller
                         'slug' => $category->slug,
                         'icon' => $category->icon,
                         'products_count' => $category->products_count,
-                        'products' => $products,
+                        'products' => $productsByCategory[$category->id] ?? collect(),
                     ];
                 });
             });
@@ -191,9 +205,12 @@ class CategoryController extends Controller
                     $query->where('stock_quantity', '>', 0);
                 }
 
-                // Sorting
-                $sortBy = request()->get('sort_by', 'created_at');
-                $sortOrder = request()->get('sort_order', 'desc');
+                // Sorting (whitelisted to prevent SQL injection)
+                $allowedSorts = ['price', 'rating', 'name_en', 'name_ar', 'popularity', 'created_at', 'sales_count'];
+                $sortBy = in_array(request()->get('sort_by'), $allowedSorts)
+                    ? request()->get('sort_by')
+                    : 'created_at';
+                $sortOrder = strtolower(request()->get('sort_order', 'desc')) === 'asc' ? 'asc' : 'desc';
 
                 switch ($sortBy) {
                     case 'price':
@@ -203,13 +220,15 @@ class CategoryController extends Controller
                         $query->orderBy('rating', $sortOrder);
                         break;
                     case 'name_en':
-                        $query->orderBy('name_en', $sortOrder);
+                    case 'name_ar':
+                        $query->orderBy($sortBy, $sortOrder);
                         break;
                     case 'popularity':
+                    case 'sales_count':
                         $query->orderBy('sales_count', 'desc');
                         break;
                     default:
-                        $query->orderBy($sortBy, $sortOrder);
+                        $query->orderBy('created_at', $sortOrder);
                 }
 
                 $perPage = min(request()->get('per_page', 20), 100); // Cap at 100

@@ -9,6 +9,7 @@ use App\Models\NotificationRead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class NotificationController extends Controller
 {
@@ -105,30 +106,36 @@ class NotificationController extends Controller
 
     /**
      * Get unread notification count
+     * Cached for 60 seconds per user — polled frequently
      */
     public function unreadCount(Request $request)
     {
         try {
             $user = $request->user();
+            $cacheKey = "notifications:unread:{$user->id}";
 
-            // Personal unread
-            $unreadPersonal = Notification::where('user_id', $user->id)
-                ->where('is_read', false)
-                ->count();
+            $unreadCount = Cache::remember($cacheKey, 60, function () use ($user) {
+                // Personal unread
+                $unreadPersonal = Notification::where('user_id', $user->id)
+                    ->where('is_read', false)
+                    ->count();
 
-            // Broadcast unread
-            $readBroadcastIds = NotificationRead::where('user_id', $user->id)
-                ->pluck('notification_id')
-                ->toArray();
+                // Broadcast unread
+                $readBroadcastIds = NotificationRead::where('user_id', $user->id)
+                    ->pluck('notification_id')
+                    ->toArray();
 
-            $unreadBroadcast = Notification::where('is_broadcast', true)
-                ->whereNull('user_id')
-                ->whereNotIn('id', $readBroadcastIds)
-                ->count();
+                $unreadBroadcast = Notification::where('is_broadcast', true)
+                    ->whereNull('user_id')
+                    ->whereNotIn('id', $readBroadcastIds)
+                    ->count();
+
+                return $unreadPersonal + $unreadBroadcast;
+            });
 
             return response()->json([
                 'success' => true,
-                'unread_count' => $unreadPersonal + $unreadBroadcast,
+                'unread_count' => $unreadCount,
             ]);
 
         } catch (\Exception $e) {
@@ -166,6 +173,9 @@ class NotificationController extends Controller
 
                 $notification->update(['is_read' => true, 'read_at' => now()]);
             }
+
+            // Invalidate unread count cache
+            Cache::forget("notifications:unread:{$user->id}");
 
             return response()->json([
                 'success' => true,
@@ -219,6 +229,9 @@ class NotificationController extends Controller
                     NotificationRead::insert($readRecords);
                 }
             });
+
+            // Invalidate unread count cache
+            Cache::forget("notifications:unread:{$user->id}");
 
             return response()->json([
                 'success' => true,

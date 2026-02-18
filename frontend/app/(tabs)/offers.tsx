@@ -19,6 +19,10 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Modal,
+  Dimensions,
+  Easing,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -35,6 +39,8 @@ import Colors from "@/constants/Colors";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Enable LayoutAnimation on Android
 if (
@@ -65,31 +71,82 @@ type FilterKey =
   | "bogo";
 
 // ═══════════════════════════════════════════════════════════
-// FILTER CHIP DATA
+// FILTER BOTTOM SHEET DATA
 // ═══════════════════════════════════════════════════════════
-const FILTER_CHIPS: {
-  key: FilterKey;
-  label: string;
-  icon: string;
-  color: string;
-}[] = [
-  { key: "all", label: "All Deals", icon: "apps", color: Colors.primary900 },
+type FilterSection = {
+  title: string;
+  subtitle: string;
+  filters: {
+    key: FilterKey;
+    label: string;
+    icon: string;
+    color: string;
+    description: string;
+  }[];
+};
+
+const FILTER_SECTIONS: FilterSection[] = [
   {
-    key: "promotions",
-    label: "Auto Discounts",
-    icon: "flash",
-    color: Colors.primary900,
+    title: "Deal Type",
+    subtitle: "Choose what kind of deals to show",
+    filters: [
+      {
+        key: "all",
+        label: "All Deals",
+        icon: "apps",
+        color: Colors.primary900,
+        description: "Show everything",
+      },
+      {
+        key: "promotions",
+        label: "Auto Discounts",
+        icon: "flash",
+        color: Colors.primary900,
+        description: "Applied automatically at checkout",
+      },
+      {
+        key: "coupons",
+        label: "Promo Codes",
+        icon: "ticket",
+        color: "#D97706",
+        description: "Enter a code to redeem",
+      },
+    ],
   },
-  { key: "coupons", label: "Promo Codes", icon: "ticket", color: "#D97706" },
-  { key: "percentage", label: "% Off", icon: "pricetag", color: "#7C3AED" },
-  { key: "fixed_amount", label: "EGP Off", icon: "cash", color: "#0284C7" },
   {
-    key: "free_delivery",
-    label: "Free Delivery",
-    icon: "car",
-    color: Colors.primary900,
+    title: "Promo Code Type",
+    subtitle: "Filter by discount type",
+    filters: [
+      {
+        key: "percentage",
+        label: "Percentage Off",
+        icon: "pricetag",
+        color: "#7C3AED",
+        description: "Get X% off your order",
+      },
+      {
+        key: "fixed_amount",
+        label: "Fixed Amount Off",
+        icon: "cash",
+        color: "#0284C7",
+        description: "Get EGP X off your order",
+      },
+      {
+        key: "free_delivery",
+        label: "Free Delivery",
+        icon: "car",
+        color: Colors.primary900,
+        description: "No delivery charges",
+      },
+      {
+        key: "bogo",
+        label: "Buy One Get One",
+        icon: "gift",
+        color: "#DB2777",
+        description: "Buy X and get Y free",
+      },
+    ],
   },
-  { key: "bogo", label: "BOGO", icon: "gift", color: "#DB2777" },
 ];
 
 // ═══════════════════════════════════════════════════════════
@@ -223,6 +280,7 @@ export default function OffersScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<
     Record<SectionKey, boolean>
   >({
@@ -243,6 +301,17 @@ export default function OffersScreen() {
   // ── Animations ──
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const filterSheetAnim = useRef(new Animated.Value(0)).current;
+
+  // Animated rotation for section collapse arrows
+  const sectionArrowAnims = useRef<Record<SectionKey, Animated.Value>>({
+    featured: new Animated.Value(0),
+    automatic: new Animated.Value(0),
+    percentage: new Animated.Value(0),
+    fixed_amount: new Animated.Value(0),
+    free_delivery: new Animated.Value(0),
+    bogo: new Animated.Value(0),
+  }).current;
 
   // ─────────────────────────────────────────────────
   // DATA LOADING
@@ -323,11 +392,58 @@ export default function OffersScreen() {
   }, [loadData]);
 
   // ─────────────────────────────────────────────────
-  // SECTION TOGGLE
+  // SECTION TOGGLE (smooth animated arrow)
   // ─────────────────────────────────────────────────
   const toggleSection = (key: SectionKey) => {
+    const willCollapse = !collapsedSections[key];
+    // Animate the arrow rotation
+    Animated.spring(sectionArrowAnims[key], {
+      toValue: willCollapse ? 1 : 0,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 80,
+    }).start();
+    LayoutAnimation.configureNext({
+      duration: 300,
+      update: { type: LayoutAnimation.Types.easeInEaseOut },
+      delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+    });
+    setCollapsedSections((prev) => ({ ...prev, [key]: willCollapse }));
+  };
+
+  // ─────────────────────────────────────────────────
+  // FILTER SHEET CONTROLS
+  // ─────────────────────────────────────────────────
+  const openFilterSheet = () => {
+    setShowFilterSheet(true);
+    Animated.spring(filterSheetAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 9,
+      tension: 65,
+    }).start();
+  };
+
+  const closeFilterSheet = () => {
+    Animated.timing(filterSheetAnim, {
+      toValue: 0,
+      duration: 250,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => setShowFilterSheet(false));
+  };
+
+  const selectFilter = (key: FilterKey) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    setActiveFilter(key);
+    closeFilterSheet();
   };
 
   // ─────────────────────────────────────────────────
@@ -448,16 +564,20 @@ export default function OffersScreen() {
     } as any);
   };
 
-  const handleFilterChange = (key: FilterKey) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setActiveFilter(key);
-  };
+  /** Get active filter label for the pill in header */
+  const activeFilterLabel = useMemo(() => {
+    for (const section of FILTER_SECTIONS) {
+      const found = section.filters.find((f) => f.key === activeFilter);
+      if (found) return found.label;
+    }
+    return FILTER_SECTIONS[0].filters[0].label;
+  }, [activeFilter]);
 
   // ═══════════════════════════════════════════════════════════
   // SUB-COMPONENTS
   // ═══════════════════════════════════════════════════════════
 
-  // ━━━━━ COLLAPSIBLE SECTION HEADER ━━━━━
+  // ━━━━━ COLLAPSIBLE SECTION HEADER (Animated Arrow) ━━━━━
   const GroupHeader = ({
     icon,
     iconColor,
@@ -471,7 +591,11 @@ export default function OffersScreen() {
     count: number;
     sectionKey: SectionKey;
   }) => {
-    const collapsed = collapsedSections[sectionKey];
+    const arrowRotation = sectionArrowAnims[sectionKey].interpolate({
+      inputRange: [0, 1],
+      outputRange: ["0deg", "180deg"],
+    });
+
     return (
       <TouchableOpacity
         style={styles.groupHeader}
@@ -492,11 +616,9 @@ export default function OffersScreen() {
             <Text style={styles.groupCountText}>{count}</Text>
           </View>
         </View>
-        <Ionicons
-          name={collapsed ? "chevron-down" : "chevron-up"}
-          size={18}
-          color={Colors.neutralMedium}
-        />
+        <Animated.View style={{ transform: [{ rotate: arrowRotation }] }}>
+          <Ionicons name="chevron-up" size={18} color={Colors.neutralMedium} />
+        </Animated.View>
       </TouchableOpacity>
     );
   };
@@ -896,69 +1018,173 @@ export default function OffersScreen() {
     );
   };
 
-  // ━━━━━ FILTER CHIP ROW ━━━━━
-  const FilterChipRow = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.filterChipScroll}
-      contentContainerStyle={styles.filterChipContent}
+  // ━━━━━ FILTER BOTTOM SHEET ━━━━━
+  const sheetTranslateY = filterSheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SCREEN_HEIGHT * 0.55, 0],
+  });
+  const sheetBackdropOpacity = filterSheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const FilterBottomSheet = () => (
+    <Modal
+      visible={showFilterSheet}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={closeFilterSheet}
     >
-      {FILTER_CHIPS.map((chip) => {
-        const isActive = activeFilter === chip.key;
-        const count = getFilterCount(chip.key);
-        if (count === 0 && chip.key !== "all") return null;
-        return (
-          <TouchableOpacity
-            key={chip.key}
-            style={[
-              styles.filterChip,
-              isActive && {
-                backgroundColor: chip.color,
-                borderColor: chip.color,
-              },
-            ]}
-            onPress={() => handleFilterChange(chip.key)}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name={chip.icon as any}
-              size={13}
-              color={isActive ? Colors.neutralWhite : chip.color}
-            />
-            <Text
-              style={[
-                styles.filterChipLabel,
-                isActive && { color: Colors.neutralWhite },
-              ]}
+      {/* Backdrop */}
+      <Animated.View
+        style={[styles.filterOverlay, { opacity: sheetBackdropOpacity }]}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeFilterSheet} />
+      </Animated.View>
+
+      {/* Sheet */}
+      <Animated.View
+        style={[
+          styles.filterSheet,
+          { transform: [{ translateY: sheetTranslateY }] },
+        ]}
+      >
+        {/* Drag handle */}
+        <View style={styles.filterHandle} />
+
+        {/* Header */}
+        <View style={styles.filterSheetHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Ionicons name="options" size={20} color={Colors.primary900} />
+            <Text style={styles.filterSheetTitle}>Filter Deals</Text>
+          </View>
+          {activeFilter !== "all" && (
+            <TouchableOpacity
+              onPress={() => selectFilter("all")}
+              style={styles.filterResetBtn}
+              activeOpacity={0.7}
             >
-              {chip.label}
-            </Text>
-            {count > 0 && (
-              <View
-                style={[
-                  styles.filterChipCount,
-                  isActive
-                    ? { backgroundColor: "rgba(255,255,255,0.3)" }
-                    : { backgroundColor: chip.color + "15" },
-                ]}
+              <Ionicons name="refresh" size={14} color={Colors.accentRed} />
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: "Poppins-SemiBold",
+                  color: Colors.accentRed,
+                }}
               >
-                <Text
-                  style={[
-                    styles.filterChipCountText,
-                    isActive
-                      ? { color: Colors.neutralWhite }
-                      : { color: chip.color },
-                  ]}
-                >
-                  {count}
+                Reset
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Active pill indicator */}
+        {activeFilter !== "all" && (
+          <View style={styles.filterActivePill}>
+            <Ionicons
+              name="checkmark-circle"
+              size={14}
+              color={Colors.primary900}
+            />
+            <Text style={styles.filterActivePillText}>
+              Active: {activeFilterLabel}
+            </Text>
+          </View>
+        )}
+
+        {/* Sections */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 30 }}
+        >
+          {FILTER_SECTIONS.map((section) => (
+            <View key={section.title} style={styles.filterSectionBlock}>
+              <View style={styles.filterSectionHeader}>
+                <Text style={styles.filterSectionTitle}>{section.title}</Text>
+                <Text style={styles.filterSectionSubtitle}>
+                  {section.subtitle}
                 </Text>
               </View>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+              {section.filters.map((f) => {
+                const isActive = activeFilter === f.key;
+                const count = getFilterCount(f.key);
+                return (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[
+                      styles.filterOption,
+                      isActive && styles.filterOptionActive,
+                    ]}
+                    onPress={() => selectFilter(f.key)}
+                    activeOpacity={0.65}
+                  >
+                    <View
+                      style={[
+                        styles.filterOptionIcon,
+                        {
+                          backgroundColor: isActive
+                            ? f.color + "20"
+                            : f.color + "10",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={f.icon as any}
+                        size={16}
+                        color={f.color}
+                      />
+                    </View>
+                    <View style={styles.filterOptionInfo}>
+                      <Text
+                        style={[
+                          styles.filterOptionLabel,
+                          isActive && { color: Colors.primary900 },
+                        ]}
+                      >
+                        {f.label}
+                      </Text>
+                      <Text style={styles.filterOptionDesc}>
+                        {f.description}
+                      </Text>
+                    </View>
+                    {count > 0 && (
+                      <View
+                        style={[
+                          styles.filterOptionCount,
+                          isActive && {
+                            backgroundColor: Colors.primary900,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterOptionCountText,
+                            isActive && { color: Colors.neutralWhite },
+                          ]}
+                        >
+                          {count}
+                        </Text>
+                      </View>
+                    )}
+                    <View
+                      style={[
+                        styles.filterRadio,
+                        isActive && styles.filterRadioActive,
+                      ]}
+                    >
+                      {isActive && <View style={styles.filterRadioDot} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </ScrollView>
+      </Animated.View>
+    </Modal>
   );
 
   // ═══════════════════════════════════════════════════════════
@@ -1088,7 +1314,7 @@ export default function OffersScreen() {
             Discover promotions, coupons & exclusive deals
           </Text>
 
-          {/* Search */}
+          {/* Search + Filter Pill */}
           <View style={styles.searchBar}>
             <Ionicons name="search" size={18} color={Colors.neutralMedium} />
             <TextInput
@@ -1107,6 +1333,30 @@ export default function OffersScreen() {
                 />
               </TouchableOpacity>
             )}
+            <View style={styles.searchDivider} />
+            <TouchableOpacity
+              onPress={openFilterSheet}
+              style={[
+                styles.headerFilterBtn,
+                activeFilter !== "all" && styles.headerFilterBtnActive,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="options"
+                size={16}
+                color={
+                  activeFilter !== "all"
+                    ? Colors.neutralWhite
+                    : Colors.neutralMedium
+                }
+              />
+              {activeFilter !== "all" && (
+                <Text style={styles.headerFilterBtnText}>
+                  {activeFilterLabel}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         </LinearGradient>
       </View>
@@ -1127,8 +1377,8 @@ export default function OffersScreen() {
         <Animated.View
           style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
         >
-          {/* ═══════ Filter Chips ═══════ */}
-          <FilterChipRow />
+          {/* ═══════ Filter Bottom Sheet ═══════ */}
+          <FilterBottomSheet />
 
           {/* ═══════ Quick Stats ═══════ */}
           <View style={styles.statsRow}>
@@ -1322,7 +1572,7 @@ export default function OffersScreen() {
               {activeFilter !== "all" && (
                 <TouchableOpacity
                   style={styles.retryButton}
-                  onPress={() => handleFilterChange("all")}
+                  onPress={() => selectFilter("all")}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
@@ -1449,41 +1699,188 @@ const styles = StyleSheet.create({
     padding: 0,
   },
 
-  // ── Filter Chips ──
-  filterChipScroll: {
-    marginTop: 10,
-    marginBottom: 2,
+  // ── Filter Pill in Header ──
+  searchDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: Colors.neutralLight || "#E2E8F0",
+    marginHorizontal: 4,
   },
-  filterChipContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
+  headerFilterBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.neutralWhite,
-    borderWidth: 1.5,
-    borderColor: Colors.neutralLight || "#E2E8F0",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
     gap: 5,
+    backgroundColor: "transparent",
   },
-  filterChipLabel: {
+  headerFilterBtnActive: {
+    backgroundColor: Colors.primary900,
+  },
+  headerFilterBtnText: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralWhite,
+  },
+
+  // ── Filter Bottom Sheet ──
+  filterOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  filterSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    maxHeight: SCREEN_HEIGHT * 0.55,
+    backgroundColor: Colors.neutralWhite,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  filterHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.neutralLight || "#E2E8F0",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  filterSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutralLight || "#F1F5F9",
+  },
+  filterSheetTitle: {
+    fontSize: 18,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+  },
+  filterResetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: Colors.accentRed + "10",
+  },
+  filterActivePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.primary100 || "#F0FDF4",
+    borderRadius: 10,
+    alignSelf: "flex-start",
+  },
+  filterActivePillText: {
     fontSize: 12,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.primary900,
+  },
+  filterSectionBlock: {
+    marginTop: 14,
+    paddingHorizontal: 20,
+  },
+  filterSectionHeader: {
+    marginBottom: 8,
+  },
+  filterSectionTitle: {
+    fontSize: 13,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  filterSectionSubtitle: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralMedium,
+    marginTop: 1,
+  },
+  filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    marginBottom: 4,
+    backgroundColor: "transparent",
+  },
+  filterOptionActive: {
+    backgroundColor: Colors.primary100 || "#F0FDF4",
+  },
+  filterOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  filterOptionInfo: {
+    flex: 1,
+  },
+  filterOptionLabel: {
+    fontSize: 14,
     fontFamily: "Poppins-SemiBold",
     color: Colors.neutralCharcoal,
   },
-  filterChipCount: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 8,
-    minWidth: 20,
-    alignItems: "center",
+  filterOptionDesc: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralMedium,
+    marginTop: 1,
   },
-  filterChipCountText: {
-    fontSize: 10,
+  filterOptionCount: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.neutralLight || "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    marginRight: 10,
+  },
+  filterOptionCountText: {
+    fontSize: 11,
     fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+  },
+  filterRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.neutralLight || "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterRadioActive: {
+    borderColor: Colors.primary900,
+  },
+  filterRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.primary900,
   },
 
   // ── Stats Row ──

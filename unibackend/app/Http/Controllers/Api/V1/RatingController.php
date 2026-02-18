@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class RatingController extends Controller
 {
@@ -93,6 +94,10 @@ class RatingController extends Controller
             $this->updateUserAverageRating($order->driver_id, 'driver');
 
             DB::commit();
+
+            // Invalidate related caches
+            Cache::forget("rating:driver:{$orderId}");
+            Cache::forget("rating:can-rate-driver:{$user->id}:{$orderId}");
 
             return response()->json([
                 'success' => true,
@@ -211,33 +216,35 @@ class RatingController extends Controller
     public function canRateDriver(Request $request, int $orderId): JsonResponse
     {
         $user = Auth::user();
+        $cacheKey = "rating:can-rate-driver:{$user->id}:{$orderId}";
 
-        $order = Order::where('id', $orderId)
-            ->where('user_id', $user->id)
-            ->first();
+        $data = Cache::remember($cacheKey, 600, function () use ($user, $orderId) {
+            $order = Order::where('id', $orderId)
+                ->where('user_id', $user->id)
+                ->first();
 
-        if (!$order || $order->status !== 'delivered' || !$order->driver_id) {
-            return response()->json([
-                'success' => true,
-                'data' => ['can_rate' => false],
-            ]);
-        }
+            if (!$order || $order->status !== 'delivered' || !$order->driver_id) {
+                return ['can_rate' => false];
+            }
 
-        $alreadyRated = Review::where('order_id', $orderId)
-            ->where('user_id', $user->id)
-            ->where('rating_type', 'driver')
-            ->exists();
+            $alreadyRated = Review::where('order_id', $orderId)
+                ->where('user_id', $user->id)
+                ->where('rating_type', 'driver')
+                ->exists();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
+            return [
                 'can_rate' => !$alreadyRated,
                 'already_rated' => $alreadyRated,
                 'driver' => [
                     'id' => $order->driver_id,
                     'name' => $order->driver ? $order->driver->first_name . ' ' . $order->driver->last_name : null,
                 ],
-            ],
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
         ]);
     }
 
@@ -297,17 +304,22 @@ class RatingController extends Controller
             ], 404);
         }
 
-        $rating = Review::where('order_id', $orderId)
-            ->where('rating_type', 'driver')
-            ->first();
+        // Once a rating exists, it never changes — cache indefinitely (24h)
+        $ratingData = Cache::remember("rating:driver:{$orderId}", 86400, function () use ($orderId) {
+            $rating = Review::where('order_id', $orderId)
+                ->where('rating_type', 'driver')
+                ->first();
 
-        return response()->json([
-            'success' => true,
-            'data' => $rating ? [
+            return $rating ? [
                 'rating' => $rating->rating,
                 'comment' => $rating->comment,
                 'created_at' => $rating->created_at,
-            ] : null,
+            ] : null;
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $ratingData,
         ]);
     }
 

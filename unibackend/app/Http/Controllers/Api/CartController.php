@@ -38,7 +38,7 @@ class CartController extends Controller
         try {
             // Calculate cart total
             $cartTotal = $cart->items->sum(fn($item) => $item->price * $item->quantity);
-            
+
             CartReminder::updateOrCreate(
                 ['user_id' => $userId],
                 [
@@ -134,10 +134,13 @@ class CartController extends Controller
                 $request->quantity
             );
 
-            $cartDetails = $this->cartService->getCartDetails($cart->fresh(), null);
+            // Single refresh with eager loading — prevents 2x fresh() N+1
+            $cart = $cart->fresh(['items.product']);
+
+            $cartDetails = $this->cartService->getCartDetails($cart, null);
 
             // Update cart reminder for abandonment tracking
-            $this->updateCartReminder($userId, $cart->fresh());
+            $this->updateCartReminder($userId, $cart);
 
             return response()->json([
                 'success' => true,
@@ -192,7 +195,7 @@ class CartController extends Controller
 
             $this->cartService->updateItem($cartItem, $request->quantity);
 
-            $cartDetails = $this->cartService->getCartDetails($cart->fresh(), null);
+            $cartDetails = $this->cartService->getCartDetails($cart->fresh(['items.product']), null);
 
             return response()->json([
                 'success' => true,
@@ -232,7 +235,7 @@ class CartController extends Controller
             $this->cartService->removeItem($cartItem);
 
             // Return updated cart details
-            $cartDetails = $this->cartService->getCartDetails($cart->fresh(), null);
+            $cartDetails = $this->cartService->getCartDetails($cart->fresh(['items.product']), null);
 
             return response()->json([
                 'success' => true,

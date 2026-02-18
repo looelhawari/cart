@@ -769,7 +769,8 @@ export default {
     added: "added",
     failedToSave: "Failed to save address",
     // Map picker
-    locationPermissionDenied: "Location permission denied. Please enable it in settings.",
+    locationPermissionDenied:
+      "Location permission denied. Please enable it in settings.",
     pleaseSelectLocation: "Please select a location on the map",
     pickLocation: "Pick Location",
     moveMapToSelect: "Move the map to select a location",
@@ -892,6 +893,23 @@ export default {
     noResults: "No results found",
     tryDifferent: "Try searching with different keywords",
     searchResults: "Search Results",
+    trendingNow: "Trending Now",
+    topCategories: "Top Categories",
+    suggestions: "Suggestions",
+    products: "Products",
+    categories: "Categories",
+    offers: "Offers",
+    seeAll: "See All",
+    resultsFor: "Results for",
+    sortBy: "Sort By",
+    filters: "Filters",
+    relevance: "Relevance",
+    priceLowHigh: "Price: Low → High",
+    priceHighLow: "Price: High → Low",
+    mostPopular: "Most Popular",
+    newest: "Newest",
+    activeOffers: "Active Offers",
+    searchByCategory: "Search by Category",
   },
 
   // Checkout

@@ -8,6 +8,7 @@ use App\Services\DeliveryZoneService;
 use App\Services\GeoHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Customer-facing delivery zone controller.
@@ -26,29 +27,31 @@ class DeliveryZoneController extends Controller
 
     /**
      * Get all active delivery zones (for map display).
-     * Returns zones with polygon data for customer-facing map overlay.
+     * Cached for 30 minutes — polygon data is heavy and rarely changes.
      */
     public function index(): JsonResponse
     {
-        $zones = DeliveryZone::active()
-            ->withPolygon()
-            ->ordered()
-            ->get()
-            ->map(fn($zone) => [
-                'id'                     => $zone->id,
-                'name'                   => $zone->name,
-                'name_ar'                => $zone->name_ar,
-                'city'                   => $zone->city,
-                'area'                   => $zone->area,
-                'polygon_coordinates'    => $zone->polygon_coordinates,
-                'center_lat'             => $zone->center_lat,
-                'center_lng'             => $zone->center_lng,
-                'color'                  => $zone->color,
-                'opacity'                => $zone->opacity,
-                'delivery_fee'           => $zone->getEffectiveDeliveryFee(),
-                'minimum_order'          => (float) $zone->minimum_order,
-                'estimated_delivery_time' => $zone->estimated_delivery_time,
-            ]);
+        $zones = Cache::remember('zones:active:all', 1800, function () {
+            return DeliveryZone::active()
+                ->withPolygon()
+                ->ordered()
+                ->get()
+                ->map(fn($zone) => [
+                    'id'                     => $zone->id,
+                    'name'                   => $zone->name,
+                    'name_ar'                => $zone->name_ar,
+                    'city'                   => $zone->city,
+                    'area'                   => $zone->area,
+                    'polygon_coordinates'    => $zone->polygon_coordinates,
+                    'center_lat'             => $zone->center_lat,
+                    'center_lng'             => $zone->center_lng,
+                    'color'                  => $zone->color,
+                    'opacity'                => $zone->opacity,
+                    'delivery_fee'           => $zone->getEffectiveDeliveryFee(),
+                    'minimum_order'          => (float) $zone->minimum_order,
+                    'estimated_delivery_time' => $zone->estimated_delivery_time,
+                ]);
+        });
 
         return response()->json([
             'success' => true,
