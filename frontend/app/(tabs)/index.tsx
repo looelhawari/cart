@@ -32,6 +32,8 @@ import {
 } from "@/services/api/categoryApi";
 import type { Product, Category } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
+import type { Offer } from "@/services/api/types";
+import { fetchActiveOffersCached } from "@/utils/offerPricing";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { useResponsive } from "@/hooks/useResponsive";
 
@@ -142,6 +144,10 @@ export default function HomeScreen() {
   const [categoriesWithProducts, setCategoriesWithProducts] = useState<
     CategoryWithProducts[]
   >([]);
+  // Map category ID → best discount percentage for badge display on quick categories
+  const [categoryDiscounts, setCategoryDiscounts] = useState<
+    Map<number, number>
+  >(new Map());
 
   // Page-level toast state for add-to-cart feedback
   const [showToast, setShowToast] = useState(false);
@@ -184,6 +190,52 @@ export default function HomeScreen() {
     }
   }, [isAuthenticated]);
 
+  /**
+   * Fetch active offers and compute which quick categories have discounts.
+   */
+  const loadCategoryOffers = async (
+    allCategories: Category[],
+    displayCats: Category[],
+  ) => {
+    try {
+      const offers = await fetchActiveOffersCached();
+      const discountMap = new Map<number, number>();
+
+      for (const offer of offers) {
+        if (offer.status !== "active") continue;
+        if (offer.applies_to !== "category") continue;
+        if (offer.type !== "percentage" && offer.type !== "fixed_amount")
+          continue;
+
+        for (const target of offer.targets.categories) {
+          // Direct match: target IS one of the displayed categories
+          const directMatch = displayCats.find((c) => c.id === target.id);
+          if (directMatch && offer.type === "percentage") {
+            const existing = discountMap.get(directMatch.id) || 0;
+            if (offer.value > existing)
+              discountMap.set(directMatch.id, offer.value);
+          }
+
+          // Subcategory match: target is a child of a displayed root category
+          if (target.include_subcategories) {
+            const parentMatch = displayCats.find((c) =>
+              c.subcategories?.some((sub: any) => sub.id === target.id),
+            );
+            if (parentMatch && offer.type === "percentage") {
+              const existing = discountMap.get(parentMatch.id) || 0;
+              if (offer.value > existing)
+                discountMap.set(parentMatch.id, offer.value);
+            }
+          }
+        }
+      }
+
+      setCategoryDiscounts(discountMap);
+    } catch (_err) {
+      // Silently fail — badges are optional enhancement
+    }
+  };
+
   const loadData = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
@@ -200,7 +252,10 @@ export default function HomeScreen() {
         setCategoriesWithProducts(categoriesRes.data.categories);
       }
       if (allCategoriesRes.success) {
-        setQuickCategories(allCategoriesRes.data.categories.slice(0, 8));
+        const rootCats = allCategoriesRes.data.categories.slice(0, 8);
+        setQuickCategories(rootCats);
+        // Load discount badges for quick categories
+        loadCategoryOffers(allCategoriesRes.data.categories, rootCats);
       }
       if (featuredRes.success) {
         setFeaturedProducts(featuredRes.data.products);
@@ -620,6 +675,7 @@ export default function HomeScreen() {
           >
             {displayCategories.map((cat) => {
               const iconInfo = getCategoryIcon(cat.slug || "");
+              const discount = categoryDiscounts.get(cat.id);
               return (
                 <TouchableOpacity
                   key={cat.id}
@@ -627,16 +683,25 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/categories/${cat.id}` as any)}
                   activeOpacity={0.85}
                 >
-                  <LinearGradient
-                    colors={iconInfo.gradient}
-                    style={styles.categoryIconContainer}
-                  >
-                    <Ionicons
-                      name={iconInfo.icon}
-                      size={26}
-                      color={iconInfo.color}
-                    />
-                  </LinearGradient>
+                  <View style={{ position: "relative" }}>
+                    <LinearGradient
+                      colors={iconInfo.gradient}
+                      style={styles.categoryIconContainer}
+                    >
+                      <Ionicons
+                        name={iconInfo.icon}
+                        size={26}
+                        color={iconInfo.color}
+                      />
+                    </LinearGradient>
+                    {discount && discount > 0 && (
+                      <View style={styles.categoryDiscountBadge}>
+                        <Text style={styles.categoryDiscountText}>
+                          {discount}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.categoryName} numberOfLines={1}>
                     {getName(cat)}
                   </Text>
@@ -1164,6 +1229,28 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Medium",
     color: Colors.neutralCharcoal,
     textAlign: "center",
+  },
+  categoryDiscountBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.accentRed,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 28,
+    alignItems: "center",
+    shadowColor: Colors.accentRed,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  categoryDiscountText: {
+    fontSize: 9,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+    letterSpacing: 0.2,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

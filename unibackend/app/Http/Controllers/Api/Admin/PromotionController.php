@@ -18,7 +18,7 @@ class PromotionController extends Controller
     protected PushNotificationService $pushNotificationService;
 
     public function __construct(
-        PromotionService $promotionService, 
+        PromotionService $promotionService,
         CloudinaryService $cloudinaryService,
         PushNotificationService $pushNotificationService
     ) {
@@ -51,7 +51,7 @@ class PromotionController extends Controller
                 });
             }
 
-            $promotions = $request->has('per_page') 
+            $promotions = $request->has('per_page')
                 ? $query->paginate($request->input('per_page', 20))
                 : $query->get();
 
@@ -131,13 +131,19 @@ class PromotionController extends Controller
             }
 
             // Attach categories
-            if ($request->has('category_ids') && $request->input('applies_to') === 'category') {
-                $promotion->categories()->attach($request->input('category_ids'));
+            if ($request->input('applies_to') === 'category') {
+                $categoryIds = array_filter((array) $request->input('category_ids', []), fn($v) => !empty($v));
+                if (!empty($categoryIds)) {
+                    $promotion->categories()->attach($categoryIds);
+                }
             }
 
             // Attach products
-            if ($request->has('product_barcodes') && $request->input('applies_to') === 'products') {
-                $promotion->products()->attach($request->input('product_barcodes'));
+            if ($request->input('applies_to') === 'products') {
+                $productBarcodes = array_filter((array) $request->input('product_barcodes', []), fn($v) => !empty($v));
+                if (!empty($productBarcodes)) {
+                    $promotion->products()->attach($productBarcodes);
+                }
             }
 
             // Apply promotion to products if active
@@ -244,7 +250,7 @@ class PromotionController extends Controller
                 if ($promotion->image_url) {
                     $this->cloudinaryService->deleteImage($promotion->image_url);
                 }
-                
+
                 $result = $this->cloudinaryService->uploadImage(
                     $request->file('image'),
                     'promotions'
@@ -257,7 +263,7 @@ class PromotionController extends Controller
                 if ($promotion->banner_image_url) {
                     $this->cloudinaryService->deleteImage($promotion->banner_image_url);
                 }
-                
+
                 $result = $this->cloudinaryService->uploadImage(
                     $request->file('banner_image'),
                     'promotions/banners'
@@ -265,14 +271,22 @@ class PromotionController extends Controller
                 $promotion->update(['banner_image_url' => $result['url']]);
             }
 
-            // Update categories
-            if ($request->has('category_ids')) {
-                $promotion->categories()->sync($request->input('category_ids', []));
-            }
-
-            // Update products
-            if ($request->has('product_barcodes')) {
-                $promotion->products()->sync($request->input('product_barcodes', []));
+            // Update categories — always sync when applies_to is provided
+            $appliesTo = $request->input('applies_to', $promotion->applies_to);
+            if ($appliesTo === 'category') {
+                $categoryIds = array_filter((array) $request->input('category_ids', []), fn($v) => !empty($v));
+                $promotion->categories()->sync($categoryIds);
+                // Clear products if scope changed to category
+                $promotion->products()->sync([]);
+            } elseif ($appliesTo === 'products') {
+                $productBarcodes = array_filter((array) $request->input('product_barcodes', []), fn($v) => !empty($v));
+                $promotion->products()->sync($productBarcodes);
+                // Clear categories if scope changed to products
+                $promotion->categories()->sync([]);
+            } elseif ($appliesTo === 'all') {
+                // Clear both when scope is "all"
+                $promotion->categories()->sync([]);
+                $promotion->products()->sync([]);
             }
 
             // Reapply or remove promotion from products
@@ -306,7 +320,7 @@ class PromotionController extends Controller
     {
         try {
             $promotion = Promotion::findOrFail($id);
-            
+
             DB::beginTransaction();
 
             // Remove promotion from products

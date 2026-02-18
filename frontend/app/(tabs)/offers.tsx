@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -8,85 +14,290 @@ import {
   RefreshControl,
   Image,
   Animated,
-  Dimensions,
   TextInput,
   InteractionManager,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { Clock, ChevronRight, AlertCircle } from "lucide-react-native";
-import { useResponsive } from "@/hooks/useResponsive";
+import { AlertCircle } from "lucide-react-native";
+import * as ExpoClipboard from "expo-clipboard";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import type { Promotion } from "@/types/promotion";
+import type { Offer, OfferBogoRule } from "@/services/api/types";
 import { getPromotions } from "@/services/api/promotionApi";
+import { getOffers, getOffersSummary } from "@/services/api/offersApi";
 import Colors from "@/constants/Colors";
-import Spacing from "@/constants/Spacing";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
-type FilterType = "all" | "category" | "products";
+// Enable LayoutAnimation on Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// ═══════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════
+type SectionKey =
+  | "featured"
+  | "automatic"
+  | "percentage"
+  | "fixed_amount"
+  | "free_delivery"
+  | "bogo";
 
+type FilterKey =
+  | "all"
+  | "promotions"
+  | "coupons"
+  | "percentage"
+  | "fixed_amount"
+  | "free_delivery"
+  | "bogo";
+
+// ═══════════════════════════════════════════════════════════
+// FILTER CHIP DATA
+// ═══════════════════════════════════════════════════════════
+const FILTER_CHIPS: {
+  key: FilterKey;
+  label: string;
+  icon: string;
+  color: string;
+}[] = [
+  { key: "all", label: "All Deals", icon: "apps", color: Colors.primary900 },
+  {
+    key: "promotions",
+    label: "Auto Discounts",
+    icon: "flash",
+    color: Colors.primary900,
+  },
+  { key: "coupons", label: "Promo Codes", icon: "ticket", color: "#D97706" },
+  { key: "percentage", label: "% Off", icon: "pricetag", color: "#7C3AED" },
+  { key: "fixed_amount", label: "EGP Off", icon: "cash", color: "#0284C7" },
+  {
+    key: "free_delivery",
+    label: "Free Delivery",
+    icon: "car",
+    color: Colors.primary900,
+  },
+  { key: "bogo", label: "BOGO", icon: "gift", color: "#DB2777" },
+];
+
+// ═══════════════════════════════════════════════════════════
+// COLOR MAP PER OFFER TYPE
+// ═══════════════════════════════════════════════════════════
+const TYPE_THEME: Record<
+  string,
+  {
+    accent: string;
+    bg: string;
+    icon: string;
+    label: string;
+    gradient: [string, string];
+  }
+> = {
+  percentage: {
+    accent: "#7C3AED",
+    bg: "#F5F3FF",
+    icon: "pricetag",
+    label: "% Discount",
+    gradient: ["#7C3AED", "#5B21B6"],
+  },
+  fixed_amount: {
+    accent: "#0284C7",
+    bg: "#F0F9FF",
+    icon: "cash",
+    label: "Fixed Discount",
+    gradient: ["#0284C7", "#0369A1"],
+  },
+  free_delivery: {
+    accent: Colors.primary900,
+    bg: Colors.primary100 || "#F0FDF4",
+    icon: "car",
+    label: "Free Delivery",
+    gradient: [Colors.primary900, Colors.primary800 || "#15803d"],
+  },
+  bogo: {
+    accent: "#DB2777",
+    bg: "#FDF2F8",
+    icon: "gift",
+    label: "Buy 1 Get 1",
+    gradient: ["#DB2777", "#BE185D"],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+
+/** Build a specific scope string like "20% OFF on Dairy Products" */
+const buildScopeDescription = (offer: Offer): string => {
+  const valueStr =
+    offer.type === "percentage"
+      ? `${offer.value}% OFF`
+      : offer.type === "fixed_amount"
+        ? `${offer.value} EGP OFF`
+        : offer.type === "free_delivery"
+          ? "FREE DELIVERY"
+          : "BUY 1 GET 1 FREE";
+
+  if (offer.applies_to === "order") {
+    return `${valueStr} on Your Entire Order`;
+  }
+  if (
+    offer.applies_to === "category" &&
+    offer.targets?.categories?.length > 0
+  ) {
+    const names = offer.targets.categories.map((c) => c.name_en);
+    if (names.length <= 2) {
+      return `${valueStr} on ${names.join(" & ")}`;
+    }
+    return `${valueStr} on ${names.length} Selected Categories`;
+  }
+  if (offer.applies_to === "product" && offer.targets?.products?.length > 0) {
+    if (offer.targets.products.length === 1) {
+      return `${valueStr} on ${offer.targets.products[0].name_en}`;
+    }
+    return `${valueStr} on ${offer.targets.products.length} Selected Items`;
+  }
+  return valueStr;
+};
+
+/** Build promotion scope string */
+const buildPromoScope = (promo: Promotion): string => {
+  const valueStr =
+    promo.discount_type === "percentage"
+      ? `${promo.discount_value}% OFF`
+      : promo.discount_type === "fixed"
+        ? `${promo.discount_value} EGP OFF`
+        : "BUY X GET Y";
+
+  if (promo.applies_to === "all") return `${valueStr} on All Products`;
+  if (promo.applies_to === "category" && promo.categories?.length) {
+    if (promo.categories.length <= 2) {
+      return `${valueStr} on ${promo.categories.map((c: any) => c.name_en || c.name || c).join(" & ")}`;
+    }
+    return `${valueStr} on ${promo.categories.length} Categories`;
+  }
+  if (promo.applies_to === "products") {
+    return `${valueStr} on ${promo.products_count || "Selected"} Products`;
+  }
+  return valueStr;
+};
+
+/** Format remaining time as "Xd Xh" or "Xh Xm" */
+const formatTimeRemaining = (dateStr: string): string | null => {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  if (diff <= 0) return null;
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (days > 0) return `${days}d ${hours}h left`;
+  if (hours > 0) return `${hours}h ${mins}m left`;
+  return `${mins}m left`;
+};
+
+// ═══════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════
 export default function OffersScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { getName, getDescription } = useLocalizedValue();
-  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
+  useLocalizedValue();
 
-  const [allPromotions, setAllPromotions] = useState<Promotion[]>([]);
+  // ── State ──
   const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [featuredPromotion, setFeaturedPromotion] = useState<Promotion | null>(
-    null,
-  );
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<FilterType>("all");
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<SectionKey, boolean>
+  >({
+    featured: false,
+    automatic: false,
+    percentage: false,
+    fixed_amount: false,
+    free_delivery: false,
+    bogo: false,
+  });
+  const [summary, setSummary] = useState<{
+    active_count: number;
+    ending_soon_count: number;
+    eligible_count: number;
+    max_percentage?: number | null;
+  } | null>(null);
 
-  // Animation values
+  // ── Animations ──
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Start pulse animation for featured badge
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, []);
+  // ─────────────────────────────────────────────────
+  // DATA LOADING
+  // ─────────────────────────────────────────────────
+  const loadData = useCallback(async () => {
+    try {
+      if (!refreshing) {
+        setLoading(true);
+        setError(null);
+        fadeAnim.setValue(0);
+        slideAnim.setValue(30);
+      }
 
-  // Load promotions on mount (after navigation animation)
+      const [promoRes, offersRes, summaryRes] = await Promise.all([
+        getPromotions({}).catch(() => ({
+          success: false,
+          data: { promotions: [] as Promotion[] },
+        })),
+        getOffers({ status: "active", sort: "recommended" }).catch(() => ({
+          success: false,
+          data: { offers: [] as Offer[], meta: { count: 0 } },
+        })),
+        getOffersSummary().catch(() => null),
+      ]);
+
+      if (promoRes.success) {
+        setPromotions(promoRes.data.promotions || []);
+      }
+      if (offersRes.success) {
+        setOffers(offersRes.data.offers || []);
+      }
+      if (summaryRes?.success) {
+        setSummary(summaryRes.data);
+      }
+
+      if (!promoRes.success && !offersRes.success) {
+        setError("Unable to load offers at the moment");
+      }
+    } catch (err: any) {
+      console.error("Failed to load offers:", err);
+      setError(err.message || "Unable to load offers. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshing]);
+
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
-      loadPromotions();
+      loadData();
     });
     return () => task.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter promotions dynamically
-  useEffect(() => {
-    filterPromotions(filter);
-  }, [filter, allPromotions, searchQuery]);
-
-  // Animate content when loading completes
   useEffect(() => {
     if (!loading && !error) {
       Animated.parallel([
@@ -102,238 +313,657 @@ export default function OffersScreen() {
         }),
       ]).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error]);
-
-  const filterPromotions = (currentFilter: FilterType) => {
-    let filtered = allPromotions;
-
-    // Filter by type
-    if (currentFilter !== "all") {
-      filtered = allPromotions.filter(
-        (p: Promotion) => p.applies_to === currentFilter,
-      );
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (p: Promotion) =>
-          p.title?.toLowerCase().includes(query) ||
-          p.description?.toLowerCase().includes(query),
-      );
-    }
-
-    const featured = filtered.find((p: Promotion) => p.is_featured);
-    if (featured) {
-      setFeaturedPromotion(featured);
-      setPromotions(filtered.filter((p: Promotion) => p.id !== featured.id));
-    } else if (filtered.length > 0) {
-      setFeaturedPromotion(filtered[0]);
-      setPromotions(filtered.slice(1));
-    } else {
-      setFeaturedPromotion(null);
-      setPromotions([]);
-    }
-  };
-
-  const loadPromotions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      fadeAnim.setValue(0);
-      slideAnim.setValue(30);
-
-      const response = await getPromotions({});
-      if (response.success) {
-        const fetchedPromotions = response.data.promotions || [];
-        setAllPromotions(fetchedPromotions);
-      } else {
-        setError("Unable to load offers at the moment");
-      }
-    } catch (err: any) {
-      console.error("Failed to load promotions:", err);
-      setError(err.message || "Unable to load offers. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadPromotions();
+    await loadData();
     setRefreshing(false);
-  }, []);
+  }, [loadData]);
+
+  // ─────────────────────────────────────────────────
+  // SECTION TOGGLE
+  // ─────────────────────────────────────────────────
+  const toggleSection = (key: SectionKey) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // ─────────────────────────────────────────────────
+  // FILTERING & GROUPING
+  // ─────────────────────────────────────────────────
+  const q = searchQuery.toLowerCase().trim();
+
+  const featuredPromotion = useMemo(
+    () => promotions.find((p) => p.is_featured) || null,
+    [promotions],
+  );
+
+  /** Should we show promotions at all given the active filter? */
+  const showPromotions =
+    activeFilter === "all" || activeFilter === "promotions";
+  const showCoupons =
+    activeFilter === "all" ||
+    activeFilter === "coupons" ||
+    activeFilter === "percentage" ||
+    activeFilter === "fixed_amount" ||
+    activeFilter === "free_delivery" ||
+    activeFilter === "bogo";
+
+  const automaticPromotions = useMemo(() => {
+    if (!showPromotions) return [];
+    let list = promotions.filter(
+      (p) => !p.is_featured || promotions.length <= 1,
+    );
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.title?.toLowerCase().includes(q) ||
+          p.title_ar?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [promotions, q, showPromotions]);
+
+  const groupedOffers = useMemo(() => {
+    const groups: Record<string, Offer[]> = {
+      percentage: [],
+      fixed_amount: [],
+      free_delivery: [],
+      bogo: [],
+    };
+    if (!showCoupons) return groups;
+
+    // When a specific type filter is active, only show that type
+    const typeFilter =
+      activeFilter === "percentage" ||
+      activeFilter === "fixed_amount" ||
+      activeFilter === "free_delivery" ||
+      activeFilter === "bogo"
+        ? activeFilter
+        : null;
+
+    for (const offer of offers) {
+      if (q) {
+        const match =
+          offer.code?.toLowerCase().includes(q) ||
+          offer.title?.toLowerCase().includes(q) ||
+          offer.subtitle?.toLowerCase().includes(q);
+        if (!match) continue;
+      }
+      if (typeFilter && offer.type !== typeFilter) continue;
+      if (groups[offer.type]) {
+        groups[offer.type].push(offer);
+      }
+    }
+    return groups;
+  }, [offers, q, showCoupons, activeFilter]);
+
+  const totalDealsCount = promotions.length + offers.length;
+
+  /** Get count for a filter chip */
+  const getFilterCount = useCallback(
+    (key: FilterKey): number => {
+      switch (key) {
+        case "all":
+          return promotions.length + offers.length;
+        case "promotions":
+          return promotions.length;
+        case "coupons":
+          return offers.length;
+        case "percentage":
+          return offers.filter((o) => o.type === "percentage").length;
+        case "fixed_amount":
+          return offers.filter((o) => o.type === "fixed_amount").length;
+        case "free_delivery":
+          return offers.filter((o) => o.type === "free_delivery").length;
+        case "bogo":
+          return offers.filter((o) => o.type === "bogo").length;
+        default:
+          return 0;
+      }
+    },
+    [promotions.length, offers],
+  );
+
+  // ─────────────────────────────────────────────────
+  // ACTIONS
+  // ─────────────────────────────────────────────────
+  const handleCopyCode = async (code: string) => {
+    await ExpoClipboard.setStringAsync(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
 
   const navigateToPromotion = (id: number) => {
     router.push(`/promotions/${id}` as any);
   };
 
-  // Dynamic styles
-  const dynamicStyles = StyleSheet.create({
-    heroCard: {
-      marginHorizontal: 16,
-      borderRadius: 20,
-      overflow: "hidden",
-      marginBottom: 20,
-      shadowColor: Colors.primary900,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.2,
-      shadowRadius: 12,
-      elevation: 8,
-    },
-    heroImage: {
-      width: "100%",
-      height: isSmallDevice ? 180 : 220,
-    },
-    heroOverlay: {
-      position: "absolute",
-      bottom: 0,
-      left: 0,
-      right: 0,
-      padding: 16,
-    },
-    promotionCard: {
-      backgroundColor: Colors.neutralWhite,
-      borderRadius: 18,
-      overflow: "hidden",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 3,
-    },
-    cardImage: {
-      width: "100%",
-      height: isSmallDevice ? 100 : 120,
-      backgroundColor: Colors.neutralLight,
-    },
-  });
+  const navigateToOfferDetail = (offer: Offer) => {
+    router.push({
+      pathname: "/offers/[id]",
+      params: { id: String(offer.id), offerData: JSON.stringify(offer) },
+    } as any);
+  };
 
-  // Filter Chip Component
-  const FilterChip = ({
-    label,
-    value,
-    iconName,
+  const handleFilterChange = (key: FilterKey) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setActiveFilter(key);
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  // SUB-COMPONENTS
+  // ═══════════════════════════════════════════════════════════
+
+  // ━━━━━ COLLAPSIBLE SECTION HEADER ━━━━━
+  const GroupHeader = ({
+    icon,
+    iconColor,
+    title,
+    count,
+    sectionKey,
   }: {
-    label: string;
-    value: FilterType;
-    iconName: keyof typeof Ionicons.glyphMap;
+    icon: string;
+    iconColor: string;
+    title: string;
+    count: number;
+    sectionKey: SectionKey;
   }) => {
-    const isActive = filter === value;
+    const collapsed = collapsedSections[sectionKey];
     return (
       <TouchableOpacity
-        style={[styles.filterChip, isActive && styles.filterChipActive]}
-        onPress={() => setFilter(value)}
+        style={styles.groupHeader}
+        onPress={() => toggleSection(sectionKey)}
         activeOpacity={0.7}
       >
+        <View style={styles.groupHeaderLeft}>
+          <View
+            style={[
+              styles.groupIconWrap,
+              { backgroundColor: iconColor + "18" },
+            ]}
+          >
+            <Ionicons name={icon as any} size={16} color={iconColor} />
+          </View>
+          <Text style={styles.groupTitle}>{title}</Text>
+          <View style={styles.groupCountPill}>
+            <Text style={styles.groupCountText}>{count}</Text>
+          </View>
+        </View>
         <Ionicons
-          name={iconName}
-          size={16}
-          color={isActive ? Colors.neutralWhite : Colors.neutralMedium}
+          name={collapsed ? "chevron-down" : "chevron-up"}
+          size={18}
+          color={Colors.neutralMedium}
         />
-        <Text
-          style={[
-            styles.filterChipText,
-            isActive && styles.filterChipTextActive,
-          ]}
-        >
-          {label}
-        </Text>
       </TouchableOpacity>
     );
   };
 
-  // Offer Card Component
-  const OfferCard = ({
-    promotion,
-    index,
-  }: {
-    promotion: Promotion;
-    index: number;
-  }) => {
-    const getDiscountText = () => {
-      if (promotion.discount_type === "percentage") {
-        return `${promotion.discount_value}%`;
-      } else if (promotion.discount_type === "fixed") {
-        return `${promotion.discount_value} EGP`;
-      }
-      return "OFFER";
-    };
+  // ━━━━━ FEATURED PROMOTION HERO ━━━━━
+  const FeaturedHeroCard = ({ promo }: { promo: Promotion }) => {
+    const scope = buildPromoScope(promo);
 
     return (
-      <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [
-            {
-              translateY: slideAnim.interpolate({
-                inputRange: [0, 30],
-                outputRange: [0, 30 + index * 8],
-              }),
-            },
-          ],
-        }}
+      <TouchableOpacity
+        style={styles.heroCard}
+        onPress={() => navigateToPromotion(promo.id)}
+        activeOpacity={0.92}
       >
-        <TouchableOpacity
-          style={dynamicStyles.promotionCard}
-          onPress={() => navigateToPromotion(promotion.id)}
-          activeOpacity={0.85}
+        {promo.banner_image_url || promo.image_url ? (
+          <Image
+            source={{ uri: promo.banner_image_url || promo.image_url }}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={[Colors.primary900, Colors.primary800 || "#15803d"]}
+            style={styles.heroImage}
+          />
+        )}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.85)"]}
+          style={styles.heroOverlay}
         >
-          <View>
-            <Image
-              source={{
-                uri: promotion.image_url || promotion.banner_image_url,
-              }}
-              style={dynamicStyles.cardImage}
-              resizeMode="cover"
-            />
-            <LinearGradient
-              colors={[Colors.primary900, Colors.primary700]}
-              style={styles.discountBadge}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Ionicons name="flash" size={12} color={Colors.neutralWhite} />
-              <Text style={styles.discountText}>{getDiscountText()}</Text>
-            </LinearGradient>
-            {promotion.is_featured && (
-              <Animated.View
-                style={[
-                  styles.featuredTag,
-                  { transform: [{ scale: pulseAnim }] },
-                ]}
-              >
-                <Ionicons name="star" size={10} color={Colors.accentYellow} />
-              </Animated.View>
-            )}
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {promotion.title}
-            </Text>
-            <Text style={styles.cardDescription} numberOfLines={2}>
-              {promotion.description || "Exclusive offer - Don't miss out!"}
-            </Text>
-            {promotion.end_date && (
-              <View style={styles.timerRow}>
-                <View style={styles.timerIconBg}>
-                  <Clock size={10} color={Colors.accentOrange} />
-                </View>
-                <CountdownTimer endDate={promotion.end_date} compact />
-              </View>
-            )}
-            <View style={styles.viewDealButton}>
-              <Text style={styles.viewDealText}>{"View Deal"}</Text>
-              <ChevronRight size={14} color={Colors.primary900} />
+          <View style={styles.heroBadgeRow}>
+            <View style={styles.heroBadge}>
+              <Ionicons name="sparkles" size={11} color={Colors.accentYellow} />
+              <Text style={styles.heroBadgeText}>Featured</Text>
             </View>
           </View>
-        </TouchableOpacity>
-      </Animated.View>
+          <Text style={styles.heroScope}>{scope}</Text>
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {promo.title}
+          </Text>
+          {promo.end_date && (
+            <View style={styles.heroTimerRow}>
+              <CountdownTimer endDate={promo.end_date} compact light />
+            </View>
+          )}
+          <View style={styles.heroCTA}>
+            <Text style={styles.heroCTAText}>View Products</Text>
+            <Ionicons
+              name="arrow-forward"
+              size={14}
+              color={Colors.neutralWhite}
+            />
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
     );
   };
 
-  // Error State
+  // ━━━━━ AUTOMATIC PROMOTION CARD ━━━━━
+  const AutoPromoCard = ({ promo }: { promo: Promotion }) => {
+    const scope = buildPromoScope(promo);
+    const badgeText =
+      promo.discount_type === "percentage"
+        ? `${promo.discount_value}%`
+        : promo.discount_type === "fixed"
+          ? `${promo.discount_value}`
+          : "BXGY";
+    const badgeUnit =
+      promo.discount_type === "percentage"
+        ? "OFF"
+        : promo.discount_type === "fixed"
+          ? "EGP OFF"
+          : "";
+
+    return (
+      <TouchableOpacity
+        style={styles.autoPromoCard}
+        onPress={() => navigateToPromotion(promo.id)}
+        activeOpacity={0.85}
+      >
+        {/* Left: Value block */}
+        <LinearGradient
+          colors={[Colors.primary900, Colors.primary700 || "#22c55e"]}
+          style={styles.autoPromoLeft}
+        >
+          <Text style={styles.autoPromoValue}>{badgeText}</Text>
+          {badgeUnit ? (
+            <Text style={styles.autoPromoUnit}>{badgeUnit}</Text>
+          ) : null}
+        </LinearGradient>
+
+        {/* Right: Info */}
+        <View style={styles.autoPromoRight}>
+          <Text style={styles.autoPromoScope} numberOfLines={2}>
+            {scope}
+          </Text>
+          {promo.description ? (
+            <Text style={styles.autoPromoDesc} numberOfLines={1}>
+              {promo.description}
+            </Text>
+          ) : null}
+
+          {/* Meta row */}
+          <View style={styles.autoPromoMeta}>
+            {promo.min_purchase ? (
+              <View style={styles.metaChip}>
+                <Ionicons
+                  name="cart-outline"
+                  size={10}
+                  color={Colors.neutralMedium}
+                />
+                <Text style={styles.metaChipText}>
+                  Min. {promo.min_purchase} EGP
+                </Text>
+              </View>
+            ) : null}
+            {promo.end_date && (
+              <View style={styles.metaChip}>
+                <Ionicons
+                  name="time-outline"
+                  size={10}
+                  color={Colors.accentOrange}
+                />
+                <Text
+                  style={[styles.metaChipText, { color: Colors.accentOrange }]}
+                >
+                  {formatTimeRemaining(promo.end_date) || "Ending soon"}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* CTA */}
+          <View style={styles.autoPromoCTA}>
+            <Text style={styles.autoPromoCTAText}>View Products</Text>
+            <Ionicons
+              name="arrow-forward"
+              size={12}
+              color={Colors.primary900}
+            />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // ━━━━━ COUPON CARD — Enterprise Design V2 ━━━━━
+  const CouponCard = ({ offer }: { offer: Offer }) => {
+    const theme = TYPE_THEME[offer.type] || TYPE_THEME.percentage;
+    const isCopied = copiedCode === offer.code;
+    const scope = buildScopeDescription(offer);
+
+    // Value display
+    const valueDisplay = (): { main: string; unit: string } => {
+      switch (offer.type) {
+        case "percentage":
+          return { main: `${offer.value}%`, unit: "OFF" };
+        case "fixed_amount":
+          return { main: `${offer.value}`, unit: "EGP OFF" };
+        case "free_delivery":
+          return { main: "FREE", unit: "DELIVERY" };
+        case "bogo":
+          return { main: "B1G1", unit: "FREE" };
+        default:
+          return { main: `${offer.value}`, unit: "OFF" };
+      }
+    };
+    const { main: valMain, unit: valUnit } = valueDisplay();
+
+    // Scope badge label
+    const scopeLabel =
+      offer.applies_to === "order"
+        ? "Entire Order"
+        : offer.applies_to === "category"
+          ? `${offer.targets?.categories?.length || 0} ${(offer.targets?.categories?.length || 0) === 1 ? "Category" : "Categories"}`
+          : offer.applies_to === "product"
+            ? `${offer.targets?.products?.length || 0} ${(offer.targets?.products?.length || 0) === 1 ? "Product" : "Products"}`
+            : "All Items";
+
+    const scopeIcon =
+      offer.applies_to === "order"
+        ? "cart"
+        : offer.applies_to === "category"
+          ? "grid"
+          : offer.applies_to === "product"
+            ? "cube"
+            : "apps";
+
+    // Restrictions
+    const restrictions: string[] = [];
+    if (offer.minimum_order > 0)
+      restrictions.push(`Min. ${offer.minimum_order} EGP`);
+    if (offer.maximum_discount)
+      restrictions.push(`Max. ${offer.maximum_discount} EGP off`);
+    if (offer.first_order_only) restrictions.push("First order only");
+    if (offer.usage_per_user === 1) restrictions.push("One-time use");
+
+    // BOGO rules
+    const bogoRules: OfferBogoRule[] = offer.targets?.bogo_rules || [];
+
+    return (
+      <TouchableOpacity
+        style={styles.couponCard}
+        onPress={() => navigateToOfferDetail(offer)}
+        activeOpacity={0.88}
+      >
+        {/* ── TOP: Type accent bar ── */}
+        <LinearGradient
+          colors={theme.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.couponAccentBar}
+        />
+
+        {/* ── MAIN ROW: Value + Content ── */}
+        <View style={styles.couponMainRow}>
+          {/* LEFT: Value block with gradient */}
+          <LinearGradient colors={theme.gradient} style={styles.couponLeft}>
+            <View style={styles.couponLeftContent}>
+              <Ionicons
+                name={theme.icon as any}
+                size={16}
+                color="rgba(255,255,255,0.7)"
+              />
+              <Text style={styles.couponValMain}>{valMain}</Text>
+              <Text style={styles.couponValUnit}>{valUnit}</Text>
+            </View>
+            {/* Ticket perforations */}
+            <View style={[styles.perforation, styles.perfTop]} />
+            <View style={[styles.perforation, styles.perfBottom]} />
+          </LinearGradient>
+
+          {/* RIGHT: Content */}
+          <View style={styles.couponRight}>
+            {/* Top row: Type badge + Scope badge */}
+            <View style={styles.couponBadgeRow}>
+              <View style={[styles.typeBadge, { backgroundColor: theme.bg }]}>
+                <Ionicons
+                  name={theme.icon as any}
+                  size={10}
+                  color={theme.accent}
+                />
+                <Text style={[styles.typeBadgeText, { color: theme.accent }]}>
+                  {theme.label}
+                </Text>
+              </View>
+              <View style={styles.scopeBadge}>
+                <Ionicons
+                  name={scopeIcon as any}
+                  size={9}
+                  color={Colors.neutralMedium}
+                />
+                <Text style={styles.scopeBadgeText}>{scopeLabel}</Text>
+              </View>
+            </View>
+
+            {/* Scope headline */}
+            <Text style={styles.couponScope} numberOfLines={2}>
+              {scope}
+            </Text>
+
+            {/* BOGO details (only for bogo type) */}
+            {offer.type === "bogo" && bogoRules.length > 0 && (
+              <View style={styles.bogoBox}>
+                {bogoRules.slice(0, 2).map((rule, idx) => (
+                  <View key={idx} style={styles.bogoRuleRow}>
+                    <Text style={styles.bogoLabel}>BUY</Text>
+                    <Text style={styles.bogoQty}>
+                      {rule.buy_qty}× {rule.buy_label || "Any"}
+                    </Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={10}
+                      color={Colors.neutralMedium}
+                    />
+                    <Text style={[styles.bogoLabel, { color: "#DB2777" }]}>
+                      GET
+                    </Text>
+                    <Text style={[styles.bogoQty, { color: "#DB2777" }]}>
+                      {rule.get_qty}×{" "}
+                      {rule.get_discount_type === "free"
+                        ? "FREE"
+                        : `${rule.get_discount_value}% off`}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Restrictions + Expiry Row */}
+            <View style={styles.couponMetaRow}>
+              {restrictions.slice(0, 2).map((r, i) => (
+                <View key={i} style={styles.restrictionChip}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={9}
+                    color={Colors.neutralMedium}
+                  />
+                  <Text style={styles.restrictionText}>{r}</Text>
+                </View>
+              ))}
+              {offer.valid_until && (
+                <View style={styles.restrictionChip}>
+                  <Ionicons
+                    name="time-outline"
+                    size={9}
+                    color={
+                      offer.ending_soon ? Colors.accentRed : Colors.accentOrange
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.restrictionText,
+                      {
+                        color: offer.ending_soon
+                          ? Colors.accentRed
+                          : Colors.accentOrange,
+                      },
+                    ]}
+                  >
+                    {formatTimeRemaining(offer.valid_until) ||
+                      `Exp. ${new Date(offer.valid_until).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* ━━━ PROMO CODE + Copy ━━━ */}
+            <View style={styles.codeContainer}>
+              <View
+                style={[styles.codeBox, { borderColor: theme.accent + "40" }]}
+              >
+                <Text style={styles.codeLabel}>CODE</Text>
+                <Text style={[styles.codeValue, { color: theme.accent }]}>
+                  {offer.code}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.copyBtn,
+                  { backgroundColor: theme.bg },
+                  isCopied && { backgroundColor: theme.accent },
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleCopyCode(offer.code);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isCopied ? "checkmark" : "copy-outline"}
+                  size={16}
+                  color={isCopied ? Colors.neutralWhite : theme.accent}
+                />
+                <Text
+                  style={[
+                    styles.copyBtnText,
+                    { color: theme.accent },
+                    isCopied && { color: Colors.neutralWhite },
+                  ]}
+                >
+                  {isCopied ? "Copied!" : "Copy"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Free delivery: explain conditions inline */}
+            {offer.type === "free_delivery" && (
+              <View style={styles.freeDeliveryInfo}>
+                <Ionicons name="car" size={13} color={Colors.primary900} />
+                <Text style={styles.freeDeliveryText}>
+                  {offer.minimum_order > 0
+                    ? `Free delivery on orders above ${offer.minimum_order} EGP.`
+                    : "Free delivery on any order."}
+                </Text>
+              </View>
+            )}
+
+            {/* View Details CTA */}
+            <View style={styles.couponCTARow}>
+              <TouchableOpacity
+                style={[styles.viewDetailBtn, { backgroundColor: theme.bg }]}
+                onPress={() => navigateToOfferDetail(offer)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[styles.viewDetailBtnText, { color: theme.accent }]}
+                >
+                  View Details
+                </Text>
+                <Ionicons name="arrow-forward" size={12} color={theme.accent} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // ━━━━━ FILTER CHIP ROW ━━━━━
+  const FilterChipRow = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.filterChipScroll}
+      contentContainerStyle={styles.filterChipContent}
+    >
+      {FILTER_CHIPS.map((chip) => {
+        const isActive = activeFilter === chip.key;
+        const count = getFilterCount(chip.key);
+        if (count === 0 && chip.key !== "all") return null;
+        return (
+          <TouchableOpacity
+            key={chip.key}
+            style={[
+              styles.filterChip,
+              isActive && {
+                backgroundColor: chip.color,
+                borderColor: chip.color,
+              },
+            ]}
+            onPress={() => handleFilterChange(chip.key)}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={chip.icon as any}
+              size={13}
+              color={isActive ? Colors.neutralWhite : chip.color}
+            />
+            <Text
+              style={[
+                styles.filterChipLabel,
+                isActive && { color: Colors.neutralWhite },
+              ]}
+            >
+              {chip.label}
+            </Text>
+            {count > 0 && (
+              <View
+                style={[
+                  styles.filterChipCount,
+                  isActive
+                    ? { backgroundColor: "rgba(255,255,255,0.3)" }
+                    : { backgroundColor: chip.color + "15" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterChipCountText,
+                    isActive
+                      ? { color: Colors.neutralWhite }
+                      : { color: chip.color },
+                  ]}
+                >
+                  {count}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
+  // ═══════════════════════════════════════════════════════════
+  // RENDER: ERROR STATE
+  // ═══════════════════════════════════════════════════════════
   if (error && !loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -350,13 +980,11 @@ export default function OffersScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={[Colors.primary900, Colors.primary700]}
-              style={styles.retryButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              colors={[Colors.primary900, Colors.primary700 || "#22c55e"]}
+              style={styles.retryGradient}
             >
               <Ionicons name="refresh" size={18} color={Colors.neutralWhite} />
-              <Text style={styles.retryButtonText}>Try Again</Text>
+              <Text style={styles.retryText}>Try Again</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -364,20 +992,20 @@ export default function OffersScreen() {
     );
   }
 
-  // Loading State
+  // ═══════════════════════════════════════════════════════════
+  // RENDER: LOADING SKELETON
+  // ═══════════════════════════════════════════════════════════
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <OfflineIndicator />
         <View style={styles.header}>
           <LinearGradient
-            colors={[Colors.primary900, Colors.primary800]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+            colors={[Colors.primary900, Colors.primary800 || "#15803d"]}
             style={styles.headerGradient}
           >
             <View style={styles.headerTop}>
-              <View style={styles.brandContainer}>
+              <View style={styles.brandRow}>
                 <View style={styles.brandIcon}>
                   <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
                 </View>
@@ -388,66 +1016,84 @@ export default function OffersScreen() {
             </View>
           </LinearGradient>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={{ padding: 16 }}>
-            <SkeletonLoader width="100%" height={200} borderRadius={20} />
-            <View style={{ height: 20 }} />
-            <SkeletonLoader width="100%" height={180} borderRadius={18} />
-            <View style={{ height: 14 }} />
-            <SkeletonLoader width="100%" height={180} borderRadius={18} />
-          </View>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, gap: 14 }}
+        >
+          <SkeletonLoader width="100%" height={56} borderRadius={14} />
+          <SkeletonLoader width="100%" height={200} borderRadius={20} />
+          <SkeletonLoader width="100%" height={44} borderRadius={12} />
+          <SkeletonLoader width="100%" height={140} borderRadius={16} />
+          <SkeletonLoader width="100%" height={140} borderRadius={16} />
+          <SkeletonLoader width="100%" height={44} borderRadius={12} />
+          <SkeletonLoader width="100%" height={140} borderRadius={16} />
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // CHECK IF EVERYTHING IS EMPTY
+  // ═══════════════════════════════════════════════════════════
+  const hasAnything =
+    (showPromotions && promotions.length > 0) ||
+    groupedOffers.percentage.length > 0 ||
+    groupedOffers.fixed_amount.length > 0 ||
+    groupedOffers.free_delivery.length > 0 ||
+    groupedOffers.bogo.length > 0;
+
+  const isSearchEmpty =
+    (q.length > 0 || activeFilter !== "all") &&
+    automaticPromotions.length === 0 &&
+    groupedOffers.percentage.length === 0 &&
+    groupedOffers.fixed_amount.length === 0 &&
+    groupedOffers.free_delivery.length === 0 &&
+    groupedOffers.bogo.length === 0 &&
+    !(featuredPromotion && showPromotions && !q);
+
+  // ═══════════════════════════════════════════════════════════
+  // RENDER: MAIN
+  // ═══════════════════════════════════════════════════════════
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <OfflineIndicator />
 
-      {/* ═══════════════════════════════════════════════════════════════════════════
-          BRANDED HEADER
-      ═══════════════════════════════════════════════════════════════════════════ */}
+      {/* ── HEADER ── */}
       <View style={styles.header}>
         <LinearGradient
-          colors={[Colors.primary900, Colors.primary800]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={[Colors.primary900, Colors.primary800 || "#15803d"]}
           style={styles.headerGradient}
         >
           <View style={styles.headerTop}>
-            <View style={styles.brandContainer}>
+            <View style={styles.brandRow}>
               <View style={styles.brandIcon}>
                 <Ionicons name="leaf" size={16} color={Colors.neutralWhite} />
               </View>
               <Text style={styles.brandName}>{t.nav?.offers || "Offers"}</Text>
             </View>
-
-            <View style={styles.offersCountBadge}>
-              <Ionicons name="gift" size={14} color={Colors.neutralWhite} />
-              <Text style={styles.offersCountText}>
-                {allPromotions.length} {t.offers?.deals || "Deals"}
-              </Text>
-            </View>
+            {totalDealsCount > 0 && (
+              <View style={styles.dealsBadge}>
+                <Ionicons name="gift" size={13} color={Colors.neutralWhite} />
+                <Text style={styles.dealsBadgeText}>
+                  {totalDealsCount} Deals
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Title Section */}
-          <View style={styles.titleSection}>
-            <Text style={styles.headerTitle}>
-              {t.offers?.specialOffers || "Special Offers"}
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              {t.offers?.exclusiveDeals ||
-                "Discover amazing deals & exclusive discounts"}
-            </Text>
-          </View>
+          <Text style={styles.headerTitle}>
+            {t.offers?.specialOffers || "Special Offers"}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            Discover promotions, coupons & exclusive deals
+          </Text>
 
-          {/* Search Bar */}
+          {/* Search */}
           <View style={styles.searchBar}>
             <Ionicons name="search" size={18} color={Colors.neutralMedium} />
             <TextInput
               style={styles.searchInput}
-              placeholder={"Search offers..."}
+              placeholder="Search offers, codes..."
               placeholderTextColor={Colors.neutralMedium}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -462,32 +1108,10 @@ export default function OffersScreen() {
               </TouchableOpacity>
             )}
           </View>
-
-          {/* Filter Chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterContainer}
-          >
-            <FilterChip
-              label={t.offers?.allOffers || "All"}
-              value="all"
-              iconName="pricetags"
-            />
-            <FilterChip
-              label={t.nav?.categories || "Categories"}
-              value="category"
-              iconName="grid"
-            />
-            <FilterChip
-              label={t.offers?.products || "Products"}
-              value="products"
-              iconName="cube"
-            />
-          </ScrollView>
         </LinearGradient>
       </View>
 
+      {/* ── SCROLLABLE CONTENT ── */}
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -501,140 +1125,235 @@ export default function OffersScreen() {
         }
       >
         <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          }}
+          style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
         >
-          {/* ═══════════════════════════════════════════════════════════════════════════
-              FEATURED HERO CARD
-          ═══════════════════════════════════════════════════════════════════════════ */}
-          {featuredPromotion && (
-            <TouchableOpacity
-              style={dynamicStyles.heroCard}
-              onPress={() => navigateToPromotion(featuredPromotion.id)}
-              activeOpacity={0.92}
-            >
-              <Image
-                source={{
-                  uri:
-                    featuredPromotion.banner_image_url ||
-                    featuredPromotion.image_url,
-                }}
-                style={dynamicStyles.heroImage}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={["transparent", "rgba(0,0,0,0.85)"]}
-                style={dynamicStyles.heroOverlay}
-              >
-                <View style={styles.heroBadgeRow}>
-                  <Animated.View
-                    style={[
-                      styles.heroBadge,
-                      { transform: [{ scale: pulseAnim }] },
-                    ]}
-                  >
-                    <Ionicons
-                      name="sparkles"
-                      size={12}
-                      color={Colors.accentYellow}
-                    />
-                    <Text style={styles.heroBadgeText}>
-                      {t.offers?.featuredDeal || "Featured"}
-                    </Text>
-                  </Animated.View>
-                  {featuredPromotion.discount_type === "percentage" && (
-                    <View style={styles.heroDiscountBadge}>
-                      <Text style={styles.heroDiscountText}>
-                        {featuredPromotion.discount_value}% OFF
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.heroTitle} numberOfLines={2}>
-                  {featuredPromotion.title}
-                </Text>
-                <Text style={styles.heroSubtitle} numberOfLines={1}>
-                  {featuredPromotion.description ||
-                    "Don't miss this exclusive offer!"}
-                </Text>
-                {featuredPromotion.end_date && (
-                  <View style={styles.heroTimer}>
-                    <Clock size={14} color={Colors.neutralWhite} />
-                    <CountdownTimer
-                      endDate={featuredPromotion.end_date}
-                      compact
-                      light
-                    />
-                  </View>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+          {/* ═══════ Filter Chips ═══════ */}
+          <FilterChipRow />
 
-          {/* ═══════════════════════════════════════════════════════════════════════════
-              MORE OFFERS SECTION
-          ═══════════════════════════════════════════════════════════════════════════ */}
-          {promotions.length > 0 && (
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="flame" size={18} color={Colors.accentOrange} />
-                <Text style={styles.sectionTitle}>
-                  {t.offers?.moreOffers || "More Offers"}
-                </Text>
+          {/* ═══════ Quick Stats ═══════ */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <View
+                style={[
+                  styles.statIconWrap,
+                  { backgroundColor: Colors.primary100 || "#F0FDF4" },
+                ]}
+              >
+                <Ionicons
+                  name="pricetags"
+                  size={14}
+                  color={Colors.primary900}
+                />
               </View>
-              <View style={styles.sectionCount}>
-                <Text style={styles.sectionCountText}>
-                  {promotions.length} {t.offers?.deals || "deals"}
-                </Text>
+              <Text style={styles.statValue}>{totalDealsCount}</Text>
+              <Text style={styles.statLabel}>Active</Text>
+            </View>
+            <View style={styles.statCard}>
+              <View
+                style={[styles.statIconWrap, { backgroundColor: "#FEF3C7" }]}
+              >
+                <Ionicons name="ticket" size={14} color="#D97706" />
               </View>
+              <Text style={styles.statValue}>{offers.length}</Text>
+              <Text style={styles.statLabel}>Coupons</Text>
+            </View>
+            <View style={styles.statCard}>
+              <View
+                style={[styles.statIconWrap, { backgroundColor: "#FEE2E2" }]}
+              >
+                <Ionicons name="time" size={14} color={Colors.accentRed} />
+              </View>
+              <Text style={styles.statValue}>
+                {summary?.ending_soon_count ?? 0}
+              </Text>
+              <Text style={styles.statLabel}>Ending</Text>
+            </View>
+            {summary?.max_percentage ? (
+              <View style={styles.statCard}>
+                <View
+                  style={[styles.statIconWrap, { backgroundColor: "#F5F3FF" }]}
+                >
+                  <Ionicons name="trending-down" size={14} color="#7C3AED" />
+                </View>
+                <Text style={styles.statValue}>{summary.max_percentage}%</Text>
+                <Text style={styles.statLabel}>Max Off</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ═══════ SECTION: Featured ═══════ */}
+          {featuredPromotion && !q && showPromotions && (
+            <View style={styles.sectionWrap}>
+              <GroupHeader
+                icon="sparkles"
+                iconColor={Colors.accentOrange}
+                title="Featured"
+                count={1}
+                sectionKey="featured"
+              />
+              {!collapsedSections.featured && (
+                <View style={styles.sectionContent}>
+                  <FeaturedHeroCard promo={featuredPromotion} />
+                </View>
+              )}
             </View>
           )}
 
-          {/* Promotions List */}
-          <View style={styles.promotionsList}>
-            {promotions.map((promotion, index) => (
-              <View key={promotion.id} style={styles.promotionItem}>
-                <OfferCard promotion={promotion} index={index} />
-              </View>
-            ))}
-          </View>
+          {/* ═══════ SECTION: Automatic Discounts (Promotions) ═══════ */}
+          {automaticPromotions.length > 0 && (
+            <View style={styles.sectionWrap}>
+              <GroupHeader
+                icon="flash"
+                iconColor={Colors.primary900}
+                title="Automatic Discounts"
+                count={automaticPromotions.length}
+                sectionKey="automatic"
+              />
+              {!collapsedSections.automatic && (
+                <View style={styles.sectionContent}>
+                  {automaticPromotions.map((promo) => (
+                    <AutoPromoCard key={`promo-${promo.id}`} promo={promo} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
 
-          {/* Empty State */}
-          {!featuredPromotion && promotions.length === 0 && (
+          {/* ═══════ SECTION: Promo Codes (% Off) ═══════ */}
+          {groupedOffers.percentage.length > 0 && (
+            <View style={styles.sectionWrap}>
+              <GroupHeader
+                icon="pricetag"
+                iconColor="#7C3AED"
+                title="Promo Codes — % Discount"
+                count={groupedOffers.percentage.length}
+                sectionKey="percentage"
+              />
+              {!collapsedSections.percentage && (
+                <View style={styles.sectionContent}>
+                  {groupedOffers.percentage.map((offer) => (
+                    <CouponCard key={`pct-${offer.id}`} offer={offer} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ═══════ SECTION: Fixed Amount Coupons ═══════ */}
+          {groupedOffers.fixed_amount.length > 0 && (
+            <View style={styles.sectionWrap}>
+              <GroupHeader
+                icon="cash"
+                iconColor="#0284C7"
+                title="Fixed Discount Codes"
+                count={groupedOffers.fixed_amount.length}
+                sectionKey="fixed_amount"
+              />
+              {!collapsedSections.fixed_amount && (
+                <View style={styles.sectionContent}>
+                  {groupedOffers.fixed_amount.map((offer) => (
+                    <CouponCard key={`fix-${offer.id}`} offer={offer} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ═══════ SECTION: Free Delivery ═══════ */}
+          {groupedOffers.free_delivery.length > 0 && (
+            <View style={styles.sectionWrap}>
+              <GroupHeader
+                icon="car"
+                iconColor={Colors.primary900}
+                title="Free Delivery"
+                count={groupedOffers.free_delivery.length}
+                sectionKey="free_delivery"
+              />
+              {!collapsedSections.free_delivery && (
+                <View style={styles.sectionContent}>
+                  {groupedOffers.free_delivery.map((offer) => (
+                    <CouponCard key={`fd-${offer.id}`} offer={offer} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ═══════ SECTION: Buy 1 Get 1 ═══════ */}
+          {groupedOffers.bogo.length > 0 && (
+            <View style={styles.sectionWrap}>
+              <GroupHeader
+                icon="gift"
+                iconColor="#DB2777"
+                title="Buy 1 Get 1"
+                count={groupedOffers.bogo.length}
+                sectionKey="bogo"
+              />
+              {!collapsedSections.bogo && (
+                <View style={styles.sectionContent}>
+                  {groupedOffers.bogo.map((offer) => (
+                    <CouponCard key={`bogo-${offer.id}`} offer={offer} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ═══════ EMPTY STATE ═══════ */}
+          {(!hasAnything || isSearchEmpty) && (
             <View style={styles.emptyContainer}>
-              <View style={styles.emptyIconContainer}>
+              <View style={styles.emptyIconWrap}>
                 <Ionicons name="gift" size={56} color={Colors.primary900} />
               </View>
               <Text style={styles.emptyTitle}>
-                {searchQuery
+                {q
                   ? "No offers found"
-                  : t.offers?.noOffers || "No Offers Available"}
+                  : activeFilter !== "all"
+                    ? "No offers in this category"
+                    : t.offers?.noOffers || "No Offers Available"}
               </Text>
               <Text style={styles.emptyText}>
-                {searchQuery
-                  ? "Try a different search term"
-                  : "Check back soon for amazing deals!"}
+                {q
+                  ? `No offers match "${searchQuery}"`
+                  : activeFilter !== "all"
+                    ? "Try selecting a different filter"
+                    : "Check back soon for amazing deals!"}
               </Text>
-              {!searchQuery && (
+              {activeFilter !== "all" && (
                 <TouchableOpacity
-                  style={styles.refreshButton}
+                  style={styles.retryButton}
+                  onPress={() => handleFilterChange("all")}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={[Colors.primary900, Colors.primary700 || "#22c55e"]}
+                    style={styles.retryGradient}
+                  >
+                    <Ionicons
+                      name="apps"
+                      size={18}
+                      color={Colors.neutralWhite}
+                    />
+                    <Text style={styles.retryText}>Show All Deals</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+              {!q && activeFilter === "all" && (
+                <TouchableOpacity
+                  style={styles.retryButton}
                   onPress={handleRefresh}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
-                    colors={[Colors.primary900, Colors.primary700]}
-                    style={styles.refreshButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                    colors={[Colors.primary900, Colors.primary700 || "#22c55e"]}
+                    style={styles.retryGradient}
                   >
                     <Ionicons
                       name="refresh"
                       size={18}
                       color={Colors.neutralWhite}
                     />
-                    <Text style={styles.refreshButtonText}>Refresh</Text>
+                    <Text style={styles.retryText}>Refresh</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
@@ -642,31 +1361,26 @@ export default function OffersScreen() {
           )}
         </Animated.View>
 
+        {/* Bottom safe area */}
         <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: Colors.neutralCloud },
+  scrollView: { flex: 1 },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HEADER
-  // ═══════════════════════════════════════════════════════════════════════════
-  header: {
-    overflow: "hidden",
-  },
+  // ── Header ──
+  header: { overflow: "hidden" },
   headerGradient: {
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 16,
+    paddingBottom: 18,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
   },
@@ -674,12 +1388,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  brandContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  brandRow: { flexDirection: "row", alignItems: "center" },
   brandIcon: {
     width: 32,
     height: 32,
@@ -695,38 +1406,32 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
     letterSpacing: 0.3,
   },
-  offersCountBadge: {
+  dealsBadge: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
     borderRadius: 14,
-    gap: 6,
+    gap: 5,
   },
-  offersCountText: {
+  dealsBadgeText: {
     fontSize: 12,
     fontFamily: "Poppins-SemiBold",
     color: Colors.neutralWhite,
-  },
-  titleSection: {
-    marginBottom: 14,
   },
   headerTitle: {
     fontSize: 24,
     fontFamily: "Poppins-Bold",
     color: Colors.neutralWhite,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   headerSubtitle: {
     fontSize: 13,
     fontFamily: "Poppins-Regular",
     color: "rgba(255,255,255,0.8)",
+    marginBottom: 14,
   },
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SEARCH BAR
-  // ═══════════════════════════════════════════════════════════════════════════
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -735,7 +1440,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 10,
-    marginBottom: 12,
   },
   searchInput: {
     flex: 1,
@@ -745,42 +1449,147 @@ const styles = StyleSheet.create({
     padding: 0,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FILTER CHIPS
-  // ═══════════════════════════════════════════════════════════════════════════
-  filterContainer: {
+  // ── Filter Chips ──
+  filterChipScroll: {
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  filterChipContent: {
+    paddingHorizontal: 16,
     gap: 8,
   },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  filterChipActive: {
     backgroundColor: Colors.neutralWhite,
+    borderWidth: 1.5,
+    borderColor: Colors.neutralLight || "#E2E8F0",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 5,
   },
-  filterChipText: {
+  filterChipLabel: {
     fontSize: 12,
-    fontFamily: "Poppins-Medium",
-    color: "rgba(255,255,255,0.8)",
-  },
-  filterChipTextActive: {
-    color: Colors.primary900,
     fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralCharcoal,
+  },
+  filterChipCount: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  filterChipCountText: {
+    fontSize: 10,
+    fontFamily: "Poppins-Bold",
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HERO CARD
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── Stats Row ──
+  statsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 6,
+    gap: 8,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  statIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralMedium,
+  },
+
+  // ── Group / Section ──
+  sectionWrap: { marginTop: 10 },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  groupHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  groupIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  groupTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+  },
+  groupCountPill: {
+    backgroundColor: Colors.primary100 || "#F0FDF4",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  groupCountText: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.primary900,
+  },
+  sectionContent: { paddingHorizontal: 16, gap: 10, paddingBottom: 4 },
+
+  // ── Featured Hero Card ──
+  heroCard: {
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: Colors.primary900,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  heroImage: {
+    width: "100%",
+    height: 200,
+    backgroundColor: Colors.neutralLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingTop: 40,
+  },
   heroBadgeRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   heroBadge: {
     flexDirection: "row",
@@ -796,163 +1605,362 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     color: Colors.neutralWhite,
   },
-  heroDiscountBadge: {
-    backgroundColor: Colors.accentRed,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  heroDiscountText: {
-    fontSize: 11,
+  heroScope: {
+    fontSize: 18,
     fontFamily: "Poppins-Bold",
-    color: Colors.neutralWhite,
+    color: Colors.accentYellow,
+    marginBottom: 2,
   },
   heroTitle: {
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    color: "rgba(255,255,255,0.9)",
+    marginBottom: 8,
+  },
+  heroTimerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  heroCTA: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  heroCTAText: {
+    fontSize: 12,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralWhite,
+  },
+
+  // ── Automatic Promo Card ──
+  autoPromoCard: {
+    flexDirection: "row",
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  autoPromoLeft: {
+    width: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+  },
+  autoPromoValue: {
     fontSize: 22,
     fontFamily: "Poppins-Bold",
     color: Colors.neutralWhite,
-    marginBottom: 4,
+    textAlign: "center",
   },
-  heroSubtitle: {
-    fontSize: 13,
-    fontFamily: "Poppins-Regular",
+  autoPromoUnit: {
+    fontSize: 10,
+    fontFamily: "Poppins-SemiBold",
     color: "rgba(255,255,255,0.85)",
-    marginBottom: 10,
+    textAlign: "center",
   },
-  heroTimer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SECTION HEADER
-  // ═══════════════════════════════════════════════════════════════════════════
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontFamily: "Poppins-Bold",
+  autoPromoRight: { flex: 1, padding: 12, gap: 5 },
+  autoPromoScope: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
     color: Colors.neutralCharcoal,
+    lineHeight: 19,
   },
-  sectionCount: {
-    backgroundColor: Colors.primary100,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  autoPromoDesc: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralMedium,
+  },
+  autoPromoMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 2,
+  },
+  metaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: Colors.neutralLight,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  metaChipText: {
+    fontSize: 10,
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralMedium,
+  },
+  autoPromoCTA: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: Colors.primary100 || "#F0FDF4",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
+    gap: 4,
+    marginTop: 3,
   },
-  sectionCountText: {
+  autoPromoCTAText: {
     fontSize: 11,
     fontFamily: "Poppins-SemiBold",
     color: Colors.primary900,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // PROMOTION CARDS
-  // ═══════════════════════════════════════════════════════════════════════════
-  promotionsList: {
-    paddingHorizontal: 16,
+  // ── Coupon Card V2 ──
+  couponCard: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  promotionItem: {
-    marginBottom: 14,
+  couponAccentBar: {
+    height: 3,
+    width: "100%",
   },
-  discountBadge: {
-    position: "absolute",
-    top: 10,
-    right: 10,
+  couponMainRow: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    gap: 4,
   },
-  discountText: {
-    fontSize: 12,
-    fontFamily: "Poppins-Bold",
-    color: Colors.neutralWhite,
-  },
-  featuredTag: {
-    position: "absolute",
-    top: 10,
-    left: 10,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(0,0,0,0.5)",
+  couponLeft: {
+    width: 84,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
   },
-  cardContent: {
-    padding: 14,
+  couponLeftContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    gap: 2,
   },
-  cardTitle: {
-    fontSize: 15,
+  couponValMain: {
+    fontSize: 24,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralWhite,
+    lineHeight: 28,
+  },
+  couponValUnit: {
+    fontSize: 9,
     fontFamily: "Poppins-SemiBold",
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
+    color: "rgba(255,255,255,0.85)",
+    textTransform: "uppercase",
   },
-  cardDescription: {
-    fontSize: 12,
-    fontFamily: "Poppins-Regular",
-    color: Colors.neutralMedium,
-    lineHeight: 17,
-    marginBottom: 10,
+  perforation: {
+    position: "absolute",
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.neutralCloud,
+    right: -8,
   },
-  timerRow: {
+  perfTop: { top: -2 },
+  perfBottom: { bottom: -2 },
+
+  couponRight: { flex: 1, padding: 12, gap: 6 },
+
+  // Badge row
+  couponBadgeRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 10,
+    flexWrap: "wrap",
+    marginBottom: 2,
   },
-  timerIconBg: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: Colors.accentOrange + "15",
+  typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontFamily: "Poppins-Bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  scopeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.neutralLight || "#F1F5F9",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 3,
+  },
+  scopeBadgeText: {
+    fontSize: 9,
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralMedium,
+  },
+
+  couponScope: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralCharcoal,
+    lineHeight: 19,
+  },
+
+  // BOGO box
+  bogoBox: { gap: 4 },
+  bogoRuleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FDF2F8",
+    padding: 6,
+    borderRadius: 8,
+    gap: 5,
+    flexWrap: "wrap",
+  },
+  bogoLabel: {
+    fontSize: 9,
+    fontFamily: "Poppins-Bold",
+    color: Colors.primary900,
+    textTransform: "uppercase",
+  },
+  bogoQty: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralCharcoal,
+  },
+
+  // Meta row (restrictions + expiry)
+  couponMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  restrictionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.neutralLight,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  restrictionText: {
+    fontSize: 9,
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralMedium,
+  },
+
+  // ━━━ PROMO CODE ━━━
+  codeContainer: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+    marginTop: 4,
+  },
+  codeBox: {
+    flex: 1,
+    backgroundColor: Colors.neutralWhite,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  viewDealButton: {
+  codeLabel: {
+    fontSize: 7,
+    fontFamily: "Poppins-Medium",
+    color: Colors.neutralMedium,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 1,
+  },
+  codeValue: {
+    fontSize: 16,
+    fontFamily: Platform.OS === "ios" ? "Menlo-Bold" : "monospace",
+    fontWeight: "800",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  copyBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.primary100,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
-    gap: 4,
+    gap: 5,
+    minWidth: 76,
   },
-  viewDealText: {
-    fontSize: 13,
+  copyBtnText: {
+    fontSize: 12,
     fontFamily: "Poppins-SemiBold",
-    color: Colors.primary900,
   },
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // EMPTY & ERROR STATES
-  // ═══════════════════════════════════════════════════════════════════════════
+  // CTA row
+  couponCTARow: {
+    flexDirection: "row",
+    marginTop: 2,
+  },
+  viewDetailBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 4,
+  },
+  viewDetailBtnText: {
+    fontSize: 12,
+    fontFamily: "Poppins-SemiBold",
+  },
+
+  // Free delivery info
+  freeDeliveryInfo: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: Colors.primary100 || "#F0FDF4",
+    padding: 10,
+    borderRadius: 10,
+  },
+  freeDeliveryText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralCharcoal,
+    lineHeight: 16,
+  },
+
+  // ── Empty / Error ──
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 40,
     paddingVertical: 60,
   },
-  emptyIconContainer: {
+  emptyIconWrap: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.primary100,
+    backgroundColor: Colors.primary100 || "#F0FDF4",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
@@ -970,22 +1978,6 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
     textAlign: "center",
     marginBottom: 24,
-  },
-  refreshButton: {
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  refreshButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  refreshButtonText: {
-    fontSize: 14,
-    fontFamily: "Poppins-SemiBold",
-    color: Colors.neutralWhite,
   },
   errorContainer: {
     flex: 1,
@@ -1016,18 +2008,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 24,
   },
-  retryButton: {
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  retryButtonGradient: {
+  retryButton: { borderRadius: 14, overflow: "hidden" },
+  retryGradient: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 24,
     paddingVertical: 12,
     gap: 8,
   },
-  retryButtonText: {
+  retryText: {
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
     color: Colors.neutralWhite,
