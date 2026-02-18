@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -62,6 +62,42 @@ export default function EditProfileScreen() {
     message: string;
     type: "success" | "error" | "info";
   }>({ visible: false, message: "", type: "success" });
+
+  // Auto-fill birth date and gender when user data arrives from backend
+  // (e.g., fetchProfile completes after the initial render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (user?.date_of_birth && !dateOfBirth) {
+      const parts = user.date_of_birth.split("-");
+      if (parts.length === 3) {
+        setDateOfBirth(
+          new Date(
+            parseInt(parts[0]),
+            parseInt(parts[1]) - 1,
+            parseInt(parts[2]),
+          ),
+        );
+      }
+    }
+    if (user?.gender && !gender) {
+      setGender(user.gender);
+    }
+    if (user?.first_name && !firstName) {
+      setFirstName(user.first_name);
+    }
+    if (user?.last_name && !lastName) {
+      setLastName(user.last_name);
+    }
+    if (user?.phone && !phone) {
+      setPhone(user.phone);
+    }
+  }, [
+    user?.date_of_birth,
+    user?.gender,
+    user?.first_name,
+    user?.last_name,
+    user?.phone,
+  ]);
 
   const showToast = (
     message: string,
