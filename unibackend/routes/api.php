@@ -611,7 +611,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/stats', [AdminRefundDashboardController::class, 'stats']);
                 Route::get('/{id}', [AdminRefundDashboardController::class, 'show']);
                 Route::post('/partial-item-refund', [AdminRefundDashboardController::class, 'partialItemRefund']);
-                Route::post('/reconcile', [AdminRefundDashboardController::class, 'reconcile']);
+                Route::post('/reconcile', [RefundWebhookController::class, 'reconcile']);
             });
 
             // Promo Code Analytics & Management

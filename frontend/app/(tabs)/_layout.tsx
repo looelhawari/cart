@@ -87,13 +87,6 @@ const cartStyles = StyleSheet.create({
 
 export default function TabLayout() {
   const { t } = useTranslation();
-  const { cart } = useStore();
-
-  // Calculate cart items count
-  const cartItemsCount = cart?.items?.reduce(
-    (total: number, item: any) => total + item.quantity,
-    0
-  ) || 0;
 
   return (
     <Tabs
@@ -164,23 +157,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    position: 'absolute',
-    top: -8,
-    right: -12,
-    backgroundColor: Colors.accentRed,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: Colors.neutralWhite,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});

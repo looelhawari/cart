@@ -117,7 +117,6 @@ class AddressController extends Controller
 
         return null;
     }
-    }
 
     /**
      * Display the specified address.
