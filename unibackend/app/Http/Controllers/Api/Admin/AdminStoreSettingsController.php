@@ -206,6 +206,7 @@ class AdminStoreSettingsController extends Controller
             
             DB::commit();
             StoreSetting::clearCache();
+            \App\Http\Controllers\Api\StoreSettingsController::clearCache();
 
             return response()->json([
                 'success' => true,

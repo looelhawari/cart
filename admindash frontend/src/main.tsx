@@ -8,6 +8,8 @@ import { Toaster } from "@/components/ui/toaster";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { useAuthStore } from "@/store/auth.store";
+import { getDefaultRoute } from "@/lib/rbac";
 
 // Pages
 import LoginPage from "@/pages/LoginPage";
@@ -46,6 +48,13 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/** Redirects authenticated users to their first accessible page, or /login if not authed */
+function SmartRedirect() {
+  const { isAuthenticated, permissions, user } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  return <Navigate to={getDefaultRoute(permissions, user?.role)} replace />
+}
 
 function App() {
   return (
@@ -272,8 +281,8 @@ function App() {
               />
             </Route>
 
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<SmartRedirect />} />
+            <Route path="*" element={<SmartRedirect />} />
           </Routes>
         </BrowserRouter>
         <Toaster />

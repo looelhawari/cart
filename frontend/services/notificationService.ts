@@ -494,6 +494,12 @@ export async function sendOrderStatusNotification(
     body: `Order #${orderNumber || orderId} status: ${newStatus}`,
   };
 
+  // Guard: Notifications module is null in Expo Go
+  if (isExpoGo() || !Notifications) {
+    console.log("Skipping local notification (not available in Expo Go)");
+    return;
+  }
+
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -515,6 +521,8 @@ export async function sendOrderStatusNotification(
  * Cancel all notifications for a specific order
  */
 export async function cancelOrderNotifications(orderId: string) {
+  if (isExpoGo() || !Notifications) return;
+
   const notifications = await Notifications.getAllScheduledNotificationsAsync();
 
   for (const notification of notifications) {
@@ -534,7 +542,7 @@ export async function addNotificationReceivedListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => {} };
+    return { remove: () => { } };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationReceivedListener(callback);
@@ -548,7 +556,7 @@ export async function addNotificationResponseListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => {} };
+    return { remove: () => { } };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationResponseReceivedListener(callback);

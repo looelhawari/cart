@@ -449,10 +449,14 @@ class CheckoutService
             $subtotal = $baseTotals['subtotal'];
         }
 
-        // Calculate delivery fee - zone-based if address has coordinates
-        $freeDeliveryThreshold = (float) (config('app.free_delivery_threshold') ?? 200);
-        $defaultDeliveryFee = (float) (config('app.delivery_fee') ?? 25);
-        $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0 : $defaultDeliveryFee;
+        // Calculate delivery fee from store settings (DB) — admin-editable
+        $freeDeliveryThreshold = (float) \App\Models\StoreSetting::getValue('free_delivery_threshold', 200);
+        $defaultDeliveryFee = (float) \App\Models\StoreSetting::getValue('delivery_fee', 20);
+
+        // FREE DELIVERY OVERRIDE: if subtotal >= threshold, delivery is ALWAYS free
+        // This overrides zone fees, surge multipliers, and everything else
+        $freeByThreshold = ($freeDeliveryThreshold > 0 && $subtotal >= $freeDeliveryThreshold);
+        $deliveryFee = $freeByThreshold ? 0 : $defaultDeliveryFee;
         $zoneInfo = null;
 
         if ($addressId) {
@@ -466,7 +470,8 @@ class CheckoutService
                         $subtotal
                     );
                     if ($zoneFee['is_deliverable']) {
-                        $deliveryFee = $subtotal >= $freeDeliveryThreshold ? 0 : $zoneFee['delivery_fee'];
+                        // Free threshold overrides zone fee — forced rule
+                        $deliveryFee = $freeByThreshold ? 0 : $zoneFee['delivery_fee'];
                         $zoneInfo = $zoneFee;
                     }
                 } catch (\Exception $e) {

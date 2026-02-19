@@ -24,5 +24,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(ComplaintFavoriteSeeder::class);
+        $this->call(RbacSeeder::class);
     }
 }

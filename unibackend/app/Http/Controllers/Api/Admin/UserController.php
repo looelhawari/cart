@@ -45,7 +45,7 @@ class UserController extends Controller
             'email' => 'required|email|unique:users',
             'phone' => 'required|string|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:super_admin,admin,sales_manager,accountant,customer_support',
+            'role' => 'required|in:owner,cashier,support,store_manager',
             'is_active' => 'boolean',
             'two_factor_enabled' => 'boolean',
         ]);
@@ -74,7 +74,7 @@ class UserController extends Controller
             'email' => 'sometimes|email|unique:users,email,' . $id,
             'phone' => 'sometimes|string|unique:users,phone,' . $id,
             'password' => 'sometimes|string|min:8',
-            'role' => 'sometimes|in:super_admin,admin,sales_manager,accountant,customer_support',
+            'role' => 'sometimes|in:owner,cashier,support,store_manager',
             'is_active' => 'sometimes|boolean',
             'two_factor_enabled' => 'sometimes|boolean',
         ]);
@@ -92,10 +92,10 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
 
-        // Prevent deleting super admin
-        if ($user->role === 'super_admin' && User::where('role', 'super_admin')->count() === 1) {
+        // Prevent deleting owner accounts
+        if ($user->role === 'owner' && User::where('role', 'owner')->count() === 1) {
             return response()->json([
-                'message' => 'Cannot delete the last super admin'
+                'message' => 'Cannot delete the last owner'
             ], 422);
         }
 

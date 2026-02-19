@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
 import { promotionService } from '@/services/promotion.service'
 import { productService } from '@/services/product.service'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 export default function DashboardPage() {
     const { t, i18n } = useTranslation()
     const isRTL = i18n.language === 'ar'
+    const { can } = usePermissions()
 
     // Fetch comprehensive data for analytics
     const { data: ordersData, isLoading } = useQuery({
@@ -29,6 +31,7 @@ export default function DashboardPage() {
             const response = await apiClient.get('/admin/orders', { per_page: 100 }) as any
             return response
         },
+        enabled: can('orders.view'),
     })
 
     const { data: productsData } = useQuery({
@@ -37,6 +40,7 @@ export default function DashboardPage() {
             const response = await apiClient.get('/admin/products', { per_page: 100 }) as any
             return response
         },
+        enabled: can('products.view'),
     })
 
     const { data: promotionsData } = useQuery({
@@ -45,11 +49,13 @@ export default function DashboardPage() {
             const response = await promotionService.getSummaryAnalytics()
             return response
         },
+        enabled: can('promotions.view'),
     })
 
     const { data: stockAlertsData } = useQuery({
         queryKey: ['stock-alerts'],
         queryFn: () => productService.getStockAlerts(10),
+        enabled: can('products.view'),
     })
 
     const summary = ordersData?.summary || {}

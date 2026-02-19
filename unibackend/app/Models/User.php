@@ -121,7 +121,12 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return in_array($this->role, ['super_admin', 'admin', 'sales_manager', 'accountant', 'customer_support']);
+        return in_array($this->role, [
+            // New RBAC roles
+            'owner', 'cashier', 'support', 'store_manager',
+            // Legacy roles (backward compatible)
+            'super_admin', 'admin', 'sales_manager', 'accountant', 'customer_support',
+        ]);
     }
 
     /**

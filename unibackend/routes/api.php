@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\Admin\AdminDriverController;
 use App\Http\Controllers\Api\RefundWebhookController;
 use App\Http\Controllers\Api\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\Api\SearchSuggestionsController;
+use App\Http\Controllers\Api\Admin\RbacController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Http\Request;
@@ -439,8 +440,19 @@ Route::prefix('v1')->group(function () {
 
         // Admin routes (requires admin role)
         Route::middleware(['admin', 'log.admin.activity'])->prefix('admin')->group(function () {
+
+            // ── RBAC: Get my permissions (every admin calls this) ──
+            Route::get('/rbac/my-permissions', [RbacController::class, 'myPermissions']);
+
+            // ── RBAC Management (owner only) ──
+            Route::middleware('permission:users.manage')->prefix('rbac')->group(function () {
+                Route::get('/roles', [RbacController::class, 'roles']);
+                Route::get('/permissions', [RbacController::class, 'permissions']);
+                Route::put('/roles/{roleId}/permissions', [RbacController::class, 'updateRolePermissions']);
+            });
+
             // Activity Logs (legacy - for app-level logs like user registrations, logins)
-            Route::prefix('activity-logs')->group(function () {
+            Route::middleware('permission:app_logs.view')->prefix('activity-logs')->group(function () {
                 Route::get('/', [ActivityLogController::class, 'index']);
                 Route::get('/statistics', [ActivityLogController::class, 'statistics']);
                 Route::get('/users', [ActivityLogController::class, 'users']);
@@ -450,7 +462,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Admin Logs (detailed admin action tracking)
-            Route::prefix('admin-logs')->group(function () {
+            Route::middleware('permission:admin_logs.view')->prefix('admin-logs')->group(function () {
                 Route::get('/', [AdminLogController::class, 'index']);
                 Route::get('/statistics', [AdminLogController::class, 'statistics']);
                 Route::get('/users', [AdminLogController::class, 'users']);
@@ -465,7 +477,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Products Management
-            Route::prefix('products')->group(function () {
+            Route::middleware('permission:products.view,products.manage')->prefix('products')->group(function () {
                 Route::get('/', [AdminProductController::class, 'index']);
                 Route::post('/', [AdminProductController::class, 'store']);
                 Route::get('/stock-alerts', [AdminProductController::class, 'stockAlerts']);
@@ -478,7 +490,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Categories Management
-            Route::prefix('categories')->group(function () {
+            Route::middleware('permission:categories.view,categories.manage')->prefix('categories')->group(function () {
                 Route::get('/', [AdminCategoryController::class, 'index']);
                 Route::post('/', [AdminCategoryController::class, 'store']);
                 Route::get('/{id}', [AdminCategoryController::class, 'show']);
@@ -488,7 +500,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Orders Management
-            Route::prefix('orders')->group(function () {
+            Route::middleware('permission:orders.view,orders.manage')->prefix('orders')->group(function () {
                 Route::get('/', [AdminOrderController::class, 'index']);
                 Route::get('/status/{status}', [AdminOrderController::class, 'byStatus']);
                 Route::get('/{id}', [AdminOrderController::class, 'show']);
@@ -498,7 +510,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Support Tickets
-            Route::prefix('support')->group(function () {
+            Route::middleware('permission:support.view,support.manage')->prefix('support')->group(function () {
                 Route::get('/tickets', [SupportController::class, 'index']);
                 Route::post('/tickets', [SupportController::class, 'store']);
                 Route::get('/tickets/{id}', [SupportController::class, 'show']);
@@ -515,7 +527,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Canned Responses
-            Route::prefix('canned-responses')->group(function () {
+            Route::middleware('permission:support.view,support.manage')->prefix('canned-responses')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'index']);
                 Route::post('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'store']);
                 Route::get('/categories', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'categories']);
@@ -525,7 +537,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Financial Management
-            Route::prefix('financial')->group(function () {
+            Route::middleware('permission:financial.view,financial.manage')->prefix('financial')->group(function () {
                 Route::get('/dashboard', [FinancialController::class, 'dashboard']);
                 Route::get('/transactions', [FinancialController::class, 'transactions']);
                 Route::get('/promo-codes', [FinancialController::class, 'promoCodes']);
@@ -536,7 +548,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Promotions Management
-            Route::prefix('promotions')->group(function () {
+            Route::middleware('permission:promotions.view,promotions.manage')->prefix('promotions')->group(function () {
                 Route::get('/', [AdminPromotionController::class, 'index']);
                 Route::post('/', [AdminPromotionController::class, 'store']);
                 Route::get('/summary-analytics', [AdminPromotionController::class, 'summaryAnalytics']);
@@ -549,7 +561,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Notification Management
-            Route::prefix('notifications')->group(function () {
+            Route::middleware('permission:notifications.view,notifications.manage')->prefix('notifications')->group(function () {
                 Route::get('/', [AdminNotificationController::class, 'index']);
                 Route::get('/analytics', [AdminNotificationController::class, 'analytics']);
                 Route::get('/{id}', [AdminNotificationController::class, 'show']);
@@ -561,7 +573,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Static Pages Management (Terms, Privacy, About)
-            Route::prefix('pages')->group(function () {
+            Route::middleware('permission:content.view,content.manage')->prefix('pages')->group(function () {
                 Route::get('/', [AdminStaticPageController::class, 'index']);
                 Route::get('/{slug}', [AdminStaticPageController::class, 'show']);
                 Route::put('/{slug}', [AdminStaticPageController::class, 'update']);
@@ -570,7 +582,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Customer Management
-            Route::prefix('customers')->group(function () {
+            Route::middleware('permission:customers.view,customers.manage')->prefix('customers')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'index']);
                 Route::get('/stats', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'stats']);
                 Route::get('/{id}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'show']);
@@ -581,7 +593,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // User Management
-            Route::prefix('users')->group(function () {
+            Route::middleware('permission:users.view,users.manage')->prefix('users')->group(function () {
                 Route::get('/', [UserController::class, 'index']);
                 Route::post('/', [UserController::class, 'store']);
                 Route::get('/{id}', [UserController::class, 'show']);
@@ -590,7 +602,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Analytics & Reporting
-            Route::prefix('analytics')->group(function () {
+            Route::middleware('permission:analytics.view,analytics.manage')->prefix('analytics')->group(function () {
                 Route::get('/dashboard', [AnalyticsController::class, 'dashboard']);
                 Route::get('/quick-stats', [AnalyticsController::class, 'quickStats']); // Cached lightweight stats
                 Route::get('/products', [AnalyticsController::class, 'productPerformance']);
@@ -610,14 +622,14 @@ Route::prefix('v1')->group(function () {
             });
 
             // Refunds (wallet-based)
-            Route::prefix('refunds')->group(function () {
+            Route::middleware('permission:refunds.view,refunds.manage')->prefix('refunds')->group(function () {
                 Route::post('/full', [AdminRefundController::class, 'fullRefund']);
                 Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
             });
 
             // Refund Dashboard (Paymob card refunds)
-            Route::prefix('refund-dashboard')->group(function () {
+            Route::middleware('permission:refunds.view,refunds.manage')->prefix('refund-dashboard')->group(function () {
                 Route::get('/', [AdminRefundDashboardController::class, 'index']);
                 Route::get('/stats', [AdminRefundDashboardController::class, 'stats']);
                 Route::get('/{id}', [AdminRefundDashboardController::class, 'show']);
@@ -626,7 +638,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Promo Code Analytics & Management
-            Route::prefix('promo-codes')->group(function () {
+            Route::middleware('permission:promo_codes.view,promo_codes.manage')->prefix('promo-codes')->group(function () {
                 // CRUD operations
                 Route::get('/', [AdminPromoCodeController::class, 'index']);
                 Route::post('/', [AdminPromoCodeController::class, 'store']);
@@ -649,7 +661,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Store Settings Management
-            Route::prefix('store-settings')->group(function () {
+            Route::middleware('permission:settings.view,settings.manage')->prefix('store-settings')->group(function () {
                 Route::get('/', [AdminStoreSettingsController::class, 'index']);
                 Route::get('/status', [AdminStoreSettingsController::class, 'getStoreStatus']);
                 Route::get('/delivery', [AdminStoreSettingsController::class, 'getDeliverySettings']);
@@ -664,7 +676,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Reviews & Ratings Management
-            Route::prefix('reviews')->group(function () {
+            Route::middleware('permission:reviews.view,reviews.manage')->prefix('reviews')->group(function () {
                 Route::get('/', [AdminReviewController::class, 'index']);
                 Route::get('/analytics', [AdminReviewController::class, 'analytics']);
                 Route::get('/order/{orderId}', [AdminReviewController::class, 'orderReviews']);
@@ -677,7 +689,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Delivery Zones Management
-            Route::prefix('delivery-zones')->group(function () {
+            Route::middleware('permission:delivery_zones.view,delivery_zones.manage')->prefix('delivery-zones')->group(function () {
                 Route::get('/', [AdminDeliveryZoneController::class, 'index']);
                 Route::get('/dashboard', [AdminDeliveryZoneController::class, 'dashboard']);
                 Route::post('/', [AdminDeliveryZoneController::class, 'store']);
@@ -691,7 +703,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Driver Management
-            Route::prefix('drivers')->group(function () {
+            Route::middleware('permission:drivers.view,drivers.manage')->prefix('drivers')->group(function () {
                 Route::get('/', [AdminDriverController::class, 'index']);
                 Route::get('/available', [AdminDriverController::class, 'availableDrivers']);
                 Route::get('/locations', [AdminDriverController::class, 'locations']);

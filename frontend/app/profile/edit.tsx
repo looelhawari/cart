@@ -28,7 +28,18 @@ import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
 import { Toast } from "@/components/Toast";
 import { profileApi } from "@/services/api/profileApi";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import Constants from "expo-constants";
+
+// Guard: @react-native-google-signin crashes Expo Go
+const isExpoGo = Constants.appOwnership === "expo";
+let GoogleSignin: any = null;
+if (!isExpoGo) {
+  try {
+    GoogleSignin = require("@react-native-google-signin/google-signin").GoogleSignin;
+  } catch (e) {
+    console.warn("Google Sign-In not available:", e);
+  }
+}
 
 export default function EditProfileScreen() {
   const { user, updateProfile, fetchProfile } = useStore();
@@ -71,6 +82,10 @@ export default function EditProfileScreen() {
   };
 
   const handleRelinkGoogle = async () => {
+    if (!GoogleSignin) {
+      showToast("Google Sign-In requires a development build", "error");
+      return;
+    }
     setRelinkLoading(true);
     try {
       // Trigger Google Sign-In picker to select the NEW account
@@ -78,7 +93,7 @@ export default function EditProfileScreen() {
       // Sign out first to force the account picker to show
       try {
         await GoogleSignin.signOut();
-      } catch {}
+      } catch { }
       const response = await GoogleSignin.signIn();
       const idToken = response?.data?.idToken;
 

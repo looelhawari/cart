@@ -671,6 +671,8 @@ export default {
     addToCart: "أضف للسلة",
     updateCart: "تحديث السلة",
     itemAdded: "تمت إضافة المنتج للسلة",
+    freeDeliveryUnlocked: "🎉 حصلت على توصيل مجاني!",
+    addMoreForFreeDelivery: "أضف {amount} {currency} للحصول على توصيل مجاني!",
   },
 
   // Products

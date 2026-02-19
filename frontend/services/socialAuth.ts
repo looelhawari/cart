@@ -1,14 +1,18 @@
 // Social Authentication Service
 // Uses native Google Sign-In SDK for secure ID token retrieval
 // and Apple Authentication for iOS
-import {
-  GoogleSignin,
-  statusCodes,
-  isErrorWithCode,
-} from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { Platform } from "react-native";
+import Constants from "expo-constants";
+import { Platform, Alert } from "react-native";
 import { authApi } from "./api";
+
+// ────────────────────────────────────────────────────────
+//  Expo Go Detection
+// ────────────────────────────────────────────────────────
+// @react-native-google-signin/google-signin is a native module that requires
+// a custom development build. Importing it in Expo Go crashes the entire app
+// because TurboModuleRegistry can't find 'RNGoogleSignin' in the binary.
+const isExpoGo = Constants.appOwnership === "expo";
 
 // ────────────────────────────────────────────────────────
 //  Google OAuth Configuration
@@ -24,24 +28,51 @@ import { authApi } from "./api";
 const GOOGLE_WEB_CLIENT_ID =
   "113273912716-ho3k23v05dodf7gq7tpq5u782chrar3t.apps.googleusercontent.com";
 
-// Configure Google Sign-In once at module load
-GoogleSignin.configure({
-  // webClientId makes the SDK return an id_token (JWT) in addition to the access token
-  // The id_token's "aud" claim will be this value, which the backend verifies via JWKS
-  webClientId: GOOGLE_WEB_CLIENT_ID,
-  // Request offline access to get a server auth code (optional, not needed for id_token flow)
-  offlineAccess: false,
-  // Force account selection every time
-  forceCodeForRefreshToken: false,
-});
+// ────────────────────────────────────────────────────────
+//  Conditionally load native Google Sign-In (crashes Expo Go)
+// ────────────────────────────────────────────────────────
+let GoogleSignin: any = null;
+let statusCodes: any = {
+  SIGN_IN_CANCELLED: "SIGN_IN_CANCELLED",
+  IN_PROGRESS: "IN_PROGRESS",
+  PLAY_SERVICES_NOT_AVAILABLE: "PLAY_SERVICES_NOT_AVAILABLE",
+};
+let isErrorWithCode: (e: any) => boolean = () => false;
+
+if (!isExpoGo) {
+  try {
+    const gsModule = require("@react-native-google-signin/google-signin");
+    GoogleSignin = gsModule.GoogleSignin;
+    statusCodes = gsModule.statusCodes;
+    isErrorWithCode = gsModule.isErrorWithCode;
+    GoogleSignin.configure({
+      webClientId: GOOGLE_WEB_CLIENT_ID,
+      offlineAccess: false,
+      forceCodeForRefreshToken: false,
+    });
+  } catch (e) {
+    console.warn("Google Sign-In native module not available:", e);
+  }
+}
 
 /**
  * Sign in with Google using native SDK
  *
  * Returns the id_token JWT that the backend can cryptographically verify
  * using Google's public JWKS keys. No browser redirect involved.
+ *
+ * NOTE: Requires a custom dev build — not available in Expo Go.
  */
 export async function signInWithGoogle(): Promise<string> {
+  if (!GoogleSignin) {
+    Alert.alert(
+      "Not available in Expo Go",
+      "Google Sign-In requires a development build. Run 'npx expo run:android' or use the production app.",
+      [{ text: "OK" }]
+    );
+    throw new Error("CANCELLED");
+  }
+
   try {
     // Check if Google Play Services are available (Android only)
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -88,6 +119,7 @@ export async function signInWithGoogle(): Promise<string> {
  * Clears the cached Google session so user can pick a different account next time
  */
 export async function signOutGoogle(): Promise<void> {
+  if (!GoogleSignin) return;
   try {
     await GoogleSignin.signOut();
   } catch {

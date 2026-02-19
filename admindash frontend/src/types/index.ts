@@ -1,5 +1,7 @@
 // User & Auth Types
-export type AdminRole = 'super_admin' | 'admin' | 'sales_manager' | 'accountant' | 'customer_support'
+export type AdminRole = 'owner' | 'cashier' | 'support' | 'store_manager'
+    // Legacy roles (still accepted by backend for migration period)
+    | 'super_admin' | 'admin' | 'sales_manager' | 'accountant' | 'customer_support'
 
 export interface User {
     id: number

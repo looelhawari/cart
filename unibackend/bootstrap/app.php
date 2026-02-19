@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'password.confirm' => \App\Http\Middleware\RequirePasswordConfirmation::class,
             'log.admin.activity' => \App\Http\Middleware\LogAdminActivity::class,
             'gzip' => \App\Http\Middleware\GzipCompress::class,
+            'permission' => \App\Http\Middleware\CheckPermission::class,
         ]);
 
         // Apply ForceJsonResponse, SecurityHeaders, and Gzip to all API routes

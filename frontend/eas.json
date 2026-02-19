@@ -10,12 +10,19 @@
             "android": {
                 "buildType": "apk",
                 "image": "latest"
+            },
+            "ios": {
+                "simulator": true,
+                "image": "latest"
             }
         },
         "preview": {
             "distribution": "internal",
             "android": {
                 "buildType": "apk",
+                "image": "latest"
+            },
+            "ios": {
                 "image": "latest"
             }
         },
@@ -24,6 +31,9 @@
                 "buildType": "apk",
                 "image": "latest",
                 "gradleCommand": ":app:assembleRelease"
+            },
+            "ios": {
+                "image": "latest"
             },
             "cache": {
                 "disabled": true

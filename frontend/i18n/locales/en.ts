@@ -674,6 +674,8 @@ export default {
     addToCart: "Add to Cart",
     updateCart: "Update Cart",
     itemAdded: "Item added to cart",
+    freeDeliveryUnlocked: "🎉 You've unlocked FREE delivery!",
+    addMoreForFreeDelivery: "Add {amount} {currency} more for FREE delivery!",
   },
 
   // Products

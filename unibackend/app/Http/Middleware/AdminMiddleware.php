@@ -23,7 +23,7 @@ class AdminMiddleware
             ], 401);
         }
 
-        // Check if user is admin (includes super_admin, admin, sales_manager, accountant, customer_support)
+        // Check if user is admin (new RBAC roles + legacy roles)
         if (!$request->user()->isAdmin()) {
             return response()->json([
                 'success' => false,

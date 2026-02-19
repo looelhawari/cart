@@ -1,6 +1,10 @@
 // Background notification task - optional feature requiring expo-task-manager
 // This file provides safe stubs when expo-task-manager is not installed
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+
+// expo-notifications push support was removed from Expo Go in SDK 53.
+const isExpoGo = Constants.appOwnership === "expo";
 
 // Background notification task name
 export const BACKGROUND_NOTIFICATION_TASK = "BACKGROUND_NOTIFICATION_TASK";
@@ -11,10 +15,15 @@ let Notifications: any = null;
 let modulesLoaded = false;
 
 // Lazy load the modules - this prevents build failures
-// Using require.resolveWeak pattern to avoid Metro bundler including the module
 async function loadModules() {
     if (modulesLoaded) return TaskManager !== null;
     modulesLoaded = true;
+
+    // Push notifications not supported in Expo Go (SDK 53+)
+    if (isExpoGo) {
+        console.log("Background notification task disabled in Expo Go");
+        return false;
+    }
 
     try {
         // Dynamic import with variable to prevent bundler from analyzing
@@ -154,8 +163,8 @@ export async function getPendingBackgroundNotifications(): Promise<any[]> {
  */
 export async function getLastNotificationResponse(): Promise<any | null> {
     try {
+        if (isExpoGo) return null;
         if (!Notifications) {
-            // Try to load just expo-notifications (this should already be installed)
             try {
                 Notifications = await import("expo-notifications");
             } catch {

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/auth.store";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
@@ -37,134 +38,39 @@ interface NavItem {
   titleKey: string;
   href: string;
   icon: React.ElementType;
-  roles?: string[];
 }
 
 const navItems: NavItem[] = [
-  {
-    titleKey: "navigation.dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    titleKey: "navigation.products",
-    href: "/products",
-    icon: Package,
-    roles: ["super_admin", "admin", "sales_manager"],
-  },
-  {
-    titleKey: "navigation.categories",
-    href: "/categories",
-    icon: FolderTree,
-    roles: ["super_admin", "admin", "sales_manager"],
-  },
-  {
-    titleKey: "navigation.promotions",
-    href: "/promotions",
-    icon: Tag,
-    roles: ["super_admin", "admin", "sales_manager"],
-  },
-  {
-    titleKey: "navigation.promoCodes",
-    href: "/promo-codes",
-    icon: Ticket,
-    roles: ["super_admin", "admin", "sales_manager"],
-  },
-  {
-    titleKey: "navigation.orders",
-    href: "/orders",
-    icon: ShoppingCart,
-  },
-  {
-    titleKey: "Refunds",
-    href: "/refunds",
-    icon: DollarSign,
-    roles: ["super_admin", "admin", "accountant"],
-  },
-  {
-    titleKey: "navigation.deliveryZones",
-    href: "/delivery-zones",
-    icon: MapPin,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    titleKey: "navigation.drivers",
-    href: "/drivers",
-    icon: Truck,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    titleKey: "navigation.support",
-    href: "/support",
-    icon: MessageSquare,
-    roles: ["super_admin", "admin", "customer_support"],
-  },
-  {
-    titleKey: "navigation.financial",
-    href: "/financial",
-    icon: DollarSign,
-    roles: ["super_admin", "admin", "accountant"],
-  },
-  {
-    titleKey: "navigation.users",
-    href: "/users",
-    icon: Users,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    titleKey: "customers.title",
-    href: "/customers",
-    icon: Users,
-  },
-  {
-    titleKey: "navigation.analytics",
-    href: "/analytics",
-    icon: BarChart3,
-    roles: ["super_admin", "admin", "sales_manager", "accountant"],
-  },
-  {
-    titleKey: "navigation.adminLogs",
-    href: "/admin-logs",
-    icon: Shield,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    titleKey: "navigation.appLogs",
-    href: "/activity-logs",
-    icon: Activity,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    titleKey: "navigation.contentManagement",
-    href: "/content",
-    icon: FileText,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    titleKey: "navigation.reviews",
-    href: "/reviews",
-    icon: Star,
-    roles: ["super_admin", "admin", "customer_support"],
-  },
-  {
-    titleKey: "navigation.storeSettings",
-    href: "/settings",
-    icon: Settings,
-    roles: ["super_admin", "admin"],
-  },
+  { titleKey: "navigation.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { titleKey: "navigation.products", href: "/products", icon: Package },
+  { titleKey: "navigation.categories", href: "/categories", icon: FolderTree },
+  { titleKey: "navigation.promotions", href: "/promotions", icon: Tag },
+  { titleKey: "navigation.promoCodes", href: "/promo-codes", icon: Ticket },
+  { titleKey: "navigation.orders", href: "/orders", icon: ShoppingCart },
+  { titleKey: "Refunds", href: "/refunds", icon: DollarSign },
+  { titleKey: "navigation.deliveryZones", href: "/delivery-zones", icon: MapPin },
+  { titleKey: "navigation.drivers", href: "/drivers", icon: Truck },
+  { titleKey: "navigation.support", href: "/support", icon: MessageSquare },
+  { titleKey: "navigation.financial", href: "/financial", icon: DollarSign },
+  { titleKey: "navigation.users", href: "/users", icon: Users },
+  { titleKey: "customers.title", href: "/customers", icon: Users },
+  { titleKey: "navigation.analytics", href: "/analytics", icon: BarChart3 },
+  { titleKey: "navigation.adminLogs", href: "/admin-logs", icon: Shield },
+  { titleKey: "navigation.appLogs", href: "/activity-logs", icon: Activity },
+  { titleKey: "navigation.contentManagement", href: "/content", icon: FileText },
+  { titleKey: "navigation.reviews", href: "/reviews", icon: Star },
+  { titleKey: "navigation.storeSettings", href: "/settings", icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const { canNav } = usePermissions();
   const { t, i18n } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isRTL = i18n.language === "ar";
 
-  const filteredNavItems = navItems.filter((item) => {
-    if (!item.roles) return true;
-    return user && item.roles.includes(user.role);
-  });
+  const filteredNavItems = navItems.filter((item) => canNav(item.href));
 
   const handleLogout = async () => {
     await logout();
