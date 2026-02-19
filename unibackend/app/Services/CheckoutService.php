@@ -110,14 +110,15 @@ class CheckoutService
 
     /**
      * Strategy 2: Pay partially with wallet, remainder with card
+     * Wallet debit is committed first, with auto-rollback if Paymob fails.
      */
     private function payWithWalletAndCard(Order $order, UserWallet $wallet, array $billingData): array
     {
         $walletAmount = $wallet->balance;
         $cardAmount = $order->total - $walletAmount;
 
-        // Debit wallet first
-        DB::transaction(function () use ($order, $wallet, $walletAmount) {
+        // Debit wallet first (committed immediately)
+        DB::transaction(function () use ($order, $wallet, $walletAmount, $cardAmount) {
             $wallet->debit(
                 $walletAmount,
                 "Partial payment for order #{$order->order_number} (wallet portion)",
@@ -126,7 +127,6 @@ class CheckoutService
                 "order_partial_wallet_{$order->id}"
             );
 
-            // Mark order with partial payment
             $order->update([
                 'payment_method' => 'wallet+card',
                 'payment_status' => 'pending',
@@ -139,59 +139,81 @@ class CheckoutService
             ]);
         });
 
-        // Initiate Paymob for remaining amount
-        $amountCents = (int)($cardAmount * 100);
-        $internalOrderId = 'ORD-' . $order->id . '-' . time();
+        // Initiate Paymob - if this fails, roll back the wallet debit
+        try {
+            $amountCents = (int)($cardAmount * 100);
+            $internalOrderId = 'ORD-' . $order->id . '-' . time();
 
-        // Step 1: Authenticate
-        $authToken = $this->paymobService->authenticate();
+            $authToken = $this->paymobService->authenticate();
 
-        // Step 2: Register order
-        $paymobOrderId = $this->paymobService->registerOrder(
-            $authToken,
-            $amountCents,
-            $internalOrderId
-        );
+            $paymobOrderId = $this->paymobService->registerOrder(
+                $authToken,
+                $amountCents,
+                $internalOrderId
+            );
 
-        // Step 3: Generate payment key
-        $paymentToken = $this->paymobService->generatePaymentKey(
-            $authToken,
-            $amountCents,
-            $paymobOrderId,
-            $billingData,
-            'CARD'
-        );
+            $paymentToken = $this->paymobService->generatePaymentKey(
+                $authToken,
+                $amountCents,
+                $paymobOrderId,
+                $billingData,
+                'CARD'
+            );
 
-        // Store payment record
-        $integrationId = $this->paymobService->getIntegrationId('CARD');
+            $integrationId = $this->paymobService->getIntegrationId('CARD');
 
-        PaymobPayment::create([
-            'order_id' => $order->id,
-            'user_id' => $order->user_id,
-            'internal_order_id' => $internalOrderId,
-            'paymob_order_id' => $paymobOrderId,
-            'amount_cents' => $amountCents,
-            'currency' => 'EGP',
-            'payment_method' => 'CARD',
-            'flow' => 'classic_iframe',
-            'save_card_requested' => false,
-            'special_reference' => $internalOrderId,
-            'integration_id' => $integrationId,
-            'status' => 'PENDING',
-            'billing_data' => $billingData,
-        ]);
-        $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
+            PaymobPayment::create([
+                'order_id' => $order->id,
+                'user_id' => $order->user_id,
+                'internal_order_id' => $internalOrderId,
+                'paymob_order_id' => $paymobOrderId,
+                'amount_cents' => $amountCents,
+                'currency' => 'EGP',
+                'payment_method' => 'CARD',
+                'flow' => 'classic_iframe',
+                'save_card_requested' => false,
+                'special_reference' => $internalOrderId,
+                'integration_id' => $integrationId,
+                'status' => 'PENDING',
+                'billing_data' => $billingData,
+            ]);
+            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
 
-        return [
-            'success' => true,
-            'payment_method' => 'wallet+card',
-            'status' => 'pending',
-            'wallet_amount' => $walletAmount,
-            'card_amount' => $cardAmount,
-            'iframe_url' => $iframeUrl,
-            'payment_token' => $paymentToken,
-            'message' => "Paid {$walletAmount} EGP with wallet, {$cardAmount} EGP pending card payment",
-        ];
+            return [
+                'success' => true,
+                'payment_method' => 'wallet+card',
+                'status' => 'pending',
+                'wallet_amount' => $walletAmount,
+                'card_amount' => $cardAmount,
+                'iframe_url' => $iframeUrl,
+                'payment_token' => $paymentToken,
+                'message' => "Paid {$walletAmount} EGP with wallet, {$cardAmount} EGP pending card payment",
+            ];
+        } catch (\Exception $e) {
+            // Paymob failed — roll back wallet debit to prevent money loss
+            Log::error('Paymob initiation failed, rolling back wallet debit', [
+                'order_id' => $order->id,
+                'wallet_amount' => $walletAmount,
+                'error' => $e->getMessage(),
+            ]);
+
+            DB::transaction(function () use ($order, $wallet, $walletAmount) {
+                $wallet->credit(
+                    $walletAmount,
+                    "Refund: Paymob initiation failed for order #{$order->order_number}",
+                    'Order',
+                    $order->id,
+                    "order_partial_wallet_refund_{$order->id}"
+                );
+
+                $order->update([
+                    'payment_method' => null,
+                    'payment_status' => 'failed',
+                ]);
+            });
+
+            throw new Exception('Payment gateway error. Your wallet has been refunded. Please try again.');
+        }
     }
 
     /**

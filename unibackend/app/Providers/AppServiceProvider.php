@@ -40,9 +40,9 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting(): void
     {
-        // Default API rate limit: 120 requests per minute per user/IP (reasonable for mobile apps)
+        // Default API rate limit: 1000 requests per minute per user/IP (load-test tuned, production: 120)
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(120)->by(
+            return Limit::perMinute((int) env('RATE_LIMIT_API', 120))->by(
                 $request->user()?->id ?: $request->ip()
             )->response(function (Request $request, array $headers) {
                 return response()->json([
@@ -53,11 +53,10 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Auth rate limit: 60 requests per minute (like big tech apps)
-        // Users may retry login, have network issues, or use multiple forms
+        // Auth rate limit: env-configurable (default 60, raise for load testing)
         RateLimiter::for('auth', function (Request $request) {
-            return Limit::perMinute(60)->by(
-                $request->ip()  // Rate limit by IP only, not email (user might try different emails)
+            return Limit::perMinute((int) env('RATE_LIMIT_AUTH', 60))->by(
+                $request->ip()
             )->response(function (Request $request, array $headers) {
                 return response()->json([
                     'success' => false,
@@ -67,11 +66,10 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Login-specific: Track failed attempts separately (like Google/Facebook)
-        // Allow 10 failed attempts per 15 minutes before temporary block
+        // Login-specific: env-configurable (default 10 per 15 min)
         RateLimiter::for('login', function (Request $request) {
             $key = 'login:' . ($request->input('email') ?: $request->ip());
-            return Limit::perMinutes(15, 10)->by($key)->response(function (Request $request, array $headers) {
+            return Limit::perMinutes(15, (int) env('RATE_LIMIT_LOGIN', 10))->by($key)->response(function (Request $request, array $headers) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Too many failed login attempts. Please try again in 15 minutes.',

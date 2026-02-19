@@ -46,11 +46,13 @@ class ProductController extends Controller
                     });
                 }
 
-                // Search by name
+                // Search by name (use FULLTEXT for performance, fallback to LIKE)
                 if ($request->has('search')) {
                     $search = $request->search;
                     $query->where(function ($q) use ($search) {
-                        $q->where('name_en', 'like', "%{$search}%")
+                        // Use FULLTEXT MATCH...AGAINST for indexed search
+                        $q->whereRaw('MATCH(name_en, name_ar) AGAINST(? IN BOOLEAN MODE)', ['+' . $search . '*'])
+                          ->orWhere('name_en', 'like', "%{$search}%")
                           ->orWhere('name_ar', 'like', "%{$search}%");
                     });
                 }

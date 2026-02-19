@@ -31,6 +31,7 @@ class OrderService
 
     /**
      * Create order from cart
+     * Uses pessimistic locking to prevent cart race conditions
      */
     public function createOrderFromCart(
         Cart $cart,
@@ -52,23 +53,20 @@ class OrderService
             $notes,
             $promoCode
         ) {
+            // CRITICAL FIX: Lock the cart row and reload items inside the transaction
+            // This prevents concurrent requests from clearing/modifying the cart
+            // between the controller fetching it and this method processing it
+            $cart = Cart::where('id', $cart->id)->lockForUpdate()->firstOrFail();
+            $cart->load('items.product');
+
             // STEP 2: SNAPSHOT RULE - Calculate cart totals ONCE
-            // These values will be frozen in the order table
-            // CRITICAL: Order totals NEVER recalculate after this point
             $cartTotals = $this->cartService->calculateTotals($cart, $promoCode);
 
-            Log::info('📸 [STEP 2] ORDER SNAPSHOT - Freezing cart totals', [
+            Log::debug('Order snapshot', [
                 'cart_id' => $cart->id,
-                'cart_totals' => $cartTotals,
-                'items_count' => $cart->items->count(),
-                'snapshot_timestamp' => now()->toDateTimeString(),
-                'items_breakdown' => $cart->items->map(fn($item) => [
-                    'product_id' => $item->product_id,
-                    'name' => $item->product->name_en ?? 'Unknown',
-                    'quantity' => $item->quantity,
-                    'price' => $item->price,
-                    'subtotal' => $item->price * $item->quantity,
-                ])->toArray(),
+                'subtotal' => $cartTotals['subtotal'],
+                'items_count' => $cartTotals['items_count'],
+                'total' => $cartTotals['total'],
             ]);
 
             if ($cartTotals['items_count'] === 0) {
@@ -81,14 +79,10 @@ class OrderService
             $total = $cartTotals['total'];
             $promoSnapshot = $cartTotals['promo_summary'] ?? null;
 
-            Log::info('� [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
+            Log::info('🔒 [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
                 'subtotal' => $cartTotals['subtotal'],
                 'delivery_fee' => $deliveryFee,
-                'tax' => $tax,
-                'discount' => $discount,
                 'TOTAL' => $total,
-                'payment_method' => $paymentMethod,
-                'rule' => 'These values are now IMMUTABLE - will never recalculate from cart',
             ]);
 
             // Create order
@@ -110,17 +104,10 @@ class OrderService
                 'notes' => $notes,
             ]);
 
-            Log::info('✅ [STEP 2] ORDER CREATED - Snapshot saved to database', [
+            Log::info('Order created', [
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
-                'snapshot_values' => [
-                    'subtotal' => $order->subtotal,
-                    'delivery_fee' => $order->delivery_fee,
-                    'tax' => $order->tax,
-                    'discount' => $order->discount,
-                    'total' => $order->total,
-                ],
-                'verification' => 'Order totals match cart snapshot',
+                'total' => $order->total,
             ]);
 
             // STEP 2.5: ZONE SNAPSHOT - Freeze delivery zone info
@@ -129,18 +116,12 @@ class OrderService
                 if ($address && $address->latitude && $address->longitude) {
                     $zoneService = app(DeliveryZoneService::class);
                     $zoneService->snapshotZoneToOrder($order, $address);
-                    Log::info('📍 [STEP 2.5] ZONE SNAPSHOT - Delivery zone attached to order', [
-                        'order_id' => $order->id,
-                        'zone_id' => $order->delivery_zone_id,
-                        'zone_name' => $order->zone_name,
-                    ]);
                 }
             } catch (\Exception $e) {
                 Log::warning('Zone snapshot failed (non-critical)', ['error' => $e->getMessage()]);
             }
 
-            // Create order items from cart items
-            $cart->load('items.product');
+            // Create order items from cart items — items already loaded above
 
             $productQuantities = [];
             foreach ($cart->items as $cartItem) {
@@ -269,11 +250,7 @@ class OrderService
      */
     public function reorder(int $orderId, int $userId, ?string $sessionId = null): array
     {
-        Log::info('🛒 [REORDER] Starting reorder process', [
-            'order_id' => $orderId,
-            'user_id' => $userId,
-            'session_id' => $sessionId,
-        ]);
+        Log::debug('Reorder started', ['order_id' => $orderId, 'user_id' => $userId]);
 
         $order = Order::where('id', $orderId)
             ->where('user_id', $userId)
@@ -282,11 +259,7 @@ class OrderService
 
         $cart = $this->cartService->getCart($userId, $sessionId);
 
-        Log::info('🛒 [REORDER] Cart retrieved', [
-            'cart_id' => $cart->id,
-            'existing_items' => $cart->items->count(),
-            'session_id' => $cart->session_id,
-        ]);
+        Log::debug('Reorder cart retrieved', ['cart_id' => $cart->id]);
 
         // Clear existing cart
         $this->cartService->clearCart($cart);
@@ -316,13 +289,7 @@ class OrderService
 
         $cart->fresh('items.product');
 
-        Log::info('✅ [REORDER] Reorder completed', [
-            'cart_id' => $cart->id,
-            'items_added' => count($addedItems),
-            'items_unavailable' => count($unavailableItems),
-            'final_items_count' => $cart->items->count(),
-            'session_id' => $cart->session_id,
-        ]);
+        Log::debug('Reorder completed', ['items_added' => count($addedItems), 'items_unavailable' => count($unavailableItems)]);
 
         return [
             'cart' => $cart->fresh('items.product'),

@@ -63,19 +63,7 @@ class CartController extends Controller
             $userId = $request->user()?->id;
             $sessionId = $request->header('X-Session-ID');
 
-            Log::info('🛒 [CART GET] Fetching cart', [
-                'user_id' => $userId,
-                'session_id' => $sessionId,
-            ]);
-
             $cart = $this->cartService->getCart($userId, $sessionId);
-
-            Log::info('🛒 [CART GET] Cart retrieved', [
-                'cart_id' => $cart->id,
-                'cart_user_id' => $cart->user_id,
-                'cart_session_id' => $cart->session_id,
-                'items_count' => $cart->items->count(),
-            ]);
 
             // Load promo code if one is applied to the cart
             $promoCode = null;
@@ -91,10 +79,7 @@ class CartController extends Controller
                 'session_id' => $cart->session_id, // Return session ID for guest users
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
-            Log::error('🛒 [CART GET] Error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            Log::error('Cart GET error', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve cart',

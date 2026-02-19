@@ -61,121 +61,72 @@ class CartService
     /**
      * Get or create cart for guest or authenticated user
      * STEP 1: Newest Cart Wins - NO MERGING
+     * Uses DB transaction + row locks to prevent race conditions
      */
     public function getCart(?int $userId = null, ?string $sessionId = null): Cart
     {
-        \Log::info('🛒 [STEP 1] CartService::getCart()', [
-            'user_id' => $userId,
-            'session_id' => $sessionId,
-        ]);
+        \Log::debug('[CartService] getCart', ['user_id' => $userId, 'session_id' => $sessionId]);
 
-        if ($userId) {
-            // Try to get user's cart
-            $cart = Cart::where('user_id', $userId)->first();
+        $cart = DB::transaction(function () use ($userId, $sessionId) {
+            if ($userId) {
+                // Lock user's cart row to prevent concurrent merge races
+                $cart = Cart::where('user_id', $userId)->lockForUpdate()->first();
 
-            if ($cart) {
-                \Log::info('📦 [STEP 1] Found USER cart', [
-                    'cart_id' => $cart->id,
-                    'items' => $cart->items->count(),
-                    'updated' => $cart->updated_at->toDateTimeString(),
-                ]);
-            }
+                // If user has a session ID, check for guest cart
+                if ($sessionId) {
+                    $guestCart = Cart::where('session_id', $sessionId)
+                        ->whereNull('user_id')
+                        ->lockForUpdate()
+                        ->first();
 
-            // If user has a session ID, check for guest cart
-            if ($sessionId) {
-                $guestCart = Cart::where('session_id', $sessionId)
-                    ->whereNull('user_id')
-                    ->first();
+                    if ($guestCart) {
+                        if ($cart) {
+                            // BOTH CARTS EXIST - NEWEST WINS (under lock)
+                            if ($guestCart->updated_at->gt($cart->updated_at)) {
+                                $cart->items()->delete();
+                                $cart->delete();
 
-                if ($guestCart) {
-                    \Log::info('🔍 [STEP 1] Found GUEST cart', [
-                        'cart_id' => $guestCart->id,
-                        'items' => $guestCart->items->count(),
-                        'updated' => $guestCart->updated_at->toDateTimeString(),
-                    ]);
-
-                    if ($cart) {
-                        // BOTH CARTS EXIST - NEWEST WINS!
-                        \Log::warning('🏆 [STEP 1] BOTH CARTS - APPLYING NEWEST WINS STRATEGY', [
-                            'user_cart' => [
-                                'id' => $cart->id,
-                                'items' => $cart->items->count(),
-                                'updated' => $cart->updated_at->toDateTimeString(),
-                            ],
-                            'guest_cart' => [
-                                'id' => $guestCart->id,
-                                'items' => $guestCart->items->count(),
-                                'updated' => $guestCart->updated_at->toDateTimeString(),
-                            ],
-                        ]);
-
-                        // Compare timestamps - keep the newest cart
-                        if ($guestCart->updated_at->gt($cart->updated_at)) {
-                            // Guest cart is newer - delete old user cart and convert guest to user cart
-                            \Log::info('✅ [STEP 1] GUEST CART WINS (newer)', [
-                                'deleting_cart_id' => $cart->id,
-                                'keeping_cart_id' => $guestCart->id,
-                                'guest_is_newer_by' => $guestCart->updated_at->diffForHumans($cart->updated_at),
-                            ]);
-
-                            $cart->items()->delete();
-                            $cart->delete();
-
+                                $guestCart->update([
+                                    'user_id' => $userId,
+                                    'session_id' => null,
+                                ]);
+                                $cart = $guestCart;
+                            } else {
+                                $guestCart->items()->delete();
+                                $guestCart->delete();
+                            }
+                        } else {
+                            // No user cart - convert guest cart to user cart
                             $guestCart->update([
                                 'user_id' => $userId,
                                 'session_id' => null,
                             ]);
                             $cart = $guestCart;
-                        } else {
-                            // User cart is newer or same age - delete guest cart
-                            \Log::info('✅ [STEP 1] USER CART WINS (newer or same age)', [
-                                'keeping_cart_id' => $cart->id,
-                                'deleting_cart_id' => $guestCart->id,
-                                'user_is_newer_by' => $cart->updated_at->diffForHumans($guestCart->updated_at),
-                            ]);
-
-                            $guestCart->items()->delete();
-                            $guestCart->delete();
                         }
-                    } else {
-                        // No user cart - convert guest cart to user cart
-                        \Log::info('🔄 [STEP 1] Converting GUEST cart to USER cart', [
-                            'cart_id' => $guestCart->id,
-                        ]);
-
-                        $guestCart->update([
-                            'user_id' => $userId,
-                            'session_id' => null,
-                        ]);
-                        $cart = $guestCart;
                     }
+                }
+
+                // Create new user cart if none exists
+                if (!$cart) {
+                    $cart = Cart::create(['user_id' => $userId]);
+                }
+            } else {
+                // Guest cart
+                if (!$sessionId) {
+                    $sessionId = Str::uuid()->toString();
+                }
+
+                $cart = Cart::where('session_id', $sessionId)->lockForUpdate()->first();
+
+                if (!$cart) {
+                    $cart = Cart::create(['session_id' => $sessionId]);
                 }
             }
 
-            // Create new user cart if none exists
-            if (!$cart) {
-                \Log::info('🆕 [STEP 1] Creating NEW user cart', [
-                    'user_id' => $userId,
-                ]);
-                $cart = Cart::create(['user_id' => $userId]);
-            }
-        } else {
-            // Guest cart
-            if (!$sessionId) {
-                $sessionId = Str::uuid()->toString();
-            }
+            return $cart;
+        });
 
-            $cart = Cart::where('session_id', $sessionId)->first();
-
-            if (!$cart) {
-                \Log::info('🆕 [STEP 1] Creating NEW guest cart', [
-                    'session_id' => $sessionId,
-                ]);
-                $cart = Cart::create(['session_id' => $sessionId]);
-            }
-        }
-
-        // Load cart items with product relationship
+        // Load cart items with product relationship (outside transaction to reduce lock time)
         $cart->load('items.product');
 
         return $cart;
@@ -205,76 +156,72 @@ class CartService
     }
 
     /**
-     * Add item to cart
+     * Add item to cart (atomic with row locks)
      */
     public function addItem(Cart $cart, int $productId, int $quantity = 1): CartItem
     {
-        // Get product and lock price
-        $product = Product::where('barcode', $productId)->firstOrFail();
+        return DB::transaction(function () use ($cart, $productId, $quantity) {
+            // Lock the product row to get consistent stock reading
+            $product = Product::where('barcode', $productId)->lockForUpdate()->firstOrFail();
 
-        if (!$product->is_in_stock) {
-            throw new \Exception('Product is out of stock', 422);
-        }
-
-        // Check stock availability
-        if ($product->stock_quantity < $quantity) {
-            throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
-        }
-
-        if (!$product->is_active) {
-            throw new \Exception('Product is not available');
-        }
-
-        // Check per-order quantity limit for restricted products
-        $maxPerOrder = self::QUANTITY_LIMITED_PRODUCTS[$product->barcode] ?? null;
-        if ($maxPerOrder !== null) {
-            // Check existing quantity in cart
-            $existingQty = CartItem::where('cart_id', $cart->id)
-                ->where('product_id', $productId)
-                ->value('quantity') ?? 0;
-
-            if (($existingQty + $quantity) > $maxPerOrder) {
-                throw new \Exception(
-                    "Maximum {$maxPerOrder} units per order for this product.",
-                    422
-                );
+            if (!$product->is_in_stock) {
+                throw new \Exception('Product is out of stock', 422);
             }
-        }
 
-        // Check if item already exists in cart
-        $cartItem = CartItem::where('cart_id', $cart->id)
-            ->where('product_id', $productId)
-            ->first();
-
-        $effectivePrice = $product->sale_price ?? $product->price;
-
-        if ($cartItem) {
-            // Update quantity
-            $newQuantity = $cartItem->quantity + $quantity;
-
-            // Check stock for new quantity
-            if ($product->stock_quantity < $newQuantity) {
+            if ($product->stock_quantity < $quantity) {
                 throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
             }
 
-            $cartItem->update([
-                'quantity' => $newQuantity,
-                'price' => $effectivePrice, // Update price to current price
-            ]);
-        } else {
-            // Create new cart item
-            $cartItem = CartItem::create([
-                'cart_id' => $cart->id,
-                'product_id' => $productId,
-                'quantity' => $quantity,
-                'price' => $effectivePrice,
-            ]);
-        }
+            if (!$product->is_active) {
+                throw new \Exception('Product is not available');
+            }
 
-        // Clear cart cache after modification
-        $this->clearCartCache($cart->user_id, $cart->session_id);
+            // Check per-order quantity limit for restricted products
+            $maxPerOrder = self::QUANTITY_LIMITED_PRODUCTS[$product->barcode] ?? null;
 
-        return $cartItem;
+            // Lock existing cart item row to prevent concurrent addItem race
+            $cartItem = CartItem::where('cart_id', $cart->id)
+                ->where('product_id', $productId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($maxPerOrder !== null) {
+                $existingQty = $cartItem ? $cartItem->quantity : 0;
+                if (($existingQty + $quantity) > $maxPerOrder) {
+                    throw new \Exception(
+                        "Maximum {$maxPerOrder} units per order for this product.",
+                        422
+                    );
+                }
+            }
+
+            $effectivePrice = $product->sale_price ?? $product->price;
+
+            if ($cartItem) {
+                $newQuantity = $cartItem->quantity + $quantity;
+
+                if ($product->stock_quantity < $newQuantity) {
+                    throw new \Exception('Insufficient stock. Available: ' . $product->stock_quantity, 422);
+                }
+
+                $cartItem->update([
+                    'quantity' => $newQuantity,
+                    'price' => $effectivePrice,
+                ]);
+            } else {
+                $cartItem = CartItem::create([
+                    'cart_id' => $cart->id,
+                    'product_id' => $productId,
+                    'quantity' => $quantity,
+                    'price' => $effectivePrice,
+                ]);
+            }
+
+            // Clear cart cache after modification
+            $this->clearCartCache($cart->user_id, $cart->session_id);
+
+            return $cartItem;
+        });
     }
 
     /**
@@ -357,11 +304,11 @@ class CartService
             ];
         }
 
-        // 🔍 DEBUG: Log cart calculation
-        \Log::info('🛒 CART TOTALS CALCULATION', [
+        // Debug-level cart calculation log (silenced in production)
+        \Log::debug('Cart totals calculated', [
             'cart_id' => $cart->id,
-            'items' => $itemDetails,
-            'calculated_subtotal' => $subtotal,
+            'subtotal' => $subtotal,
+            'items_count' => $cart->items->count(),
         ]);
 
         // Tax removed from system
