@@ -237,7 +237,7 @@ function RootLayoutNav() {
       <Stack.Screen name="driver" options={{ headerShown: false }} />
       <Stack.Screen
         name="search"
-        options={{ presentation: "modal", headerShown: true, title: "Search" }}
+        options={{ presentation: "modal", headerShown: false }}
       />
       <Stack.Screen name="product" options={{ headerShown: false }} />
       <Stack.Screen name="checkout" options={{ headerShown: false }} />

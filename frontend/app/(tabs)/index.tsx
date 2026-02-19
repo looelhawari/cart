@@ -9,6 +9,7 @@ import {
   Dimensions,
   Animated,
   InteractionManager,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -684,16 +685,26 @@ export default function HomeScreen() {
                   activeOpacity={0.85}
                 >
                   <View style={{ position: "relative" }}>
-                    <LinearGradient
-                      colors={iconInfo.gradient}
-                      style={styles.categoryIconContainer}
-                    >
-                      <Ionicons
-                        name={iconInfo.icon}
-                        size={26}
-                        color={iconInfo.color}
-                      />
-                    </LinearGradient>
+                    {cat.image ? (
+                      <View style={styles.categoryImageWrap}>
+                        <Image
+                          source={{ uri: cat.image }}
+                          style={styles.categoryImageFill}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ) : (
+                      <LinearGradient
+                        colors={iconInfo.gradient}
+                        style={styles.categoryIconContainer}
+                      >
+                        <Ionicons
+                          name={iconInfo.icon}
+                          size={26}
+                          color={iconInfo.color}
+                        />
+                      </LinearGradient>
+                    )}
                     {discount && discount > 0 && (
                       <View style={styles.categoryDiscountBadge}>
                         <Text style={styles.categoryDiscountText}>
@@ -1223,6 +1234,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 5,
     elevation: 2,
+  },
+  categoryImageWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 17,
+    overflow: "hidden",
+    marginBottom: 7,
+    backgroundColor: Colors.neutralLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  categoryImageFill: {
+    width: 68,
+    height: 68,
   },
   categoryName: {
     fontSize: 11,

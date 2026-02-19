@@ -558,32 +558,34 @@ export default function SearchScreen() {
                 <Text style={styles.sectionTitle}>{t.search.trendingNow}</Text>
               </View>
               <View style={styles.trendingList}>
-                {popularData.trending_searches.map((item, index) => (
-                  <TouchableOpacity
-                    key={`trend-${index}`}
-                    style={styles.trendingRow}
-                    onPress={() => handleTrendingPress(item.term_en)}
-                    activeOpacity={0.6}
-                  >
-                    <View style={styles.trendingRank}>
-                      <Text
-                        style={[
-                          styles.trendingRankText,
-                          index < 3 && styles.trendingRankTextTop,
-                        ]}
-                      >
-                        {index + 1}
+                {popularData.trending_searches
+                  .slice(0, 5)
+                  .map((item, index) => (
+                    <TouchableOpacity
+                      key={`trend-${index}`}
+                      style={styles.trendingRow}
+                      onPress={() => handleTrendingPress(item.term_en)}
+                      activeOpacity={0.6}
+                    >
+                      <View style={styles.trendingRank}>
+                        <Text
+                          style={[
+                            styles.trendingRankText,
+                            index < 3 && styles.trendingRankTextTop,
+                          ]}
+                        >
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <Text style={styles.trendingTermText} numberOfLines={1}>
+                        {getName({
+                          name_en: item.term_en,
+                          name_ar: item.term_ar,
+                        })}
                       </Text>
-                    </View>
-                    <Text style={styles.trendingTermText} numberOfLines={1}>
-                      {getName({
-                        name_en: item.term_en,
-                        name_ar: item.term_ar,
-                      })}
-                    </Text>
-                    <ChevronRight size={14} color={Colors.neutralGray} />
-                  </TouchableOpacity>
-                ))}
+                      <ChevronRight size={14} color={Colors.neutralGray} />
+                    </TouchableOpacity>
+                  ))}
               </View>
             </View>
           )}
@@ -615,21 +617,24 @@ export default function SearchScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    {cat.image ? (
-                      <Image
-                        source={{ uri: cat.image }}
-                        style={styles.topCategoryImage}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.topCategoryImage,
-                          styles.topCategoryPlaceholder,
-                        ]}
-                      >
-                        <Grid3x3 size={22} color={Colors.neutralMedium} />
-                      </View>
-                    )}
+                    <View style={styles.topCategoryImageWrap}>
+                      {cat.image ? (
+                        <Image
+                          source={{ uri: cat.image }}
+                          style={styles.topCategoryImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.topCategoryImage,
+                            styles.topCategoryPlaceholder,
+                          ]}
+                        >
+                          <Grid3x3 size={22} color={Colors.neutralMedium} />
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.topCategoryName} numberOfLines={2}>
                       {getName({ name_en: cat.name_en, name_ar: cat.name_ar })}
                     </Text>
@@ -1153,14 +1158,31 @@ const styles = StyleSheet.create({
   topCategoryCard: {
     width: (width - Spacing.md * 2 - Spacing.md * 2 - Spacing.sm * 2) / 3,
     alignItems: "center",
-    gap: 4,
+    gap: 6,
     paddingVertical: Spacing.xs,
   },
-  topCategoryImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
+  topCategoryImageWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    overflow: "hidden",
     backgroundColor: Colors.neutralLight,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  topCategoryImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
   },
   topCategoryPlaceholder: {
     alignItems: "center",

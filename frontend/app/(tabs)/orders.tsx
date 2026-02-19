@@ -60,8 +60,12 @@ export default function OrdersScreen() {
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
   const goToCartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchRef = useRef<number>(0);
+  const authFailedRef = useRef<boolean>(false);
 
   const fetchOrders = async (page: number = 1, append: boolean = false) => {
+    // Don't attempt if a previous fetch failed due to auth
+    if (authFailedRef.current) return;
+
     try {
       if (page === 1) {
         setOrdersLoading(true);
@@ -94,7 +98,17 @@ export default function OrdersScreen() {
       }
       setCurrentPage(page);
       setHasMore(page < lastPage && ordersData.length > 0);
-    } catch (error) {
+    } catch (error: any) {
+      // If auth error (401/Unauthenticated), stop retrying until user re-authenticates
+      const msg = error?.message || error?.toString() || "";
+      if (
+        msg.includes("Unauthenticated") ||
+        msg.includes("Session expired") ||
+        msg.includes("TOKEN_EXPIRED") ||
+        error?.status === 401
+      ) {
+        authFailedRef.current = true;
+      }
       console.error("Failed to fetch orders:", error);
       if (!append) setUserOrders([]);
     } finally {
@@ -106,6 +120,8 @@ export default function OrdersScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user) {
+        // Reset auth failure flag when user changes (re-login)
+        authFailedRef.current = false;
         // Skip refetch if we fetched within the last 30 seconds
         const now = Date.now();
         if (now - lastFetchRef.current < 30000 && userOrders.length > 0) {
@@ -147,23 +163,23 @@ export default function OrdersScreen() {
     label: string;
     iconName: keyof typeof Ionicons.glyphMap;
   }[] = [
-      { key: "all", label: t.orders?.all || "All", iconName: "bag-outline" },
-      {
-        key: "processing",
-        label: t.orders?.active || "Active",
-        iconName: "time-outline",
-      },
-      {
-        key: "delivered",
-        label: t.orders?.delivered || "Delivered",
-        iconName: "checkmark-circle-outline",
-      },
-      {
-        key: "cancelled",
-        label: t.orders?.cancelled || "Cancelled",
-        iconName: "close-circle-outline",
-      },
-    ];
+    { key: "all", label: t.orders?.all || "All", iconName: "bag-outline" },
+    {
+      key: "processing",
+      label: t.orders?.active || "Active",
+      iconName: "time-outline",
+    },
+    {
+      key: "delivered",
+      label: t.orders?.delivered || "Delivered",
+      iconName: "checkmark-circle-outline",
+    },
+    {
+      key: "cancelled",
+      label: t.orders?.cancelled || "Cancelled",
+      iconName: "close-circle-outline",
+    },
+  ];
 
   const handleTabChange = (tab: TabType, index: number) => {
     setActiveTab(tab);
@@ -177,19 +193,19 @@ export default function OrdersScreen() {
 
   const filteredOrders = Array.isArray(userOrders)
     ? userOrders.filter((order: any) => {
-      if (activeTab === "all") return true;
-      if (activeTab === "processing") {
-        return [
-          "pending",
-          "confirmed",
-          "preparing",
-          "ready",
-          "out_for_delivery",
-          "processing",
-        ].includes(order.status);
-      }
-      return order.status === activeTab;
-    })
+        if (activeTab === "all") return true;
+        if (activeTab === "processing") {
+          return [
+            "pending",
+            "confirmed",
+            "preparing",
+            "ready",
+            "out_for_delivery",
+            "processing",
+          ].includes(order.status);
+        }
+        return order.status === activeTab;
+      })
     : [];
 
   const onRefresh = useCallback(async () => {
@@ -475,7 +491,13 @@ export default function OrdersScreen() {
             <ChevronRight size={16} color={Colors.primary900} />
           </TouchableOpacity>
 
-          {["pending", "confirmed", "preparing", "out_for_delivery", "processing"].includes(item.status) && (
+          {[
+            "pending",
+            "confirmed",
+            "preparing",
+            "out_for_delivery",
+            "processing",
+          ].includes(item.status) && (
             <TouchableOpacity
               style={{
                 flexDirection: "row",
@@ -486,7 +508,9 @@ export default function OrdersScreen() {
                 borderRadius: 12,
                 gap: 4,
               }}
-              onPress={() => router.push(`/orders/tracking?id=${item.id}` as any)}
+              onPress={() =>
+                router.push(`/orders/tracking?id=${item.id}` as any)
+              }
             >
               <Ionicons name="navigate" size={14} color={Colors.primary900} />
               <Text

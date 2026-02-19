@@ -1,9 +1,12 @@
 // src/api/api.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
-
-// API Configuration
-const API_BASE_URL = API_CONFIG.BASE_URL;
+import {
+  getAuthToken,
+  saveTokens,
+  clearAuthData,
+  API_BASE_URL,
+} from "./api/base";
 
 // Types
 export interface RegisterData {
@@ -75,36 +78,11 @@ export interface ApiError {
   error_code?: string;
 }
 
-// In-memory token cache to avoid AsyncStorage reads on every request
-let _cachedToken: string | null | undefined = undefined;
-
-// Helper: Get current access token (with in-memory cache)
-const getAuthToken = async (): Promise<string | null> => {
-  if (_cachedToken !== undefined) {
-    return _cachedToken;
-  }
-  _cachedToken = await AsyncStorage.getItem(TOKEN_CONFIG.ACCESS_TOKEN_KEY);
-  return _cachedToken;
-};
-
-// Helper: Save tokens securely
-const saveTokens = async (accessToken: string, refreshToken: string) => {
-  _cachedToken = accessToken;
-  await AsyncStorage.multiSet([
-    [TOKEN_CONFIG.ACCESS_TOKEN_KEY, accessToken],
-    [TOKEN_CONFIG.REFRESH_TOKEN_KEY, refreshToken],
-  ]);
-};
-
-// Helper: Clear all auth data
-const clearAuthData = async () => {
-  _cachedToken = null;
-  await AsyncStorage.multiRemove([
-    TOKEN_CONFIG.ACCESS_TOKEN_KEY,
-    TOKEN_CONFIG.REFRESH_TOKEN_KEY,
-    TOKEN_CONFIG.USER_CACHE_KEY, // Optional cached user
-  ]);
-};
+// Token functions (getAuthToken, saveTokens, clearAuthData) are imported from
+// ./api/base.ts to ensure a SINGLE in-memory token cache across the entire app.
+// Previously, api.ts and base.ts each had their own _cachedToken, causing the
+// stale-token bug: social login saved via api.ts, but orderApi/favoritesApi
+// read from base.ts's stale null cache → 401 Unauthenticated.
 
 // Track if we're currently refreshing to prevent multiple refresh attempts
 let isRefreshing = false;
