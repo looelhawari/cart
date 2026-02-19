@@ -23,16 +23,16 @@ class PaymobService
 
     public function __construct()
     {
-        $this->apiKey = config('services.paymob.api_key');
-        $this->secretKey = config('services.paymob.secret_key');
-        $this->hmacSecret = config('services.paymob.hmac_secret');
-        $this->publicKey = config('services.paymob.public_key');
-        $this->iframeId = config('services.paymob.iframe_id');
-        $this->cardIntegrationId = config('services.paymob.card_integration_id');
-        $this->integrationId3DS = config('services.paymob.integration_id_3ds');
+        $this->apiKey = config('services.paymob.api_key', '');
+        $this->secretKey = config('services.paymob.secret_key', '');
+        $this->hmacSecret = config('services.paymob.hmac_secret', '');
+        $this->publicKey = config('services.paymob.public_key', '');
+        $this->iframeId = config('services.paymob.iframe_id', '');
+        $this->cardIntegrationId = config('services.paymob.card_integration_id', '');
+        $this->integrationId3DS = config('services.paymob.integration_id_3ds', '');
         $this->motoIntegrationId = config('services.paymob.moto_integration_id', '');
-        $this->walletIntegrationId = config('services.paymob.wallet_integration_id');
-        $this->callbackUrl = config('services.paymob.callback_url');
+        $this->walletIntegrationId = config('services.paymob.wallet_integration_id', '');
+        $this->callbackUrl = config('services.paymob.callback_url', '');
         $this->currency = config('services.paymob.currency', 'EGP');
         $this->baseUrl = config('services.paymob.base_url', 'https://accept.paymob.com/api');
     }
