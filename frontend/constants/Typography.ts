@@ -1,4 +1,4 @@
-// ElBaraka Design System Typography
+// CART Design System Typography
 export const Typography = {
   // Font Sizes
   h1: 36,

@@ -847,7 +847,7 @@ export default function OrderDetailsScreen() {
             Authorization: token ? `Bearer ${token}` : "",
             Accept: "application/pdf",
             "ngrok-skip-browser-warning": "true",
-            "User-Agent": "ElBaraka-Mobile-App",
+            "User-Agent": "CART-Mobile-App",
           },
           idempotent: true, // overwrite if file already exists
         },

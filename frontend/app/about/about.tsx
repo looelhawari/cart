@@ -5,10 +5,10 @@ import StaticPageScreen from "@/components/StaticPageScreen";
 
 // Fallback content in case API is unavailable
 const FALLBACK_CONTENT = `
-<h1>Welcome to El Baraka</h1>
+<h1>Welcome to CART</h1>
 
 <h2>Who We Are</h2>
-<p>El Baraka is your trusted online hypermarket, bringing fresh groceries and daily essentials directly to your doorstep. Since our founding, we've been committed to making grocery shopping effortless and enjoyable for families across Egypt.</p>
+<p>CART is your trusted online hypermarket, bringing fresh groceries and daily essentials directly to your doorstep. Since our founding, we've been committed to making grocery shopping effortless and enjoyable for families across Egypt.</p>
 
 <h2>Our Mission</h2>
 <p>To revolutionize the way people shop for groceries by delivering fresh, quality products with speed and convenience, while building lasting relationships with our customers through exceptional service.</p>
@@ -23,7 +23,7 @@ const FALLBACK_CONTENT = `
 </ul>
 
 <h2>Why Choose Us</h2>
-<p>With thousands of products, competitive prices, and delivery in as fast as 1 hour, El Baraka makes grocery shopping simple. Our dedicated team works around the clock to ensure you receive the best shopping experience.</p>
+<p>With thousands of products, competitive prices, and delivery in as fast as 1 hour, CART makes grocery shopping simple. Our dedicated team works around the clock to ensure you receive the best shopping experience.</p>
 
 <h2>Contact Information</h2>
 <ul>
@@ -35,14 +35,14 @@ const FALLBACK_CONTENT = `
 <h2>Follow Us</h2>
 <p>Stay connected with us on social media for the latest updates, offers, and more!</p>
 
-<p>© 2025 El Baraka Hypermarket. All rights reserved.</p>
+<p>© 2025 CART Hypermarket. All rights reserved.</p>
 `;
 
 const FALLBACK_CONTENT_AR = `
-<h1>مرحبًا بكم في البركة</h1>
+<h1>مرحبًا بكم في CART</h1>
 
 <h2>من نحن</h2>
-<p>البركة هو هايبر ماركت إلكتروني موثوق، يقدم البقالة الطازجة والمستلزمات اليومية مباشرة إلى باب منزلك. منذ تأسيسنا، نلتزم بجعل تسوق البقالة سهلًا وممتعًا للعائلات في جميع أنحاء مصر.</p>
+<p>CART هو هايبر ماركت إلكتروني موثوق، يقدم البقالة الطازجة والمستلزمات اليومية مباشرة إلى باب منزلك. منذ تأسيسنا، نلتزم بجعل تسوق البقالة سهلًا وممتعًا للعائلات في جميع أنحاء مصر.</p>
 
 <h2>مهمتنا</h2>
 <p>إحداث ثورة في طريقة تسوق البقالة من خلال توصيل منتجات طازجة وعالية الجودة بسرعة وراحة، مع بناء علاقات دائمة مع عملائنا من خلال خدمة استثنائية.</p>
@@ -57,7 +57,7 @@ const FALLBACK_CONTENT_AR = `
 </ul>
 
 <h2>لماذا تختارنا</h2>
-<p>مع آلاف المنتجات والأسعار التنافسية والتوصيل في أقل من ساعة واحدة، البركة يجعل تسوق البقالة بسيطًا. فريقنا المتفاني يعمل على مدار الساعة لضمان حصولك على أفضل تجربة تسوق.</p>
+<p>مع آلاف المنتجات والأسعار التنافسية والتوصيل في أقل من ساعة واحدة، CART يجعل تسوق البقالة بسيطًا. فريقنا المتفاني يعمل على مدار الساعة لضمان حصولك على أفضل تجربة تسوق.</p>
 
 <h2>معلومات الاتصال</h2>
 <ul>
@@ -69,15 +69,15 @@ const FALLBACK_CONTENT_AR = `
 <h2>تابعنا</h2>
 <p>ابقَ على تواصل معنا على وسائل التواصل الاجتماعي لآخر التحديثات والعروض والمزيد!</p>
 
-<p>© 2025 هايبر ماركت البركة. جميع الحقوق محفوظة.</p>
+<p>© 2025 CART هايبر ماركت. جميع الحقوق محفوظة.</p>
 `;
 
 export default function AboutScreen() {
   return (
     <StaticPageScreen
       slug="about"
-      fallbackTitle="About El Baraka"
-      fallbackTitleAr="عن البركة"
+      fallbackTitle="About CART"
+      fallbackTitleAr="عن CART"
       fallbackContent={FALLBACK_CONTENT}
       fallbackContentAr={FALLBACK_CONTENT_AR}
       icon={<Info size={24} color={Colors.neutralWhite} />}

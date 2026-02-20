@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Mail;
 
 /**
  * Queue job for sending OTP emails asynchronously
- * 
+ *
  * CRITICAL for single-server performance:
  * - OTP email sending can take 1-3 seconds
  * - This blocks the API response if done synchronously
@@ -39,7 +39,7 @@ class SendOtpEmail implements ShouldQueue
     public function __construct(
         protected string $email,
         protected string $otp,
-        protected string $purpose = 'ElBaraka Email Verification'
+        protected string $purpose = 'CART Email Verification'
     ) {
         $this->onQueue('emails'); // Use dedicated email queue
     }
@@ -51,7 +51,7 @@ class SendOtpEmail implements ShouldQueue
     {
         try {
             Mail::to($this->email)->send(new OtpMail($this->otp, $this->purpose));
-            
+
             Log::info('SendOtpEmail: OTP sent successfully', [
                 'email' => $this->email,
                 'purpose' => $this->purpose,

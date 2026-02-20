@@ -480,7 +480,7 @@ export default function ProductDetailScreen() {
                 shareMessage += `💰 ${basePrice.toFixed(2)} EGP\n`;
               }
 
-              shareMessage += `\n🛍️ Shop on El Baraka!\n${productUrl}`;
+              shareMessage += `\n🛍️ Shop on CART!\n${productUrl}`;
 
               await Share.share({
                 message: shareMessage,

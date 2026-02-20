@@ -173,7 +173,7 @@ export default function HelpScreen() {
 
   const handleEmail = () => {
     Linking.openURL(
-      `mailto:${SUPPORT_INFO.email}?subject=Support Request&body=Hi ElBaraka Support,\n\n`,
+      `mailto:${SUPPORT_INFO.email}?subject=Support Request&body=Hi CART Support,\n\n`,
     );
   };
 
@@ -513,7 +513,7 @@ export default function HelpScreen() {
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>CART App v1.0.0</Text>
           <Text style={styles.copyrightText}>
-            © 2024 CART Hypermarket. All rights reserved.
+            © 2026 CART Hypermarket. All rights reserved.
           </Text>
         </View>
       </ScrollView>

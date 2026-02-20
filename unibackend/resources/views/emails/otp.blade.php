@@ -57,7 +57,7 @@
 <body>
     <div class="container">
         <div class="logo">🛒</div>
-        <h1>ElBaraka</h1>
+        <h1>CART</h1>
 
         <p class="message">
             <strong>{{ $purpose }}</strong>
@@ -81,7 +81,7 @@
 
         <div class="footer">
             <p>This is an automated email. Please do not reply.</p>
-            <p>&copy; {{ date('Y') }} ElBaraka. All rights reserved.</p>
+            <p>&copy; {{ date('Y') }} CART. All rights reserved.</p>
         </div>
     </div>
 </body>

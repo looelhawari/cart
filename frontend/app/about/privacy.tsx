@@ -8,7 +8,7 @@ const FALLBACK_CONTENT = `
 <h1>Privacy Policy</h1>
 
 <h2>Your Privacy Matters</h2>
-<p>At El Baraka, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our mobile application.</p>
+<p>At CART, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our mobile application.</p>
 
 <h2>1. Information We Collect</h2>
 <p>We collect information that you provide directly to us, including:</p>
@@ -80,7 +80,7 @@ const FALLBACK_CONTENT_AR = `
 <h1>سياسة الخصوصية</h1>
 
 <h2>خصوصيتك تهمنا</h2>
-<p>في البركة، نحن ملتزمون بحماية خصوصيتك وضمان أمان معلوماتك الشخصية. توضح سياسة الخصوصية هذه كيفية جمع واستخدام والإفصاح عن بياناتك وحمايتها عند استخدام تطبيقنا.</p>
+<p>في CART، نحن ملتزمون بحماية خصوصيتك وضمان أمان معلوماتك الشخصية. توضح سياسة الخصوصية هذه كيفية جمع واستخدام والإفصاح عن بياناتك وحمايتها عند استخدام تطبيقنا.</p>
 
 <h2>1. المعلومات التي نجمعها</h2>
 <p>نجمع المعلومات التي تقدمها لنا مباشرة، بما في ذلك:</p>

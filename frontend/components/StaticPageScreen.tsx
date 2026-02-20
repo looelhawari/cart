@@ -237,11 +237,11 @@ export default function StaticPageScreen({
 
           {/* Version Info */}
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>ElBaraka App v1.0.0</Text>
+            <Text style={styles.versionText}>CART App v1.0.0</Text>
             <Text style={styles.copyrightText}>
               {isRTL
                 ? "© 2025 البركة هايبر ماركت. جميع الحقوق محفوظة."
-                : "© 2025 ElBaraka Hypermarket. All rights reserved."}
+                : "© 2025 CART Hypermarket. All rights reserved."}
             </Text>
           </View>
         </ScrollView>

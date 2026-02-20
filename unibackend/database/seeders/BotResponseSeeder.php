@@ -15,12 +15,12 @@ class BotResponseSeeder extends Seeder
                 'intent' => 'greeting',
                 'category' => null,
                 'keywords' => ['hello', 'hi', 'hey', 'good morning', 'good evening', 'مرحبا', 'اهلا', 'السلام عليكم', 'صباح الخير', 'مساء الخير'],
-                'response_en' => "Hello! 👋 Welcome to ElBaraka Support! I'm your virtual assistant.\n\nHow can I help you today?\n\n• 📦 Track your order\n• 💳 Payment issues\n• 🚚 Delivery questions\n• 📞 Talk to an agent",
+                'response_en' => "Hello! 👋 Welcome to CART Support! I'm your virtual assistant.\n\nHow can I help you today?\n\n• 📦 Track your order\n• 💳 Payment issues\n• 🚚 Delivery questions\n• 📞 Talk to an agent",
                 'response_ar' => "مرحباً! 👋 أهلاً بك في دعم البركة! أنا مساعدك الافتراضي.\n\nكيف يمكنني مساعدتك اليوم؟\n\n• 📦 تتبع طلبك\n• 💳 مشاكل الدفع\n• 🚚 أسئلة التوصيل\n• 📞 التحدث مع موظف",
                 'action_type' => null,
                 'priority' => 100,
             ],
-            
+
             // Order status - Order issue category
             [
                 'intent' => 'order_status',
@@ -31,7 +31,7 @@ class BotResponseSeeder extends Seeder
                 'action_type' => 'show_order',
                 'priority' => 90,
             ],
-            
+
             // Delivery questions
             [
                 'intent' => 'delivery',
@@ -42,7 +42,7 @@ class BotResponseSeeder extends Seeder
                 'action_type' => 'suggest_escalate',
                 'priority' => 85,
             ],
-            
+
             // Payment issues
             [
                 'intent' => 'payment',
@@ -53,18 +53,18 @@ class BotResponseSeeder extends Seeder
                 'action_type' => 'suggest_escalate',
                 'priority' => 95,
             ],
-            
+
             // Product quality
             [
                 'intent' => 'product_issue',
                 'category' => 'product_quality',
                 'keywords' => ['damaged', 'broken', 'wrong', 'bad', 'expired', 'quality', 'defective', 'تالف', 'مكسور', 'غلط', 'منتهي', 'جودة'],
-                'response_en' => "I'm really sorry about the product quality issue! 😔\n\nWe take quality very seriously at ElBaraka. For product issues, our agents can:\n\n✅ Arrange a replacement\n✅ Process a refund\n✅ Offer store credit\n\nTo help faster, please:\n1. Take photos of the issue\n2. Keep the original packaging\n\nWould you like to speak with an agent now?",
+                'response_en' => "I'm really sorry about the product quality issue! 😔\n\nWe take quality very seriously at CART. For product issues, our agents can:\n\n✅ Arrange a replacement\n✅ Process a refund\n✅ Offer store credit\n\nTo help faster, please:\n1. Take photos of the issue\n2. Keep the original packaging\n\nWould you like to speak with an agent now?",
                 'response_ar' => "أنا آسف جداً بخصوص مشكلة جودة المنتج! 😔\n\nنحن نأخذ الجودة على محمل الجد في البركة. بالنسبة لمشاكل المنتج، يمكن لموظفينا:\n\n✅ ترتيب استبدال\n✅ معالجة استرداد\n✅ تقديم رصيد متجر\n\nللمساعدة بشكل أسرع، يرجى:\n1. التقاط صور للمشكلة\n2. الاحتفاظ بالعبوة الأصلية\n\nهل تريد التحدث مع موظف الآن؟",
                 'action_type' => 'suggest_escalate',
                 'priority' => 90,
             ],
-            
+
             // Refund
             [
                 'intent' => 'refund',
@@ -75,7 +75,7 @@ class BotResponseSeeder extends Seeder
                 'action_type' => 'request_info',
                 'priority' => 85,
             ],
-            
+
             // Cancel order
             [
                 'intent' => 'cancel_order',
@@ -86,18 +86,18 @@ class BotResponseSeeder extends Seeder
                 'action_type' => 'request_order_id',
                 'priority' => 80,
             ],
-            
+
             // Technical issues
             [
                 'intent' => 'technical',
                 'category' => 'technical_issue',
                 'keywords' => ['app', 'bug', 'error', 'not working', 'crash', 'login', 'التطبيق', 'خطأ', 'مش شغال', 'تسجيل دخول'],
-                'response_en' => "I understand you're having a technical issue! 🔧\n\nHere are some quick fixes:\n\n1️⃣ **Update the app** - Check for updates in App Store/Play Store\n2️⃣ **Clear cache** - Go to Settings > Apps > ElBaraka > Clear Cache\n3️⃣ **Restart** - Close and reopen the app\n4️⃣ **Reinstall** - As a last resort\n\nIf the issue persists, would you like to speak with our technical support team?",
+                'response_en' => "I understand you're having a technical issue! 🔧\n\nHere are some quick fixes:\n\n1️⃣ **Update the app** - Check for updates in App Store/Play Store\n2️⃣ **Clear cache** - Go to Settings > Apps > CART > Clear Cache\n3️⃣ **Restart** - Close and reopen the app\n4️⃣ **Reinstall** - As a last resort\n\nIf the issue persists, would you like to speak with our technical support team?",
                 'response_ar' => "أفهم أنك تواجه مشكلة تقنية! 🔧\n\nإليك بعض الحلول السريعة:\n\n1️⃣ **حدث التطبيق** - تحقق من التحديثات في المتجر\n2️⃣ **امسح الكاش** - اذهب إلى الإعدادات > التطبيقات > البركة > مسح الكاش\n3️⃣ **أعد التشغيل** - أغلق وأعد فتح التطبيق\n4️⃣ **أعد التثبيت** - كحل أخير\n\nإذا استمرت المشكلة، هل تريد التحدث مع فريق الدعم التقني؟",
                 'action_type' => null,
                 'priority' => 75,
             ],
-            
+
             // Promo/discount
             [
                 'intent' => 'promo_code',
@@ -108,7 +108,7 @@ class BotResponseSeeder extends Seeder
                 'action_type' => null,
                 'priority' => 70,
             ],
-            
+
             // Working hours
             [
                 'intent' => 'working_hours',
@@ -119,7 +119,7 @@ class BotResponseSeeder extends Seeder
                 'action_type' => null,
                 'priority' => 60,
             ],
-            
+
             // Thanks
             [
                 'intent' => 'thanks',
@@ -130,18 +130,18 @@ class BotResponseSeeder extends Seeder
                 'action_type' => 'suggest_close',
                 'priority' => 50,
             ],
-            
+
             // Goodbye
             [
                 'intent' => 'goodbye',
                 'category' => null,
                 'keywords' => ['bye', 'goodbye', 'see you', 'later', 'مع السلامة', 'باي', 'سلام'],
-                'response_en' => "Thank you for contacting ElBaraka Support! 👋\n\nWe hope we were able to help you today. Don't forget to rate your experience!\n\nHave a wonderful day and happy shopping! 🛒🌟",
+                'response_en' => "Thank you for contacting CART Support! 👋\n\nWe hope we were able to help you today. Don't forget to rate your experience!\n\nHave a wonderful day and happy shopping! 🛒🌟",
                 'response_ar' => "شكراً لتواصلك مع دعم البركة! 👋\n\nنأمل أننا استطعنا مساعدتك اليوم. لا تنسى تقييم تجربتك!\n\nيوماً سعيداً وتسوقاً ممتعاً! 🛒🌟",
                 'action_type' => 'suggest_close',
                 'priority' => 50,
             ],
-            
+
             // Escalate to agent
             [
                 'intent' => 'escalate',

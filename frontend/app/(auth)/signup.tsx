@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -97,7 +97,7 @@ export default function SignupScreen() {
           "Content-Type": "application/json",
           Accept: "application/json",
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
         },
         body: JSON.stringify({ email: emailToCheck }),
       });
@@ -125,7 +125,7 @@ export default function SignupScreen() {
           "Content-Type": "application/json",
           Accept: "application/json",
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
         },
         body: JSON.stringify({ phone: phoneToCheck }),
       });
@@ -342,7 +342,7 @@ export default function SignupScreen() {
           "Content-Type": "application/json",
           Accept: "application/json",
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
         },
         body: JSON.stringify({ email }),
       });

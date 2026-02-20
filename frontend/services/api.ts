@@ -1,4 +1,4 @@
-// src/api/api.ts
+﻿// src/api/api.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 import {
@@ -128,7 +128,7 @@ const apiRequest = async <T>(
     Accept: "application/json",
     "X-App-Version": "1.0.0",
     "ngrok-skip-browser-warning": "true",
-    "User-Agent": "ElBaraka-Mobile-App",
+    "User-Agent": "CART-Mobile-App",
   };
 
   if (token && !endpoint.includes("/auth/")) {

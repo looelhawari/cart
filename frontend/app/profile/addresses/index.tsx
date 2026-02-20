@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   View,
   Text,
@@ -51,7 +51,7 @@ export default function AddressesScreen() {
         headers: {
           Accept: "application/json",
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
           Authorization: `Bearer ${await getToken()}`,
         },
       });
@@ -94,7 +94,7 @@ export default function AddressesScreen() {
                   headers: {
                     Accept: "application/json",
                     "ngrok-skip-browser-warning": "true",
-                    "User-Agent": "ElBaraka-Mobile-App",
+                    "User-Agent": "CART-Mobile-App",
                     Authorization: `Bearer ${await getToken()}`,
                   },
                 },
@@ -120,7 +120,7 @@ export default function AddressesScreen() {
           headers: {
             Accept: "application/json",
             "ngrok-skip-browser-warning": "true",
-            "User-Agent": "ElBaraka-Mobile-App",
+            "User-Agent": "CART-Mobile-App",
             Authorization: `Bearer ${await getToken()}`,
           },
         },

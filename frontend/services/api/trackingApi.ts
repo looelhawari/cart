@@ -1,4 +1,4 @@
-import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
+﻿import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ export const trackingApi = {
                 "Content-Type": "application/json",
                 Accept: "application/json; charset=utf-8",
                 "ngrok-skip-browser-warning": "true",
-                "User-Agent": "ElBaraka-Mobile-App",
+                "User-Agent": "CART-Mobile-App",
                 ...(token && { Authorization: `Bearer ${token}` }),
             },
         });

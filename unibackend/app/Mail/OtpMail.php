@@ -31,7 +31,7 @@ class OtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your ElBaraka Verification Code',
+            subject: 'Your CART Verification Code',
         );
     }
 

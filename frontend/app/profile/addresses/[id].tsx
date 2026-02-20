@@ -73,7 +73,7 @@ export default function AddEditAddressScreen() {
           headers: {
             Accept: "application/json",
             "ngrok-skip-browser-warning": "true",
-            "User-Agent": "ElBaraka-Mobile-App",
+            "User-Agent": "CART-Mobile-App",
             Authorization: `Bearer ${await getToken()}`,
           },
         },
@@ -140,7 +140,7 @@ export default function AddEditAddressScreen() {
           "Content-Type": "application/json",
           Accept: "application/json",
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
           Authorization: `Bearer ${await getToken()}`,
         },
         body: JSON.stringify(addressData),

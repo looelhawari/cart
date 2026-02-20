@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -87,7 +87,7 @@ export default function WalletScreen() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
         },
       });
 
@@ -146,7 +146,7 @@ export default function WalletScreen() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
           "ngrok-skip-browser-warning": "true",
-          "User-Agent": "ElBaraka-Mobile-App",
+          "User-Agent": "CART-Mobile-App",
         },
         body: JSON.stringify({
           amount: amountNum,

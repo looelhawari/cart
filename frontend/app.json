@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ElBaraka Hypermarket",
-    "slug": "elbaraka-hypermarket-app",
+    "name": "CART Hypermarket",
+    "slug": "CART-hypermarket-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

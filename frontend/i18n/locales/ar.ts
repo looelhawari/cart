@@ -363,7 +363,7 @@ export default {
     darkMode: "الوضع الداكن",
     darkModeDesc: "استخدم المظهر الداكن (قريباً)",
     about: "حول التطبيق",
-    appName: "هايبر ماركت البركة",
+    appName: "CART هايبر ماركت",
     version: "الإصدار",
     appVersion: "الإصدار",
     termsOfService: "شروط الخدمة",

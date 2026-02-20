@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+﻿import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 
 // API Configuration
@@ -11,7 +11,7 @@ export const getCommonHeaders = (
   const headers: HeadersInit = {
     Accept: "application/json",
     "ngrok-skip-browser-warning": "true",
-    "User-Agent": "ElBaraka-Mobile-App",
+    "User-Agent": "CART-Mobile-App",
   };
 
   if (includeContentType) {

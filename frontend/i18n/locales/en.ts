@@ -367,7 +367,7 @@ export default {
     darkMode: "Dark Mode",
     darkModeDesc: "Use dark theme (Coming Soon)",
     about: "About",
-    appName: "El Baraka Hypermarket",
+    appName: "CART Hypermarket",
     version: "Version",
     appVersion: "Version",
     termsOfService: "Terms of Service",
