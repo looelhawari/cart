@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
+import { useLocalizedValue } from "@/i18n";
 import { getOffers } from "@/services/api/offersApi";
 import { getProduct, getProducts } from "@/services/api/productsApi";
 import { getCategories } from "@/services/api/categoryApi";
@@ -31,6 +32,7 @@ const CATEGORY_CARD_WIDTH = (width - Spacing.lg * 3) / 2;
 type DisplayProduct = {
   id: number;
   name_en: string;
+  name_ar?: string;
   image: string | null;
   price: number;
   discounted_price: number | null;
@@ -45,6 +47,7 @@ type Section = {
 type DisplayCategory = {
   id: number;
   name_en: string;
+  name_ar?: string;
   image?: string | null;
   products_count?: number | null;
   include_subcategories: boolean;
@@ -70,6 +73,7 @@ const toDisplayProduct = (
   product: {
     id: number;
     name_en: string;
+    name_ar?: string;
     image?: string | null;
     price?: number | string | null;
     sale_price?: number | string | null;
@@ -97,6 +101,7 @@ const toDisplayProduct = (
   return {
     id: product.id,
     name_en: product.name_en,
+    name_ar: product.name_ar,
     image: product.image ?? null,
     price: basePrice,
     discounted_price: discounted,
@@ -137,6 +142,7 @@ const fetchAllProductsByCategory = async (
 export default function OfferItemsScreen() {
   const params = useLocalSearchParams();
   const offerId = Number(params.offerId);
+  const { getName } = useLocalizedValue();
 
   const [offer, setOffer] = useState<Offer | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -182,6 +188,7 @@ export default function OfferItemsScreen() {
                 {
                   id: productResponse.data.product.barcode,
                   name_en: productResponse.data.product.name_en,
+                  name_ar: productResponse.data.product.name_ar,
                   image: productResponse.data.product.image,
                   price: productResponse.data.product.price,
                   sale_price: productResponse.data.product.sale_price,
@@ -201,6 +208,7 @@ export default function OfferItemsScreen() {
                   {
                     id: product.barcode,
                     name_en: product.name_en,
+                    name_ar: product.name_ar,
                     image: product.image,
                     price: product.price,
                     sale_price: product.sale_price,
@@ -221,6 +229,7 @@ export default function OfferItemsScreen() {
                 {
                   id: productResponse.data.product.barcode,
                   name_en: productResponse.data.product.name_en,
+                  name_ar: productResponse.data.product.name_ar,
                   image: productResponse.data.product.image,
                   price: productResponse.data.product.price,
                   sale_price: productResponse.data.product.sale_price,
@@ -244,6 +253,7 @@ export default function OfferItemsScreen() {
                   {
                     id: product.barcode,
                     name_en: product.name_en,
+                    name_ar: product.name_ar,
                     image: product.image,
                     price: product.price,
                     sale_price: product.sale_price,
@@ -279,6 +289,7 @@ export default function OfferItemsScreen() {
               {
                 id: product.id,
                 name_en: product.name_en,
+                name_ar: product.name_ar,
                 image: product.image,
                 price: product.price,
                 sale_price: product.sale_price ?? null,
@@ -312,6 +323,7 @@ export default function OfferItemsScreen() {
               return {
                 id: target.id,
                 name_en: target.name_en,
+                name_ar: target.name_ar,
                 image: full?.image || null,
                 products_count: full?.products_count ?? null,
                 include_subcategories: target.include_subcategories,
@@ -395,7 +407,7 @@ export default function OfferItemsScreen() {
             style={styles.gradient}
           >
             <Text style={styles.categoryName} numberOfLines={2}>
-              {item.name_en}
+              {getName(item)}
             </Text>
             {item.products_count !== null &&
               item.products_count !== undefined && (
@@ -512,7 +524,7 @@ export default function OfferItemsScreen() {
                     )}
                     <View style={styles.productInfo}>
                       <Text style={styles.productName} numberOfLines={2}>
-                        {item.name_en}
+                        {getName(item)}
                       </Text>
                       <View style={styles.priceRow}>
                         <Text style={styles.priceText}>

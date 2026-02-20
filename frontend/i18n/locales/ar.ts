@@ -934,7 +934,6 @@ export default {
     items: "المنتجات",
     subtotal: "المجموع الفرعي",
     deliveryFee: "رسوم التوصيل",
-    discount: "الخصم",
     total: "الإجمالي",
     promoCode: "كود الخصم",
     applyCode: "تطبيق",

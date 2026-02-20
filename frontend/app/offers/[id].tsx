@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ExpoClipboard from "expo-clipboard";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import Colors from "@/constants/Colors";
+import { useLocalizedValue } from "@/i18n";
 import type { Offer, OfferBogoRule } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
@@ -93,6 +94,7 @@ const SCOPE_CONFIG: Record<
 export default function OfferDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { getName } = useLocalizedValue();
 
   // Parse the offer data passed via route params
   const offer: Offer | null = useMemo(() => {
@@ -353,7 +355,7 @@ export default function OfferDetailScreen() {
                     <Ionicons name="grid" size={18} color="#7C3AED" />
                   </View>
                   <View style={styles.targetInfo}>
-                    <Text style={styles.targetName}>{cat.name_en}</Text>
+                    <Text style={styles.targetName}>{getName(cat)}</Text>
                     {cat.include_subcategories && (
                       <Text style={styles.targetMeta}>
                         Includes subcategories
@@ -404,7 +406,7 @@ export default function OfferDetailScreen() {
                     <Ionicons name="cube" size={18} color="#0284C7" />
                   </View>
                   <View style={styles.targetInfo}>
-                    <Text style={styles.targetName}>{prod.name_en}</Text>
+                    <Text style={styles.targetName}>{getName(prod)}</Text>
                     <Text style={styles.targetMeta}>
                       EGP {prod.sale_price ?? prod.price}
                       {prod.sale_price != null &&

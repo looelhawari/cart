@@ -8,7 +8,7 @@ const FALLBACK_CONTENT = `
 <h1>Privacy Policy</h1>
 
 <h2>Your Privacy Matters</h2>
-<p>At ElBaraka, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our mobile application.</p>
+<p>At El Baraka, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our mobile application.</p>
 
 <h2>1. Information We Collect</h2>
 <p>We collect information that you provide directly to us, including:</p>
@@ -76,12 +76,86 @@ const FALLBACK_CONTENT = `
 <p><strong>Phone:</strong> +20 123 456 789</p>
 `;
 
+const FALLBACK_CONTENT_AR = `
+<h1>سياسة الخصوصية</h1>
+
+<h2>خصوصيتك تهمنا</h2>
+<p>في البركة، نحن ملتزمون بحماية خصوصيتك وضمان أمان معلوماتك الشخصية. توضح سياسة الخصوصية هذه كيفية جمع واستخدام والإفصاح عن بياناتك وحمايتها عند استخدام تطبيقنا.</p>
+
+<h2>1. المعلومات التي نجمعها</h2>
+<p>نجمع المعلومات التي تقدمها لنا مباشرة، بما في ذلك:</p>
+<ul>
+<li><strong>المعلومات الشخصية:</strong> الاسم، البريد الإلكتروني، رقم الهاتف</li>
+<li><strong>معلومات التوصيل:</strong> العنوان، بيانات الموقع، تعليمات التوصيل</li>
+<li><strong>معلومات الدفع:</strong> تفاصيل البطاقة (تتم معالجتها بأمان عبر مزود الدفع)</li>
+<li><strong>سجل الطلبات:</strong> طلباتك السابقة وتفضيلاتك</li>
+<li><strong>معلومات الجهاز:</strong> نوع الجهاز، نظام التشغيل، المعرفات الفريدة</li>
+</ul>
+
+<h2>2. كيف نستخدم معلوماتك</h2>
+<p>نستخدم المعلومات المجمعة للأغراض التالية:</p>
+<ul>
+<li>معالجة وتنفيذ طلباتك</li>
+<li>تقديم دعم العملاء والرد على الاستفسارات</li>
+<li>إرسال تأكيدات الطلبات وتحديثات التوصيل</li>
+<li>تحسين خدماتنا وتجربة المستخدم</li>
+<li>تخصيص تجربتك في التطبيق</li>
+<li>إرسال العروض الترويجية (بموافقتك)</li>
+</ul>
+
+<h2>3. مشاركة المعلومات</h2>
+<p>لا نبيع أو نتاجر أو نؤجر معلوماتك الشخصية لأطراف ثالثة. قد نشارك معلوماتك مع:</p>
+<ul>
+<li><strong>شركاء التوصيل:</strong> لتنفيذ طلباتك</li>
+<li><strong>معالجي الدفع:</strong> لمعالجة المعاملات بأمان</li>
+<li><strong>مزودي الخدمات:</strong> الذين يساعدون في تشغيل منصتنا</li>
+<li><strong>السلطات القانونية:</strong> عند الاقتضاء بموجب القانون</li>
+</ul>
+
+<h2>4. أمان البيانات</h2>
+<p>نطبق إجراءات أمان معيارية لحماية معلوماتك الشخصية، بما في ذلك:</p>
+<ul>
+<li>تشفير SSL/TLS لنقل البيانات</li>
+<li>تخزين آمن مع ضوابط الوصول</li>
+<li>عمليات تدقيق وتحديثات أمنية منتظمة</li>
+<li>تدريب الموظفين على حماية البيانات</li>
+</ul>
+
+<h2>5. حقوقك</h2>
+<p>لديك الحقوق التالية فيما يتعلق ببياناتك الشخصية:</p>
+<ul>
+<li><strong>الوصول:</strong> طلب نسخة من بياناتك الشخصية</li>
+<li><strong>التصحيح:</strong> تحديث المعلومات غير الدقيقة</li>
+<li><strong>الحذف:</strong> طلب حذف حسابك وبياناتك</li>
+<li><strong>إلغاء الاشتراك:</strong> إلغاء الاشتراك في الرسائل التسويقية</li>
+</ul>
+
+<h2>6. ملفات تعريف الارتباط والتتبع</h2>
+<p>نستخدم ملفات تعريف الارتباط وتقنيات مماثلة لتحسين تجربتك وتحليل أنماط الاستخدام وتقديم محتوى مخصص. يمكنك إدارة تفضيلات ملفات تعريف الارتباط في إعدادات جهازك.</p>
+
+<h2>7. خصوصية الأطفال</h2>
+<p>خدماتنا غير مخصصة للأطفال دون سن 13 عامًا. نحن لا نجمع معلومات شخصية من الأطفال عن علم. إذا كنت تعتقد أننا جمعنا مثل هذه المعلومات، يرجى الاتصال بنا فورًا.</p>
+
+<h2>8. الاحتفاظ بالبيانات</h2>
+<p>نحتفظ بمعلوماتك الشخصية فقط طالما كان ذلك ضروريًا لتقديم خدماتنا والوفاء بالتزاماتنا القانونية. يمكنك طلب حذف بياناتك في أي وقت.</p>
+
+<h2>9. التغييرات على هذه السياسة</h2>
+<p>قد نقوم بتحديث سياسة الخصوصية هذه بشكل دوري. سنقوم بإخطارك بالتغييرات المهمة من خلال التطبيق أو عبر البريد الإلكتروني. يعتبر استمرار استخدامك للخدمة بعد التغييرات قبولًا.</p>
+
+<h2>10. اتصل بنا</h2>
+<p>لأي أسئلة أو مخاوف أو طلبات بخصوص خصوصيتك، يرجى التواصل معنا:</p>
+<p><strong>البريد الإلكتروني:</strong> privacy@elbaraka.com</p>
+<p><strong>الهاتف:</strong> 789 456 123 20+</p>
+`;
+
 export default function PrivacyScreen() {
   return (
     <StaticPageScreen
       slug="privacy"
       fallbackTitle="Privacy Policy"
+      fallbackTitleAr="سياسة الخصوصية"
       fallbackContent={FALLBACK_CONTENT}
+      fallbackContentAr={FALLBACK_CONTENT_AR}
       icon={<Shield size={24} color={Colors.neutralWhite} />}
     />
   );

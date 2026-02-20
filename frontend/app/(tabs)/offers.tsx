@@ -197,7 +197,10 @@ const TYPE_THEME: Record<
 // ═══════════════════════════════════════════════════════════
 
 /** Build a specific scope string like "20% OFF on Dairy Products" */
-const buildScopeDescription = (offer: Offer): string => {
+const buildScopeDescription = (
+  offer: Offer,
+  getName: (item: any) => string,
+): string => {
   const valueStr =
     offer.type === "percentage"
       ? `${offer.value}% OFF`
@@ -214,7 +217,7 @@ const buildScopeDescription = (offer: Offer): string => {
     offer.applies_to === "category" &&
     offer.targets?.categories?.length > 0
   ) {
-    const names = offer.targets.categories.map((c) => c.name_en);
+    const names = offer.targets.categories.map((c) => getName(c));
     if (names.length <= 2) {
       return `${valueStr} on ${names.join(" & ")}`;
     }
@@ -222,7 +225,7 @@ const buildScopeDescription = (offer: Offer): string => {
   }
   if (offer.applies_to === "product" && offer.targets?.products?.length > 0) {
     if (offer.targets.products.length === 1) {
-      return `${valueStr} on ${offer.targets.products[0].name_en}`;
+      return `${valueStr} on ${getName(offer.targets.products[0])}`;
     }
     return `${valueStr} on ${offer.targets.products.length} Selected Items`;
   }
@@ -230,7 +233,10 @@ const buildScopeDescription = (offer: Offer): string => {
 };
 
 /** Build promotion scope string */
-const buildPromoScope = (promo: Promotion): string => {
+const buildPromoScope = (
+  promo: Promotion,
+  getName: (item: any) => string,
+): string => {
   const valueStr =
     promo.discount_type === "percentage"
       ? `${promo.discount_value}% OFF`
@@ -241,7 +247,7 @@ const buildPromoScope = (promo: Promotion): string => {
   if (promo.applies_to === "all") return `${valueStr} on All Products`;
   if (promo.applies_to === "category" && promo.categories?.length) {
     if (promo.categories.length <= 2) {
-      return `${valueStr} on ${promo.categories.map((c: any) => c.name_en || c.name || c).join(" & ")}`;
+      return `${valueStr} on ${promo.categories.map((c: any) => getName(c) || c.name || c).join(" & ")}`;
     }
     return `${valueStr} on ${promo.categories.length} Categories`;
   }
@@ -269,7 +275,7 @@ const formatTimeRemaining = (dateStr: string): string | null => {
 export default function OffersScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  useLocalizedValue();
+  const { getName } = useLocalizedValue();
 
   // ── State ──
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -625,7 +631,7 @@ export default function OffersScreen() {
 
   // ━━━━━ FEATURED PROMOTION HERO ━━━━━
   const FeaturedHeroCard = ({ promo }: { promo: Promotion }) => {
-    const scope = buildPromoScope(promo);
+    const scope = buildPromoScope(promo, getName);
 
     return (
       <TouchableOpacity
@@ -679,7 +685,7 @@ export default function OffersScreen() {
 
   // ━━━━━ AUTOMATIC PROMOTION CARD ━━━━━
   const AutoPromoCard = ({ promo }: { promo: Promotion }) => {
-    const scope = buildPromoScope(promo);
+    const scope = buildPromoScope(promo, getName);
     const badgeText =
       promo.discount_type === "percentage"
         ? `${promo.discount_value}%`
@@ -769,7 +775,7 @@ export default function OffersScreen() {
   const CouponCard = ({ offer }: { offer: Offer }) => {
     const theme = TYPE_THEME[offer.type] || TYPE_THEME.percentage;
     const isCopied = copiedCode === offer.code;
-    const scope = buildScopeDescription(offer);
+    const scope = buildScopeDescription(offer, getName);
 
     // Value display
     const valueDisplay = (): { main: string; unit: string } => {
