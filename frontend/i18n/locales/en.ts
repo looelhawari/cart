@@ -611,6 +611,7 @@ export default {
       outForDelivery: "Out for Delivery",
       delivered: "Delivered",
       cancelled: "Cancelled",
+      failed: "Failed",
     },
     // Tab labels
     all: "All",

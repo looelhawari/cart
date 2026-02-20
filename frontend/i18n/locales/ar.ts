@@ -609,6 +609,7 @@ export default {
       outForDelivery: "في الطريق",
       delivered: "تم التوصيل",
       cancelled: "ملغي",
+      failed: "فشل",
     },
     // Tab labels
     all: "الكل",

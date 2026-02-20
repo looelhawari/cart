@@ -129,6 +129,7 @@ export default function SearchScreen() {
   // Refs
   const searchInputRef = useRef<TextInput>(null);
   const suggestionsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchSubmittedQuery = useRef<string>("");
 
   // ─── Load popular data + categories on mount ──────────────────
@@ -162,10 +163,13 @@ export default function SearchScreen() {
     }
   };
 
-  // ─── Debounced Suggestions (300ms) ─────────────────────────────
+  // ─── Debounced Suggestions (300ms) + Auto-Search (2s) ─────────
   useEffect(() => {
     if (suggestionsTimeoutRef.current) {
       clearTimeout(suggestionsTimeoutRef.current);
+    }
+    if (autoSearchTimeoutRef.current) {
+      clearTimeout(autoSearchTimeoutRef.current);
     }
 
     const trimmed = searchQuery.trim();
@@ -175,6 +179,7 @@ export default function SearchScreen() {
       }
       setSuggestionsLoading(true);
 
+      // Fast typeahead suggestions (300ms)
       suggestionsTimeoutRef.current = setTimeout(async () => {
         try {
           const response = await getSearchSuggestions(trimmed);
@@ -189,6 +194,11 @@ export default function SearchScreen() {
           setSuggestionsLoading(false);
         }
       }, 300);
+
+      // Auto-execute full search after 2s of inactivity (enterprise dynamic search)
+      autoSearchTimeoutRef.current = setTimeout(() => {
+        executeSearch(trimmed);
+      }, 2000);
     } else if (trimmed.length === 0 && searchState === "typing") {
       setSearchState("idle");
       setSuggestedProducts([]);
@@ -200,6 +210,9 @@ export default function SearchScreen() {
     return () => {
       if (suggestionsTimeoutRef.current) {
         clearTimeout(suggestionsTimeoutRef.current);
+      }
+      if (autoSearchTimeoutRef.current) {
+        clearTimeout(autoSearchTimeoutRef.current);
       }
     };
   }, [searchQuery]);
@@ -265,6 +278,11 @@ export default function SearchScreen() {
 
   // ─── Handlers ──────────────────────────────────────────────────
   const handleSubmitSearch = useCallback(() => {
+    // Cancel auto-search since user explicitly submitted
+    if (autoSearchTimeoutRef.current) {
+      clearTimeout(autoSearchTimeoutRef.current);
+      autoSearchTimeoutRef.current = null;
+    }
     executeSearch(searchQuery);
   }, [searchQuery, executeSearch]);
 
@@ -298,6 +316,10 @@ export default function SearchScreen() {
   );
 
   const handleClearSearch = useCallback(() => {
+    if (autoSearchTimeoutRef.current) {
+      clearTimeout(autoSearchTimeoutRef.current);
+      autoSearchTimeoutRef.current = null;
+    }
     setSearchQuery("");
     setSearchState("idle");
     setSearchResults([]);
