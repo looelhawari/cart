@@ -204,6 +204,9 @@ export default function OrdersScreen() {
             "processing",
           ].includes(order.status);
         }
+        if (activeTab === "cancelled") {
+          return ["cancelled", "failed"].includes(order.status);
+        }
         return order.status === activeTab;
       })
     : [];
@@ -323,6 +326,12 @@ export default function OrdersScreen() {
         bgColor: Colors.accentRed + "15",
         iconName: "close-circle",
         label: t.orders?.cancelled || "Cancelled",
+      },
+      failed: {
+        color: "#DC2626",
+        bgColor: "#DC262615",
+        iconName: "close-circle-outline",
+        label: t.orders?.status?.failed || "Failed",
       },
     };
     return configs[status] || configs.pending;

@@ -413,7 +413,7 @@ export const exportFinancialDashboardPDF = (
     }
 
     // Save the PDF
-    const fileName = `ElBaraka-Financial-Report-${new Date().toISOString().split('T')[0]}.pdf`
+    const fileName = `CART-Financial-Report-${new Date().toISOString().split('T')[0]}.pdf`
     doc.save(fileName)
 }
 
@@ -777,6 +777,6 @@ export const exportDashboardPDF = (dashboardData: DashboardData) => {
     }
 
     // Save the PDF
-    const fileName = `ElBaraka-Dashboard-Report-${new Date().toISOString().split('T')[0]}.pdf`
+    const fileName = `CART-Dashboard-Report-${new Date().toISOString().split('T')[0]}.pdf`
     doc.save(fileName)
 }

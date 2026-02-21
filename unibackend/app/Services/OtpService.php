@@ -97,7 +97,7 @@ class OtpService
      * This uses a queue job to prevent blocking the API response.
      * On a single server, this is CRITICAL for performance.
      */
-    public function sendEmail(string $email, string $otp, string $purpose = 'ElBaraka Email Verification'): bool
+    public function sendEmail(string $email, string $otp, string $purpose = 'CART Email Verification'): bool
     {
         try {
             // Send synchronously to guarantee delivery (queue worker may not be running)
@@ -114,7 +114,7 @@ class OtpService
     /**
      * Send OTP synchronously (for critical cases where queue might be down)
      */
-    public function sendEmailSync(string $email, string $otp, string $purpose = 'ElBaraka Email Verification'): bool
+    public function sendEmailSync(string $email, string $otp, string $purpose = 'CART Email Verification'): bool
     {
         try {
             Mail::to($email)->send(new \App\Mail\OtpMail($otp, $purpose));

@@ -10,9 +10,10 @@ import {
   Animated,
   InteractionManager,
   Image,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronRight, Clock } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,7 +41,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 
 const { width } = Dimensions.get("window");
 
-// Category icon mapping with ElBaraka brand gradients
+// Category icon mapping with CART brand gradients
 const getCategoryIcon = (
   slug: string,
 ): {
@@ -299,11 +300,29 @@ export default function HomeScreen() {
     return () => task.cancel();
   }, []);
 
-  // Re-fetch unread count when screen is focused (coming back from notifications)
-  useEffect(() => {
-    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
-    return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  // Re-fetch unread count only when home tab is focused & app is in foreground.
+  // Backend caches this endpoint for 60s, so polling faster than 120s wastes requests.
+  // Push notifications already trigger real-time count updates in _layout.tsx.
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh immediately when tab gains focus (e.g. coming back from notifications)
+      fetchUnreadCount();
+
+      const interval = setInterval(fetchUnreadCount, 120_000); // Poll every 2 min (2× cache TTL)
+
+      // Pause polling when app goes to background, resume when it comes back
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          fetchUnreadCount(); // Refresh on foreground return
+        }
+      });
+
+      return () => {
+        clearInterval(interval);
+        subscription.remove();
+      };
+    }, [fetchUnreadCount]),
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -492,8 +511,6 @@ export default function HomeScreen() {
                 style={styles.iconButton}
                 onPress={() => {
                   router.push("/notifications");
-                  // Refresh count when coming back
-                  setTimeout(fetchUnreadCount, 500);
                 }}
                 activeOpacity={0.8}
               >

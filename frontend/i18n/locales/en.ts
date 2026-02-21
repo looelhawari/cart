@@ -364,6 +364,8 @@ export default {
     languageChanged: "Language Changed",
     languageChangedMessage:
       "Language has been changed to {lang}. Some changes may require app restart.",
+    darkMode: "Dark Mode",
+    darkModeDesc: "Use dark theme (Coming Soon)",
     about: "About",
     appName: "CART Hypermarket",
     version: "Version",
@@ -611,6 +613,7 @@ export default {
       outForDelivery: "Out for Delivery",
       delivered: "Delivered",
       cancelled: "Cancelled",
+      failed: "Failed",
     },
     // Tab labels
     all: "All",
@@ -940,7 +943,6 @@ export default {
     items: "Items",
     subtotal: "Subtotal",
     deliveryFee: "Delivery Fee",
-    discount: "Discount",
     total: "Total",
     promoCode: "Promo Code",
     applyCode: "Apply",

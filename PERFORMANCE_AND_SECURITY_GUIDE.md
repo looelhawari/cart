@@ -253,7 +253,7 @@ CREATE INDEX idx_orders_status ON orders(status, user_id);
 CREATE INDEX idx_cart_items_cart ON cart_items(cart_id);
 CREATE INDEX idx_reviews_product ON reviews(product_barcode, is_approved);
 CREATE INDEX idx_promo_codes_code ON promo_codes(code, is_active);
-CREATE INDEX idx_promo_usage ON promo_code_usages(promo_code_id, user_id);
+CREATE INDEX idx_promo_usage ON promo_code_usage(promo_code_id, user_id);
 ```
 
 ### 4.3 Artisan Commands for Production

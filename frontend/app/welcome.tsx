@@ -31,7 +31,7 @@ export default function WelcomeScreen() {
           <View style={styles.logoCircle}>
             <Text style={styles.logoEmoji}>🛒</Text>
           </View>
-          <Text style={styles.brandName}>ELBARAKA</Text>
+          <Text style={styles.brandName}>CART</Text>
           <Text style={styles.tagline}>{t.welcome.tagline}</Text>
         </View>
 

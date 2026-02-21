@@ -358,11 +358,6 @@ export default function ProfileScreen() {
               <Text style={styles.profileEmail} numberOfLines={1}>
                 {user?.email}
               </Text>
-              {user?.phone && (
-                <Text style={styles.profilePhone} numberOfLines={1}>
-                  {user.phone}
-                </Text>
-              )}
             </View>
           </View>
 
@@ -539,7 +534,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         {/* App Version */}
-        <Text style={styles.versionText}>ElBaraka v1.0.0</Text>
+        <Text style={styles.versionText}>CART v1.0.0</Text>
 
         <View style={{ height: 100 }} />
       </ScrollView>

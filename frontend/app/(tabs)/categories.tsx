@@ -352,7 +352,7 @@ export default function CategoriesScreen() {
                 onPress={() => router.push("/(tabs)/cart")}
                 activeOpacity={0.8}
               >
-                <Ionicons name="bag" size={21} color={Colors.neutralWhite} />
+                <Ionicons name="cart" size={21} color={Colors.neutralWhite} />
                 {cartItemsCount > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>

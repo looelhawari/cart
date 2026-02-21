@@ -129,6 +129,7 @@ export default function SearchScreen() {
   // Refs
   const searchInputRef = useRef<TextInput>(null);
   const suggestionsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchSubmittedQuery = useRef<string>("");
 
   // ─── Load popular data + categories on mount ──────────────────
@@ -162,10 +163,13 @@ export default function SearchScreen() {
     }
   };
 
-  // ─── Debounced Suggestions (300ms) ─────────────────────────────
+  // ─── Debounced Dynamic Search (500ms) ──────────────────────────
   useEffect(() => {
     if (suggestionsTimeoutRef.current) {
       clearTimeout(suggestionsTimeoutRef.current);
+    }
+    if (autoSearchTimeoutRef.current) {
+      clearTimeout(autoSearchTimeoutRef.current);
     }
 
     const trimmed = searchQuery.trim();
@@ -175,6 +179,7 @@ export default function SearchScreen() {
       }
       setSuggestionsLoading(true);
 
+      // Fast typeahead suggestions (200ms)
       suggestionsTimeoutRef.current = setTimeout(async () => {
         try {
           const response = await getSearchSuggestions(trimmed);
@@ -188,7 +193,12 @@ export default function SearchScreen() {
         } finally {
           setSuggestionsLoading(false);
         }
-      }, 300);
+      }, 90);
+
+      // Auto-execute full search after 500ms of inactivity (enterprise dynamic search)
+      autoSearchTimeoutRef.current = setTimeout(() => {
+        executeSearch(trimmed);
+      }, 90);
     } else if (trimmed.length === 0 && searchState === "typing") {
       setSearchState("idle");
       setSuggestedProducts([]);
@@ -200,6 +210,9 @@ export default function SearchScreen() {
     return () => {
       if (suggestionsTimeoutRef.current) {
         clearTimeout(suggestionsTimeoutRef.current);
+      }
+      if (autoSearchTimeoutRef.current) {
+        clearTimeout(autoSearchTimeoutRef.current);
       }
     };
   }, [searchQuery]);
@@ -265,6 +278,11 @@ export default function SearchScreen() {
 
   // ─── Handlers ──────────────────────────────────────────────────
   const handleSubmitSearch = useCallback(() => {
+    // Cancel auto-search since user explicitly submitted
+    if (autoSearchTimeoutRef.current) {
+      clearTimeout(autoSearchTimeoutRef.current);
+      autoSearchTimeoutRef.current = null;
+    }
     executeSearch(searchQuery);
   }, [searchQuery, executeSearch]);
 
@@ -298,6 +316,10 @@ export default function SearchScreen() {
   );
 
   const handleClearSearch = useCallback(() => {
+    if (autoSearchTimeoutRef.current) {
+      clearTimeout(autoSearchTimeoutRef.current);
+      autoSearchTimeoutRef.current = null;
+    }
     setSearchQuery("");
     setSearchState("idle");
     setSearchResults([]);
@@ -326,19 +348,6 @@ export default function SearchScreen() {
       executeSearch(searchSubmittedQuery.current, currentPage + 1, true);
     }
   }, [loadingMore, hasMorePages, currentPage, executeSearch]);
-
-  const handleCategoryChipPress = useCallback(
-    (categoryId: number) => {
-      const newCat = selectedCategory === categoryId ? null : categoryId;
-      setSelectedCategory(newCat);
-      if (searchState === "results") {
-        setTimeout(() => {
-          executeSearch(searchSubmittedQuery.current);
-        }, 50);
-      }
-    },
-    [selectedCategory, searchState, executeSearch],
-  );
 
   // ─── Sort label ────────────────────────────────────────────────
   const sortLabel = useMemo(() => {
@@ -462,37 +471,6 @@ export default function SearchScreen() {
           )}
         </View>
       </View>
-
-      {/* ── Category Filter Chips (Results Mode) ─────────────────── */}
-      {searchState === "results" && categories.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryChipsBar}
-          contentContainerStyle={styles.categoryChipsContent}
-        >
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={[
-                styles.categoryChip,
-                selectedCategory === cat.id && styles.categoryChipActive,
-              ]}
-              onPress={() => handleCategoryChipPress(cat.id)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  selectedCategory === cat.id && styles.categoryChipTextActive,
-                ]}
-              >
-                {getName(cat)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
 
       {/* ══════════════════════════════════════════════════════════ */}
       {/*  STATE 1: IDLE — Recent + Popular + Categories            */}

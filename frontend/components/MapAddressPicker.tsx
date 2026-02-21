@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     View,
     Text,
@@ -278,7 +278,7 @@ export default function MapAddressPicker({
       var url = NOMINATIM + '/reverse?format=json&lat=' + lat + '&lon=' + lng +
         '&addressdetails=1&accept-language=en,ar&zoom=18';
 
-      fetch(url, { headers: { 'User-Agent': 'ElBaraka-App/1.0' } })
+      fetch(url, { headers: { 'User-Agent': 'CART-App/1.0' } })
         .then(function(res) { return res.json(); })
         .then(function(data) {
           var address = data.display_name || '';
@@ -368,7 +368,7 @@ export default function MapAddressPicker({
           '&viewbox=' + (center.lng - 0.5) + ',' + (center.lat + 0.5) + ',' + (center.lng + 0.5) + ',' + (center.lat - 0.5) +
           '&bounded=0';
 
-        fetch(url, { headers: { 'User-Agent': 'ElBaraka-App/1.0' } })
+        fetch(url, { headers: { 'User-Agent': 'CART-App/1.0' } })
           .then(function(res) { return res.json(); })
           .then(function(results) {
             searchResults.innerHTML = '';

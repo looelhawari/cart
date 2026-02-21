@@ -52,7 +52,7 @@ class SmartBotService
     // Bot responses (built-in fallbacks)
     private array $defaultResponses = [
         'en' => [
-            self::INTENT_GREETING => "Hello! 👋 Welcome to ElBaraka Support! I'm your virtual assistant and I'm here to help you.\n\nHow can I assist you today?\n\n• 📦 Track your order\n• 💳 Payment issues\n• 🚚 Delivery questions\n• 📞 Talk to an agent",
+            self::INTENT_GREETING => "Hello! 👋 Welcome to CART Support! I'm your virtual assistant and I'm here to help you.\n\nHow can I assist you today?\n\n• 📦 Track your order\n• 💳 Payment issues\n• 🚚 Delivery questions\n• 📞 Talk to an agent",
             self::INTENT_ORDER_STATUS => "I'd be happy to help you with your order status! 📦\n\nCould you please tell me your order number? You can find it in your order confirmation email or in the \"My Orders\" section of the app.",
             self::INTENT_TRACK_ORDER => "Let me help you track your order! 🔍\n\nPlease provide your order number and I'll get the latest status for you.",
             self::INTENT_REFUND => "I understand you'd like a refund. 💰\n\nRefund requests are typically processed within 3-5 business days. To proceed, I'll need:\n\n1. Your order number\n2. The reason for the refund\n\nOr I can connect you with an agent who can help faster.",
@@ -66,7 +66,7 @@ class SmartBotService
             self::INTENT_CONTACT => "Here's how to reach us 📞\n\n• 📱 Phone: 16XXX\n• 📧 Email: support@elbaraka.com\n• 💬 This chat (available 24/7)\n\nWould you like to speak with an agent now?",
             self::INTENT_ESCALATE => "I'll connect you with a support agent right away! 🎧\n\nAn agent will respond to your message shortly. Our average response time is under 5 minutes during working hours.\n\nPlease describe your issue and an agent will help you.",
             self::INTENT_THANKS => "You're welcome! 😊 I'm glad I could help.\n\nIs there anything else you'd like to know?",
-            self::INTENT_GOODBYE => "Thank you for contacting ElBaraka! 👋\n\nHave a great day! Don't forget to rate your experience if you found our service helpful. 🌟",
+            self::INTENT_GOODBYE => "Thank you for contacting CART! 👋\n\nHave a great day! Don't forget to rate your experience if you found our service helpful. 🌟",
             self::INTENT_UNKNOWN => "I'm not sure I understood that correctly. 🤔\n\nHere's what I can help you with:\n• 📦 Order status & tracking\n• 💳 Payment issues\n• 🚚 Delivery questions\n• 🔄 Refunds & returns\n\nOr type \"agent\" to speak with a human.",
         ],
         'ar' => [
@@ -103,10 +103,10 @@ class SmartBotService
 
         // Detect intent from message
         $intent = $this->detectIntent($userMessage, $context);
-        
+
         // Check if should escalate
         $shouldEscalate = $this->shouldEscalate($intent, $context, $complaint);
-        
+
         if ($shouldEscalate) {
             return $this->escalateToAgent($complaint, $context, $lang);
         }
@@ -142,7 +142,7 @@ class SmartBotService
     private function detectIntent(string $message, BotConversationContext $context): string
     {
         $message = strtolower(trim($message));
-        
+
         // Check for exact escalation requests first
         foreach ($this->intentKeywords[self::INTENT_ESCALATE] as $keyword) {
             if (str_contains($message, strtolower($keyword))) {
@@ -227,7 +227,7 @@ class SmartBotService
             'status' => 'awaiting_response',
         ]);
 
-        $escalationMessage = $lang === 'ar' 
+        $escalationMessage = $lang === 'ar'
             ? "تم تحويلك إلى موظف دعم! 🎧\n\nسيرد عليك أحد موظفينا قريباً. شكراً لصبرك."
             : "You've been connected to a support agent! 🎧\n\nOne of our team members will respond shortly. Thank you for your patience.";
 
@@ -337,9 +337,9 @@ class SmartBotService
     public function getWelcomeMessage(Complaint $complaint, string $lang = 'en'): ComplaintMessage
     {
         $context = BotConversationContext::getOrCreate($complaint->id);
-        
+
         $welcomeMessages = [
-            'en' => "Hello! 👋 I'm your ElBaraka support assistant.\n\nI can see you've submitted a ticket about: **{$complaint->subject}**\n\nI'll try to help you resolve this quickly. If I can't solve your issue, I'll connect you with one of our support agents.\n\nHow can I assist you?",
+            'en' => "Hello! 👋 I'm your CART support assistant.\n\nI can see you've submitted a ticket about: **{$complaint->subject}**\n\nI'll try to help you resolve this quickly. If I can't solve your issue, I'll connect you with one of our support agents.\n\nHow can I assist you?",
             'ar' => "مرحباً! 👋 أنا مساعد دعم البركة.\n\nأرى أنك قدمت تذكرة بخصوص: **{$complaint->subject}**\n\nسأحاول مساعدتك في حل هذا بسرعة. إذا لم أتمكن من حل مشكلتك، سأوصلك بأحد موظفي الدعم لدينا.\n\nكيف يمكنني مساعدتك؟",
         ];
 

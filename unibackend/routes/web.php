@@ -93,7 +93,7 @@ Route::get('/payment-return', function () {
         setTimeout(function() {
             document.querySelector('.container').innerHTML =
                 '<h2>Please return to the app</h2>' +
-                '<p>If the app did not open automatically, please manually return to ElBaraka.</p>';
+                '<p>If the app did not open automatically, please manually return to CART.</p>';
         }, 2000);
     </script>
 </body>

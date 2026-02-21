@@ -52,7 +52,7 @@ return new class extends Migration
                 'slug' => 'about',
                 'title_en' => 'About Us',
                 'title_ar' => 'من نحن',
-                'content_en' => '<h1>About El Baraka</h1><p>We are your trusted grocery partner.</p>',
+                'content_en' => '<h1>About CART</h1><p>We are your trusted grocery partner.</p>',
                 'content_ar' => '<h1>عن البركة</h1><p>نحن شريكك الموثوق في البقالة.</p>',
                 'is_active' => true,
                 'last_updated_at' => now(),

@@ -354,7 +354,7 @@ const MessageBubble = ({
               ]}
             />
             <Text style={styles.senderLabel}>
-              {isBot ? "ElBaraka Assistant" : "Support Agent"}
+              {isBot ? "CART Assistant" : "Support Agent"}
             </Text>
           </View>
         )}
@@ -854,7 +854,7 @@ export default function ComplaintChatScreen() {
             </View>
             <View>
               <Text style={styles.headerName}>
-                {isBotHandling ? "ElBaraka Assistant" : "Support Agent"}
+                {isBotHandling ? "CART Assistant" : "Support Agent"}
               </Text>
               <View style={styles.headerStatusRow}>
                 <View style={styles.connectionDot} />

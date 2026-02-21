@@ -1,4 +1,4 @@
-// ElBaraka Design System Spacing (8px grid)
+// CART Design System Spacing (8px grid)
 export const Spacing = {
   xs: 8,
   sm: 12,

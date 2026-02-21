@@ -1,4 +1,4 @@
-// ElBaraka Design System Colors
+// CART Design System Colors
 export const Colors = {
   // Primary – Fresh Emerald Green
   primary900: '#16a34a',

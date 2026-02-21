@@ -116,7 +116,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <div>
                 <h1 className="text-lg font-bold text-elbaraka-primary">
-                  ElBaraka
+                  CART
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   {t("common.adminDashboard")}

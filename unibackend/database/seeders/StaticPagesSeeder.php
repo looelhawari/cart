@@ -40,7 +40,7 @@ class StaticPagesSeeder extends Seeder
         DB::table('static_pages')
             ->where('slug', 'about')
             ->update([
-                'title_en' => 'About ElBaraka',
+                'title_en' => 'About CART',
                 'title_ar' => 'عن البركة',
                 'content_en' => $this->getAboutContentEn(),
                 'content_ar' => $this->getAboutContentAr(),
@@ -55,10 +55,10 @@ class StaticPagesSeeder extends Seeder
 <h1>Terms and Conditions</h1>
 
 <h2>1. Acceptance of Terms</h2>
-<p>By accessing and using the ElBaraka mobile application ("App"), you accept and agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you may not use our services.</p>
+<p>By accessing and using the CART mobile application ("App"), you accept and agree to be bound by these Terms and Conditions. If you do not agree with any part of these terms, you may not use our services.</p>
 
 <h2>2. Use of Service</h2>
-<p>ElBaraka grants you a limited, non-exclusive, non-transferable license to use the App for personal, non-commercial purposes. You agree to use the App only for lawful purposes and in accordance with these Terms.</p>
+<p>CART grants you a limited, non-exclusive, non-transferable license to use the App for personal, non-commercial purposes. You agree to use the App only for lawful purposes and in accordance with these Terms.</p>
 
 <h2>3. Account Registration</h2>
 <p>To access certain features, you must register for an account. You agree to:</p>
@@ -88,10 +88,10 @@ class StaticPagesSeeder extends Seeder
 <p>Your privacy is important to us. Please review our Privacy Policy to understand how we collect, use, and protect your personal information.</p>
 
 <h2>10. Limitation of Liability</h2>
-<p>ElBaraka shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the service.</p>
+<p>CART shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of or inability to use the service.</p>
 
 <h2>11. Intellectual Property</h2>
-<p>All content, trademarks, and intellectual property on the App are owned by ElBaraka. You may not reproduce, distribute, or create derivative works without our prior written consent.</p>
+<p>All content, trademarks, and intellectual property on the App are owned by CART. You may not reproduce, distribute, or create derivative works without our prior written consent.</p>
 
 <h2>12. Changes to Terms</h2>
 <p>We reserve the right to modify these terms at any time. Continued use of the App after changes constitutes acceptance of the new terms. We will notify you of significant changes through the App or email.</p>
@@ -169,7 +169,7 @@ HTML;
 <h1>Privacy Policy</h1>
 
 <h2>Your Privacy Matters</h2>
-<p>At ElBaraka, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our mobile application.</p>
+<p>At CART, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your data when you use our mobile application.</p>
 
 <h2>1. Information We Collect</h2>
 <p>We collect information that you provide directly to us, including:</p>
@@ -328,10 +328,10 @@ HTML;
     private function getAboutContentEn(): string
     {
         return <<<HTML
-<h1>Welcome to ElBaraka</h1>
+<h1>Welcome to CART</h1>
 
 <h2>Who We Are</h2>
-<p>ElBaraka is your trusted online hypermarket, bringing fresh groceries and daily essentials directly to your doorstep. Since our founding, we've been committed to making grocery shopping effortless and enjoyable for families across Egypt.</p>
+<p>CART is your trusted online hypermarket, bringing fresh groceries and daily essentials directly to your doorstep. Since our founding, we've been committed to making grocery shopping effortless and enjoyable for families across Egypt.</p>
 
 <h2>Our Mission</h2>
 <p>To revolutionize the way people shop for groceries by delivering fresh, quality products with speed and convenience, while building lasting relationships with our customers through exceptional service.</p>
@@ -350,7 +350,7 @@ HTML;
 </ul>
 
 <h2>Why Choose Us</h2>
-<p>With thousands of products, competitive prices, and delivery in as fast as 1 hour, ElBaraka makes grocery shopping simple. Our dedicated team works around the clock to ensure you receive the best shopping experience.</p>
+<p>With thousands of products, competitive prices, and delivery in as fast as 1 hour, CART makes grocery shopping simple. Our dedicated team works around the clock to ensure you receive the best shopping experience.</p>
 
 <h3>What Sets Us Apart:</h3>
 <ul>
@@ -363,9 +363,9 @@ HTML;
 </ul>
 
 <h2>Our Commitment</h2>
-<p>At ElBaraka, we believe that everyone deserves access to quality groceries without the hassle. We're constantly working to improve our services, expand our product range, and enhance your shopping experience.</p>
+<p>At CART, we believe that everyone deserves access to quality groceries without the hassle. We're constantly working to improve our services, expand our product range, and enhance your shopping experience.</p>
 
-<p>Thank you for choosing ElBaraka. We look forward to serving you!</p>
+<p>Thank you for choosing CART. We look forward to serving you!</p>
 HTML;
     }
 

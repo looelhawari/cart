@@ -86,7 +86,7 @@ export default function OrderReceiptPage() {
                 ) : (
                     <div className="receipt">
                         <div className="receipt-header">
-                            <div className="receipt-brand">ELBARAKA</div>
+                            <div className="receipt-brand">CART</div>
                             <div className="receipt-title">DELIVERY RECEIPT</div>
                         </div>
 
