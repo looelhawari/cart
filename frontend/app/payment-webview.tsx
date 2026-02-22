@@ -161,14 +161,10 @@ export default function PaymentWebViewScreen() {
         return false;
       }
 
-      // Detect Paymob's own payment status page (sometimes redirects there)
-      if (url.includes("accept.paymob.com/unifiedcheckout/payment-status")) {
-        console.log(
-          "[PaymentWebView] 🎯 Paymob status page detected — starting verification",
-        );
-        startPollingAfterRedirect();
-        return false;
-      }
+      // NOTE: Do NOT intercept accept.paymob.com/unifiedcheckout/payment-status
+      // That is Paymob's intermediate "Please wait" processing page shown DURING
+      // payment. The actual final redirect goes to our PAYMOB_REDIRECT_URL
+      // (https://cartshop.site/payment-return) which is caught above.
 
       // Allow all other URLs (Paymob checkout pages, 3DS bank pages, etc.)
       return true;
