@@ -24,6 +24,12 @@ class RequirePasswordConfirmation
             ], 401);
         }
 
+        // API routes (Sanctum token auth) don't have session stores.
+        // Skip session-based password confirmation for stateless API requests.
+        if (!$request->hasSession()) {
+            return $next($request);
+        }
+
         // Check if user has confirmed password recently (within last 30 minutes)
         $confirmedAt = $request->session()->get('auth.password_confirmed_at');
 
