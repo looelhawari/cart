@@ -294,6 +294,9 @@ class CheckoutService
             'status' => 'confirmed',
         ]);
 
+        // Finalize promo usage for COD orders (same as wallet/card paths)
+        app(OrderService::class)->finalizePromoUsage($order);
+
         Log::info('Order placed with COD', [
             'order_id' => $order->id,
             'order_number' => $order->order_number,

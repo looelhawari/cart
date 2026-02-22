@@ -40,9 +40,9 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting(): void
     {
-        // Default API rate limit: 1000 requests per minute per user/IP (load-test tuned, production: 120)
+        // Default API rate limit (production-safe: uses config() not env())
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute((int) env('RATE_LIMIT_API', 120))->by(
+            return Limit::perMinute(config('ratelimits.api', 120))->by(
                 $request->user()?->id ?: $request->ip()
             )->response(function (Request $request, array $headers) {
                 return response()->json([
@@ -53,9 +53,9 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Auth rate limit: env-configurable (default 60, raise for load testing)
+        // Auth rate limit (production-safe: uses config() not env())
         RateLimiter::for('auth', function (Request $request) {
-            return Limit::perMinute((int) env('RATE_LIMIT_AUTH', 60))->by(
+            return Limit::perMinute(config('ratelimits.auth', 60))->by(
                 $request->ip()
             )->response(function (Request $request, array $headers) {
                 return response()->json([
@@ -66,10 +66,10 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Login-specific: env-configurable (default 10 per 15 min)
+        // Login-specific: configurable (default 10 per 15 min)
         RateLimiter::for('login', function (Request $request) {
             $key = 'login:' . ($request->input('email') ?: $request->ip());
-            return Limit::perMinutes(15, (int) env('RATE_LIMIT_LOGIN', 10))->by($key)->response(function (Request $request, array $headers) {
+            return Limit::perMinutes(15, config('ratelimits.login', 10))->by($key)->response(function (Request $request, array $headers) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Too many failed login attempts. Please try again in 15 minutes.',

@@ -55,8 +55,13 @@ class AdminProductController extends Controller
             $query->where('price', '<=', $request->max_price);
         }
 
+        // Whitelist sort columns and direction to prevent SQL injection
+        $allowedSorts = ['created_at', 'updated_at', 'price', 'stock_quantity', 'name_en', 'name_ar', 'barcode', 'sales_count', 'is_active'];
+        $sortBy = in_array($request->get('sort_by'), $allowedSorts) ? $request->get('sort_by') : 'created_at';
+        $sortOrder = in_array(strtolower($request->get('order', 'desc')), ['asc', 'desc']) ? $request->get('order') : 'desc';
+
         $products = $query->with('categories')
-            ->orderBy($request->get('sort_by', 'created_at'), $request->get('order', 'desc'))
+            ->orderBy($sortBy, $sortOrder)
             ->paginate($request->get('per_page', 20));
 
         return response()->json($products);

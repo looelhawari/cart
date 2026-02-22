@@ -70,9 +70,10 @@ class AdminOrderController extends Controller
             $query->whereDate('scheduled_delivery_date', $request->delivery_date);
         }
 
-        // Sorting
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
+        // Sorting — whitelist to prevent SQL injection
+        $allowedSorts = ['created_at', 'updated_at', 'total', 'status', 'payment_status', 'id', 'order_number'];
+        $sortBy = in_array($request->get('sort_by'), $allowedSorts) ? $request->get('sort_by') : 'created_at';
+        $sortOrder = in_array(strtolower($request->get('sort_order', 'desc')), ['asc', 'desc']) ? $request->get('sort_order') : 'desc';
         $query->orderBy($sortBy, $sortOrder);
 
         // Get summary statistics
@@ -120,7 +121,7 @@ class AdminOrderController extends Controller
         $order = Order::findOrFail($id);
 
         $validated = $request->validate([
-            'status' => 'required|in:pending,confirmed,preparing,out_for_delivery,delivered,cancelled,failed',
+            'status' => 'required|in:pending,pending_payment,confirmed,preparing,out_for_delivery,delivered,cancelled,failed',
             'notes' => 'nullable|string|max:500',
         ]);
 
@@ -134,6 +135,7 @@ class AdminOrderController extends Controller
         // Validate status transitions
         $allowedTransitions = [
             'pending' => ['confirmed', 'cancelled', 'failed'],
+            'pending_payment' => ['pending', 'confirmed', 'cancelled', 'failed'],
             'confirmed' => ['preparing', 'cancelled'],
             'preparing' => ['out_for_delivery', 'cancelled'],
             'out_for_delivery' => ['delivered', 'failed'],
@@ -148,6 +150,15 @@ class AdminOrderController extends Controller
             return response()->json([
                 'message' => "Invalid status transition from {$currentStatus} to {$newStatus}"
             ], 422);
+        }
+
+        // Delegate cancellation to cancel() to ensure stock restore + refund logic
+        if ($newStatus === 'cancelled') {
+            $request->merge([
+                'reason' => $validated['notes'] ?? 'Cancelled via status update',
+                'cancelled_by' => 'admin',
+            ]);
+            return $this->cancel($request, $id);
         }
 
         DB::beginTransaction();
@@ -172,9 +183,9 @@ class AdminOrderController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Failed to update order status', ['order_id' => $id, 'error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to update order status',
-                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -207,6 +218,9 @@ class AdminOrderController extends Controller
 
         DB::beginTransaction();
         try {
+            // Capture previous status BEFORE update for stock restore logic
+            $previousStatus = $order->status;
+
             $order->update([
                 'status' => 'cancelled',
                 'cancellation_reason' => $validated['reason'],
@@ -214,8 +228,8 @@ class AdminOrderController extends Controller
                 'cancelled_at' => now(),
             ]);
 
-            // Restore product stock if order was confirmed or preparing
-            if (in_array($order->status, ['confirmed', 'preparing'])) {
+            // Restore product stock if order was confirmed, preparing, pending, or pending_payment
+            if (in_array($previousStatus, ['pending', 'pending_payment', 'confirmed', 'preparing'])) {
                 foreach ($order->items as $item) {
                     if ($item->product) {
                         $item->product->increment('stock_quantity', $item->quantity);
@@ -231,9 +245,9 @@ class AdminOrderController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Failed to cancel order', ['order_id' => $id, 'error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Failed to cancel order',
-                'error' => $e->getMessage()
             ], 500);
         }
     }

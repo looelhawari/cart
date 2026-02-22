@@ -164,9 +164,17 @@ class OrderService
                     'subtotal' => $cartItem->quantity * $cartItem->price,
                 ]);
 
-                // Update product stock
-                $product->decrement('stock_quantity', $cartItem->quantity);
-                $product->increment('sales_count', $cartItem->quantity);
+                // Update product stock — atomic guard against negative stock
+                $affected = \App\Models\Product::where('barcode', $product->barcode)
+                    ->where('stock_quantity', '>=', $cartItem->quantity)
+                    ->update([
+                        'stock_quantity' => DB::raw("stock_quantity - {$cartItem->quantity}"),
+                        'sales_count' => DB::raw("sales_count + {$cartItem->quantity}"),
+                    ]);
+
+                if ($affected === 0) {
+                    throw new \Exception("Insufficient stock for product: {$product->name_en}", 422);
+                }
             }
 
             // Create initial status history

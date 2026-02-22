@@ -182,7 +182,7 @@ Route::prefix('v1')->group(function () {
     });
 
     // Protected routes
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('auth/confirm-password', [AuthController::class, 'confirmPassword']);
 
@@ -439,7 +439,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Admin routes (requires admin role)
-        Route::middleware(['admin', 'log.admin.activity'])->prefix('admin')->group(function () {
+        Route::middleware(['admin', 'log.admin.activity', 'throttle:admin'])->prefix('admin')->group(function () {
 
             // ── RBAC: Get my permissions (every admin calls this) ──
             Route::get('/rbac/my-permissions', [RbacController::class, 'myPermissions']);

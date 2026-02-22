@@ -35,10 +35,10 @@ class CheckoutController extends Controller
                 'data' => ['delivery_slots' => array_values($slots)],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
+            \Log::error('Failed to retrieve delivery slots', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve delivery slots',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -66,10 +66,10 @@ class CheckoutController extends Controller
                 'data' => ['addresses' => $addresses],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
+            \Log::error('Failed to retrieve addresses', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve addresses',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -97,10 +97,10 @@ class CheckoutController extends Controller
                 'data' => ['payment_methods' => $paymentMethods],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
+            \Log::error('Failed to retrieve payment methods', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve payment methods',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -130,10 +130,10 @@ class CheckoutController extends Controller
                 'data' => ['summary' => $summary],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
+            \Log::error('Failed to calculate summary', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to calculate summary',
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -198,6 +198,14 @@ class CheckoutController extends Controller
                 ], 400);
             }
 
+            // Block payment for cancelled, failed, or delivered orders
+            if (in_array($order->status, ['cancelled', 'failed', 'delivered'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot process payment for a ' . $order->status . ' order.',
+                ], 400);
+            }
+
             // Prepare billing data for card payments
             $billingData = [];
             if ($request->payment_method === 'card') {
@@ -230,7 +238,7 @@ class CheckoutController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Payment processing failed. Please try again.',
             ], 500);
         }
     }
