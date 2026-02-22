@@ -6,11 +6,16 @@
  * FLOW:
  * 1. WebView loads Paymob Unified Checkout URL
  * 2. User enters card info and completes 3DS
- * 3. Paymob redirects to `elbaraka://payment-return` (deep link)
+ * 3. Paymob redirects to PAYMOB_REDIRECT_URL (https://cartshop.site/payment-return)
  * 4. WebView intercepts the redirect (handleShouldStartLoadWithRequest)
  * 5. THEN we start polling GET /api/v1/payments/status/{paymentId}
  * 6. Webhook on backend has already updated status (usually ~1s earlier)
  * 7. Polling detects PAID/FAILED → show result modal → navigate
+ *
+ * DEEP LINK SAFETY: If the redirect URL uses elbaraka:// custom scheme,
+ * Android may also fire a deep link intent. The app/payment-return.tsx
+ * route handles this as a fallback. Production uses HTTPS redirect to
+ * avoid this issue entirely.
  *
  * CRITICAL FIX: Polling ONLY starts after redirect detection.
  * Previous version polled immediately on mount (wasted 30+ API calls).
@@ -129,7 +134,12 @@ export default function PaymentWebViewScreen() {
     (request: any) => {
       const { url } = request;
 
-      // Detect deep link redirect from Paymob
+      console.log(
+        "[PaymentWebView] Navigation request:",
+        url.substring(0, 120),
+      );
+
+      // Detect deep link redirect from Paymob (elbaraka:// scheme)
       if (
         url.startsWith("elbaraka://payment-return") ||
         url.startsWith("elbaraka://payment")
@@ -141,15 +151,11 @@ export default function PaymentWebViewScreen() {
         return false; // Don't try to load the deep link
       }
 
-      // Detect ngrok/localhost redirect (fallback for dev)
-      if (
-        url.includes("/payment-return") &&
-        (url.includes("ngrok") ||
-          url.includes("localhost") ||
-          url.includes("127.0.0.1"))
-      ) {
+      // Detect ANY payment-return redirect (production, dev, ngrok, etc.)
+      // This catches: https://cartshop.site/payment-return, ngrok URLs, localhost, etc.
+      if (url.includes("/payment-return")) {
         console.log(
-          "[PaymentWebView] 🎯 Dev redirect detected — starting verification",
+          "[PaymentWebView] 🎯 Payment return redirect detected — starting verification",
         );
         startPollingAfterRedirect();
         return false;
