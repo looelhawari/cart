@@ -364,18 +364,19 @@ class PaymentController extends Controller
                 ]);
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
 
             Log::error('Payment initiation failed', [
                 'error' => $e->getMessage(),
+                'error_class' => get_class($e),
                 'order_id' => $request->order_id ?? null,
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to initiate payment. Please try again.',
-                'error' => $e->getMessage(),
+                'message' => 'Failed to initiate payment: ' . $e->getMessage(),
             ], 500);
         }
     }

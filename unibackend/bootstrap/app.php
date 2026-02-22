@@ -43,4 +43,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Unauthenticated. Please log in.',
             ], 401);
         });
+
+        // Return useful JSON error messages for all API 500 errors (not generic "Server Error")
+        $exceptions->render(function (\Throwable $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                $status = ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) ? $e->getStatusCode() : 500;
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage() ?: 'An unexpected error occurred.',
+                    'error_class' => class_basename($e),
+                ], $status);
+            }
+        });
     })->create();

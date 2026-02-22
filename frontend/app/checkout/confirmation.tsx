@@ -318,9 +318,13 @@ export default function CheckoutConfirmationScreen() {
             throw new Error("Failed to initiate payment");
           }
         } catch (paymentError: any) {
+          console.error('[Checkout] Payment initiation error:', JSON.stringify(paymentError, null, 2));
+          const errorMsg = paymentError?.message || t.checkout.failedToInitiatePayment;
           Alert.alert(
             t.checkout.paymentError,
-            paymentError.message || t.checkout.failedToInitiatePayment,
+            errorMsg === 'Server Error'
+              ? 'The payment server encountered an internal error. Please try again or contact support.'
+              : errorMsg,
           );
           setIsPlacingOrder(false);
           return;

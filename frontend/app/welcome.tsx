@@ -63,31 +63,33 @@ export default function WelcomeScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* DEV ONLY: Reset Button */}
-          <TouchableOpacity
-            onPress={() => {
-              Alert.alert(
-                t.welcome.resetAppStorage,
-                t.welcome.resetConfirmMessage,
-                [
-                  { text: t.common.cancel, style: "cancel" },
-                  {
-                    text: t.welcome.reset,
-                    style: "destructive",
-                    onPress: () => {
-                      resetApp();
-                      Alert.alert(t.common.success, t.welcome.storageCleared);
+          {/* DEV ONLY: Reset Button — hidden in production builds */}
+          {__DEV__ && (
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  t.welcome.resetAppStorage,
+                  t.welcome.resetConfirmMessage,
+                  [
+                    { text: t.common.cancel, style: "cancel" },
+                    {
+                      text: t.welcome.reset,
+                      style: "destructive",
+                      onPress: () => {
+                        resetApp();
+                        Alert.alert(t.common.success, t.welcome.storageCleared);
+                      },
                     },
-                  },
-                ],
-              );
-            }}
-            style={styles.devButton}
-          >
-            <Text style={styles.devButtonText}>
-              {t.welcome.clearStorageDev}
-            </Text>
-          </TouchableOpacity>
+                  ],
+                );
+              }}
+              style={styles.devButton}
+            >
+              <Text style={styles.devButtonText}>
+                {t.welcome.clearStorageDev}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>
