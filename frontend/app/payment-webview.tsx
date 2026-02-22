@@ -141,15 +141,13 @@ export default function PaymentWebViewScreen() {
         return false; // Don't try to load the deep link
       }
 
-      // Detect ngrok/localhost redirect (fallback for dev)
+      // Detect web URL redirect (production cartshop.site or dev localhost/ngrok)
       if (
         url.includes("/payment-return") &&
-        (url.includes("ngrok") ||
-          url.includes("localhost") ||
-          url.includes("127.0.0.1"))
+        !url.includes("accept.paymob.com")
       ) {
         console.log(
-          "[PaymentWebView] 🎯 Dev redirect detected — starting verification",
+          "[PaymentWebView] 🎯 Web redirect detected — starting verification",
         );
         startPollingAfterRedirect();
         return false;
@@ -246,9 +244,6 @@ export default function PaymentWebViewScreen() {
       <WebView
         source={{
           uri: params.iframeUrl,
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
         }}
         onLoadStart={() => setLoading(true)}
         onLoad={() => setLoading(false)}

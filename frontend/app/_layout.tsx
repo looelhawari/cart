@@ -170,6 +170,7 @@ function RootLayoutNav() {
       // Skip if we're in the middle of payment flow
       if (
         pathname === "/payment-webview" ||
+        pathname === "/payment-return" ||
         pathname === "/payment-recovery" ||
         pathname?.startsWith("/checkout")
       ) {
@@ -250,6 +251,14 @@ function RootLayoutNav() {
       <Stack.Screen
         name="payment"
         options={{ headerShown: false, presentation: "modal" }}
+      />
+      <Stack.Screen
+        name="payment-webview"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="payment-return"
+        options={{ headerShown: false, gestureEnabled: false }}
       />
       <Stack.Screen
         name="payment-recovery"
