@@ -95,6 +95,17 @@ export default function PaymentWebViewScreen() {
         console.log("[PaymentWebView] ❌ Payment failed");
         setPaymentSuccess(false);
         setShowResultModal(true);
+      } else if (
+        result.status === "PENDING" &&
+        result.paymob_success !== null &&
+        result.paymob_success !== undefined
+      ) {
+        // Webhook hasn't arrived yet, but Paymob remote query confirms outcome
+        console.log(
+          `[PaymentWebView] ⚡ Webhook delayed — using Paymob remote: success=${result.paymob_success}`,
+        );
+        setPaymentSuccess(result.paymob_success === true);
+        setShowResultModal(true);
       } else {
         // Still PENDING after 30s — webhook might be delayed
         console.warn("[PaymentWebView] ⏱️ Payment verification timeout");

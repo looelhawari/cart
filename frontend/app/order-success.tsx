@@ -122,6 +122,16 @@ export default function OrderSuccessScreen() {
       } else if (result.status === "FAILED") {
         console.log("[OrderSuccess] ❌ Payment failed");
         setPaymentStatus("failed");
+      } else if (
+        result.status === "PENDING" &&
+        result.paymob_success !== null &&
+        result.paymob_success !== undefined
+      ) {
+        // Webhook delayed — use Paymob remote query result
+        console.log(
+          `[OrderSuccess] ⚡ Webhook delayed — Paymob remote: success=${result.paymob_success}`,
+        );
+        setPaymentStatus(result.paymob_success ? "confirmed" : "failed");
       } else {
         console.warn("[OrderSuccess] ⏱️ Payment verification timeout");
         setPaymentStatus("processing");

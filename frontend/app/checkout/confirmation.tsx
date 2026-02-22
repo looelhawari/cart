@@ -92,10 +92,10 @@ export default function CheckoutConfirmationScreen() {
       const todayStr = today.toISOString().split("T")[0];
       setSelectedDate(todayStr);
 
-      // Filter out past slots for today
+      // Filter out slots that have already ended for today
       const currentHour = today.getHours();
       const availableSlots = activeSlots.filter(
-        (s: DeliverySlot) => s.start_hour > currentHour,
+        (s: DeliverySlot) => s.end_hour > currentHour,
       );
       setDeliverySlots(availableSlots);
 
@@ -143,10 +143,10 @@ export default function CheckoutConfirmationScreen() {
     const isToday = dateValue === todayStr;
 
     if (isToday) {
-      // Filter out slots whose start_hour has already passed
+      // Filter out slots whose end_hour has already passed
       const currentHour = new Date().getHours();
       const available = allSlots.filter(
-        (s: DeliverySlot) => s.start_hour > currentHour,
+        (s: DeliverySlot) => s.end_hour > currentHour,
       );
       setDeliverySlots(available);
       // Auto-select first available or clear
