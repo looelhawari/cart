@@ -213,17 +213,28 @@ export async function pollPaymentStatus(
         attempts++;
 
         const response = await getPaymentStatus(paymentId);
-        const { status } = response.data;
+        const { status, paymob_success } = response.data;
 
         onStatusChange?.(status);
 
         if (status === "PAID" || status === "FAILED" || status === "REFUNDED") {
-          // Terminal state reached
+          // Terminal state reached via webhook
+          console.log(`[PaymentPolling] ✅ Terminal state: ${status}`);
+          resolve(response.data);
+        } else if (
+          status === "PENDING" &&
+          paymob_success !== null &&
+          paymob_success !== undefined
+        ) {
+          // Webhook hasn't arrived, but Paymob remote query confirms result
+          console.log(
+            `[PaymentPolling] ⚡ Paymob remote confirms: success=${paymob_success}`,
+          );
           resolve(response.data);
         } else if (attempts >= maxAttempts) {
           // Timeout - return current state
           console.warn(
-            `[PaymentPolling] Timeout after ${maxAttempts} attempts`,
+            `[PaymentPolling] Timeout after ${maxAttempts} attempts (paymob_success=${paymob_success})`,
           );
           resolve(response.data);
         } else {

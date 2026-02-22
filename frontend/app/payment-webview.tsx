@@ -87,6 +87,16 @@ export default function PaymentWebViewScreen() {
 
       if (!isMounted.current) return;
 
+      console.log(
+        "[PaymentWebView] Polling result:",
+        JSON.stringify({
+          status: result.status,
+          paymob_success: result.paymob_success,
+          paymob_status: result.paymob_status,
+          payment_id: result.payment_id,
+        }),
+      );
+
       if (result.status === "PAID") {
         console.log("[PaymentWebView] ✅ Payment successful!");
         setPaymentSuccess(true);

@@ -1112,14 +1112,39 @@ class PaymentController extends Controller
                     $transactionData = $this->paymobService->getTransactionByIntention(
                         $payment->paymob_intention_id
                     );
-                    if ($transactionData && isset($transactionData['status'])) {
-                        $paymobStatus = $transactionData['status'];
+                    if ($transactionData) {
+                        // Grab the intention-level status (e.g. "PENDING", "PROCESSED", "CONFIRMED")
+                        $paymobStatus = $transactionData['status'] ?? null;
+
+                        // Try multiple paths for the success flag:
+                        // 1. latest_transaction.success (most common)
                         $latestTxn = $transactionData['latest_transaction'] ?? null;
-                        $paymobSuccess = $latestTxn['success'] ?? null;
+                        if ($latestTxn && isset($latestTxn['success'])) {
+                            $paymobSuccess = (bool) $latestTxn['success'];
+                        }
+                        // 2. transactions array — pick the last one
+                        elseif (!empty($transactionData['transactions'])) {
+                            $lastTx = end($transactionData['transactions']);
+                            $paymobSuccess = isset($lastTx['success']) ? (bool) $lastTx['success'] : null;
+                        }
+                        // 3. Intention-level status fallback
+                        elseif (in_array($paymobStatus, ['CONFIRMED', 'PROCESSED'])) {
+                            $paymobSuccess = true;
+                        } elseif (in_array($paymobStatus, ['DECLINED', 'FAILED', 'VOIDED'])) {
+                            $paymobSuccess = false;
+                        }
+
+                        Log::info('🔍 Paymob remote status for display', [
+                            'payment_id' => $payment->id,
+                            'intention_status' => $paymobStatus,
+                            'paymob_success' => $paymobSuccess,
+                            'has_latest_txn' => $latestTxn !== null,
+                        ]);
                     }
                 } catch (Exception $e) {
                     Log::warning('Could not fetch Paymob status for display', [
                         'payment_id' => $payment->id,
+                        'intention_id' => $payment->paymob_intention_id,
                         'error' => $e->getMessage(),
                     ]);
                 }

@@ -989,10 +989,8 @@ class PaymobService
     public function getTransactionByIntention(string $intentionId): ?array
     {
         try {
-            // Paymob uses Transaction API to retrieve payment details
-            // We need to get the transactions list and filter by intention ID
-            // Alternative: Use the intention details endpoint
-            $endpoint = "https://accept.paymob.com/v1/intentions/{$intentionId}";
+            // Use singular /v1/intention/ — matches Paymob's create endpoint
+            $endpoint = "https://accept.paymob.com/v1/intention/{$intentionId}";
 
             $response = Http::timeout(30)
                 ->retry(2, 1000)
@@ -1007,6 +1005,7 @@ class PaymobService
                     'intention_id' => $intentionId,
                     'status' => $response->status(),
                     'error' => $response->body(),
+                    'endpoint' => $endpoint,
                 ]);
                 return null;
             }
