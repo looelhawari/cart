@@ -24,6 +24,24 @@ import { Colors } from "@/constants/Colors";
 import { pollPaymentStatus } from "@/services/paymentMethodsApi";
 import PaymentResultModal from "@/components/PaymentResultModal";
 
+/**
+ * Parse 'success' query param from Paymob redirect URL.
+ * Paymob appends ?success=true/false after payment completion.
+ * Returns true/false if found, null if not present.
+ */
+function parseSuccessFromUrl(url: string): boolean | null {
+  try {
+    const queryStart = url.indexOf("?");
+    if (queryStart === -1) return null;
+    const queryString = url.substring(queryStart + 1);
+    const match = queryString.match(/(?:^|&)success=(true|false)(?:&|$)/i);
+    if (!match) return null;
+    return match[1].toLowerCase() === "true";
+  } catch {
+    return null;
+  }
+}
+
 export default function PaymentWebViewScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -42,6 +60,7 @@ export default function PaymentWebViewScreen() {
   // Refs for cleanup — polling can be cancelled on unmount
   const pollingStarted = useRef(false);
   const isMounted = useRef(true);
+  const resultResolved = useRef(false);
 
   // Track unmount for cleanup
   React.useEffect(() => {
@@ -85,7 +104,8 @@ export default function PaymentWebViewScreen() {
         },
       );
 
-      if (!isMounted.current) return;
+      // If URL redirect already resolved the result, skip polling result
+      if (!isMounted.current || resultResolved.current) return;
 
       console.log(
         "[PaymentWebView] Polling result:",
@@ -99,10 +119,12 @@ export default function PaymentWebViewScreen() {
 
       if (result.status === "PAID") {
         console.log("[PaymentWebView] ✅ Payment successful!");
+        resultResolved.current = true;
         setPaymentSuccess(true);
         setShowResultModal(true);
       } else if (result.status === "FAILED") {
         console.log("[PaymentWebView] ❌ Payment failed");
+        resultResolved.current = true;
         setPaymentSuccess(false);
         setShowResultModal(true);
       } else if (
@@ -114,6 +136,7 @@ export default function PaymentWebViewScreen() {
         console.log(
           `[PaymentWebView] ⚡ Webhook delayed — using Paymob remote: success=${result.paymob_success}`,
         );
+        resultResolved.current = true;
         setPaymentSuccess(result.paymob_success === true);
         setShowResultModal(true);
       } else {
@@ -150,16 +173,33 @@ export default function PaymentWebViewScreen() {
     (request: any) => {
       const { url } = request;
 
+      // Log every navigation for debugging redirect flow
+      console.log("[PaymentWebView] 📍 Navigation:", url.substring(0, 150));
+
       // Detect deep link redirect from Paymob
       if (
         url.startsWith("elbaraka://payment-return") ||
         url.startsWith("elbaraka://payment")
       ) {
-        console.log(
-          "[PaymentWebView] 🎯 Deep link redirect detected — starting verification",
-        );
+        console.log("[PaymentWebView] 🎯 Deep link redirect detected");
+
+        // Paymob appends ?success=true/false to the redirect URL
+        // Use this for IMMEDIATE result — no polling needed
+        const success = parseSuccessFromUrl(url);
+        if (success !== null && !resultResolved.current) {
+          console.log(
+            `[PaymentWebView] ✅ URL params confirm: success=${success}`,
+          );
+          resultResolved.current = true;
+          pollingStarted.current = true;
+          setPaymentSuccess(success);
+          setShowResultModal(true);
+          return false;
+        }
+
+        // No success param — fall back to server polling
         startPollingAfterRedirect();
-        return false; // Don't try to load the deep link
+        return false;
       }
 
       // Detect server redirect (production cartshop.site, dev localhost, etc.)
@@ -167,9 +207,20 @@ export default function PaymentWebViewScreen() {
         url.includes("/payment-return") &&
         !url.includes("accept.paymob.com")
       ) {
-        console.log(
-          "[PaymentWebView] 🎯 Server redirect detected — starting verification",
-        );
+        console.log("[PaymentWebView] 🎯 Server redirect detected");
+
+        const success = parseSuccessFromUrl(url);
+        if (success !== null && !resultResolved.current) {
+          console.log(
+            `[PaymentWebView] ✅ URL params confirm: success=${success}`,
+          );
+          resultResolved.current = true;
+          pollingStarted.current = true;
+          setPaymentSuccess(success);
+          setShowResultModal(true);
+          return false;
+        }
+
         startPollingAfterRedirect();
         return false;
       }
