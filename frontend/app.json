@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "CART Hypermarket",
-    "slug": "CART-hypermarket-app",
+    "slug": "elbaraka-hypermarket-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "elbaraka",
+    "scheme": "cart",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.elbaraka.hypermarket",
+      "bundleIdentifier": "com.cart.hypermarket",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
@@ -35,7 +35,7 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#22C55E"
       },
-      "package": "com.elbaraka.hypermarket",
+      "package": "com.cart.hypermarket",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
@@ -66,7 +66,7 @@
           ],
           "data": {
             "scheme": "https",
-            "host": "elbaraka.com",
+            "host": "cart.com",
             "pathPrefix": "/product"
           }
         }
@@ -118,6 +118,9 @@
       },
       "eas": {
         "projectId": "715776f2-baec-4bf9-a749-29e831ca4fd1"
+      },
+      "expoConfig": {
+        "slug": "CART-hypermarket-app"
       }
     },
     "owner": "loxlo"

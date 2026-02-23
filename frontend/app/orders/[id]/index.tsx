@@ -1476,18 +1476,18 @@ export default function OrderDetailsScreen() {
                     {(order.delivery_address.building ||
                       order.delivery_address.floor ||
                       order.delivery_address.apartment) && (
-                      <Text style={styles.infoValue}>
-                        {order.delivery_address.building
-                          ? `Bldg ${order.delivery_address.building}`
-                          : ""}
-                        {order.delivery_address.floor
-                          ? `${order.delivery_address.building ? ", " : ""}Floor ${order.delivery_address.floor}`
-                          : ""}
-                        {order.delivery_address.apartment
-                          ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}Apt ${order.delivery_address.apartment}`
-                          : ""}
-                      </Text>
-                    )}
+                        <Text style={styles.infoValue}>
+                          {order.delivery_address.building
+                            ? `Bldg ${order.delivery_address.building}`
+                            : ""}
+                          {order.delivery_address.floor
+                            ? `${order.delivery_address.building ? ", " : ""}Floor ${order.delivery_address.floor}`
+                            : ""}
+                          {order.delivery_address.apartment
+                            ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}Apt ${order.delivery_address.apartment}`
+                            : ""}
+                        </Text>
+                      )}
                     <Text style={styles.infoValue}>
                       {order.delivery_address.city}
                       {order.delivery_address.area
@@ -1544,7 +1544,7 @@ export default function OrderDetailsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               {order.payment_method === "cod" ||
-              order.payment_method === "cash_on_delivery" ? (
+                order.payment_method === "cash_on_delivery" ? (
                 <Ionicons
                   name="wallet-outline"
                   size={20}
@@ -1560,7 +1560,7 @@ export default function OrderDetailsScreen() {
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoValue}>
                   {order.payment_method === "cod" ||
-                  order.payment_method === "cash_on_delivery"
+                    order.payment_method === "cash_on_delivery"
                     ? "Cash on Delivery"
                     : order.payment_method === "wallet"
                       ? "Wallet Payment"
@@ -2308,10 +2308,6 @@ export default function OrderDetailsScreen() {
           <TouchableOpacity
             style={{
               flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
               backgroundColor: Colors.primary900,
               paddingVertical: 14,
               borderRadius: 16,
@@ -2320,8 +2316,14 @@ export default function OrderDetailsScreen() {
               router.push(`/orders/tracking?id=${order.id}` as any)
             }
           >
-            <Ionicons name="navigate" size={18} color="#fff" />
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>
+            <Text
+              style={{
+                fontSize: 15,
+                fontWeight: "700",
+                color: "#ffffff",
+                textAlign: "center",
+              }}
+            >
               Track Order
             </Text>
           </TouchableOpacity>
@@ -2365,7 +2367,7 @@ export default function OrderDetailsScreen() {
                   try {
                     const reasons = await getCancellationReasons();
                     setCancellationReasons(reasons);
-                  } catch {}
+                  } catch { }
                   setShowPartialCancelDialog(true);
                 }}
                 activeOpacity={0.7}
