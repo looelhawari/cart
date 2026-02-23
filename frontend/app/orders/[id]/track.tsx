@@ -1,463 +1,140 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Linking,
-  Alert,
   Animated,
+  Easing,
   Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
-import {
-  ArrowLeft,
-  MessageSquare,
-  Package,
-  Clock,
-} from 'lucide-react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { ArrowLeft } from "lucide-react-native";
+import Colors from "@/constants/Colors";
+import Spacing from "@/constants/Spacing";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { orders } from '@/data/orders';
-
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function OrderTrackingScreen() {
-  const { id } = useLocalSearchParams();
-  const order = orders.find((o) => o.id === id);
-  const [estimatedMinutes, setEstimatedMinutes] = useState(23);
-  const pulseAnim = useState(new Animated.Value(1))[0];
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const ring1 = useRef(new Animated.Value(0)).current;
+  const ring2 = useRef(new Animated.Value(0)).current;
+  const ring3 = useRef(new Animated.Value(0)).current;
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
+        Animated.timing(floatAnim, { toValue: -18, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     ).start();
 
-    const interval = setInterval(() => {
-      setEstimatedMinutes((prev) => Math.max(0, prev - 1));
-    }, 60000);
+    const ripple = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 2000, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      ).start();
 
-    return () => clearInterval(interval);
+    ripple(ring1, 0); ripple(ring2, 650); ripple(ring3, 1300);
+
+    const dotPulse = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.3, duration: 500, useNativeDriver: true }),
+          Animated.delay(600),
+        ])
+      ).start();
+
+    dotPulse(dot1, 0); dotPulse(dot2, 200); dotPulse(dot3, 400);
   }, []);
 
-  if (!order || !order.driverInfo) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <ArrowLeft size={24} color={Colors.neutralCharcoal} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Track Order</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>Tracking not available</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const driver = order.driverInfo;
-  const distance = '2.3 km';
-
-  const handleCall = () => {
-    if (driver.phone) {
-      Linking.openURL(`tel:${driver.phone}`);
-    }
-  };
-
-  const handleMessage = () => {
-    if (driver.phone) {
-      Alert.alert('Message Driver', 'Opening messaging...');
-    }
-  };
+  const ringStyle = (anim: Animated.Value) => ({
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.5] }) }],
+    opacity: anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.3, 0] }),
+  });
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <ArrowLeft size={24} color={Colors.neutralCharcoal} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <ArrowLeft size={22} color="#1C1B1F" />
         </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Track Order</Text>
-          <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-        </View>
-
-        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>Order Tracking</Text>
+        <View style={{ width: 38 }} />
       </View>
-
-      {/* Map Placeholder */}
-      <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          <Ionicons name="location" size={40} color={Colors.primary900} />
-          <Text style={styles.mapText}>Live Map View</Text>
-          <Text style={styles.mapSubtext}>Real-time tracking coming soon</Text>
+      <View style={styles.body}>
+        <View style={styles.rippleContainer}>
+          <Animated.View style={[styles.ring, ringStyle(ring1)]} />
+          <Animated.View style={[styles.ring, ringStyle(ring2)]} />
+          <Animated.View style={[styles.ring, ringStyle(ring3)]} />
+          <Animated.View style={[styles.truckWrapper, { transform: [{ translateY: floatAnim }] }]}>
+            <LinearGradient colors={["#6C63FF", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.truckCircle}>
+              <Text style={styles.truckEmoji}>🚚</Text>
+            </LinearGradient>
+          </Animated.View>
         </View>
-
-        {/* Delivery Location Marker */}
-        <View style={[styles.locationMarker, { top: height * 0.25, left: width * 0.6 }]}>
-          <View style={styles.markerDot}>
-            <Ionicons name="location" size={20} color={Colors.neutralWhite} />
-          </View>
-          <View style={styles.markerPulse} />
+        <View style={styles.badgeWrapper}>
+          <LinearGradient colors={["#6C63FF", "#A855F7"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.badge}>
+            <Text style={styles.badgeText}>✨  Coming Soon</Text>
+          </LinearGradient>
         </View>
-
-        {/* Driver Location Marker (Animated) */}
-        <Animated.View
-          style={[
-            styles.driverMarker,
-            { top: height * 0.35, left: width * 0.3, transform: [{ scale: pulseAnim }] },
-          ]}
-        >
-          <Package size={24} color={Colors.neutralWhite} />
-        </Animated.View>
-      </View>
-
-      {/* Status Card */}
-      <View style={styles.statusCard}>
-        <View style={styles.statusHeader}>
-          <Package size={24} color={Colors.primary900} />
-          <View style={styles.statusInfo}>
-            <Text style={styles.statusTitle}>Your order is on the way!</Text>
-            <Text style={styles.statusSubtitle}>
-              Arriving in approximately {estimatedMinutes} minutes
-            </Text>
-          </View>
+        <Text style={styles.title}>Live Order Tracking</Text>
+        <Text style={styles.subtitle}>We're building a real-time map experience so you can watch your order travel to your door, step by step.</Text>
+        <View style={styles.featureRow}>
+          {["📍 Live Map", "🔔 Push Updates", "⏱ ETA Counter"].map((f) => (
+            <View key={f} style={styles.pill}><Text style={styles.pillText}>{f}</Text></View>
+          ))}
         </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.statusDetails}>
-          <View style={styles.statusRow}>
-            <Clock size={18} color={Colors.neutralMedium} />
-            <Text style={styles.statusDetailText}>Estimated: {estimatedMinutes} min</Text>
-          </View>
-          <View style={styles.statusRow}>
-            <Ionicons name="location-outline" size={18} color={Colors.neutralMedium} />
-            <Text style={styles.statusDetailText}>Distance: {distance} away</Text>
-          </View>
+        <View style={styles.dotsRow}>
+          <Text style={styles.dotsLabel}>Working on it</Text>
+          {[dot1, dot2, dot3].map((d, i) => (
+            <Animated.View key={i} style={[styles.dot, { opacity: d }]} />
+          ))}
         </View>
       </View>
-
-      {/* Driver Info Card */}
-      <View style={styles.driverCard}>
-        <View style={styles.driverInfo}>
-          <Image source={{ uri: driver.photo }} style={styles.driverPhoto} />
-
-          <View style={styles.driverDetails}>
-            <Text style={styles.driverName}>{driver.name}</Text>
-            <View style={styles.driverRating}>
-              <Ionicons name="star" size={16} color={Colors.accentYellow} />
-              <Text style={styles.ratingText}>{driver.rating.toFixed(1)}</Text>
-            </View>
-            <Text style={styles.vehicleNumber}>{driver.vehicleNumber}</Text>
-          </View>
-
-          <View style={styles.driverActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleCall}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="call" size={20} color={Colors.primary900} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleMessage}
-              activeOpacity={0.7}
-            >
-              <MessageSquare size={20} color={Colors.primary900} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.deliveryAddress}>
-          <Ionicons name="location-outline" size={18} color={Colors.neutralMedium} />
-          <Text style={styles.addressText}>{order.deliveryAddress}</Text>
-        </View>
-      </View>
-
-      {/* Order Summary */}
-      <View style={styles.orderSummary}>
-        <Text style={styles.summaryTitle}>{order.items.length} items</Text>
-        <Text style={styles.summaryTotal}>EGP {order.total.toFixed(2)}</Text>
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>← Back to Order</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
+const RING_SIZE = 180;
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.neutralCloud,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutralLight,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-  },
-  orderNumber: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-    marginTop: 2,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-  },
-  mapContainer: {
-    height: height * 0.45,
-    backgroundColor: Colors.neutralGray,
-    position: 'relative',
-  },
-  mapPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.neutralLight,
-  },
-  mapText: {
-    fontSize: Typography.h4,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginTop: Spacing.md,
-  },
-  mapSubtext: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-    marginTop: Spacing.xs,
-  },
-  locationMarker: {
-    position: 'absolute',
-    alignItems: 'center',
-  },
-  markerDot: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.primary900,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: Colors.neutralWhite,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  markerPulse: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.primary900,
-    opacity: 0.3,
-  },
-  driverMarker: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.accentOrange,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: Colors.neutralWhite,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  statusCard: {
-    marginHorizontal: Spacing.lg,
-    marginTop: -Spacing.xl,
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 24,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  statusInfo: {
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
-  },
-  statusSubtitle: {
-    fontSize: Typography.bodyMedium,
-    color: Colors.neutralMedium,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.neutralGray,
-    marginVertical: Spacing.md,
-  },
-  statusDetails: {
-    gap: Spacing.sm,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  statusDetailText: {
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralMedium,
-  },
-  driverCard: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    backgroundColor: Colors.neutralWhite,
-    borderRadius: 24,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  driverInfo: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  driverPhoto: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  driverDetails: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  driverName: {
-    fontSize: Typography.bodyLarge,
-    fontWeight: Typography.bold,
-    color: Colors.neutralCharcoal,
-    marginBottom: 4,
-  },
-  driverRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
-  },
-  ratingText: {
-    fontSize: Typography.bodyMedium,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralCharcoal,
-  },
-  vehicleNumber: {
-    fontSize: Typography.bodySmall,
-    color: Colors.neutralMedium,
-  },
-  driverActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  actionButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.neutralLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deliveryAddress: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    alignItems: 'flex-start',
-  },
-  addressText: {
-    flex: 1,
-    fontSize: Typography.bodyBase,
-    color: Colors.neutralCharcoal,
-    lineHeight: 20,
-  },
-  orderSummary: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.primary900,
-    borderRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryTitle: {
-    fontSize: Typography.bodyBase,
-    fontWeight: Typography.semibold,
-    color: Colors.neutralWhite,
-  },
-  summaryTotal: {
-    fontSize: Typography.h3,
-    fontWeight: Typography.bold,
-    color: Colors.neutralWhite,
-  },
+  container: { flex: 1, backgroundColor: "#FAFAF9" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: "#F0EFF4", backgroundColor: "#fff" },
+  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#F4F3FF", alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: "#1C1B1F", letterSpacing: -0.3 },
+  body: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.xl, paddingBottom: 20 },
+  rippleContainer: { width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center", marginBottom: 36 },
+  ring: { position: "absolute", width: RING_SIZE, height: RING_SIZE, borderRadius: RING_SIZE / 2, borderWidth: 2, borderColor: "#6C63FF" },
+  truckWrapper: { zIndex: 10 },
+  truckCircle: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", shadowColor: "#6C63FF", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
+  truckEmoji: { fontSize: 38 },
+  badgeWrapper: { marginBottom: 18 },
+  badge: { paddingHorizontal: 20, paddingVertical: 7, borderRadius: 50 },
+  badgeText: { color: "#fff", fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+  title: { fontSize: 26, fontWeight: "800", color: "#1C1B1F", textAlign: "center", letterSpacing: -0.5, marginBottom: 14 },
+  subtitle: { fontSize: 15, color: "#6B7280", textAlign: "center", lineHeight: 23, marginBottom: 28, maxWidth: width * 0.82 },
+  featureRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10, marginBottom: 32 },
+  pill: { backgroundColor: "#F4F3FF", borderRadius: 50, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#DDD9FF" },
+  pillText: { fontSize: 13, color: "#4F46E5", fontWeight: "600" },
+  dotsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  dotsLabel: { fontSize: 13, color: "#9CA3AF", marginRight: 4 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#6C63FF" },
+  footer: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
+  backButton: { backgroundColor: "#F4F3FF", borderRadius: 14, paddingVertical: 15, alignItems: "center", borderWidth: 1, borderColor: "#DDD9FF" },
+  backButtonText: { color: "#4F46E5", fontSize: 16, fontWeight: "700" },
 });
