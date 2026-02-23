@@ -1,542 +1,140 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    ScrollView,
-    ActivityIndicator,
-    Linking,
-    Platform,
     Animated,
+    Easing,
+    Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-// @ts-ignore
-import { ArrowLeft, Phone, MessageSquare } from "lucide-react-native";
+import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-
+import { ArrowLeft } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
-import { Typography } from "@/constants/Typography";
-import { trackingApi, type OrderTrackingData } from "@/services/api/trackingApi";
-import OrderTrackingMap from "@/components/OrderTrackingMap";
-import OrderStatusBar from "@/components/OrderStatusBar";
-import { useTranslation } from "@/i18n";
 
-const POLL_INTERVAL = 3000; // 3 seconds for near real-time tracking
+const { width } = Dimensions.get("window");
 
 export default function OrderTrackingScreen() {
-    const { id } = useLocalSearchParams();
-    const { t } = useTranslation();
-    const orderId = Number(id);
+    const floatAnim = useRef(new Animated.Value(0)).current;
+    const ring1 = useRef(new Animated.Value(0)).current;
+    const ring2 = useRef(new Animated.Value(0)).current;
+    const ring3 = useRef(new Animated.Value(0)).current;
+    const dot1 = useRef(new Animated.Value(0.3)).current;
+    const dot2 = useRef(new Animated.Value(0.3)).current;
+    const dot3 = useRef(new Animated.Value(0.3)).current;
 
-    const [tracking, setTracking] = useState<OrderTrackingData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const pulseAnim = useRef(new Animated.Value(1)).current;
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // Pulsing animation for live indicator
     useEffect(() => {
-        const pulse = Animated.loop(
+        Animated.loop(
             Animated.sequence([
-                Animated.timing(pulseAnim, {
-                    toValue: 0.4,
-                    duration: 1000,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(pulseAnim, {
-                    toValue: 1,
-                    duration: 1000,
-                    useNativeDriver: true,
-                }),
+                Animated.timing(floatAnim, { toValue: -18, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+                Animated.timing(floatAnim, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
             ])
-        );
-        pulse.start();
-        return () => pulse.stop();
+        ).start();
+
+        const ripple = (anim: Animated.Value, delay: number) =>
+            Animated.loop(
+                Animated.sequence([
+                    Animated.delay(delay),
+                    Animated.timing(anim, { toValue: 1, duration: 2000, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+                    Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+                ])
+            ).start();
+
+        ripple(ring1, 0); ripple(ring2, 650); ripple(ring3, 1300);
+
+        const dotPulse = (anim: Animated.Value, delay: number) =>
+            Animated.loop(
+                Animated.sequence([
+                    Animated.delay(delay),
+                    Animated.timing(anim, { toValue: 1, duration: 500, useNativeDriver: true }),
+                    Animated.timing(anim, { toValue: 0.3, duration: 500, useNativeDriver: true }),
+                    Animated.delay(600),
+                ])
+            ).start();
+
+        dotPulse(dot1, 0); dotPulse(dot2, 200); dotPulse(dot3, 400);
     }, []);
 
-    const fetchTracking = useCallback(
-        async (silent = false) => {
-            try {
-                if (!silent) setLoading(true);
-                const data = await trackingApi.getTracking(orderId);
-                setTracking(data);
-                setError(null);
-
-                // Stop polling if order is delivered or cancelled
-                if (["delivered", "cancelled", "failed"].includes(data.status)) {
-                    if (pollRef.current) {
-                        clearInterval(pollRef.current);
-                        pollRef.current = null;
-                    }
-                }
-            } catch (err: any) {
-                if (!silent) setError(err.message || "Failed to load tracking");
-            } finally {
-                if (!silent) setLoading(false);
-            }
-        },
-        [orderId]
-    );
-
-    // Initial fetch + polling
-    useEffect(() => {
-        fetchTracking();
-        pollRef.current = setInterval(() => fetchTracking(true), POLL_INTERVAL);
-        return () => {
-            if (pollRef.current) clearInterval(pollRef.current);
-        };
-    }, [fetchTracking]);
-
-    const handleCallDriver = () => {
-        if (tracking?.driver?.phone) {
-            Linking.openURL(`tel:${tracking.driver.phone}`);
-        }
-    };
-
-    const formatETA = (minutes: number) => {
-        if (minutes < 1) return "Arriving now";
-        if (minutes === 1) return "1 min";
-        if (minutes < 60) return `${minutes} min`;
-        const h = Math.floor(minutes / 60);
-        const m = minutes % 60;
-        return m > 0 ? `${h}h ${m}m` : `${h}h`;
-    };
-
-    if (loading) {
-        return (
-            <SafeAreaView style={styles.container} edges={["top"]}>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary900} />
-                    <Text style={styles.loadingText}>Loading tracking...</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    if (error || !tracking) {
-        return (
-            <SafeAreaView style={styles.container} edges={["top"]}>
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-                        <ArrowLeft size={24} color={Colors.neutralCharcoal} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Track Order</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-                <View style={styles.errorContainer}>
-                    <Ionicons name="location-outline" size={60} color={Colors.neutralGray} />
-                    <Text style={styles.errorTitle}>Tracking Unavailable</Text>
-                    <Text style={styles.errorText}>{error || "Could not load tracking data"}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={() => fetchTracking()}>
-                        <Text style={styles.retryText}>Try Again</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    const isActive = !["delivered", "cancelled", "failed"].includes(tracking.status);
-    const isOutForDelivery = tracking.status === "out_for_delivery";
+    const ringStyle = (anim: Animated.Value) => ({
+        transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.5] }) }],
+        opacity: anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 0.3, 0] }),
+    });
 
     return (
-        <SafeAreaView style={styles.container} edges={["top"]}>
-            {/* Header */}
+        <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-                    <ArrowLeft size={24} color={Colors.neutralCharcoal} />
+                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                    <ArrowLeft size={22} color="#1C1B1F" />
                 </TouchableOpacity>
-                <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Track Order</Text>
-                    {isActive && (
-                        <View style={styles.liveRow}>
-                            <Animated.View style={[styles.liveDot, { opacity: pulseAnim }]} />
-                            <Text style={styles.liveText}>LIVE</Text>
-                        </View>
-                    )}
-                </View>
-                <View style={{ width: 40 }} />
+                <Text style={styles.headerTitle}>Order Tracking</Text>
+                <View style={{ width: 38 }} />
             </View>
-
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* ETA Banner */}
-                {tracking.eta && isOutForDelivery && (
-                    <LinearGradient
-                        colors={[Colors.primary900, Colors.primary700]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.etaBanner}
-                    >
-                        <View style={styles.etaContent}>
-                            <Text style={styles.etaLabel}>Estimated Arrival</Text>
-                            <Text style={styles.etaTime}>{formatETA(tracking.eta.minutes_remaining)}</Text>
-                        </View>
-                        <View style={styles.etaProgress}>
-                            <View style={styles.etaProgressBg}>
-                                <View
-                                    style={[
-                                        styles.etaProgressFill,
-                                        {
-                                            width: `${Math.min(
-                                                100,
-                                                ((tracking.eta.total_minutes - tracking.eta.minutes_remaining) /
-                                                    tracking.eta.total_minutes) *
-                                                100
-                                            )}%`,
-                                        },
-                                    ]}
-                                />
-                            </View>
-                            <Text style={styles.etaProgressText}>
-                                {tracking.eta.total_minutes - tracking.eta.minutes_remaining} of{" "}
-                                {tracking.eta.total_minutes} min
-                            </Text>
-                        </View>
+            <View style={styles.body}>
+                <View style={styles.rippleContainer}>
+                    <Animated.View style={[styles.ring, ringStyle(ring1)]} />
+                    <Animated.View style={[styles.ring, ringStyle(ring2)]} />
+                    <Animated.View style={[styles.ring, ringStyle(ring3)]} />
+                    <Animated.View style={[styles.truckWrapper, { transform: [{ translateY: floatAnim }] }]}>
+                        <LinearGradient colors={["#6C63FF", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.truckCircle}>
+                            <Text style={styles.truckEmoji}>🚚</Text>
+                        </LinearGradient>
+                    </Animated.View>
+                </View>
+                <View style={styles.badgeWrapper}>
+                    <LinearGradient colors={["#6C63FF", "#A855F7"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.badge}>
+                        <Text style={styles.badgeText}>✨  Coming Soon</Text>
                     </LinearGradient>
-                )}
-
-                {/* Map */}
-                <View style={styles.mapSection}>
-                    <OrderTrackingMap
-                        driver={tracking.driver}
-                        delivery={tracking.delivery}
-                        compact={!isOutForDelivery}
-                    />
                 </View>
-
-                {/* Driver Card */}
-                {tracking.driver && (
-                    <View style={styles.driverCard}>
-                        <View style={styles.driverInfo}>
-                            <View style={styles.driverAvatar}>
-                                <Ionicons name="person" size={24} color={Colors.primary900} />
-                            </View>
-                            <View style={styles.driverDetails}>
-                                <Text style={styles.driverName}>{tracking.driver.name}</Text>
-                                <Text style={styles.driverLabel}>Your delivery driver</Text>
-                                {tracking.driver.rating && Number(tracking.driver.rating) > 0 && (
-                                    <View style={styles.ratingRow}>
-                                        <Ionicons name="star" size={12} color="#f59e0b" />
-                                        <Text style={styles.ratingText}>{Number(tracking.driver.rating).toFixed(1)}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-                        <View style={styles.driverActions}>
-                            <TouchableOpacity style={styles.driverActionBtn} onPress={handleCallDriver}>
-                                <Phone size={18} color={Colors.primary900} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
-                {/* Status Timeline */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Order Status</Text>
-                    <View style={styles.card}>
-                        <OrderStatusBar timeline={tracking.timeline} currentStatus={tracking.status} />
-                    </View>
+                <Text style={styles.title}>Live Order Tracking</Text>
+                <Text style={styles.subtitle}>We're building a real-time map experience so you can watch your order travel to your door, step by step.</Text>
+                <View style={styles.featureRow}>
+                    {["📍 Live Map", "🔔 Push Updates", "⏱ ETA Counter"].map((f) => (
+                        <View key={f} style={styles.pill}><Text style={styles.pillText}>{f}</Text></View>
+                    ))}
                 </View>
-
-                {/* Delivery Info */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Delivery Details</Text>
-                    <View style={styles.card}>
-                        <View style={styles.infoRow}>
-                            <Ionicons name="location-outline" size={18} color={Colors.primary900} />
-                            <View style={styles.infoTextContainer}>
-                                <Text style={styles.infoLabel}>Delivering to</Text>
-                                {tracking.delivery.address && (
-                                    <Text style={styles.infoValue}>
-                                        {tracking.delivery.address.street}
-                                        {tracking.delivery.address.area ? `, ${tracking.delivery.address.area}` : ""}
-                                        {tracking.delivery.address.city ? `, ${tracking.delivery.address.city}` : ""}
-                                    </Text>
-                                )}
-                            </View>
-                        </View>
-                        {tracking.delivery.zone_name && (
-                            <View style={[styles.infoRow, { marginTop: 8 }]}>
-                                <Ionicons name="map-outline" size={18} color={Colors.primary900} />
-                                <View style={styles.infoTextContainer}>
-                                    <Text style={styles.infoLabel}>Delivery Zone</Text>
-                                    <Text style={styles.infoValue}>{tracking.delivery.zone_name}</Text>
-                                </View>
-                            </View>
-                        )}
-                    </View>
+                <View style={styles.dotsRow}>
+                    <Text style={styles.dotsLabel}>Working on it</Text>
+                    {[dot1, dot2, dot3].map((d, i) => (
+                        <Animated.View key={i} style={[styles.dot, { opacity: d }]} />
+                    ))}
                 </View>
-
-                {/* Order Number Footer */}
-                <View style={styles.orderRef}>
-                    <Text style={styles.orderRefText}>Order #{tracking.order_number}</Text>
-                </View>
-
-                <View style={{ height: 40 }} />
-            </ScrollView>
+            </View>
+            <View style={styles.footer}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                    <Text style={styles.backButtonText}>← Back to Order</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 }
 
+const RING_SIZE = 180;
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#f5f5f7",
-    },
-    loadingContainer: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 12,
-    },
-    loadingText: {
-        fontSize: 14,
-        color: Colors.neutralMedium,
-    },
-    errorContainer: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 32,
-        gap: 12,
-    },
-    errorTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: Colors.neutralCharcoal,
-    },
-    errorText: {
-        fontSize: 14,
-        color: Colors.neutralMedium,
-        textAlign: "center",
-    },
-    retryButton: {
-        borderWidth: 2,
-        borderColor: Colors.primary900,
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: 12,
-        marginTop: 8,
-    },
-    retryText: {
-        fontSize: 14,
-        fontWeight: "700",
-        color: Colors.primary900,
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: "#fff",
-        borderBottomWidth: 1,
-        borderBottomColor: "#eee",
-    },
-    headerBtn: {
-        width: 40,
-        height: 40,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 20,
-        backgroundColor: "#f5f5f5",
-    },
-    headerCenter: {
-        alignItems: "center",
-    },
-    headerTitle: {
-        fontSize: 17,
-        fontWeight: "700",
-        color: Colors.neutralCharcoal,
-    },
-    liveRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-        marginTop: 2,
-    },
-    liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: "#ef4444",
-    },
-    liveText: {
-        fontSize: 10,
-        fontWeight: "700",
-        color: "#ef4444",
-        letterSpacing: 1,
-    },
-    content: {
-        flex: 1,
-    },
-
-    // ETA Banner
-    etaBanner: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        borderRadius: 16,
-        padding: 16,
-    },
-    etaContent: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    etaLabel: {
-        fontSize: 13,
-        color: "rgba(255,255,255,0.8)",
-        fontWeight: "500",
-    },
-    etaTime: {
-        fontSize: 28,
-        fontWeight: "800",
-        color: "#fff",
-    },
-    etaProgress: {
-        gap: 6,
-    },
-    etaProgressBg: {
-        height: 4,
-        backgroundColor: "rgba(255,255,255,0.25)",
-        borderRadius: 2,
-        overflow: "hidden",
-    },
-    etaProgressFill: {
-        height: "100%",
-        backgroundColor: "#fff",
-        borderRadius: 2,
-    },
-    etaProgressText: {
-        fontSize: 11,
-        color: "rgba(255,255,255,0.7)",
-    },
-
-    // Map
-    mapSection: {
-        margin: 16,
-    },
-
-    // Driver Card
-    driverCard: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        backgroundColor: "#fff",
-        marginHorizontal: 16,
-        borderRadius: 16,
-        padding: 14,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    driverInfo: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        flex: 1,
-    },
-    driverAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: Colors.primary900 + "15",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    driverDetails: {
-        flex: 1,
-    },
-    driverName: {
-        fontSize: 15,
-        fontWeight: "700",
-        color: Colors.neutralCharcoal,
-    },
-    driverLabel: {
-        fontSize: 12,
-        color: Colors.neutralMedium,
-        marginTop: 1,
-    },
-    ratingRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 3,
-        marginTop: 3,
-    },
-    ratingText: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: Colors.neutralCharcoal,
-    },
-    driverActions: {
-        flexDirection: "row",
-        gap: 8,
-    },
-    driverActionBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 21,
-        backgroundColor: Colors.primary900 + "12",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    // Sections
-    section: {
-        marginHorizontal: 16,
-        marginTop: 16,
-    },
-    sectionTitle: {
-        fontSize: 15,
-        fontWeight: "700",
-        color: Colors.neutralCharcoal,
-        marginBottom: 10,
-        letterSpacing: 0.2,
-    },
-    card: {
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        padding: 16,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-
-    // Info
-    infoRow: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 10,
-    },
-    infoTextContainer: {
-        flex: 1,
-    },
-    infoLabel: {
-        fontSize: 11,
-        color: Colors.neutralMedium,
-        marginBottom: 2,
-    },
-    infoValue: {
-        fontSize: 13,
-        color: Colors.neutralCharcoal,
-        lineHeight: 18,
-    },
-
-    // Order ref
-    orderRef: {
-        alignItems: "center",
-        marginTop: 20,
-    },
-    orderRefText: {
-        fontSize: 12,
-        color: Colors.neutralGray,
-    },
+    container: { flex: 1, backgroundColor: "#FAFAF9" },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: "#F0EFF4", backgroundColor: "#fff" },
+    backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: "#F4F3FF", alignItems: "center", justifyContent: "center" },
+    headerTitle: { fontSize: 17, fontWeight: "700", color: "#1C1B1F", letterSpacing: -0.3 },
+    body: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.xl, paddingBottom: 20 },
+    rippleContainer: { width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center", marginBottom: 36 },
+    ring: { position: "absolute", width: RING_SIZE, height: RING_SIZE, borderRadius: RING_SIZE / 2, borderWidth: 2, borderColor: "#6C63FF" },
+    truckWrapper: { zIndex: 10 },
+    truckCircle: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center", shadowColor: "#6C63FF", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
+    truckEmoji: { fontSize: 38 },
+    badgeWrapper: { marginBottom: 18 },
+    badge: { paddingHorizontal: 20, paddingVertical: 7, borderRadius: 50 },
+    badgeText: { color: "#fff", fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+    title: { fontSize: 26, fontWeight: "800", color: "#1C1B1F", textAlign: "center", letterSpacing: -0.5, marginBottom: 14 },
+    subtitle: { fontSize: 15, color: "#6B7280", textAlign: "center", lineHeight: 23, marginBottom: 28, maxWidth: width * 0.82 },
+    featureRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10, marginBottom: 32 },
+    pill: { backgroundColor: "#F4F3FF", borderRadius: 50, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "#DDD9FF" },
+    pillText: { fontSize: 13, color: "#4F46E5", fontWeight: "600" },
+    dotsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    dotsLabel: { fontSize: 13, color: "#9CA3AF", marginRight: 4 },
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#6C63FF" },
+    footer: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
+    backButton: { backgroundColor: "#F4F3FF", borderRadius: 14, paddingVertical: 15, alignItems: "center", borderWidth: 1, borderColor: "#DDD9FF" },
+    backButtonText: { color: "#4F46E5", fontSize: 16, fontWeight: "700" },
 });
