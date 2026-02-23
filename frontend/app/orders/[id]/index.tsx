@@ -1855,12 +1855,6 @@ export default function OrderDetailsScreen() {
                   : `${safePrice(order.delivery_fee)} EGP`}
               </Text>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tax (14%)</Text>
-              <Text style={styles.summaryValue}>
-                {safePrice(order.tax)} EGP
-              </Text>
-            </View>
             {order.discount > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, styles.discountLabel]}>
