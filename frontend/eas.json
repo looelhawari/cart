@@ -28,9 +28,8 @@
         },
         "production": {
             "android": {
-                "buildType": "apk",
-                "image": "latest",
-                "gradleCommand": ":app:assembleRelease"
+                "buildType": "app-bundle",
+                "image": "latest"
             },
             "ios": {
                 "image": "latest"
@@ -42,10 +41,11 @@
                 "EXPO_NO_CAPABILITY_SYNC": "1"
             }
         },
-        "production-aab": {
+        "production-apk": {
             "android": {
-                "buildType": "app-bundle",
-                "image": "latest"
+                "buildType": "apk",
+                "image": "latest",
+                "gradleCommand": ":app:assembleRelease"
             }
         }
     },
