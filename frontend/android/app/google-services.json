@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "774149614383",
+        "project_id": "cart-hypermarket",
+        "storage_bucket": "cart-hypermarket.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:774149614383:android:4c67ae8c63d6518f580fda",
+                "android_client_info": {
+                    "package_name": "com.cart.hypermarket"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyCgcNk4QCwcLjM8u1SsZbiPelVym5e02WE"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}
