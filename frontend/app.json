@@ -117,12 +117,9 @@
         "origin": "https://rork.com/"
       },
       "eas": {
-        "projectId": "715776f2-baec-4bf9-a749-29e831ca4fd1"
-      },
-      "expoConfig": {
-        "slug": "CART-hypermarket-app"
+        "projectId": "188e9425-7692-40a6-9baa-064f6feed348"
       }
     },
-    "owner": "loxlo"
+    "owner": "kareemh122"
   }
 }
