@@ -282,6 +282,10 @@ Route::prefix('v1')->group(function () {
         Route::post('profile/verify-email-change', [AuthController::class, 'verifyEmailChange'])
             ->middleware('throttle:10,1');
 
+        // Account deletion (authenticated user)
+        Route::delete('profile/delete-account', [AuthController::class, 'deleteAccount'])
+            ->middleware('throttle:3,1'); // max 3 attempts per minute
+
         // Relink Google account (social-only users)
         Route::post('profile/relink-google', [SocialAuthController::class, 'relinkGoogle'])
             ->middleware('throttle:5,1');

@@ -1,10 +1,23 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\Auth\AuthController;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// ── Google Play Console Compliance Pages ──────────────────────────
+Route::get('/privacy-policy', function () {
+    return view('privacy-policy');
+});
+
+Route::get('/delete-account', function () {
+    return view('delete-account');
+});
+
+Route::post('/delete-account', [AuthController::class, 'deleteAccountWeb'])
+    ->middleware('throttle:5,1'); // rate-limit web deletion requests
 
 // Paymob Response Callback - Redirect to app after payment
 Route::get('/payment-success', function () {

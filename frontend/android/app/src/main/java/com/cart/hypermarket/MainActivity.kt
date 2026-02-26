@@ -1,4 +1,4 @@
-package com.elbaraka.hypermarket
+package com.cart.hypermarket
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

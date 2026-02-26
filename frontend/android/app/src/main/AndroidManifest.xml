@@ -36,11 +36,19 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="elbaraka"/>
+        <data android:scheme="cart"/>
+        <data android:scheme="exp+cart-hypermarket-app"/>
       </intent-filter>
       <intent-filter data-generated="true">
         <action android:name="android.intent.action.VIEW"/>
-        <data android:scheme="com.googleusercontent.apps.1094715104270-j7eosq5vui80pt5fhv634mkmd7fqvn92"/>
+        <data android:scheme="com.googleusercontent.apps.113273912716-dcbh50mmcreap5m1ugee133st09s7bjd"/>
+        <data android:scheme="exp+cart-hypermarket-app"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+      </intent-filter>
+      <intent-filter android:autoVerify="true" data-generated="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="https" android:host="cart.com" android:pathPrefix="/product"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>

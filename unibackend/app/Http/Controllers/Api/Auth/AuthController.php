@@ -21,6 +21,7 @@ use App\Services\EnterpriseNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -1023,5 +1024,236 @@ class AuthController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Delete user account permanently (API — authenticated user).
+     */
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Password confirmation required for non-social-only accounts
+        if (!$user->is_social_only) {
+            $validator = Validator::make($request->all(), [
+                'password' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Password is required to delete your account.',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Incorrect password. Please try again.',
+                    'error_code' => 'INVALID_PASSWORD',
+                ], 401);
+            }
+        }
+
+        // Check for active orders (not delivered/cancelled)
+        $activeOrders = $user->orders()
+            ->whereNotIn('status', ['delivered', 'cancelled', 'refunded'])
+            ->count();
+
+        if ($activeOrders > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You have active orders. Please wait for all orders to be completed or cancelled before deleting your account.',
+                'error_code' => 'ACTIVE_ORDERS_EXIST',
+                'data' => ['active_orders_count' => $activeOrders],
+            ], 409);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $userId = $user->id;
+            $userEmail = $user->email;
+
+            // Revoke all API tokens
+            $user->tokens()->delete();
+
+            // Delete personal data and related records
+            // 1. Addresses
+            $user->addresses()->delete();
+
+            // 2. Favorites / Wishlist
+            $user->favorites()->delete();
+
+            // 3. Notification preferences & notifications
+            $user->notificationPreferences()->delete();
+            $user->notifications()->delete();
+
+            // 4. Complaints and complaint messages
+            $user->complaintMessages()->delete();
+            $user->complaints()->delete();
+
+            // 5. Cart items
+            DB::table('carts')->where('user_id', $userId)->delete();
+            DB::table('cart_reminders')->where('user_id', $userId)->delete();
+
+            // 6. Login history
+            UserLoginHistory::where('user_id', $userId)->delete();
+
+            // 7. Wallet (delete balance)
+            $user->wallet()->delete();
+
+            // 8. Customer notes
+            $user->notes()->delete();
+
+            // 9. Activity logs referencing this user
+            ActivityLog::where('user_id', $userId)->delete();
+
+            // 10. Reviews — anonymize instead of deleting (retain for product integrity)
+            DB::table('reviews')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+
+            // 11. Orders — anonymize but retain for financial/tax compliance
+            DB::table('orders')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+
+            // 12. Delete the user record permanently
+            $user->forceDelete();
+
+            DB::commit();
+
+            // Log the deletion (without PII)
+            Log::info("Account deleted: user #{$userId}, email hash: " . hash('sha256', $userEmail));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Your account and all personal data have been permanently deleted.',
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Account deletion failed for user #{$user->id}: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting your account. Please try again or contact support.',
+                'error_code' => 'DELETION_FAILED',
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete user account via web form (unauthenticated — email + password verification).
+     */
+    public function deleteAccountWeb(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required|string',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please provide a valid email address and password.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = User::where('email', strtolower(trim($request->email)))
+            ->where('role', 'customer')
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No account found with this email address.',
+                'error_code' => 'USER_NOT_FOUND',
+            ], 404);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Incorrect password. Please try again.',
+                'error_code' => 'INVALID_PASSWORD',
+            ], 401);
+        }
+
+        // Check for active orders
+        $activeOrders = $user->orders()
+            ->whereNotIn('status', ['delivered', 'cancelled', 'refunded'])
+            ->count();
+
+        if ($activeOrders > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This account has active orders. Please wait for all orders to be completed or cancelled before requesting deletion.',
+                'error_code' => 'ACTIVE_ORDERS_EXIST',
+            ], 409);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $userId = $user->id;
+            $userEmail = $user->email;
+            $reason = $request->reason;
+
+            // Revoke all API tokens
+            $user->tokens()->delete();
+
+            // Delete personal data (same as API method)
+            $user->addresses()->delete();
+            $user->favorites()->delete();
+            $user->notificationPreferences()->delete();
+            $user->notifications()->delete();
+            $user->complaintMessages()->delete();
+            $user->complaints()->delete();
+            DB::table('carts')->where('user_id', $userId)->delete();
+            DB::table('cart_reminders')->where('user_id', $userId)->delete();
+            UserLoginHistory::where('user_id', $userId)->delete();
+            $user->wallet()->delete();
+            $user->notes()->delete();
+            ActivityLog::where('user_id', $userId)->delete();
+
+            // Anonymize reviews and orders
+            DB::table('reviews')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+            DB::table('orders')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+
+            // Delete user permanently
+            $user->forceDelete();
+
+            DB::commit();
+
+            Log::info("Web account deletion: user #{$userId}, email hash: " . hash('sha256', $userEmail) . ", reason: " . ($reason ?? 'none'));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Your account and all personal data have been permanently deleted.',
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Web account deletion failed: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting your account. Please try again or contact support at support@cartshop.site.',
+                'error_code' => 'DELETION_FAILED',
+            ], 500);
+        }
     }
 }
