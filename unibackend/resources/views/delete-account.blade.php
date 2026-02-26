@@ -291,11 +291,11 @@
     <!-- Developer Info -->
     <div class="card">
         <h2>Delete Your CART Account</h2>
-        <p>This page allows you to request the deletion of your <strong>CART Hypermarket</strong> account and all associated personal data. This process is provided by <strong>CART Hypermarket</strong>, the developer of the CART app available on Google Play.</p>
+        <p>This page allows you to request the deletion of your <strong>CART</strong> account and all associated personal data. This process is provided by <strong>CART</strong>, the developer of the CART app available on Google Play.</p>
 
         <div class="warning-box">
             <strong>⚠️ Before You Proceed</strong>
-            <p style="margin-bottom: 0; margin-top: 8px;">Account deletion is permanent and <strong>cannot be undone</strong>. Please make sure you have completed any pending orders and withdrawn any wallet balance before requesting deletion.</p>
+            <p style="margin-bottom: 0; margin-top: 8px;">Account deletion is permanent and <strong>cannot be undone</strong>. Please make sure you have completed any pending orders before requesting deletion.</p>
         </div>
     </div>
 
@@ -303,9 +303,9 @@
     <div class="card">
         <h2>What Happens When You Delete Your Account</h2>
 
-        <h3>🗑️ Data That Will Be Permanently Deleted:</h3>
+        <h3>Data That Will Be Permanently Deleted:</h3>
         <ul>
-            <li>Your personal profile (name, email, phone number, date of birth, gender, avatar)</li>
+            <li>Your personal profile (name, email, phone number, date of birth, gender)</li>
             <li>All saved delivery addresses</li>
             <li>Saved payment methods (tokenized card references)</li>
             <li>Favorites / wishlist items</li>
@@ -315,10 +315,10 @@
             <li>Search history</li>
             <li>Complaint/support ticket messages</li>
             <li>Login history and session tokens</li>
-            <li>Social login connections (Google, Apple)</li>
+            <li>Social login connections (Google)</li>
         </ul>
 
-        <h3>📋 Data That Will Be Retained (Anonymized):</h3>
+        <h3>Data That Will Be Retained (Anonymized):</h3>
         <ul>
             <li><strong>Order history:</strong> Your name and personal details will be removed, but anonymized order records are retained for up to 3 years as required by financial and tax regulations.</li>
             <li><strong>Payment transactions:</strong> Anonymized transaction records are retained for up to 3 years for financial compliance and refund processing.</li>
@@ -329,9 +329,8 @@
             <strong>⚠️ Important Notes:</strong>
             <ul style="margin-bottom: 0;">
                 <li>Any active orders will be completed before your account is deleted.</li>
-                <li>Remaining wallet balance will be refunded before deletion where applicable.</li>
                 <li>You will not be able to recover your account or data after deletion.</li>
-                <li>Deletion will be completed within <strong>30 days</strong> of your request.</li>
+                <li>Deletion will be completed within <strong>7 days</strong> of your request.</li>
             </ul>
         </div>
     </div>
@@ -357,13 +356,6 @@
         </div>
         <div class="step">
             <span class="step-number">3</span>
-            <div class="step-content">
-                <strong>Open Settings</strong>
-                <span>Tap "Settings" in the profile menu.</span>
-            </div>
-        </div>
-        <div class="step">
-            <span class="step-number">4</span>
             <div class="step-content">
                 <strong>Request Account Deletion</strong>
                 <span>Tap "Delete Account" and confirm your identity with your password. Your account will be scheduled for deletion.</span>
@@ -418,7 +410,7 @@
         <h2>Need Help?</h2>
         <p>If you have any questions about account deletion or data privacy, please contact us:</p>
         <ul>
-            <li><strong>Email:</strong> <a href="mailto:support@cartshop.site">support@cartshop.site</a></li>
+            <li><strong>Email:</strong> <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a></li>
             <li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
             <li><strong>Privacy Policy:</strong> <a href="/privacy-policy">View our Privacy Policy</a></li>
         </ul>
@@ -427,7 +419,7 @@
 </div>
 
 <div class="footer">
-    <p>&copy; {{ date('Y') }} CART Hypermarket. All rights reserved.</p>
+    <p>&copy; {{ date('Y') }} CART. All rights reserved.</p>
 </div>
 
 <script>

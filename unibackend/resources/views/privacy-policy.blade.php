@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy — CART Hypermarket</title>
+    <title>Privacy Policy — CART</title>
     <style>
         :root {
             --primary: #16a34a;
@@ -147,7 +147,7 @@
 <body>
 
 <div class="header">
-    <h1>🛒 CART Hypermarket</h1>
+    <h1>🛒 CART</h1>
     <p>Privacy Policy</p>
 </div>
 
@@ -159,8 +159,8 @@
 
     <div class="card">
         <h2>1. Introduction</h2>
-        <p>Welcome to <strong>CART Hypermarket</strong> ("CART", "we", "us", or "our"). We are committed to protecting your privacy and safeguarding the personal information you share with us.</p>
-        <p>This Privacy Policy explains how we collect, use, store, share, and protect your personal data when you use our mobile application ("App"), website, and related services (collectively, the "Services").</p>
+        <p>Welcome to <strong>CART</strong> We are committed to protecting your privacy and safeguarding the personal information you share with us.</p>
+        <p>This Privacy Policy explains how we collect, use, store, share, and protect your personal data when you use our mobile application ("CART")</p>
         <p>By using our Services, you agree to the collection and use of information in accordance with this policy. If you do not agree with this policy, please do not use our Services.</p>
     </div>
 
@@ -170,7 +170,6 @@
         <h3>2.1 Information You Provide Directly</h3>
         <ul>
             <li><strong>Account Information:</strong> Name, email address, phone number, date of birth, gender, and password when you create an account.</li>
-            <li><strong>Profile Information:</strong> Profile picture/avatar that you choose to upload.</li>
             <li><strong>Delivery Addresses:</strong> Street address, city, area, building/apartment details, and geographic coordinates (latitude/longitude) for delivery purposes.</li>
             <li><strong>Payment Information:</strong> We do not directly store your credit/debit card numbers. Payment processing is handled by our third-party payment processor, Paymob. We store only tokenized card references (last 4 digits, card brand, expiry) for your convenience in managing saved payment methods.</li>
             <li><strong>Order Information:</strong> Products ordered, quantities, delivery preferences, and special instructions.</li>
@@ -329,7 +328,7 @@
         <p>Upon submitting a deletion request:</p>
         <ul>
             <li>Your account will be deactivated immediately.</li>
-            <li>All personal data (profile, addresses, favorites, notification preferences, saved payment methods) will be permanently deleted within <strong>30 days</strong>.</li>
+            <li>All personal data (profile, addresses, favorites, notification preferences, saved payment methods) will be permanently deleted within <strong>7 days</strong>.</li>
             <li>Order history will be anonymized (personal identifiers removed) but retained for legal and financial compliance for up to 3 years.</li>
             <li>Active orders, if any, will be completed before the account is fully deleted.</li>
             <li>Wallet balance refunds, if applicable, will be processed before deletion.</li>
@@ -338,31 +337,21 @@
     </div>
 
     <div class="card">
-        <h2>9. Children's Privacy</h2>
-        <p>Our Services are not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If we discover that a child under 13 has provided us with personal information, we will promptly delete it. If you believe a child has provided us with personal data, please contact us immediately.</p>
-    </div>
-
-    <div class="card">
-        <h2>10. Biometric Data</h2>
+        <h2>9. Biometric Data</h2>
         <p>If you enable biometric login (fingerprint, Face ID, or iris recognition), your biometric data is processed entirely on your device by the operating system. <strong>We never receive, transmit, or store your actual biometric data.</strong> We only store a flag indicating that biometric login is enabled, and encrypted credentials in your device's secure enclave.</p>
     </div>
 
     <div class="card">
-        <h2>11. International Data Transfers</h2>
-        <p>Your data may be processed by our service providers in countries outside of your residence. When this occurs, we ensure appropriate safeguards are in place, including data processing agreements with our providers that comply with applicable data protection laws.</p>
-    </div>
-
-    <div class="card">
-        <h2>12. Changes to This Policy</h2>
+        <h2>10. Changes to This Policy</h2>
         <p>We may update this Privacy Policy from time to time. When we make significant changes, we will notify you through the App or via email. The "Last Updated" date at the top of this page indicates when the policy was last revised.</p>
         <p>Your continued use of the Services after any changes constitutes acceptance of the updated policy.</p>
     </div>
 
     <div class="card">
-        <h2>13. Contact Us</h2>
+        <h2>11. Contact Us</h2>
         <p>If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:</p>
         <ul>
-            <li><strong>Email:</strong> <a href="mailto:support@cartshop.site">kareemhesham105@gmail.com</a></li>
+            <li><strong>Email:</strong> <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a></li>
             <li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
             <li><strong>Developer:</strong> CART</li>
         </ul>
