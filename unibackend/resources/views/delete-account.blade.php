@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delete Account — CART Hypermarket</title>
+    <title>Delete Account — CART</title>
     <style>
         :root {
             --primary: #16a34a;
@@ -282,7 +282,7 @@
 <body>
 
 <div class="header">
-    <h1>🛒 CART Hypermarket</h1>
+    <h1>🛒 CART</h1>
     <p>Account Deletion Request</p>
 </div>
 
@@ -374,9 +374,9 @@
 
         <div class="success-message" id="success-msg">
             <strong style="color: #15803d; font-size: 18px;">✅ Account Deletion Request Submitted</strong>
-            <p style="margin-top: 12px;">Your account deletion request has been received and is being processed. Your account will be deactivated immediately and all personal data will be permanently deleted within <strong>30 days</strong>.</p>
+            <p style="margin-top: 12px;">Your account deletion request has been received and is being processed. Your account will be deactivated immediately and all personal data will be permanently deleted within <strong>7 days</strong>.</p>
             <p>A confirmation email has been sent to your registered email address.</p>
-            <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">If you did not make this request, please contact us immediately at <a href="mailto:support@cartshop.site">support@cartshop.site</a>.</p>
+            <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">If you did not make this request, please contact us immediately at <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a>.</p>
         </div>
 
         <form id="delete-form" method="POST" action="/delete-account" novalidate>
