@@ -174,7 +174,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header with Gradient */}
       <LinearGradient
-        colors={["#4CAF50", "#45a049", "#388E3C"]}
+        colors={[Colors.primary900, Colors.primary800, "#064e3b"]}
         style={styles.header}
       >
         <View style={styles.headerContent}>
@@ -211,7 +211,11 @@ export default function SettingsScreen() {
                 <View
                   style={[styles.iconContainer, { backgroundColor: "#E8F5E9" }]}
                 >
-                  <Ionicons name="notifications" size={20} color="#4CAF50" />
+                  <Ionicons
+                    name="notifications"
+                    size={20}
+                    color={Colors.primary900}
+                  />
                 </View>
                 <View style={styles.settingTextContainer}>
                   <Text style={styles.settingTitle}>
@@ -227,7 +231,7 @@ export default function SettingsScreen() {
                 onValueChange={setPushNotifications}
                 trackColor={{
                   false: Colors.neutralGray,
-                  true: "#4CAF50",
+                  true: Colors.primary900,
                 }}
                 thumbColor={Colors.neutralWhite}
               />
@@ -254,13 +258,13 @@ export default function SettingsScreen() {
                 onValueChange={setEmailNotifications}
                 trackColor={{
                   false: Colors.neutralGray,
-                  true: "#4CAF50",
+                  true: Colors.primary900,
                 }}
                 thumbColor={Colors.neutralWhite}
               />
             </View>
 
-            <View style={styles.settingItem}>
+            {/* <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
                 <View
                   style={[styles.iconContainer, { backgroundColor: "#FFF3E0" }]}
@@ -281,18 +285,18 @@ export default function SettingsScreen() {
                 onValueChange={setSmsNotifications}
                 trackColor={{
                   false: Colors.neutralGray,
-                  true: "#4CAF50",
+                  true: Colors.primary900,
                 }}
                 thumbColor={Colors.neutralWhite}
               />
-            </View>
+            </View> */}
 
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
                 <View
                   style={[styles.iconContainer, { backgroundColor: "#E8F5E9" }]}
                 >
-                  <Ionicons name="cube" size={20} color="#4CAF50" />
+                  <Ionicons name="cube" size={20} color={Colors.primary900} />
                 </View>
                 <View style={styles.settingTextContainer}>
                   <Text style={styles.settingTitle}>
@@ -308,7 +312,7 @@ export default function SettingsScreen() {
                 onValueChange={setOrderUpdates}
                 trackColor={{
                   false: Colors.neutralGray,
-                  true: "#4CAF50",
+                  true: Colors.primary900,
                 }}
                 thumbColor={Colors.neutralWhite}
               />
@@ -335,7 +339,7 @@ export default function SettingsScreen() {
                 onValueChange={setPromotionalEmails}
                 trackColor={{
                   false: Colors.neutralGray,
-                  true: "#4CAF50",
+                  true: Colors.primary900,
                 }}
                 thumbColor={Colors.neutralWhite}
               />
@@ -424,7 +428,11 @@ export default function SettingsScreen() {
             <View style={styles.aboutCard}>
               <View style={styles.aboutHeader}>
                 <View style={styles.appIconContainer}>
-                  <Ionicons name="storefront" size={32} color="#4CAF50" />
+                  <Ionicons
+                    name="storefront"
+                    size={32}
+                    color={Colors.primary900}
+                  />
                 </View>
                 <View style={styles.aboutInfo}>
                   <Text style={styles.appName}>{t.settings.appName}</Text>
@@ -482,7 +490,7 @@ export default function SettingsScreen() {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>© 2024 {t.settings.appName}</Text>
+            <Text style={styles.footerText}>© 2026 {t.settings.appName}</Text>
             <Text style={styles.footerSubtext}>
               {t.settings.allRightsReserved}
             </Text>
@@ -538,7 +546,7 @@ export default function SettingsScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={24}
-                      color="#4CAF50"
+                      color={Colors.primary900}
                     />
                   )}
                 </TouchableOpacity>
@@ -761,7 +769,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 16,
-    backgroundColor: "#E8F5E9",
+    backgroundColor: Colors.primary100,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -860,9 +868,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9f9f9",
   },
   languageOptionActive: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: Colors.primary100,
     borderWidth: 2,
-    borderColor: "#4CAF50",
+    borderColor: Colors.primary900,
   },
   languageFlag: {
     fontSize: 32,
@@ -877,7 +885,7 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   languageNameActive: {
-    color: "#4CAF50",
+    color: Colors.primary900,
   },
   languageNative: {
     fontSize: 14,

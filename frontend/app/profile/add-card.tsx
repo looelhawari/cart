@@ -63,7 +63,7 @@ export default function AddCardScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Add Payment Card",
+          title: t.ui.addPaymentCard,
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
@@ -85,15 +85,15 @@ export default function AddCardScreen() {
                 </Text>
                 <View style={styles.cardBottom}>
                   <View>
-                    <Text style={styles.cardLabel}>CARD HOLDER</Text>
+                    <Text style={styles.cardLabel}>{t.ui.cardHolder}</Text>
                     <Text style={styles.cardHolderPreview}>
-                      {cardHolder || "YOUR NAME"}
+                      {cardHolder || t.ui.yourName}
                     </Text>
                   </View>
                   <View>
-                    <Text style={styles.cardLabel}>EXPIRES</Text>
+                    <Text style={styles.cardLabel}>{t.ui.expires}</Text>
                     <Text style={styles.cardExpiryPreview}>
-                      {expiry || "MM/YY"}
+                      {expiry || t.ui.mmyy}
                     </Text>
                   </View>
                 </View>

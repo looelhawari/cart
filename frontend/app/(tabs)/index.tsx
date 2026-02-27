@@ -500,7 +500,7 @@ export default function HomeScreen() {
                   size={13}
                   color={Colors.neutralWhite}
                 />
-                <Text style={styles.locationText}>Cairo, Egypt</Text>
+                <Text style={styles.locationText}>{t.ui.cairoEgypt}</Text>
                 <ChevronRight size={13} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
             </View>
@@ -615,7 +615,7 @@ export default function HomeScreen() {
             <Text style={styles.featureTitle}>
               {t.common?.freeDelivery || "Free Delivery"}
             </Text>
-            <Text style={styles.featureSubtitle}>200+ EGP</Text>
+            <Text style={styles.featureSubtitle}>{t.ui.above200}</Text>
           </View>
 
           <View style={styles.featureDivider} />
@@ -629,8 +629,10 @@ export default function HomeScreen() {
             >
               <Ionicons name="time" size={19} color={Colors.accentOrange} />
             </View>
-            <Text style={styles.featureTitle}>Fast Delivery</Text>
-            <Text style={styles.featureSubtitle}>30-45 mins</Text>
+            <Text style={styles.featureTitle}>{t.ui.fastDelivery}</Text>
+            <Text style={styles.featureSubtitle}>
+              {t.ui.thirtyToFortyFiveMins}
+            </Text>
           </View>
 
           <View style={styles.featureDivider} />
@@ -648,8 +650,8 @@ export default function HomeScreen() {
                 color="#3B82F6"
               />
             </View>
-            <Text style={styles.featureTitle}>Quality</Text>
-            <Text style={styles.featureSubtitle}>Guaranteed</Text>
+            <Text style={styles.featureTitle}>{t.ui.quality}</Text>
+            <Text style={styles.featureSubtitle}>{t.ui.guaranteed}</Text>
           </View>
         </Animated.View>
 
@@ -766,7 +768,7 @@ export default function HomeScreen() {
                 </Text>
                 <View style={styles.timerBadge}>
                   <Clock size={11} color={Colors.accentRed} />
-                  <Text style={styles.timerText}>Ends Soon!</Text>
+                  <Text style={styles.timerText}>{t.ui.endsSoon}</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -823,9 +825,11 @@ export default function HomeScreen() {
                   />
                 </View>
                 <View>
-                  <Text style={styles.promoBannerTitle}>Exclusive Offers</Text>
+                  <Text style={styles.promoBannerTitle}>
+                    {t.ui.exclusiveOffers}
+                  </Text>
                   <Text style={styles.promoBannerSubtitle}>
-                    Get up to 50% off fresh items
+                    {t.ui.getUpTo50}
                   </Text>
                 </View>
               </View>
@@ -863,7 +867,7 @@ export default function HomeScreen() {
                       size={9}
                       color={Colors.neutralWhite}
                     />
-                    <Text style={styles.popularBadgeText}>Popular</Text>
+                    <Text style={styles.popularBadgeText}>{t.ui.popular}</Text>
                   </View>
                 )}
               </View>

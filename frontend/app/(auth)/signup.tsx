@@ -802,7 +802,7 @@ export default function SignupScreen() {
         {t.signup.accountCreatedSuccess}
       </Text>
       <View style={styles.successDivider} />
-      <Text style={styles.successRedirecting}>Redirecting to home...</Text>
+      <Text style={styles.successRedirecting}>{t.ui.redirectingToHome}</Text>
       <ActivityIndicator
         size="small"
         color={Colors.primary900}

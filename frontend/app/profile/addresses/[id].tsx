@@ -92,11 +92,12 @@ export default function AddEditAddressScreen() {
         setIsDefault(address.is_default);
         if (address.latitude) setLatitude(parseFloat(address.latitude));
         if (address.longitude) setLongitude(parseFloat(address.longitude));
-        if (address.formatted_address) setFormattedAddress(address.formatted_address);
+        if (address.formatted_address)
+          setFormattedAddress(address.formatted_address);
         if (address.place_id) setPlaceId(address.place_id);
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to load address");
+      Alert.alert(t.ui.error, t.ui.failedToLoadAddress);
     } finally {
       setInitialLoading(false);
     }
@@ -104,11 +105,11 @@ export default function AddEditAddressScreen() {
 
   const handleSave = async () => {
     if (!(street || "").trim()) {
-      Alert.alert("Error", "Please enter street address");
+      Alert.alert(t.ui.error, t.ui.pleaseEnterStreet);
       return;
     }
     if (!(city || "").trim()) {
-      Alert.alert("Error", "Please enter city");
+      Alert.alert(t.ui.error, t.ui.pleaseEnterCity);
       return;
     }
 
@@ -182,7 +183,7 @@ export default function AddEditAddressScreen() {
             <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isEdit ? "Edit" : "Add"} Address
+            {isEdit ? t.ui.editAddress : t.ui.addAddress}
           </Text>
           <View style={styles.backButton} />
         </View>
@@ -321,8 +322,8 @@ export default function AddEditAddressScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.mapPickerButtonText}>
                 {latitude
-                  ? (t.addresses?.changeLocation || "Change Location on Map")
-                  : (t.addresses?.pickFromMap || "Pick Location from Map")}
+                  ? t.addresses?.changeLocation || "Change Location on Map"
+                  : t.addresses?.pickFromMap || "Pick Location from Map"}
               </Text>
               {latitude && formattedAddress ? (
                 <Text style={styles.mapPickerAddress} numberOfLines={1}>
@@ -333,17 +334,22 @@ export default function AddEditAddressScreen() {
                 <View>
                   <Text style={styles.mapPickerZone}>
                     ✓ {zoneName}
-                    {deliveryFee !== null && ` • EGP ${deliveryFee} delivery`}
+                    {deliveryFee !== null &&
+                      ` • EGP ${deliveryFee} ${t.ui.delivery}`}
                     {estimatedTime && ` • ${estimatedTime}`}
                   </Text>
                 </View>
               ) : latitude ? (
                 <Text style={styles.mapPickerZoneWarning}>
-                  ⚠ Outside delivery area
+                  {t.ui.outsideDeliveryArea}
                 </Text>
               ) : null}
             </View>
-            <Ionicons name="chevron-forward" size={16} color={Colors.neutralMedium} />
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={Colors.neutralMedium}
+            />
           </TouchableOpacity>
 
           <View style={styles.inputGroup}>
@@ -467,7 +473,11 @@ export default function AddEditAddressScreen() {
       </ScrollView>
 
       {/* Map Picker Modal */}
-      <Modal visible={showMapPicker} animationType="slide" presentationStyle="fullScreen">
+      <Modal
+        visible={showMapPicker}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
         <MapAddressPicker
           initialLatitude={latitude || undefined}
           initialLongitude={longitude || undefined}

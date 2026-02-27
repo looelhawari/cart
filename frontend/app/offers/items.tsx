@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { useLocalizedValue } from "@/i18n";
+import { useLocalizedValue, useTranslation } from "@/i18n";
 import { getOffers } from "@/services/api/offersApi";
 import { getProduct, getProducts } from "@/services/api/productsApi";
 import { getCategories } from "@/services/api/categoryApi";
@@ -142,6 +142,7 @@ const fetchAllProductsByCategory = async (
 export default function OfferItemsScreen() {
   const params = useLocalSearchParams();
   const offerId = Number(params.offerId);
+  const { t } = useTranslation();
   const { getName } = useLocalizedValue();
 
   const [offer, setOffer] = useState<Offer | null>(null);
@@ -270,13 +271,13 @@ export default function OfferItemsScreen() {
 
           setSections([
             {
-              title: "Buy items",
-              subtitle: "These items unlock the deal",
+              title: t.ui.buyItems,
+              subtitle: t.ui.buyItemsDesc,
               items: mergeUnique(buyItems),
             },
             {
-              title: "Get items",
-              subtitle: "These items receive the offer",
+              title: t.ui.getItems,
+              subtitle: t.ui.getItemsDesc,
               items: mergeUnique(getItems),
             },
           ]);
@@ -299,8 +300,8 @@ export default function OfferItemsScreen() {
           );
           setSections([
             {
-              title: "Offer products",
-              subtitle: "All items included in this offer",
+              title: t.ui.offerProducts,
+              subtitle: t.ui.offerProductsDesc,
               items,
             },
           ]);
@@ -364,7 +365,7 @@ export default function OfferItemsScreen() {
     } else {
       setLoading(false);
     }
-  }, [offerId]);
+  }, [offerId, t]);
 
   const hasItems = useMemo(
     () => sections.some((section) => section.items.length > 0),
@@ -431,7 +432,7 @@ export default function OfferItemsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Offer items",
+          title: t.ui.offerItems,
           headerStyle: { backgroundColor: Colors.neutralWhite },
           headerTitleStyle: {
             fontSize: Typography.h3,
@@ -447,24 +448,18 @@ export default function OfferItemsScreen() {
           </View>
         ) : !offer ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Offer not found</Text>
-            <Text style={styles.emptyText}>
-              Please return to offers and try again.
-            </Text>
+            <Text style={styles.emptyTitle}>{t.ui.offerNotFound}</Text>
+            <Text style={styles.emptyText}>{t.ui.pleaseReturnToOffers}</Text>
           </View>
         ) : offer.type === "free_delivery" ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Free delivery offer</Text>
-            <Text style={styles.emptyText}>
-              This offer applies to delivery fees only.
-            </Text>
+            <Text style={styles.emptyTitle}>{t.ui.freeDeliveryOffer}</Text>
+            <Text style={styles.emptyText}>{t.ui.freeDeliveryOfferDesc}</Text>
           </View>
         ) : offer.type === "bogo" && !hasItems ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>BOGO offer</Text>
-            <Text style={styles.emptyText}>
-              Add the eligible buy and get items to see this offer.
-            </Text>
+            <Text style={styles.emptyTitle}>{t.ui.bogoOffer}</Text>
+            <Text style={styles.emptyText}>{t.ui.bogoOfferDesc}</Text>
           </View>
         ) : offer.applies_to === "category" ? (
           hasCategoryItems ? (
@@ -479,25 +474,23 @@ export default function OfferItemsScreen() {
             />
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No categories available</Text>
+              <Text style={styles.emptyTitle}>
+                {t.ui.noCategoriesAvailable}
+              </Text>
               <Text style={styles.emptyText}>
-                The offer categories are not available right now.
+                {t.ui.noCategoriesAvailableDesc}
               </Text>
             </View>
           )
         ) : offer.applies_to === "order" && offer.type !== "bogo" ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Whole cart offer</Text>
-            <Text style={styles.emptyText}>
-              This offer applies to your entire order items at checkout.
-            </Text>
+            <Text style={styles.emptyTitle}>{t.ui.wholeCartOffer}</Text>
+            <Text style={styles.emptyText}>{t.ui.wholeCartOfferDesc}</Text>
           </View>
         ) : !hasItems ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No items available</Text>
-            <Text style={styles.emptyText}>
-              The offer items are not available right now.
-            </Text>
+            <Text style={styles.emptyTitle}>{t.ui.noItemsAvailable}</Text>
+            <Text style={styles.emptyText}>{t.ui.noItemsAvailableDesc}</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
@@ -541,7 +534,7 @@ export default function OfferItemsScreen() {
                       </View>
                       {item.discounted_price !== null && (
                         <Text style={styles.offerHint}>
-                          Offer price applied
+                          {t.ui.offerPriceApplied}
                         </Text>
                       )}
                     </View>

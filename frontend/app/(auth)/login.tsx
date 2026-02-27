@@ -85,10 +85,7 @@ export default function LoginScreen() {
       const idToken = await signInWithGoogle();
 
       if (!idToken) {
-        Alert.alert(
-          t.common.error,
-          "Failed to get credentials from Google. Please try again.",
-        );
+        Alert.alert(t.common.error, t.ui.failedGoogleCredentials);
         return;
       }
 
@@ -106,15 +103,12 @@ export default function LoginScreen() {
       const message = error?.message || t.login.googleSignInFailed;
       // Handle specific backend error codes
       if (error?.error_code === "ACCOUNT_DEACTIVATED") {
-        Alert.alert(
-          t.common.error,
-          "Your account has been deactivated. Please contact support.",
-        );
+        Alert.alert(t.common.error, t.ui.accountDeactivated);
       } else if (error?.error_code === "SOCIAL_CONFLICT") {
         Alert.alert(t.common.error, message);
       } else if (error?.error_code === "TOKEN_EXPIRED") {
         // Token was cleared by a concurrent refresh — user needs to retry
-        Alert.alert(t.common.error, "Please try signing in again.");
+        Alert.alert(t.common.error, t.ui.trySignInAgain);
       } else {
         Alert.alert(t.common.error, message);
       }
@@ -136,7 +130,7 @@ export default function LoginScreen() {
       });
 
       if (!credential.identityToken) {
-        Alert.alert(t.common.error, "No identity token received from Apple");
+        Alert.alert(t.common.error, t.ui.noAppleIdentityToken);
         return;
       }
 

@@ -42,6 +42,7 @@ import { createReview, rateDriver } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { Toast } from "@/components/Toast";
+import { useTranslation } from "@/i18n";
 
 /** Safely format a number to 2 decimal places, never crashes */
 const safePrice = (val: any): string => {
@@ -50,6 +51,7 @@ const safePrice = (val: any): string => {
 };
 
 export default function OrderDetailsScreen() {
+  const { t } = useTranslation();
   const { isSmallDevice } = useResponsive();
   const { id } = useLocalSearchParams();
 
@@ -607,7 +609,10 @@ export default function OrderDetailsScreen() {
         setLastUpdated(new Date());
       } catch (error: any) {
         if (!silent) {
-          Alert.alert("Error", error.message || "Failed to load order details");
+          Alert.alert(
+            t.common.error,
+            error.message || t.orderDetail.failedToLoadOrder,
+          );
           router.back();
         } else {
           console.error("Failed to refresh order:", error);
@@ -638,9 +643,7 @@ export default function OrderDetailsScreen() {
       }
       setShowCancelDialog(true);
     } catch (error: any) {
-      setToastMessage(
-        error.message || "Failed to check cancellation eligibility",
-      );
+      setToastMessage(error.message || t.orderDetail.failedToCheckCancellation);
       setToastType("error");
       setToastVisible(true);
     } finally {
@@ -657,7 +660,7 @@ export default function OrderDetailsScreen() {
       ? cancelReason.trim()
         ? `${selectedReason.label_en}: ${cancelReason.trim()}`
         : selectedReason.label_en
-      : cancelReason.trim() || "Cancelled by user";
+      : cancelReason.trim() || t.orderDetail.cancelledByUser;
 
     setCancelling(true);
     try {
@@ -671,12 +674,12 @@ export default function OrderDetailsScreen() {
         setShowRefundResult(true);
       }
 
-      setToastMessage(result.message || "Order cancelled successfully");
+      setToastMessage(result.message || t.orderDetail.orderCancelledSuccess);
       setToastType("success");
       setToastVisible(true);
       fetchOrderDetails(); // Refresh order
     } catch (error: any) {
-      setToastMessage(error.message || "Failed to cancel order");
+      setToastMessage(error.message || t.orderDetail.failedToCancelOrder);
       setToastType("error");
       setToastVisible(true);
     } finally {
@@ -686,7 +689,7 @@ export default function OrderDetailsScreen() {
 
   const handlePartialItemCancel = async () => {
     if (selectedItemsForCancel.length === 0) {
-      setToastMessage("Please select at least one item to cancel");
+      setToastMessage(t.orderDetail.selectAtLeastOneItem);
       setToastType("error");
       setToastVisible(true);
       return;
@@ -699,7 +702,7 @@ export default function OrderDetailsScreen() {
       ? cancelReason.trim()
         ? `${selectedReason.label_en}: ${cancelReason.trim()}`
         : selectedReason.label_en
-      : cancelReason.trim() || "Item no longer needed";
+      : cancelReason.trim() || t.orderDetail.itemNoLongerNeeded;
 
     setPartialCancelling(true);
     try {
@@ -726,12 +729,12 @@ export default function OrderDetailsScreen() {
         setShowRefundResult(true);
       }
 
-      setToastMessage(result.message || "Items cancelled successfully");
+      setToastMessage(result.message || t.orderDetail.itemsCancelledSuccess);
       setToastType("success");
       setToastVisible(true);
       fetchOrderDetails();
     } catch (error: any) {
-      setToastMessage(error.message || "Failed to cancel items");
+      setToastMessage(error.message || t.orderDetail.failedToCancelItems);
       setToastType("error");
       setToastVisible(true);
     } finally {
@@ -756,7 +759,7 @@ export default function OrderDetailsScreen() {
 
   const handleSubmitReview = async () => {
     if (!selectedProduct || rating === 0) {
-      setToastMessage("Please select a rating");
+      setToastMessage(t.orderDetail.pleaseSelectRating);
       setToastType("error");
       setToastVisible(true);
       return;
@@ -768,10 +771,10 @@ export default function OrderDetailsScreen() {
         product_id: selectedProduct.product_id,
         order_id: Number(id),
         rating: rating,
-        comment: reviewComment.trim() || "Great product!",
+        comment: reviewComment.trim() || t.orderDetail.defaultReviewComment,
       });
 
-      setToastMessage("Thank you for your review!");
+      setToastMessage(t.orderDetail.thankYouForReview);
       setToastType("success");
       setToastVisible(true);
       setReviewedProducts((prev) => [...prev, selectedProduct.product_id]);
@@ -784,7 +787,7 @@ export default function OrderDetailsScreen() {
       const errorMessage =
         error.response?.data?.message ||
         error.message ||
-        "Failed to submit review";
+        t.orderDetail.failedToSubmitReview;
       setToastMessage(errorMessage);
       setToastType("error");
       setToastVisible(true);
@@ -795,7 +798,7 @@ export default function OrderDetailsScreen() {
 
   const handleSubmitDriverReview = async () => {
     if (driverRating === 0) {
-      setToastMessage("Please select a rating");
+      setToastMessage(t.orderDetail.pleaseSelectRating);
       setToastType("error");
       setToastVisible(true);
       return;
@@ -808,7 +811,7 @@ export default function OrderDetailsScreen() {
         comment: driverReviewComment.trim() || undefined,
       });
 
-      setToastMessage("Thank you for rating the driver!");
+      setToastMessage(t.orderDetail.thankYouDriverRating);
       setToastType("success");
       setToastVisible(true);
       setDriverRated(true);
@@ -819,7 +822,7 @@ export default function OrderDetailsScreen() {
       const errorMessage =
         error.response?.data?.message ||
         error.message ||
-        "Failed to submit driver rating";
+        t.orderDetail.failedToSubmitDriverRating;
       setToastMessage(errorMessage);
       setToastType("error");
       setToastVisible(true);
@@ -860,7 +863,7 @@ export default function OrderDetailsScreen() {
           : downloadedFile.uri; // file:// URI works on iOS
       await Linking.openURL(openUri);
     } catch (error: any) {
-      setToastMessage(error.message || "Failed to download invoice");
+      setToastMessage(error.message || t.orderDetail.failedToDownloadInvoice);
       setToastType("error");
       setToastVisible(true);
     } finally {
@@ -874,11 +877,11 @@ export default function OrderDetailsScreen() {
     setEmailingInvoice(true);
     try {
       const result = await emailInvoice(Number(id));
-      setToastMessage(result.message || "Invoice sent to your email");
+      setToastMessage(result.message || t.orderDetail.invoiceSentToEmail);
       setToastType("success");
       setToastVisible(true);
     } catch (error: any) {
-      setToastMessage(error.message || "Failed to send invoice email");
+      setToastMessage(error.message || t.orderDetail.failedToSendInvoice);
       setToastType("error");
       setToastVisible(true);
     } finally {
@@ -891,17 +894,23 @@ export default function OrderDetailsScreen() {
     setShowActionsMenu(false);
     setSharingOrder(true);
     try {
-      const shareText = `Order #${order?.order_number}\nTotal: ${safePrice(order?.total)} EGP\nStatus: ${order?.status_label || order?.status}`;
+      const shareText = t.ui.shareOrderText
+        .replace("{orderNumber}", order?.order_number || "")
+        .replace("{total}", safePrice(order?.total))
+        .replace("{status}", order?.status_label || order?.status || "");
       const result = await Share.share(
         {
-          title: `Order #${order?.order_number}`,
+          title: t.ui.shareOrderTitle.replace(
+            "{orderNumber}",
+            order?.order_number || "",
+          ),
           message: shareText,
         },
-        { dialogTitle: "Share Order" },
+        { dialogTitle: t.orderDetail.shareOrder },
       );
       if (result.action === Share.dismissedAction) return;
     } catch (error: any) {
-      setToastMessage(error.message || "Failed to share order");
+      setToastMessage(error.message || t.orderDetail.failedToShareOrder);
       setToastType("error");
       setToastVisible(true);
     } finally {
@@ -1089,12 +1098,12 @@ export default function OrderDetailsScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.emptyContainer}>
           <Package size={80} color={Colors.neutralGray} />
-          <Text style={styles.emptyTitle}>Order Not Found</Text>
+          <Text style={styles.emptyTitle}>{t.orderDetail.orderNotFound}</Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.backButtonText}>Go Back</Text>
+            <Text style={styles.backButtonText}>{t.orderDetail.goBack}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1112,7 +1121,7 @@ export default function OrderDetailsScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Order Details</Text>
+        <Text style={styles.headerTitle}>{t.orderDetail.title}</Text>
         {order && canShowInvoice(order.status) ? (
           <TouchableOpacity
             onPress={() => setShowActionsMenu(true)}
@@ -1135,7 +1144,9 @@ export default function OrderDetailsScreen() {
         <View style={styles.orderHeader}>
           <View style={styles.orderHeaderTop}>
             <View style={styles.orderNumberContainer}>
-              <Text style={styles.orderNumberLabel}>Order Number</Text>
+              <Text style={styles.orderNumberLabel}>
+                {t.orderDetail.orderNumber}
+              </Text>
               <Text style={styles.orderNumber}>{order.order_number}</Text>
             </View>
             <LinearGradient
@@ -1195,7 +1206,7 @@ export default function OrderDetailsScreen() {
                 color={Colors.neutralMedium}
               />
               <Text style={styles.orderMetaText}>
-                {order.items?.length || 0} items
+                {order.items?.length || 0} {t.orderDetail.items}
               </Text>
             </View>
           </View>
@@ -1219,7 +1230,9 @@ export default function OrderDetailsScreen() {
                       { backgroundColor: Colors.primary700 },
                     ]}
                   />
-                  <Text style={styles.progressStepText}>Ordered</Text>
+                  <Text style={styles.progressStepText}>
+                    {t.orderDetail.ordered}
+                  </Text>
                 </View>
                 <View style={styles.progressStep}>
                   <View
@@ -1233,7 +1246,9 @@ export default function OrderDetailsScreen() {
                       },
                     ]}
                   />
-                  <Text style={styles.progressStepText}>Processing</Text>
+                  <Text style={styles.progressStepText}>
+                    {t.orderDetail.processing}
+                  </Text>
                 </View>
                 <View style={styles.progressStep}>
                   <View
@@ -1247,7 +1262,9 @@ export default function OrderDetailsScreen() {
                       },
                     ]}
                   />
-                  <Text style={styles.progressStepText}>Shipping</Text>
+                  <Text style={styles.progressStepText}>
+                    {t.orderDetail.shipping}
+                  </Text>
                 </View>
                 <View style={styles.progressStep}>
                   <View
@@ -1261,7 +1278,9 @@ export default function OrderDetailsScreen() {
                       },
                     ]}
                   />
-                  <Text style={styles.progressStepText}>Delivered</Text>
+                  <Text style={styles.progressStepText}>
+                    {t.orderDetail.delivered}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1269,7 +1288,7 @@ export default function OrderDetailsScreen() {
 
           {lastUpdated && (
             <Text style={styles.lastUpdatedText}>
-              Last updated:{" "}
+              {t.orderDetail.lastUpdated}{" "}
               {lastUpdated.toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -1307,7 +1326,7 @@ export default function OrderDetailsScreen() {
                   marginLeft: 8,
                 }}
               >
-                Rate Your Order
+                {t.orderRating.rateYourOrder}
               </Text>
             </View>
             <Text
@@ -1317,8 +1336,7 @@ export default function OrderDetailsScreen() {
                 marginBottom: 12,
               }}
             >
-              How was your experience? Tap on any product below to leave a
-              review.
+              {t.orderDetail.howWasExperienceTap}
             </Text>
             <View
               style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}
@@ -1367,7 +1385,7 @@ export default function OrderDetailsScreen() {
                   flex: 1,
                 }}
               >
-                Rate Your Driver
+                {t.orderDetail.rateYourDriver}
               </Text>
               <Ionicons name="chevron-forward" size={20} color="#3b82f6" />
             </View>
@@ -1378,8 +1396,11 @@ export default function OrderDetailsScreen() {
               }}
             >
               {order.driver
-                ? `How was your delivery by ${order.driver.first_name}? Tap to rate.`
-                : "How was your delivery experience? Tap to rate."}
+                ? t.orderDetail.howWasDeliveryByDriver.replace(
+                    "{name}",
+                    order.driver.first_name,
+                  )
+                : t.orderDetail.howWasDeliveryTapToRate}
             </Text>
           </TouchableOpacity>
         )}
@@ -1402,7 +1423,7 @@ export default function OrderDetailsScreen() {
           >
             <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
             <Text style={{ fontSize: 14, color: "#16a34a", fontWeight: "600" }}>
-              Driver rated — thank you!
+              {t.orderDetail.driverRatedThankYou}
             </Text>
           </View>
         )}
@@ -1410,7 +1431,9 @@ export default function OrderDetailsScreen() {
         {/* Status History Timeline */}
         {order.status_history && order.status_history.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Order Timeline</Text>
+            <Text style={styles.sectionTitle}>
+              {t.orderDetail.orderTimeline}
+            </Text>
             <View style={styles.timeline}>
               {order.status_history.map((history, index) => (
                 <View key={history.id} style={styles.timelineItem}>
@@ -1450,7 +1473,7 @@ export default function OrderDetailsScreen() {
 
         {/* Delivery Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Delivery Information</Text>
+          <Text style={styles.sectionTitle}>{t.orderDetail.deliveryInfo}</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Ionicons
@@ -1459,7 +1482,9 @@ export default function OrderDetailsScreen() {
                 color={Colors.primary900}
               />
               <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Delivery Address</Text>
+                <Text style={styles.infoLabel}>
+                  {t.orderDetail.deliveryAddress}
+                </Text>
                 {order.delivery_address && (
                   <View>
                     <Text
@@ -1476,18 +1501,18 @@ export default function OrderDetailsScreen() {
                     {(order.delivery_address.building ||
                       order.delivery_address.floor ||
                       order.delivery_address.apartment) && (
-                        <Text style={styles.infoValue}>
-                          {order.delivery_address.building
-                            ? `Bldg ${order.delivery_address.building}`
-                            : ""}
-                          {order.delivery_address.floor
-                            ? `${order.delivery_address.building ? ", " : ""}Floor ${order.delivery_address.floor}`
-                            : ""}
-                          {order.delivery_address.apartment
-                            ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}Apt ${order.delivery_address.apartment}`
-                            : ""}
-                        </Text>
-                      )}
+                      <Text style={styles.infoValue}>
+                        {order.delivery_address.building
+                          ? `${t.orderDetail.bldg} ${order.delivery_address.building}`
+                          : ""}
+                        {order.delivery_address.floor
+                          ? `${order.delivery_address.building ? ", " : ""}${t.orderDetail.floor} ${order.delivery_address.floor}`
+                          : ""}
+                        {order.delivery_address.apartment
+                          ? `${order.delivery_address.building || order.delivery_address.floor ? ", " : ""}${t.orderDetail.apt} ${order.delivery_address.apartment}`
+                          : ""}
+                      </Text>
+                    )}
                     <Text style={styles.infoValue}>
                       {order.delivery_address.city}
                       {order.delivery_address.area
@@ -1501,7 +1526,7 @@ export default function OrderDetailsScreen() {
                           { fontStyle: "italic", color: Colors.neutralMedium },
                         ]}
                       >
-                        Near: {order.delivery_address.landmark}
+                        {t.orderDetail.near} {order.delivery_address.landmark}
                       </Text>
                     )}
                   </View>
@@ -1512,7 +1537,9 @@ export default function OrderDetailsScreen() {
             <View style={styles.infoRow}>
               <Clock size={20} color={Colors.primary900} />
               <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Delivery Schedule</Text>
+                <Text style={styles.infoLabel}>
+                  {t.orderDetail.deliverySchedule}
+                </Text>
                 <Text style={styles.infoValue}>
                   {new Date(order.delivery_date).toLocaleDateString("en-US", {
                     month: "long",
@@ -1529,7 +1556,9 @@ export default function OrderDetailsScreen() {
                 <View style={styles.infoRow}>
                   <Package size={20} color={Colors.primary900} />
                   <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Delivery Notes</Text>
+                    <Text style={styles.infoLabel}>
+                      {t.orderDetail.deliveryNotes}
+                    </Text>
                     <Text style={styles.infoValue}>{order.delivery_notes}</Text>
                   </View>
                 </View>
@@ -1540,11 +1569,11 @@ export default function OrderDetailsScreen() {
 
         {/* Payment Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment Method</Text>
+          <Text style={styles.sectionTitle}>{t.orderDetail.paymentMethod}</Text>
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               {order.payment_method === "cod" ||
-                order.payment_method === "cash_on_delivery" ? (
+              order.payment_method === "cash_on_delivery" ? (
                 <Ionicons
                   name="wallet-outline"
                   size={20}
@@ -1560,13 +1589,13 @@ export default function OrderDetailsScreen() {
               <View style={styles.infoTextContainer}>
                 <Text style={styles.infoValue}>
                   {order.payment_method === "cod" ||
-                    order.payment_method === "cash_on_delivery"
-                    ? "Cash on Delivery"
+                  order.payment_method === "cash_on_delivery"
+                    ? t.orderDetail.cashOnDelivery
                     : order.payment_method === "wallet"
-                      ? "Wallet Payment"
+                      ? t.orderDetail.walletPayment
                       : order.payment_method === "wallet+card"
-                        ? "Wallet + Card Payment"
-                        : "Card Payment"}
+                        ? t.orderDetail.walletPlusCardPayment
+                        : t.orderDetail.cardPayment}
                 </Text>
                 <Text
                   style={[
@@ -1577,7 +1606,7 @@ export default function OrderDetailsScreen() {
                     },
                   ]}
                 >
-                  Status:{" "}
+                  {t.orderDetail.paymentStatus}{" "}
                   {order.payment_status.charAt(0).toUpperCase() +
                     order.payment_status.slice(1)}
                 </Text>
@@ -1590,8 +1619,7 @@ export default function OrderDetailsScreen() {
                       fontStyle: "italic",
                     }}
                   >
-                    Your payment has been refunded to your original payment
-                    method
+                    {t.orderDetail.paymentRefundedMessage}
                   </Text>
                 )}
               </View>
@@ -1609,7 +1637,7 @@ export default function OrderDetailsScreen() {
               marginBottom: Spacing.md,
             }}
           >
-            <Text style={styles.sectionTitle}>Order Items</Text>
+            <Text style={styles.sectionTitle}>{t.orderDetail.orderItems}</Text>
             {order.items &&
               (() => {
                 const refundedCount = order.items.filter(
@@ -1640,7 +1668,9 @@ export default function OrderDetailsScreen() {
                           color: Colors.accentOrange,
                         }}
                       >
-                        {refundedCount} of {order.items.length} refunded
+                        {refundedCount} {t.orderDetail.refundedOf}{" "}
+                        {order.items.length}{" "}
+                        {t.orderDetail.refunded.toLowerCase()}
                       </Text>
                     </View>
                   );
@@ -1697,7 +1727,7 @@ export default function OrderDetailsScreen() {
                         isRefunded && { color: Colors.neutralGray },
                       ]}
                     >
-                      Qty: {item.quantity}
+                      {t.orderDetail.qty} {item.quantity}
                     </Text>
                     {item.product_sku ? (
                       <Text
@@ -1706,7 +1736,7 @@ export default function OrderDetailsScreen() {
                           isRefunded && { color: Colors.neutralGray },
                         ]}
                       >
-                        SKU: {item.product_sku}
+                        {t.orderDetail.sku} {item.product_sku}
                       </Text>
                     ) : null}
 
@@ -1739,7 +1769,7 @@ export default function OrderDetailsScreen() {
                             color: "#DC2626",
                           }}
                         >
-                          Refunded
+                          {t.orderDetail.refunded}
                         </Text>
                       </View>
                     )}
@@ -1774,7 +1804,7 @@ export default function OrderDetailsScreen() {
                               color: Colors.primary900,
                             }}
                           >
-                            Rate
+                            {t.orderDetail.rate}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -1796,7 +1826,7 @@ export default function OrderDetailsScreen() {
                           <Text
                             style={{ fontSize: 12, color: Colors.primary700 }}
                           >
-                            Reviewed
+                            {t.orderDetail.reviewed}
                           </Text>
                         </View>
                       )}
@@ -1827,7 +1857,7 @@ export default function OrderDetailsScreen() {
                           marginTop: 2,
                         }}
                       >
-                        Refunded
+                        {t.orderDetail.refunded}
                       </Text>
                     )}
                   </View>
@@ -1839,26 +1869,28 @@ export default function OrderDetailsScreen() {
 
         {/* Price Summary */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Price Summary</Text>
+          <Text style={styles.sectionTitle}>{t.orderDetail.priceSummary}</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryLabel}>{t.orders.subtotal}</Text>
               <Text style={styles.summaryValue}>
                 {safePrice(order.subtotal)} EGP
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Delivery Fee</Text>
+              <Text style={styles.summaryLabel}>
+                {t.orderDetail.deliveryFee}
+              </Text>
               <Text style={styles.summaryValue}>
                 {order.delivery_fee === 0
-                  ? "FREE"
+                  ? t.common.free
                   : `${safePrice(order.delivery_fee)} EGP`}
               </Text>
             </View>
             {order.discount > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryLabel, styles.discountLabel]}>
-                  Discount
+                  {t.orders.discount}
                 </Text>
                 <Text style={[styles.summaryValue, styles.discountValue]}>
                   -{safePrice(order.discount)} EGP
@@ -1868,13 +1900,13 @@ export default function OrderDetailsScreen() {
             {order.promo_code && (
               <View style={styles.promoRow}>
                 <Text style={styles.promoLabel}>
-                  Promo Code: {order.promo_code}
+                  {t.orderDetail.promoCode} {order.promo_code}
                 </Text>
               </View>
             )}
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
-              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalLabel}>{t.orders.total}</Text>
               <Text style={styles.totalValue}>
                 {safePrice(order.total)} EGP
               </Text>
@@ -1900,7 +1932,7 @@ export default function OrderDetailsScreen() {
                         { color: "#DC2626", fontWeight: "600" as const },
                       ]}
                     >
-                      Refunded
+                      {t.orderDetail.refunded}
                     </Text>
                   </View>
                   <Text
@@ -1947,7 +1979,9 @@ export default function OrderDetailsScreen() {
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
                 <Ionicons name="receipt-outline" size={20} color="#DC2626" />
-                <Text style={styles.sectionTitle}>Refund History</Text>
+                <Text style={styles.sectionTitle}>
+                  {t.orderDetail.refundHistory}
+                </Text>
               </View>
               <View
                 style={{
@@ -1961,7 +1995,9 @@ export default function OrderDetailsScreen() {
                   style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}
                 >
                   {order.refunds.length}{" "}
-                  {order.refunds.length === 1 ? "Refund" : "Refunds"}
+                  {order.refunds.length === 1
+                    ? t.orderDetail.refund
+                    : t.orderDetail.refundsPlural}
                 </Text>
               </View>
             </View>
@@ -1969,37 +2005,45 @@ export default function OrderDetailsScreen() {
             {order.refunds.map((refund, idx) => {
               const typeConfig = {
                 full: {
-                  label: "Full Order",
+                  label: t.orderDetail.fullOrder,
                   color: "#DC2626",
                   bg: "#FEE2E2",
                   icon: "close-circle" as const,
                 },
                 partial: {
-                  label: "Partial Items",
+                  label: t.orderDetail.partialItems,
                   color: "#F59E0B",
                   bg: "#FEF3C7",
                   icon: "remove-circle" as const,
                 },
                 penalty: {
-                  label: "With Penalty",
+                  label: t.orderDetail.withPenalty,
                   color: "#9333EA",
                   bg: "#F3E8FF",
                   icon: "alert-circle" as const,
                 },
               };
               const statusConfig = {
-                pending: { label: "Pending", color: "#F59E0B", bg: "#FEF3C7" },
+                pending: {
+                  label: t.orderDetail.refundPending,
+                  color: "#F59E0B",
+                  bg: "#FEF3C7",
+                },
                 processing: {
-                  label: "Processing",
+                  label: t.orderDetail.refundProcessing,
                   color: "#3B82F6",
                   bg: "#DBEAFE",
                 },
                 completed: {
-                  label: "Completed",
+                  label: t.orderDetail.refundCompleted,
                   color: "#16A34A",
                   bg: "#DCFCE7",
                 },
-                failed: { label: "Failed", color: "#DC2626", bg: "#FEE2E2" },
+                failed: {
+                  label: t.orderDetail.refundFailed,
+                  color: "#DC2626",
+                  bg: "#FEE2E2",
+                },
               };
               const tc = typeConfig[refund.type] || typeConfig.full;
               const sc = statusConfig[refund.status] || statusConfig.pending;
@@ -2107,7 +2151,7 @@ export default function OrderDetailsScreen() {
                       <Text
                         style={{ fontSize: 13, color: Colors.neutralMedium }}
                       >
-                        Refund Amount
+                        {t.orderDetail.refundAmount}
                       </Text>
                       <Text
                         style={{
@@ -2116,7 +2160,10 @@ export default function OrderDetailsScreen() {
                           color: "#16A34A",
                         }}
                       >
-                        {safePrice(refund.refund_amount)} EGP
+                        {t.ui.subtotalEgp.replace(
+                          "{amount}",
+                          safePrice(refund.refund_amount),
+                        )}
                       </Text>
                     </View>
                     {refund.penalty_amount > 0 && (
@@ -2298,7 +2345,7 @@ export default function OrderDetailsScreen() {
       {/* Action Buttons */}
       {!["delivered", "cancelled", "failed"].includes(order.status) && (
         <View style={styles.footer}>
-          {/* Track Order button for active orders */}
+          {/* Track Order button for active orders
           <TouchableOpacity
             style={{
               flex: 1,
@@ -2320,7 +2367,7 @@ export default function OrderDetailsScreen() {
             >
               Track Order
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           {canCancelOrder(order.status) && (
             <TouchableOpacity
@@ -2341,7 +2388,9 @@ export default function OrderDetailsScreen() {
                     size={20}
                     color={Colors.accentRed}
                   />
-                  <Text style={styles.cancelText}>Cancel Order</Text>
+                  <Text style={styles.cancelText}>
+                    {t.orderDetail.cancelOrder}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -2361,7 +2410,7 @@ export default function OrderDetailsScreen() {
                   try {
                     const reasons = await getCancellationReasons();
                     setCancellationReasons(reasons);
-                  } catch { }
+                  } catch {}
                   setShowPartialCancelDialog(true);
                 }}
                 activeOpacity={0.7}
@@ -2374,7 +2423,7 @@ export default function OrderDetailsScreen() {
                 <Text
                   style={[styles.cancelText, { color: Colors.accentOrange }]}
                 >
-                  Cancel Items
+                  {t.orderDetail.cancelItems}
                 </Text>
               </TouchableOpacity>
             )}
@@ -2385,7 +2434,7 @@ export default function OrderDetailsScreen() {
       {showCancelDialog && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Cancel Order</Text>
+            <Text style={styles.modalTitle}>{t.orderDetail.cancelOrder}</Text>
 
             {/* Penalty Warning */}
             {cancelEligibility?.refund_type === "penalty" && (
@@ -2407,7 +2456,7 @@ export default function OrderDetailsScreen() {
                     marginBottom: 4,
                   }}
                 >
-                  âš ï¸ Cancellation Fee Applies
+                  ⚠️ {t.orderDetail.cancellationFeeApplies}
                 </Text>
                 <Text
                   style={{
@@ -2543,7 +2592,7 @@ export default function OrderDetailsScreen() {
             {/* Optional additional details */}
             <TextInput
               style={styles.modalInput}
-              placeholder="Additional details (optional)"
+              placeholder={t.orderDetail.additionalDetails}
               placeholderTextColor={Colors.neutralGray}
               value={cancelReason}
               onChangeText={setCancelReason}
@@ -2560,7 +2609,9 @@ export default function OrderDetailsScreen() {
                   setCancelEligibility(null);
                 }}
               >
-                <Text style={styles.modalButtonTextSecondary}>Keep Order</Text>
+                <Text style={styles.modalButtonTextSecondary}>
+                  {t.orderDetail.keepOrder}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -2581,8 +2632,8 @@ export default function OrderDetailsScreen() {
                     ]}
                   >
                     {cancelEligibility?.refund_type === "penalty"
-                      ? "Cancel & Accept\nFee"
-                      : "Cancel Order"}
+                      ? t.orderDetail.cancelAndAcceptFee
+                      : t.orderDetail.cancelOrder}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -2595,9 +2646,11 @@ export default function OrderDetailsScreen() {
       {showPartialCancelDialog && order?.items && (
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: "80%" }]}>
-            <Text style={styles.modalTitle}>Cancel Specific Items</Text>
+            <Text style={styles.modalTitle}>
+              {t.orderDetail.cancelSpecificItems}
+            </Text>
             <Text style={[styles.modalMessage, { marginBottom: Spacing.sm }]}>
-              Select items you want to cancel and get refunded:
+              {t.orderDetail.selectItemsToCancel}
             </Text>
 
             <ScrollView style={{ maxHeight: 250, marginBottom: Spacing.sm }}>
@@ -2648,7 +2701,9 @@ export default function OrderDetailsScreen() {
                         {item.product_name}
                       </Text>
                       <Text style={{ fontSize: 12, color: Colors.neutralGray }}>
-                        Qty: {item.quantity} Ã— {safePrice(item.price)} EGP
+                        {t.ui.qtyTimesPrice
+                          .replace("{qty}", String(item.quantity))
+                          .replace("{price}", safePrice(item.price))}
                       </Text>
                     </View>
                     <Text
@@ -2657,7 +2712,10 @@ export default function OrderDetailsScreen() {
                         color: Colors.neutralCharcoal,
                       }}
                     >
-                      {safePrice(item.subtotal)} EGP
+                      {t.ui.subtotalEgp.replace(
+                        "{amount}",
+                        safePrice(item.subtotal),
+                      )}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -2679,7 +2737,10 @@ export default function OrderDetailsScreen() {
                     fontWeight: "600",
                   }}
                 >
-                  {selectedItemsForCancel.length} item(s) selected for refund
+                  {t.ui.itemsSelectedForRefund.replace(
+                    "{count}",
+                    String(selectedItemsForCancel.length),
+                  )}
                 </Text>
               </View>
             )}
@@ -2692,7 +2753,7 @@ export default function OrderDetailsScreen() {
                 marginBottom: 6,
               }}
             >
-              Reason:
+              {t.orderDetail.reason}
             </Text>
             <View style={{ maxHeight: 120, marginBottom: Spacing.sm }}>
               <ScrollView>
@@ -2777,7 +2838,7 @@ export default function OrderDetailsScreen() {
                   <ActivityIndicator size="small" color={Colors.neutralWhite} />
                 ) : (
                   <Text style={styles.modalButtonTextPrimary}>
-                    Refund Selected
+                    {t.orderDetail.refundSelected}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -2805,7 +2866,7 @@ export default function OrderDetailsScreen() {
               </View>
             </View>
             <Text style={[styles.modalTitle, { textAlign: "center" }]}>
-              Refund Processed
+              {t.orderDetail.refundProcessed}
             </Text>
             <View
               style={{
@@ -2830,7 +2891,7 @@ export default function OrderDetailsScreen() {
                     fontSize: Typography.bodySmall,
                   }}
                 >
-                  Refund Type
+                  {t.orderDetail.refundType}
                 </Text>
                 <Text
                   style={{
@@ -2857,7 +2918,10 @@ export default function OrderDetailsScreen() {
                       fontSize: Typography.bodySmall,
                     }}
                   >
-                    Cancellation Fee ({refundResult.penalty_percent}%)
+                    {t.ui.cancellationFeePercent.replace(
+                      "{percent}",
+                      String(refundResult.penalty_percent),
+                    )}
                   </Text>
                   <Text
                     style={{
@@ -2866,7 +2930,11 @@ export default function OrderDetailsScreen() {
                       color: Colors.accentRed,
                     }}
                   >
-                    -{safePrice(refundResult.penalty_amount)} EGP
+                    -
+                    {t.ui.subtotalEgp.replace(
+                      "{amount}",
+                      safePrice(refundResult.penalty_amount),
+                    )}
                   </Text>
                 </View>
               )}
@@ -2883,7 +2951,7 @@ export default function OrderDetailsScreen() {
                     fontSize: Typography.bodySmall,
                   }}
                 >
-                  Refund Amount
+                  {t.orderDetail.refundAmount}
                 </Text>
                 <Text
                   style={{
@@ -2892,7 +2960,10 @@ export default function OrderDetailsScreen() {
                     color: "#28A745",
                   }}
                 >
-                  {safePrice(refundResult.refund_amount)} EGP
+                  {t.ui.subtotalEgp.replace(
+                    "{amount}",
+                    safePrice(refundResult.refund_amount),
+                  )}
                 </Text>
               </View>
               <View
@@ -2907,7 +2978,7 @@ export default function OrderDetailsScreen() {
                     fontSize: Typography.bodySmall,
                   }}
                 >
-                  Estimated Arrival
+                  {t.orderDetail.estimatedArrival}
                 </Text>
                 <Text
                   style={{
@@ -2942,7 +3013,7 @@ export default function OrderDetailsScreen() {
                   textAlign: "center",
                 }}
               >
-                Alright
+                {t.orderDetail.alright}
               </Text>
             </TouchableOpacity>
           </View>
@@ -3009,7 +3080,7 @@ export default function OrderDetailsScreen() {
                   color: Colors.neutralCharcoal,
                 }}
               >
-                Download Invoice
+                {t.orderDetail.downloadInvoice}
               </Text>
             </TouchableOpacity>
 
@@ -3051,7 +3122,7 @@ export default function OrderDetailsScreen() {
                   color: Colors.neutralCharcoal,
                 }}
               >
-                Email Me Invoice
+                {t.orderDetail.emailMeInvoice}
               </Text>
             </TouchableOpacity>
 
@@ -3093,7 +3164,7 @@ export default function OrderDetailsScreen() {
                   color: Colors.neutralCharcoal,
                 }}
               >
-                Share Order
+                {t.orderDetail.shareOrder}
               </Text>
             </TouchableOpacity>
           </View>
@@ -3175,7 +3246,7 @@ export default function OrderDetailsScreen() {
             </Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="How was the delivery experience?"
+              placeholder={t.orderDetail.howWasDelivery}
               placeholderTextColor={Colors.neutralGray}
               value={driverReviewComment}
               onChangeText={setDriverReviewComment}
@@ -3221,7 +3292,7 @@ export default function OrderDetailsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Rate Product</Text>
+            <Text style={styles.modalTitle}>{t.orderDetail.rateProduct}</Text>
             {selectedProduct && (
               <Text
                 style={{
@@ -3271,7 +3342,7 @@ export default function OrderDetailsScreen() {
             </Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Share your experience with this product..."
+              placeholder={t.orderDetail.shareExperienceProduct}
               placeholderTextColor={Colors.neutralGray}
               value={reviewComment}
               onChangeText={setReviewComment}

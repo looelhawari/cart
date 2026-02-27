@@ -1,22 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { ArrowLeft, Clock, Filter, Zap } from 'lucide-react-native';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { ArrowLeft, Clock, Filter, Zap } from "lucide-react-native";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/data/products';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { useTranslation } from "@/i18n";
+import { ProductCard } from "@/components/ProductCard";
+import { products } from "@/data/products";
 
 export default function FlashDealsScreen() {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState({
     hours: 5,
     minutes: 32,
@@ -27,7 +29,7 @@ export default function FlashDealsScreen() {
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         let { hours, minutes, seconds } = prev;
-        
+
         if (seconds > 0) {
           seconds--;
         } else if (minutes > 0) {
@@ -38,7 +40,7 @@ export default function FlashDealsScreen() {
           minutes = 59;
           seconds = 59;
         }
-        
+
         return { hours, minutes, seconds };
       });
     }, 1000);
@@ -47,13 +49,15 @@ export default function FlashDealsScreen() {
   }, []);
 
   const flashDealsProducts = products
-    .filter((p) => p.salePrice && ((p.price - p.salePrice) / p.price) * 100 >= 20)
+    .filter(
+      (p) => p.salePrice && ((p.price - p.salePrice) / p.price) * 100 >= 20,
+    )
     .slice(0, 12);
 
-  const formatTime = (num: number) => num.toString().padStart(2, '0');
+  const formatTime = (num: number) => num.toString().padStart(2, "0");
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -62,12 +66,16 @@ export default function FlashDealsScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerCenter}>
-          <Zap size={24} color={Colors.accentOrange} fill={Colors.accentOrange} />
-          <Text style={styles.headerTitle}>Flash Deals</Text>
+          <Zap
+            size={24}
+            color={Colors.accentOrange}
+            fill={Colors.accentOrange}
+          />
+          <Text style={styles.headerTitle}>{t.flashDeals.title}</Text>
         </View>
-        
+
         <TouchableOpacity
           style={styles.filterButton}
           onPress={() => {}}
@@ -81,40 +89,41 @@ export default function FlashDealsScreen() {
       <View style={styles.timerCard}>
         <View style={styles.timerHeader}>
           <Clock size={24} color={Colors.neutralWhite} />
-          <Text style={styles.timerTitle}>Deals end in:</Text>
+          <Text style={styles.timerTitle}>{t.flashDeals.dealsEndIn}</Text>
         </View>
-        
+
         <View style={styles.timerContainer}>
           <View style={styles.timeBlock}>
             <Text style={styles.timeValue}>{formatTime(timeLeft.hours)}</Text>
-            <Text style={styles.timeLabel}>Hours</Text>
+            <Text style={styles.timeLabel}>{t.flashDeals.hours}</Text>
           </View>
-          
+
           <Text style={styles.timeSeparator}>:</Text>
-          
+
           <View style={styles.timeBlock}>
             <Text style={styles.timeValue}>{formatTime(timeLeft.minutes)}</Text>
-            <Text style={styles.timeLabel}>Minutes</Text>
+            <Text style={styles.timeLabel}>{t.flashDeals.minutes}</Text>
           </View>
-          
+
           <Text style={styles.timeSeparator}>:</Text>
-          
+
           <View style={styles.timeBlock}>
             <Text style={styles.timeValue}>{formatTime(timeLeft.seconds)}</Text>
-            <Text style={styles.timeLabel}>Seconds</Text>
+            <Text style={styles.timeLabel}>{t.flashDeals.seconds}</Text>
           </View>
         </View>
 
-        <Text style={styles.timerSubtext}>
-          Hurry! Limited time offers on selected items
-        </Text>
+        <Text style={styles.timerSubtext}>{t.flashDeals.hurryLimited}</Text>
       </View>
 
       {/* Products Grid */}
       <FlatList
         data={flashDealsProducts}
         renderItem={({ item }) => (
-          <ProductCard product={item} onPress={() => router.push(`/product/${item.id}` as any)} />
+          <ProductCard
+            product={item}
+            onPress={() => router.push(`/product/${item.id}` as any)}
+          />
         )}
         keyExtractor={(item) => item.id}
         numColumns={2}
@@ -124,14 +133,16 @@ export default function FlashDealsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Zap size={80} color={Colors.neutralMedium} />
-            <Text style={styles.emptyTitle}>No Active Flash Deals</Text>
-            <Text style={styles.emptyText}>Check back later for amazing deals!</Text>
+            <Text style={styles.emptyTitle}>{t.flashDeals.noActiveDeals}</Text>
+            <Text style={styles.emptyText}>{t.flashDeals.checkBackLater}</Text>
             <TouchableOpacity
               style={styles.emptyButton}
               onPress={() => router.back()}
               activeOpacity={0.7}
             >
-              <Text style={styles.emptyButtonText}>Browse Products</Text>
+              <Text style={styles.emptyButtonText}>
+                {t.flashDeals.browseProducts}
+              </Text>
             </TouchableOpacity>
           </View>
         }
@@ -146,9 +157,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -158,14 +169,14 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerCenter: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.sm,
   },
   headerTitle: {
@@ -176,8 +187,8 @@ const styles = StyleSheet.create({
   filterButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   timerCard: {
     marginHorizontal: Spacing.lg,
@@ -188,8 +199,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   timerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
@@ -199,15 +210,15 @@ const styles = StyleSheet.create({
     color: Colors.neutralWhite,
   },
   timerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: Spacing.md,
     gap: Spacing.sm,
   },
   timeBlock: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 12,
@@ -232,7 +243,7 @@ const styles = StyleSheet.create({
   timerSubtext: {
     fontSize: Typography.bodyMedium,
     color: Colors.neutralWhite,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.9,
   },
   productsGrid: {
@@ -240,11 +251,11 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   row: {
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: Spacing.xxxl,
     paddingHorizontal: Spacing.xl,
   },
@@ -258,7 +269,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.lg,
   },
   emptyButton: {

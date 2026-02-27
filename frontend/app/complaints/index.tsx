@@ -26,6 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
+import { useTranslation } from "@/i18n";
 import Spacing from "@/constants/Spacing";
 import {
   listComplaints,
@@ -34,7 +35,7 @@ import {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const formatTimeAgo = (date: string) => {
+const formatTimeAgo = (date: string, t: any) => {
   const now = new Date();
   const then = new Date(date);
   const diffMs = now.getTime() - then.getTime();
@@ -42,19 +43,23 @@ const formatTimeAgo = (date: string) => {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffMins < 1) return t.complaints.justNow;
+  if (diffMins < 60) return `${diffMins}${t.complaints.minutesAgo}`;
+  if (diffHours < 24) return `${diffHours}${t.complaints.hoursAgo}`;
+  if (diffDays === 1) return t.complaints.yesterday;
+  if (diffDays < 7) return `${diffDays}${t.complaints.daysAgo}`;
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
-const statusFilters = [
-  { key: "all", label: "All", icon: "apps" as const },
-  { key: "open", label: "Open", icon: "alert-circle" as const },
-  { key: "in_progress", label: "In Progress", icon: "time" as const },
-  { key: "resolved", label: "Resolved", icon: "checkmark-circle" as const },
+const getStatusFilters = (t: any) => [
+  { key: "all", label: t.complaints.all, icon: "apps" as const },
+  { key: "open", label: t.complaints.open, icon: "alert-circle" as const },
+  { key: "in_progress", label: t.complaints.inProgress, icon: "time" as const },
+  {
+    key: "resolved",
+    label: t.complaints.resolved,
+    icon: "checkmark-circle" as const,
+  },
 ];
 
 // ─── Skeleton ───────────────────────────────────────────────────────────────
@@ -108,6 +113,7 @@ const ComplaintSkeleton = () => {
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export default function ComplaintsScreen() {
+  const { t } = useTranslation();
   const [complaints, setComplaints] = useState<ComplaintSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,7 +127,7 @@ export default function ComplaintsScreen() {
     try {
       const response = await listComplaints(undefined, 50);
       if (!response.success) {
-        throw new Error("Failed to load complaints");
+        throw new Error(t.ui.failedToLoadComplaints);
       }
       setComplaints(response.data.complaints || []);
 
@@ -170,28 +176,28 @@ export default function ComplaintsScreen() {
         return {
           color: Colors.accentOrange,
           bg: "#fff7ed",
-          label: "OPEN",
+          label: t.complaints.statusOpen,
           icon: "alert-circle-outline" as const,
         };
       case "in_progress":
         return {
           color: "#3b82f6",
           bg: "#eff6ff",
-          label: "IN PROGRESS",
+          label: t.complaints.statusInProgress,
           icon: "time-outline" as const,
         };
       case "resolved":
         return {
           color: Colors.primary900,
           bg: Colors.primary100,
-          label: "RESOLVED",
+          label: t.complaints.statusResolved,
           icon: "checkmark-circle-outline" as const,
         };
       case "closed":
         return {
           color: Colors.neutralMedium,
           bg: Colors.neutralLight,
-          label: "CLOSED",
+          label: t.complaints.statusClosed,
           icon: "lock-closed-outline" as const,
         };
       default:
@@ -290,12 +296,14 @@ export default function ComplaintsScreen() {
                 <Text style={styles.ticketNumber}>{item.ticket_number}</Text>
                 {isBotHandling && (
                   <View style={styles.botBadge}>
-                    <Text style={styles.botBadgeText}>🤖 Bot</Text>
+                    <Text style={styles.botBadgeText}>{t.complaints.bot}</Text>
                   </View>
                 )}
                 {isWithAgent && (
                   <View style={styles.agentBadge}>
-                    <Text style={styles.agentBadgeText}>👤 Agent</Text>
+                    <Text style={styles.agentBadgeText}>
+                      {t.complaints.agent}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -328,7 +336,7 @@ export default function ComplaintsScreen() {
             {/* Right */}
             <View style={styles.cardRight}>
               <Text style={styles.timeText}>
-                {formatTimeAgo(item.created_at)}
+                {formatTimeAgo(item.created_at, t)}
               </Text>
               <View style={[styles.statusChip, { backgroundColor: status.bg }]}>
                 <Ionicons name={status.icon} size={11} color={status.color} />
@@ -351,10 +359,8 @@ export default function ComplaintsScreen() {
       <View style={styles.emptyIconContainer}>
         <Inbox size={56} color={Colors.neutralGray} />
       </View>
-      <Text style={styles.emptyTitle}>No Tickets Yet</Text>
-      <Text style={styles.emptyText}>
-        You haven't submitted any support tickets.{"\n"}We're here to help!
-      </Text>
+      <Text style={styles.emptyTitle}>{t.complaints.noTicketsYet}</Text>
+      <Text style={styles.emptyText}>{t.complaints.noTicketsDesc}</Text>
       <TouchableOpacity
         style={styles.emptyButton}
         onPress={() => router.push("/complaints/new" as any)}
@@ -367,7 +373,9 @@ export default function ComplaintsScreen() {
           style={styles.emptyButtonGradient}
         >
           <Plus size={18} color={Colors.neutralWhite} />
-          <Text style={styles.emptyButtonText}>Create First Ticket</Text>
+          <Text style={styles.emptyButtonText}>
+            {t.complaints.createFirstTicket}
+          </Text>
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -401,7 +409,7 @@ export default function ComplaintsScreen() {
               <View style={styles.brandIcon}>
                 <MessageSquare size={14} color={Colors.neutralWhite} />
               </View>
-              <Text style={styles.headerTitle}>Complaints</Text>
+              <Text style={styles.headerTitle}>{t.complaints.title}</Text>
             </View>
 
             <View style={{ width: 40 }} />
@@ -412,22 +420,22 @@ export default function ComplaintsScreen() {
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{complaints.length}</Text>
-                <Text style={styles.statLabel}>Total</Text>
+                <Text style={styles.statLabel}>{t.complaints.total}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{openCount}</Text>
-                <Text style={styles.statLabel}>Open</Text>
+                <Text style={styles.statLabel}>{t.complaints.open}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{inProgressCount}</Text>
-                <Text style={styles.statLabel}>Active</Text>
+                <Text style={styles.statLabel}>{t.complaints.active}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{resolvedCount}</Text>
-                <Text style={styles.statLabel}>Resolved</Text>
+                <Text style={styles.statLabel}>{t.complaints.resolved}</Text>
               </View>
             </View>
           )}
@@ -443,7 +451,7 @@ export default function ComplaintsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
-          {statusFilters.map((filter) => {
+          {getStatusFilters(t).map((filter) => {
             const isActive = activeFilter === filter.key;
             const count =
               filter.key === "all"

@@ -3,10 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   TouchableOpacity,
   SafeAreaView,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import Colors from "@/constants/Colors";
@@ -14,12 +12,10 @@ import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
-import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { resetApp } = useStore();
   const { t } = useTranslation();
 
   return (
@@ -60,32 +56,6 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.guestButtonText}>
               {t.welcome.continueAsGuest}
-            </Text>
-          </TouchableOpacity>
-
-          {/* DEV ONLY: Reset Button */}
-          <TouchableOpacity
-            onPress={() => {
-              Alert.alert(
-                t.welcome.resetAppStorage,
-                t.welcome.resetConfirmMessage,
-                [
-                  { text: t.common.cancel, style: "cancel" },
-                  {
-                    text: t.welcome.reset,
-                    style: "destructive",
-                    onPress: () => {
-                      resetApp();
-                      Alert.alert(t.common.success, t.welcome.storageCleared);
-                    },
-                  },
-                ],
-              );
-            }}
-            style={styles.devButton}
-          >
-            <Text style={styles.devButtonText}>
-              {t.welcome.clearStorageDev}
             </Text>
           </TouchableOpacity>
         </View>
@@ -184,18 +154,5 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
     fontSize: Typography.bodyBase,
     fontFamily: "Poppins_500Medium",
-  },
-  devButton: {
-    backgroundColor: Colors.accentRed,
-    paddingVertical: Spacing.sm,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: Spacing.lg,
-    opacity: 0.8,
-  },
-  devButtonText: {
-    fontSize: Typography.bodySmall,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.neutralWhite,
   },
 });

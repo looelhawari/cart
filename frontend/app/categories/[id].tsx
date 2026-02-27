@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "@/i18n";
 
 import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
@@ -43,6 +44,7 @@ const HERO_HEIGHT = 200;
 
 export default function CategoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState<Category | null>(null);
@@ -197,16 +199,16 @@ export default function CategoryDetailScreen() {
     category?.subcategories && category.subcategories.length > 0;
 
   const sortOptions = [
-    { label: "Popularity", value: "popularity", order: "desc" as SortOrder },
-    { label: "Price: Low to High", value: "price", order: "asc" as SortOrder },
-    { label: "Price: High to Low", value: "price", order: "desc" as SortOrder },
-    { label: "Newest", value: "created_at", order: "desc" as SortOrder },
-    { label: "Highest Rated", value: "rating", order: "desc" as SortOrder },
+    { label: t.ui.popularity, value: "popularity", order: "desc" as SortOrder },
+    { label: t.ui.priceLowToHigh, value: "price", order: "asc" as SortOrder },
+    { label: t.ui.priceHighToLow, value: "price", order: "desc" as SortOrder },
+    { label: t.ui.newest, value: "created_at", order: "desc" as SortOrder },
+    { label: t.ui.highestRated, value: "rating", order: "desc" as SortOrder },
   ];
 
   const currentSortLabel =
     sortOptions.find((opt) => opt.value === sortBy && opt.order === sortOrder)
-      ?.label || "Sort";
+      ?.label || t.ui.sort;
 
   const handleSortChange = (value: SortOption, order: SortOrder) => {
     setSortBy(value);
@@ -288,7 +290,7 @@ export default function CategoryDetailScreen() {
                 selectedSubcategoryId === null && styles.chipTextSelected,
               ]}
             >
-              All
+              {t.ui.all}
             </Text>
           </TouchableOpacity>
 
@@ -331,7 +333,7 @@ export default function CategoryDetailScreen() {
         activeOpacity={0.7}
       >
         <SlidersHorizontal size={18} color={Colors.neutralCharcoal} />
-        <Text style={styles.filterButtonText}>Filter</Text>
+        <Text style={styles.filterButtonText}>{t.ui.filter}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -411,7 +413,7 @@ export default function CategoryDetailScreen() {
       <SafeAreaView style={styles.container}>
         <OfflineIndicator />
         <View style={[styles.centered, { flex: 1 }]}>
-          <Text style={styles.errorText}>Category not found</Text>
+          <Text style={styles.errorText}>{t.ui.categoryNotFound}</Text>
         </View>
       </SafeAreaView>
     );
@@ -512,7 +514,7 @@ export default function CategoryDetailScreen() {
         </View>
       ) : (
         <View style={[styles.centered, { flex: 1 }]}>
-          <Text style={styles.emptyText}>No products available</Text>
+          <Text style={styles.emptyText}>{t.ui.noProductsAvailable}</Text>
         </View>
       )}
       <Toast

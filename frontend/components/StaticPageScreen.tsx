@@ -116,16 +116,7 @@ export default function StaticPageScreen({
   };
 
   const getGradientColors = (): readonly [string, string, string] => {
-    switch (slug) {
-      case "terms":
-        return ["#4CAF50", "#45a049", "#388E3C"] as const;
-      case "privacy":
-        return ["#059669", "#047857", "#065f46"] as const;
-      case "about":
-        return ["#4CAF50", "#45a049", "#388E3C"] as const;
-      default:
-        return ["#4CAF50", "#45a049", "#388E3C"] as const;
-    }
+    return [Colors.primary900, Colors.primary800, "#064e3b"] as const;
   };
 
   const getIconName = (): keyof typeof Ionicons.glyphMap => {
@@ -167,7 +158,7 @@ export default function StaticPageScreen({
               >
                 <Clock size={14} color="rgba(255,255,255,0.8)" />
                 <Text style={styles.lastUpdatedText}>
-                  {isRTL ? "آخر تحديث: " : "Last updated: "}
+                  {t.ui.lastUpdated}
                   {formatDate(page.last_updated_at)}
                 </Text>
               </View>
@@ -229,20 +220,14 @@ export default function StaticPageScreen({
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={[styles.footerText, isRTL && styles.textRTL]}>
-              {isRTL
-                ? "إذا كان لديك أي أسئلة، يرجى التواصل معنا على support@elbaraka.com"
-                : "If you have any questions, please contact us at support@elbaraka.com"}
+              {t.ui.contactEmail}
             </Text>
           </View>
 
           {/* Version Info */}
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>CART App v1.0.0</Text>
-            <Text style={styles.copyrightText}>
-              {isRTL
-                ? "© 2025 البركة هايبر ماركت. جميع الحقوق محفوظة."
-                : "© 2025 CART Hypermarket. All rights reserved."}
-            </Text>
+            <Text style={styles.versionText}>{t.ui.appVersion}</Text>
+            <Text style={styles.copyrightText}>{t.ui.copyright}</Text>
           </View>
         </ScrollView>
       )}

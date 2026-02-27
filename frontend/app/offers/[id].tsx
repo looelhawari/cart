@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ExpoClipboard from "expo-clipboard";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import Colors from "@/constants/Colors";
-import { useLocalizedValue } from "@/i18n";
+import { useLocalizedValue, useTranslation } from "@/i18n";
 import type { Offer, OfferBogoRule } from "@/services/api/types";
 
 const { width } = Dimensions.get("window");
@@ -24,7 +24,9 @@ const { width } = Dimensions.get("window");
 // ═══════════════════════════════════════════════════════════
 // TYPE THEME — per discount type
 // ═══════════════════════════════════════════════════════════
-const TYPE_THEME: Record<
+const getTypeTheme = (
+  t: any,
+): Record<
   string,
   {
     accent: string;
@@ -33,67 +35,70 @@ const TYPE_THEME: Record<
     icon: string;
     label: string;
   }
-> = {
+> => ({
   percentage: {
     accent: "#7C3AED",
     bg: "#F5F3FF",
     gradient: ["#7C3AED", "#5B21B6"],
     icon: "pricetag",
-    label: "Percentage Discount",
+    label: t.ui.percentageDiscountType,
   },
   fixed_amount: {
     accent: "#0284C7",
     bg: "#F0F9FF",
     gradient: ["#0284C7", "#0369A1"],
     icon: "cash",
-    label: "Fixed Amount Off",
+    label: t.ui.fixedAmountOffType,
   },
   free_delivery: {
     accent: Colors.primary900,
     bg: Colors.primary100 || "#F0FDF4",
     gradient: [Colors.primary900, Colors.primary800],
     icon: "car",
-    label: "Free Delivery",
+    label: t.ui.freeDeliveryType,
   },
   bogo: {
     accent: "#DB2777",
     bg: "#FDF2F8",
     gradient: ["#DB2777", "#9D174D"],
     icon: "gift",
-    label: "Buy One Get One",
+    label: t.ui.buyOneGetOneType,
   },
-};
+});
 
 // ═══════════════════════════════════════════════════════════
 // SCOPE BADGE CONFIG
 // ═══════════════════════════════════════════════════════════
-const SCOPE_CONFIG: Record<
+const getScopeConfig = (
+  t: any,
+): Record<
   string,
   { icon: string; label: string; color: string; bgColor: string }
-> = {
+> => ({
   order: {
     icon: "cart",
-    label: "Entire Order",
+    label: t.ui.entireOrder,
     color: Colors.primary900,
     bgColor: Colors.primary100 || "#F0FDF4",
   },
   category: {
     icon: "grid",
-    label: "Specific Categories",
+    label: t.ui.specificCategories,
     color: "#7C3AED",
     bgColor: "#F5F3FF",
   },
   product: {
     icon: "cube",
-    label: "Specific Products",
+    label: t.ui.specificProducts,
     color: "#0284C7",
     bgColor: "#F0F9FF",
   },
-};
+});
 
 export default function OfferDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { t } = useTranslation();
   const { getName } = useLocalizedValue();
 
   // Parse the offer data passed via route params
@@ -106,6 +111,9 @@ export default function OfferDetailScreen() {
     return null;
   }, [params.offerData]);
 
+  const typeTheme = useMemo(() => getTypeTheme(t), [t]);
+  const scopeConfig = useMemo(() => getScopeConfig(t), [t]);
+
   if (!offer) {
     return (
       <SafeAreaView style={styles.container}>
@@ -116,20 +124,20 @@ export default function OfferDetailScreen() {
             size={64}
             color={Colors.neutralMedium}
           />
-          <Text style={styles.errorText}>Offer not found</Text>
+          <Text style={styles.errorText}>{t.ui.offerNotFound}</Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.backButtonText}>Go Back</Text>
+            <Text style={styles.backButtonText}>{t.ui.goBack}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  const theme = TYPE_THEME[offer.type] || TYPE_THEME.percentage;
-  const scope = SCOPE_CONFIG[offer.applies_to] || SCOPE_CONFIG.order;
+  const theme = typeTheme[offer.type] || typeTheme.percentage;
+  const scope = scopeConfig[offer.applies_to] || scopeConfig.order;
 
   // Build value display
   const valueDisplay =
@@ -196,7 +204,7 @@ export default function OfferDetailScreen() {
             color={Colors.neutralCharcoal}
           />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Promo Code Details</Text>
+        <Text style={styles.headerTitle}>{t.ui.promoCodeDetails}</Text>
         <TouchableOpacity
           style={styles.headerButton}
           onPress={handleShare}
@@ -263,7 +271,7 @@ export default function OfferDetailScreen() {
                 <Ionicons name="copy-outline" size={16} color={theme.accent} />
               </View>
             </View>
-            <Text style={styles.heroCodeHint}>Tap to copy</Text>
+            <Text style={styles.heroCodeHint}>{t.ui.tapToCopy}</Text>
           </TouchableOpacity>
 
           {/* Subtitle */}
@@ -280,14 +288,21 @@ export default function OfferDetailScreen() {
           <Ionicons name={scope.icon as any} size={22} color={scope.color} />
           <View style={styles.scopeTextContainer}>
             <Text style={[styles.scopeLabel, { color: scope.color }]}>
-              Applies to: {scope.label}
+              {t.ui.appliesTo}
+              {scope.label}
             </Text>
             <Text style={styles.scopeDesc}>
               {offer.applies_to === "order"
-                ? "This code works on your entire order"
+                ? t.ui.worksOnEntireOrder
                 : offer.applies_to === "category"
-                  ? `Valid on ${offer.targets.categories.length} categor${offer.targets.categories.length === 1 ? "y" : "ies"}`
-                  : `Valid on ${offer.targets.products.length} product${offer.targets.products.length === 1 ? "" : "s"}`}
+                  ? t.ui.validOnCategories.replace(
+                      "{count}",
+                      String(offer.targets.categories.length),
+                    )
+                  : t.ui.validOnProducts.replace(
+                      "{count}",
+                      String(offer.targets.products.length),
+                    )}
             </Text>
           </View>
         </View>
@@ -301,7 +316,7 @@ export default function OfferDetailScreen() {
                 size={20}
                 color={Colors.accentOrange}
               />
-              <Text style={styles.sectionTitle}>Expires In</Text>
+              <Text style={styles.sectionTitle}>{t.ui.expiresIn}</Text>
             </View>
             <View style={styles.timerContainer}>
               <CountdownTimer endDate={offer.valid_until} />
@@ -318,7 +333,7 @@ export default function OfferDetailScreen() {
                 size={20}
                 color={Colors.neutralMedium}
               />
-              <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+              <Text style={styles.sectionTitle}>{t.ui.termsAndConditions}</Text>
             </View>
             <View style={styles.restrictionsList}>
               {offer.restrictions.map((restriction, idx) => (
@@ -337,7 +352,9 @@ export default function OfferDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="grid-outline" size={20} color="#7C3AED" />
-                <Text style={styles.sectionTitle}>Eligible Categories</Text>
+                <Text style={styles.sectionTitle}>
+                  {t.ui.eligibleCategories}
+                </Text>
                 <Text style={styles.sectionCount}>
                   {offer.targets.categories.length}
                 </Text>
@@ -358,7 +375,7 @@ export default function OfferDetailScreen() {
                     <Text style={styles.targetName}>{getName(cat)}</Text>
                     {cat.include_subcategories && (
                       <Text style={styles.targetMeta}>
-                        Includes subcategories
+                        {t.ui.includesSubcategories}
                       </Text>
                     )}
                   </View>
@@ -375,7 +392,7 @@ export default function OfferDetailScreen() {
               >
                 <Ionicons name="grid-outline" size={18} color="#7C3AED" />
                 <Text style={[styles.viewAllText, { color: "#7C3AED" }]}>
-                  View All Eligible Products
+                  {t.ui.viewAllEligibleProducts}
                 </Text>
                 <Ionicons name="arrow-forward" size={16} color="#7C3AED" />
               </TouchableOpacity>
@@ -388,7 +405,7 @@ export default function OfferDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="cube-outline" size={20} color="#0284C7" />
-                <Text style={styles.sectionTitle}>Eligible Products</Text>
+                <Text style={styles.sectionTitle}>{t.ui.eligibleProducts}</Text>
                 <Text style={styles.sectionCount}>
                   {offer.targets.products.length}
                 </Text>
@@ -432,7 +449,10 @@ export default function OfferDetailScreen() {
                 >
                   <Ionicons name="cube-outline" size={18} color="#0284C7" />
                   <Text style={[styles.viewAllText, { color: "#0284C7" }]}>
-                    View All {offer.targets.products.length} Products
+                    {t.ui.viewAllProducts.replace(
+                      "{count}",
+                      String(offer.targets.products.length),
+                    )}
                   </Text>
                   <Ionicons name="arrow-forward" size={16} color="#0284C7" />
                 </TouchableOpacity>
@@ -445,7 +465,7 @@ export default function OfferDetailScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="gift-outline" size={20} color="#DB2777" />
-              <Text style={styles.sectionTitle}>Deal Rules</Text>
+              <Text style={styles.sectionTitle}>{t.ui.dealRules}</Text>
             </View>
             {offer.targets.bogo_rules.map((rule, idx) => (
               <BogoRuleCard key={rule.id || idx} rule={rule} index={idx} />
@@ -461,12 +481,12 @@ export default function OfferDetailScreen() {
               size={20}
               color={Colors.neutralMedium}
             />
-            <Text style={styles.sectionTitle}>Details</Text>
+            <Text style={styles.sectionTitle}>{t.ui.details}</Text>
           </View>
           <View style={styles.detailsGrid}>
             <DetailCell
               icon="calendar-outline"
-              label="Valid From"
+              label={t.ui.validFrom}
               value={
                 offer.valid_from
                   ? new Date(offer.valid_from).toLocaleDateString()
@@ -475,7 +495,7 @@ export default function OfferDetailScreen() {
             />
             <DetailCell
               icon="calendar"
-              label="Expires"
+              label={t.ui.expiresLabel}
               value={
                 offer.valid_until
                   ? new Date(offer.valid_until).toLocaleDateString()
@@ -484,20 +504,20 @@ export default function OfferDetailScreen() {
             />
             <DetailCell
               icon="person-outline"
-              label="Per User"
+              label={t.ui.perUser}
               value={`${offer.usage_per_user}x`}
             />
             {offer.minimum_order > 0 && (
               <DetailCell
                 icon="cart-outline"
-                label="Min. Order"
+                label={t.ui.minOrder}
                 value={`EGP ${offer.minimum_order}`}
               />
             )}
             {offer.maximum_discount != null && (
               <DetailCell
                 icon="trending-down-outline"
-                label="Max Discount"
+                label={t.ui.maxDiscount}
                 value={`EGP ${offer.maximum_discount}`}
               />
             )}
@@ -534,8 +554,8 @@ export default function OfferDetailScreen() {
               ]}
             >
               {offer.eligibility.can_apply
-                ? "You're Eligible!"
-                : "Not Eligible"}
+                ? t.ui.youreEligible
+                : t.ui.notEligible}
             </Text>
             <Text style={styles.eligibilityMessage}>
               {offer.eligibility.message}
@@ -555,6 +575,7 @@ export default function OfferDetailScreen() {
 // ═══════════════════════════════════════════════════════════
 
 function BogoRuleCard({ rule, index }: { rule: OfferBogoRule; index: number }) {
+  const { t } = useTranslation();
   const discountLabel =
     rule.get_discount_type === "free"
       ? "FREE"
@@ -574,9 +595,9 @@ function BogoRuleCard({ rule, index }: { rule: OfferBogoRule; index: number }) {
           <View style={[styles.bogoStepIcon, { backgroundColor: "#FEE2E2" }]}>
             <Ionicons name="cart" size={16} color="#DC2626" />
           </View>
-          <Text style={styles.bogoStepLabel}>BUY</Text>
+          <Text style={styles.bogoStepLabel}>{t.ui.buy}</Text>
           <Text style={styles.bogoStepValue}>
-            {rule.buy_qty}× {rule.buy_label || "Any Item"}
+            {rule.buy_qty}× {rule.buy_label || t.ui.anyItem}
           </Text>
         </View>
 
@@ -592,9 +613,9 @@ function BogoRuleCard({ rule, index }: { rule: OfferBogoRule; index: number }) {
           <View style={[styles.bogoStepIcon, { backgroundColor: "#DCFCE7" }]}>
             <Ionicons name="gift" size={16} color={Colors.primary900} />
           </View>
-          <Text style={styles.bogoStepLabel}>GET</Text>
+          <Text style={styles.bogoStepLabel}>{t.ui.get}</Text>
           <Text style={styles.bogoStepValue}>
-            {rule.get_qty}× {rule.get_label || "Same Item"}
+            {rule.get_qty}× {rule.get_label || t.ui.sameItem}
           </Text>
           <View style={styles.bogoDiscount}>
             <Text style={styles.bogoDiscountText}>{discountLabel}</Text>

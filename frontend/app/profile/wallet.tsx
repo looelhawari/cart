@@ -74,7 +74,7 @@ export default function WalletScreen() {
       console.log("Token retrieved:", token ? "Token exists" : "No token");
 
       if (!token) {
-        Alert.alert("Error", "Please login to view your wallet");
+        Alert.alert(t.ui.error, t.ui.pleaseLoginWallet);
         router.replace("/login");
         return;
       }
@@ -109,7 +109,7 @@ export default function WalletScreen() {
       }
     } catch (error: any) {
       console.error("Failed to load wallet", error);
-      Alert.alert("Error", error.message || "Failed to load wallet");
+      Alert.alert(t.ui.error, error.message || t.ui.failedToLoadWallet);
     } finally {
       setLoading(false);
     }
@@ -161,27 +161,23 @@ export default function WalletScreen() {
         setAmount("");
 
         // Open Paymob iframe in browser
-        Alert.alert(
-          "Complete Payment",
-          "You will be redirected to complete your payment securely with Paymob.",
-          [
-            {
-              text: "Continue",
-              onPress: () => {
-                // Here you would open the iframe_url in a WebView or browser
-                console.log("Payment URL:", data.data.iframe_url);
-                // For now, just reload wallet after 5 seconds to check for update
-                setTimeout(() => loadWallet(), 5000);
-              },
+        Alert.alert(t.ui.completePayment, t.ui.redirectToPaymob, [
+          {
+            text: t.ui.continue,
+            onPress: () => {
+              // Here you would open the iframe_url in a WebView or browser
+              console.log("Payment URL:", data.data.iframe_url);
+              // For now, just reload wallet after 5 seconds to check for update
+              setTimeout(() => loadWallet(), 5000);
             },
-          ],
-        );
+          },
+        ]);
       } else {
-        Alert.alert("Error", data.message || "Failed to initiate recharge");
+        Alert.alert(t.ui.error, data.message || t.ui.failedToInitiate);
       }
     } catch (error) {
       console.error("Recharge failed", error);
-      Alert.alert("Error", "Failed to process recharge");
+      Alert.alert(t.ui.error, t.ui.failedToProcess);
     } finally {
       setRecharging(false);
     }
@@ -254,7 +250,7 @@ export default function WalletScreen() {
           </View>
 
           <Text style={styles.balanceAmount}>
-            {walletData?.balance.toFixed(2) || "0.00"} EGP
+            {walletData?.balance.toFixed(2) || "0.00"} {t.ui.egp}
           </Text>
 
           <View style={styles.balanceActions}>
@@ -321,11 +317,12 @@ export default function WalletScreen() {
                     ]}
                   >
                     {transaction.type === "credit" ? "+" : "-"}
-                    {parseFloat(transaction.amount).toFixed(2)} EGP
+                    {parseFloat(transaction.amount).toFixed(2)} {t.ui.egp}
                   </Text>
                   <Text style={styles.transactionBalance}>
                     {t.wallet.bal}:{" "}
-                    {parseFloat(transaction.balance_after).toFixed(2)} EGP
+                    {parseFloat(transaction.balance_after).toFixed(2)}{" "}
+                    {t.ui.egp}
                   </Text>
                 </View>
               </View>
@@ -378,7 +375,7 @@ export default function WalletScreen() {
                         styles.quickAmountTextActive,
                     ]}
                   >
-                    {quickAmount} EGP
+                    {quickAmount} {t.ui.egp}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -395,7 +392,7 @@ export default function WalletScreen() {
                   value={amount}
                   onChangeText={setAmount}
                 />
-                <Text style={styles.currencyText}>EGP</Text>
+                <Text style={styles.currencyText}>{t.ui.egp}</Text>
               </View>
               <Text style={styles.inputHint}>{t.wallet.minMaxAmount}</Text>
             </View>

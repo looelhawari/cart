@@ -155,7 +155,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       description: "Order status, delivery, and payment notifications",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#4CAF50",
+      lightColor: "#16a34a",
       enableVibrate: true,
       showBadge: true,
     });
@@ -542,7 +542,7 @@ export async function addNotificationReceivedListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => { } };
+    return { remove: () => {} };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationReceivedListener(callback);
@@ -556,7 +556,7 @@ export async function addNotificationResponseListener(
 ) {
   // Return a no-op subscription in Expo Go
   if (isExpoGo()) {
-    return { remove: () => { } };
+    return { remove: () => {} };
   }
   const Notifications = await loadNotificationsModule();
   return Notifications.addNotificationResponseReceivedListener(callback);

@@ -18,6 +18,7 @@ import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useStore } from "@/store";
+import { useTranslation } from "@/i18n";
 import {
   NotificationPreferences,
   getPreferences,
@@ -40,7 +41,12 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 }) => (
   <View style={styles.section}>
     <View style={styles.sectionHeader}>
-      <View style={[styles.sectionIconContainer, { backgroundColor: iconColor + "20" }]}>
+      <View
+        style={[
+          styles.sectionIconContainer,
+          { backgroundColor: iconColor + "20" },
+        ]}
+      >
         <AlertCircle size={20} color={iconColor} />
       </View>
       <View style={styles.sectionTitleContainer}>
@@ -97,9 +103,7 @@ const PreferenceToggle: React.FC<PreferenceToggleProps> = ({
 export default function NotificationPreferencesScreen() {
   const router = useRouter();
   const { isAuthenticated, user } = useStore();
-
-  const language = user?.language ?? "en";
-  const pageTitle = language === "ar" ? "إعدادات الإشعارات" : "Notification Settings";
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -169,7 +173,10 @@ export default function NotificationPreferencesScreen() {
     }
   };
 
-  const handleToggle = async (key: keyof NotificationPreferences, value: boolean) => {
+  const handleToggle = async (
+    key: keyof NotificationPreferences,
+    value: boolean,
+  ) => {
     const previousValue = preferences[key];
     setPreferences((prev) => ({ ...prev, [key]: value }));
 
@@ -179,7 +186,7 @@ export default function NotificationPreferencesScreen() {
     } catch (error) {
       // Revert on error
       setPreferences((prev) => ({ ...prev, [key]: previousValue }));
-      Alert.alert("Error", "Failed to update preference. Please try again.");
+      Alert.alert(t.common.error, t.notificationPrefs.failedToUpdate);
     } finally {
       setSaving(false);
     }
@@ -188,7 +195,7 @@ export default function NotificationPreferencesScreen() {
   const handleTimeChange = async (
     type: "start" | "end",
     event: any,
-    selectedDate?: Date
+    selectedDate?: Date,
   ) => {
     if (type === "start") {
       setShowStartPicker(false);
@@ -199,7 +206,7 @@ export default function NotificationPreferencesScreen() {
     if (event.type === "dismissed" || !selectedDate) return;
 
     const timeString = `${String(selectedDate.getHours()).padStart(2, "0")}:${String(
-      selectedDate.getMinutes()
+      selectedDate.getMinutes(),
     ).padStart(2, "0")}`;
 
     const key = type === "start" ? "quiet_hours_start" : "quiet_hours_end";
@@ -211,7 +218,7 @@ export default function NotificationPreferencesScreen() {
       await updatePreferences({ [key]: timeString });
     } catch (error) {
       setPreferences((prev) => ({ ...prev, [key]: previousValue }));
-      Alert.alert("Error", "Failed to update time. Please try again.");
+      Alert.alert(t.common.error, t.notificationPrefs.failedToUpdateTime);
     } finally {
       setSaving(false);
     }
@@ -230,15 +237,20 @@ export default function NotificationPreferencesScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{pageTitle}</Text>
+          <Text style={styles.headerTitle}>{t.notificationPrefs.title}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading preferences...</Text>
+          <Text style={styles.loadingText}>
+            {t.notificationPrefs.loadingPreferences}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -248,23 +260,30 @@ export default function NotificationPreferencesScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <ArrowLeft size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{pageTitle}</Text>
+          <Text style={styles.headerTitle}>{t.notificationPrefs.title}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.emptyState}>
           <AlertCircle size={64} color={Colors.neutralMedium} />
-          <Text style={styles.emptyTitle}>Login Required</Text>
+          <Text style={styles.emptyTitle}>
+            {t.notificationPrefs.loginRequired}
+          </Text>
           <Text style={styles.emptyText}>
-            Please login to manage your notification preferences
+            {t.notificationPrefs.loginToManage}
           </Text>
           <TouchableOpacity
             style={styles.loginButton}
             onPress={() => router.push("/(auth)/login")}
           >
-            <Text style={styles.loginButtonText}>Login</Text>
+            <Text style={styles.loginButtonText}>
+              {t.notificationPrefs.login}
+            </Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -274,12 +293,17 @@ export default function NotificationPreferencesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{pageTitle}</Text>
+        <Text style={styles.headerTitle}>{t.notificationPrefs.title}</Text>
         <View style={styles.placeholder}>
-          {saving && <ActivityIndicator size="small" color={Colors.primary900} />}
+          {saving && (
+            <ActivityIndicator size="small" color={Colors.primary900} />
+          )}
         </View>
       </View>
 
@@ -288,15 +312,22 @@ export default function NotificationPreferencesScreen() {
         <View style={styles.masterSection}>
           <View style={styles.masterToggleRow}>
             <View style={styles.masterLeft}>
-              <View style={[styles.masterIcon, { backgroundColor: Colors.primary100 }]}>
+              <View
+                style={[
+                  styles.masterIcon,
+                  { backgroundColor: Colors.primary100 },
+                ]}
+              >
                 <AlertCircle size={28} color={Colors.primary900} />
               </View>
               <View style={styles.masterInfo}>
-                <Text style={styles.masterTitle}>Push Notifications</Text>
+                <Text style={styles.masterTitle}>
+                  {t.notificationPrefs.pushNotifications}
+                </Text>
                 <Text style={styles.masterSubtitle}>
                   {preferences.push_enabled
-                    ? "Receiving all enabled notifications"
-                    : "All notifications are paused"}
+                    ? t.notificationPrefs.receivingAll
+                    : t.notificationPrefs.allPaused}
                 </Text>
               </View>
             </View>
@@ -317,34 +348,34 @@ export default function NotificationPreferencesScreen() {
           <View style={styles.disabledBanner}>
             <AlertCircle size={16} color={Colors.accentOrange} />
             <Text style={styles.disabledBannerText}>
-              Turn on push notifications to customize your preferences
+              {t.notificationPrefs.turnOnPush}
             </Text>
           </View>
         )}
 
         {/* Order & Delivery */}
         <CategorySection
-          title="Orders & Delivery"
-          description="Order confirmations, status updates, delivery tracking"
+          title={t.notificationPrefs.ordersDelivery}
+          description={t.notificationPrefs.ordersDeliveryDesc}
           iconColor={Colors.primary900}
         >
           <PreferenceToggle
-            title="Order Updates"
-            subtitle="Order placed, confirmed, preparing, delivered"
+            title={t.notificationPrefs.orderUpdates}
+            subtitle={t.notificationPrefs.orderUpdatesDesc}
             value={preferences.order_updates}
             onValueChange={(v) => handleToggle("order_updates", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Delivery Updates"
-            subtitle="Out for delivery, courier nearby, delays"
+            title={t.notificationPrefs.deliveryUpdates}
+            subtitle={t.notificationPrefs.deliveryUpdatesDesc}
             value={preferences.delivery_updates}
             onValueChange={(v) => handleToggle("delivery_updates", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Payment Alerts"
-            subtitle="Payment confirmations and failures"
+            title={t.notificationPrefs.paymentAlerts}
+            subtitle={t.notificationPrefs.paymentAlertsDesc}
             value={preferences.payment_alerts}
             onValueChange={(v) => handleToggle("payment_alerts", v)}
             disabled={isPushDisabled}
@@ -354,27 +385,27 @@ export default function NotificationPreferencesScreen() {
 
         {/* Product & Inventory */}
         <CategorySection
-          title="Product Alerts"
-          description="Price changes and stock notifications"
+          title={t.notificationPrefs.productAlerts}
+          description={t.notificationPrefs.productAlertsDesc}
           iconColor={Colors.accentOrange}
         >
           <PreferenceToggle
-            title="Back in Stock"
-            subtitle="Get notified when wishlist items are available"
+            title={t.notificationPrefs.backInStock}
+            subtitle={t.notificationPrefs.backInStockDesc}
             value={preferences.back_in_stock}
             onValueChange={(v) => handleToggle("back_in_stock", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Price Drops"
-            subtitle="Alert when prices drop on watched items"
+            title={t.notificationPrefs.priceDrops}
+            subtitle={t.notificationPrefs.priceDropsDesc}
             value={preferences.price_drops}
             onValueChange={(v) => handleToggle("price_drops", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Price Alerts"
-            subtitle="Custom price threshold notifications"
+            title={t.notificationPrefs.priceAlerts}
+            subtitle={t.notificationPrefs.priceAlertsDesc}
             value={preferences.price_alerts}
             onValueChange={(v) => handleToggle("price_alerts", v)}
             disabled={isPushDisabled}
@@ -384,27 +415,27 @@ export default function NotificationPreferencesScreen() {
 
         {/* Offers & Marketing */}
         <CategorySection
-          title="Offers & Promotions"
-          description="Deals, flash sales, and special offers"
+          title={t.notificationPrefs.offersPromotions}
+          description={t.notificationPrefs.offersPromotionsDesc}
           iconColor={Colors.success700}
         >
           <PreferenceToggle
-            title="Promotions"
-            subtitle="New deals, discounts, and special offers"
+            title={t.notificationPrefs.promotions}
+            subtitle={t.notificationPrefs.promotionsDesc}
             value={preferences.promotions}
             onValueChange={(v) => handleToggle("promotions", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Flash Sales"
-            subtitle="Time-limited sales and exclusive offers"
+            title={t.notificationPrefs.flashSales}
+            subtitle={t.notificationPrefs.flashSalesDesc}
             value={preferences.flash_sales}
             onValueChange={(v) => handleToggle("flash_sales", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Marketing"
-            subtitle="General marketing messages and newsletters"
+            title={t.notificationPrefs.marketing}
+            subtitle={t.notificationPrefs.marketingDesc}
             value={preferences.marketing}
             onValueChange={(v) => handleToggle("marketing", v)}
             disabled={isPushDisabled}
@@ -414,13 +445,13 @@ export default function NotificationPreferencesScreen() {
 
         {/* Cart & Checkout */}
         <CategorySection
-          title="Cart & Checkout"
-          description="Reminders about items in your cart"
+          title={t.notificationPrefs.cartCheckout}
+          description={t.notificationPrefs.cartCheckoutDesc}
           iconColor={Colors.primary700}
         >
           <PreferenceToggle
-            title="Cart Reminders"
-            subtitle="Gentle reminders about abandoned carts"
+            title={t.notificationPrefs.cartReminders}
+            subtitle={t.notificationPrefs.cartRemindersDesc}
             value={preferences.cart_reminders}
             onValueChange={(v) => handleToggle("cart_reminders", v)}
             disabled={isPushDisabled}
@@ -430,20 +461,20 @@ export default function NotificationPreferencesScreen() {
 
         {/* Chat & Support */}
         <CategorySection
-          title="Chat & Support"
-          description="Updates on your support requests"
+          title={t.notificationPrefs.chatSupport}
+          description={t.notificationPrefs.chatSupportDesc}
           iconColor={Colors.neutralCharcoal}
         >
           <PreferenceToggle
-            title="Support Updates"
-            subtitle="Responses to your complaints and tickets"
+            title={t.notificationPrefs.supportUpdates}
+            subtitle={t.notificationPrefs.supportUpdatesDesc}
             value={preferences.complaint_updates}
             onValueChange={(v) => handleToggle("complaint_updates", v)}
             disabled={isPushDisabled}
           />
           <PreferenceToggle
-            title="Chat Messages"
-            subtitle="New messages from support agents"
+            title={t.notificationPrefs.chatMessages}
+            subtitle={t.notificationPrefs.chatMessagesDesc}
             value={preferences.chat_messages}
             onValueChange={(v) => handleToggle("chat_messages", v)}
             disabled={isPushDisabled}
@@ -453,13 +484,13 @@ export default function NotificationPreferencesScreen() {
 
         {/* Account & Security */}
         <CategorySection
-          title="Account & Security"
-          description="Login alerts and security notifications"
+          title={t.notificationPrefs.accountSecurity}
+          description={t.notificationPrefs.accountSecurityDesc}
           iconColor={Colors.accentRed}
         >
           <PreferenceToggle
-            title="Security Alerts"
-            subtitle="New logins, password changes, suspicious activity"
+            title={t.notificationPrefs.securityAlerts}
+            subtitle={t.notificationPrefs.securityAlertsDesc}
             value={preferences.security_alerts}
             onValueChange={(v) => handleToggle("security_alerts", v)}
             disabled={isPushDisabled}
@@ -469,13 +500,13 @@ export default function NotificationPreferencesScreen() {
 
         {/* Wallet & Payments */}
         <CategorySection
-          title="Wallet & Payments"
-          description="Balance updates and payment notifications"
+          title={t.notificationPrefs.walletPayments}
+          description={t.notificationPrefs.walletPaymentsDesc}
           iconColor={Colors.success900}
         >
           <PreferenceToggle
-            title="Wallet Updates"
-            subtitle="Credits, refunds, and balance changes"
+            title={t.notificationPrefs.walletUpdates}
+            subtitle={t.notificationPrefs.walletUpdatesDesc}
             value={preferences.wallet_updates}
             onValueChange={(v) => handleToggle("wallet_updates", v)}
             disabled={isPushDisabled}
@@ -485,13 +516,13 @@ export default function NotificationPreferencesScreen() {
 
         {/* Smart Notifications */}
         <CategorySection
-          title="Smart Recommendations"
-          description="AI-powered personalized suggestions"
+          title={t.notificationPrefs.smartRecommendations}
+          description={t.notificationPrefs.smartRecommendationsDesc}
           iconColor={Colors.accentYellow}
         >
           <PreferenceToggle
-            title="Reorder Reminders"
-            subtitle="Smart reminders for products you regularly buy"
+            title={t.notificationPrefs.reorderReminders}
+            subtitle={t.notificationPrefs.reorderRemindersDesc}
             value={preferences.reorder_reminders}
             onValueChange={(v) => handleToggle("reorder_reminders", v)}
             disabled={isPushDisabled}
@@ -501,13 +532,13 @@ export default function NotificationPreferencesScreen() {
 
         {/* System */}
         <CategorySection
-          title="System"
-          description="App updates and maintenance notifications"
+          title={t.notificationPrefs.system}
+          description={t.notificationPrefs.systemDesc}
           iconColor={Colors.neutralMedium}
         >
           <PreferenceToggle
-            title="System Updates"
-            subtitle="App updates, maintenance, and new features"
+            title={t.notificationPrefs.systemUpdates}
+            subtitle={t.notificationPrefs.systemUpdatesDesc}
             value={preferences.system_updates}
             onValueChange={(v) => handleToggle("system_updates", v)}
             disabled={isPushDisabled}
@@ -519,14 +550,18 @@ export default function NotificationPreferencesScreen() {
         <View style={styles.quietHoursSection}>
           <View style={styles.quietHoursHeader}>
             <View style={styles.quietHoursLeft}>
-              <Text style={styles.quietHoursTitle}>Quiet Hours</Text>
+              <Text style={styles.quietHoursTitle}>
+                {t.notificationPrefs.quietHours}
+              </Text>
               <Text style={styles.quietHoursSubtitle}>
-                Pause notifications during specific hours
+                {t.notificationPrefs.quietHoursDesc}
               </Text>
             </View>
             <Switch
               value={preferences.quiet_hours_enabled}
-              onValueChange={(value) => handleToggle("quiet_hours_enabled", value)}
+              onValueChange={(value) =>
+                handleToggle("quiet_hours_enabled", value)
+              }
               trackColor={{
                 false: Colors.neutralGray,
                 true: Colors.primary900,
@@ -541,8 +576,12 @@ export default function NotificationPreferencesScreen() {
                 style={styles.timePicker}
                 onPress={() => setShowStartPicker(true)}
               >
-                <Text style={styles.timePickerLabel}>From</Text>
-                <Text style={styles.timePickerValue}>{preferences.quiet_hours_start}</Text>
+                <Text style={styles.timePickerLabel}>
+                  {t.notificationPrefs.from}
+                </Text>
+                <Text style={styles.timePickerValue}>
+                  {preferences.quiet_hours_start}
+                </Text>
               </TouchableOpacity>
 
               <View style={styles.timePickerDivider} />
@@ -551,8 +590,12 @@ export default function NotificationPreferencesScreen() {
                 style={styles.timePicker}
                 onPress={() => setShowEndPicker(true)}
               >
-                <Text style={styles.timePickerLabel}>To</Text>
-                <Text style={styles.timePickerValue}>{preferences.quiet_hours_end}</Text>
+                <Text style={styles.timePickerLabel}>
+                  {t.notificationPrefs.to}
+                </Text>
+                <Text style={styles.timePickerValue}>
+                  {preferences.quiet_hours_end}
+                </Text>
               </TouchableOpacity>
             </View>
           )}

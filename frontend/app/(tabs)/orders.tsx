@@ -229,7 +229,7 @@ export default function OrdersScreen() {
       const orderItems = response.data.order.items || [];
 
       if (orderItems.length === 0) {
-        setToastMessage("No items found in this order");
+        setToastMessage(t.ui.noItemsFound);
         setToastType("error");
         setToastVisible(true);
         setReorderingId(null);
@@ -251,7 +251,7 @@ export default function OrdersScreen() {
 
       // Show Go to Cart banner (single message with redirect)
       setToastMessage(
-        `${addedCount} item${addedCount > 1 ? "s" : ""} added to cart`,
+        `${addedCount} item${addedCount > 1 ? "s" : ""} ${t.ui.addedToCart}`,
       );
       setToastType("success");
       setShowGoToCart(true);
@@ -262,7 +262,7 @@ export default function OrdersScreen() {
       }, 5000);
     } catch (error) {
       console.error("Reorder failed:", error);
-      setToastMessage("Failed to reorder. Please try again.");
+      setToastMessage(t.ui.reorderFailed);
       setToastType("error");
       setToastVisible(true);
       setReorderingId(null);
@@ -283,37 +283,37 @@ export default function OrdersScreen() {
         color: Colors.accentOrange,
         bgColor: Colors.accentOrange + "15",
         iconName: "time-outline",
-        label: "Pending",
+        label: t.orders.status.pending,
       },
       confirmed: {
         color: Colors.primary700,
         bgColor: Colors.primary700 + "15",
         iconName: "checkmark-circle-outline",
-        label: "Confirmed",
+        label: t.orders.status.confirmed,
       },
       preparing: {
         color: "#3B82F6",
         bgColor: "#3B82F615",
         iconName: "cube-outline",
-        label: "Preparing",
+        label: t.orders.status.preparing,
       },
       ready: {
         color: Colors.primary700,
         bgColor: Colors.primary700 + "15",
         iconName: "cube-outline",
-        label: "Ready",
+        label: t.ui.ready,
       },
       out_for_delivery: {
         color: Colors.primary800,
         bgColor: Colors.primary800 + "15",
         iconName: "car-outline",
-        label: "On the way",
+        label: t.ui.onTheWay,
       },
       processing: {
         color: Colors.accentOrange,
         bgColor: Colors.accentOrange + "15",
         iconName: "time-outline",
-        label: "Processing",
+        label: t.orders.status.pending,
       },
       delivered: {
         color: Colors.primary900,
@@ -377,8 +377,8 @@ export default function OrdersScreen() {
               color={Colors.neutralGray}
             />
           </View>
-          <Text style={styles.guestTitle}>Sign In Required</Text>
-          <Text style={styles.guestText}>Sign in to view your orders</Text>
+          <Text style={styles.guestTitle}>{t.ui.signInRequired}</Text>
+          <Text style={styles.guestText}>{t.ui.signInToViewOrders}</Text>
           <TouchableOpacity
             style={styles.signInButton}
             onPress={() => router.push("/(auth)/login")}
@@ -390,7 +390,7 @@ export default function OrdersScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.signInButtonGradient}
             >
-              <Text style={styles.signInButtonText}>Sign In</Text>
+              <Text style={styles.signInButtonText}>{t.ui.signIn}</Text>
               <ChevronRight size={18} color={Colors.neutralWhite} />
             </LinearGradient>
           </TouchableOpacity>
@@ -482,10 +482,10 @@ export default function OrdersScreen() {
 
           <View style={styles.orderSummary}>
             <Text style={styles.itemsCount}>
-              {item.items?.length || 0} items
+              {item.items?.length || 0} {t.ui.items}
             </Text>
             <Text style={styles.orderTotal}>
-              {parseFloat(item.total?.toString() || "0").toFixed(2)} EGP
+              {parseFloat(item.total?.toString() || "0").toFixed(2)} {t.ui.egp}
             </Text>
           </View>
         </View>
@@ -496,7 +496,7 @@ export default function OrdersScreen() {
             style={styles.detailsButton}
             onPress={() => router.push(`/orders/${item.id}` as any)}
           >
-            <Text style={styles.detailsButtonText}>View Details</Text>
+            <Text style={styles.detailsButtonText}>{t.ui.viewDetails}</Text>
             <ChevronRight size={16} color={Colors.primary900} />
           </TouchableOpacity>
 
@@ -529,7 +529,7 @@ export default function OrdersScreen() {
                   color: Colors.primary900,
                 }}
               >
-                Track
+                {t.ui.track}
               </Text>
             </TouchableOpacity>
           )}
@@ -555,7 +555,7 @@ export default function OrdersScreen() {
                   color: Colors.accentOrange,
                 }}
               >
-                Rate
+                {t.ui.rate}
               </Text>
             </TouchableOpacity>
           )}
@@ -586,7 +586,7 @@ export default function OrdersScreen() {
                   color={Colors.neutralWhite}
                 />
                 <Text style={styles.reorderButtonText}>
-                  {reorderingId === item.id ? "..." : "Reorder"}
+                  {reorderingId === item.id ? "..." : t.ui.reorder}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -603,13 +603,13 @@ export default function OrdersScreen() {
       </View>
       <Text style={styles.emptyTitle}>
         {activeTab === "all"
-          ? "No Orders Yet"
+          ? t.orders.noOrdersYet
           : `No ${tabs.find((tab) => tab.key === activeTab)?.label} Orders`}
       </Text>
       <Text style={styles.emptyText}>
         {activeTab === "all"
-          ? "Your orders will appear here"
-          : "No orders in this category"}
+          ? t.ui.yourOrdersAppearHere
+          : t.ui.noOrdersInCategory}
       </Text>
       {activeTab === "all" && (
         <TouchableOpacity
@@ -623,7 +623,7 @@ export default function OrdersScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.shopButtonGradient}
           >
-            <Text style={styles.shopButtonText}>Start Shopping</Text>
+            <Text style={styles.shopButtonText}>{t.orders.startShopping}</Text>
             <ChevronRight size={18} color={Colors.neutralWhite} />
           </LinearGradient>
         </TouchableOpacity>
@@ -724,7 +724,7 @@ export default function OrdersScreen() {
             }}
             activeOpacity={0.9}
           >
-            <Text style={styles.goToCartButtonText}>Go to Cart</Text>
+            <Text style={styles.goToCartButtonText}>{t.ui.goToCart}</Text>
             <ChevronRight size={16} color={Colors.neutralWhite} />
           </TouchableOpacity>
         </View>
@@ -738,7 +738,7 @@ export default function OrdersScreen() {
           <View style={styles.loadingIcon}>
             <Ionicons name="cube-outline" size={32} color={Colors.primary900} />
           </View>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t.ui.loading}</Text>
         </View>
       ) : (
         <FlatList
@@ -771,7 +771,7 @@ export default function OrdersScreen() {
       <GuestModal
         visible={showGuestModal}
         onClose={() => setShowGuestModal(false)}
-        message="Sign in to view your orders"
+        message={t.ui.signInToViewOrders}
       />
 
       {/* Toast for errors */}

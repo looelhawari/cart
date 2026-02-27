@@ -1,55 +1,44 @@
 {
-    "cli": {
-        "version": ">= 5.0.0",
-        "appVersionSource": "local"
+  "cli": {
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
     },
-    "build": {
-        "development": {
-            "developmentClient": true,
-            "distribution": "internal",
-            "android": {
-                "buildType": "apk",
-                "image": "latest"
-            },
-            "ios": {
-                "simulator": true,
-                "image": "latest"
-            }
-        },
-        "preview": {
-            "distribution": "internal",
-            "android": {
-                "buildType": "apk",
-                "image": "latest"
-            },
-            "ios": {
-                "image": "latest"
-            }
-        },
-        "production": {
-            "android": {
-                "buildType": "app-bundle",
-                "image": "latest"
-            },
-            "ios": {
-                "image": "latest"
-            },
-            "cache": {
-                "disabled": true
-            },
-            "env": {
-                "EXPO_NO_CAPABILITY_SYNC": "1"
-            }
-        },
-        "production-apk": {
-            "android": {
-                "buildType": "apk",
-                "image": "latest",
-                "gradleCommand": ":app:assembleRelease"
-            }
-        }
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     },
-    "submit": {
-        "production": {}
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "cache": {
+        "disabled": true
+      },
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      }
+    },
+    "production-apk": {
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      }
     }
+  },
+  "submit": {
+    "production": {}
+  }
 }

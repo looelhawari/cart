@@ -35,7 +35,8 @@ const isExpoGo = Constants.appOwnership === "expo";
 let GoogleSignin: any = null;
 if (!isExpoGo) {
   try {
-    GoogleSignin = require("@react-native-google-signin/google-signin").GoogleSignin;
+    GoogleSignin =
+      require("@react-native-google-signin/google-signin").GoogleSignin;
   } catch (e) {
     console.warn("Google Sign-In not available:", e);
   }
@@ -119,7 +120,7 @@ export default function EditProfileScreen() {
 
   const handleRelinkGoogle = async () => {
     if (!GoogleSignin) {
-      showToast("Google Sign-In requires a development build", "error");
+      showToast(t.ui.googleSignInRequiresDev, "error");
       return;
     }
     setRelinkLoading(true);
@@ -129,7 +130,7 @@ export default function EditProfileScreen() {
       // Sign out first to force the account picker to show
       try {
         await GoogleSignin.signOut();
-      } catch { }
+      } catch {}
       const response = await GoogleSignin.signIn();
       const idToken = response?.data?.idToken;
 

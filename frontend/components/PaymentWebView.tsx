@@ -21,6 +21,7 @@ import {
   setActivePaymentFlow,
 } from "@/services/payment/paymentRecovery";
 import { mapPaymentError } from "@/services/payment/paymentMessages";
+import { useTranslation } from "@/i18n";
 
 // STEP 3: Payment polling configuration
 const POLLING_CONFIG = {
@@ -50,6 +51,7 @@ export default function PaymentWebView({
   const [processing, setProcessing] = useState(false);
   const webViewRef = useRef<WebView>(null);
   const { fetchCart } = useStore();
+  const { t } = useTranslation();
 
   // STEP 3: Polling state management
   const pollingStartTimeRef = useRef<number | null>(null);
@@ -104,7 +106,7 @@ export default function PaymentWebView({
       const statusResponse = await getPaymentStatus(pollId);
 
       if (!statusResponse.success) {
-        throw new Error("Failed to get payment status");
+        throw new Error(t.ui.failedToGetPaymentStatus);
       }
 
       const status = statusResponse.data?.status;
@@ -189,7 +191,7 @@ export default function PaymentWebView({
 
       Alert.alert(errorInfo.title, errorInfo.message, [
         {
-          text: "Try Again",
+          text: t.ui.tryAgain,
           onPress: () => {
             onFailure?.(errorInfo.message);
             router.replace({
@@ -202,7 +204,7 @@ export default function PaymentWebView({
           },
         },
         {
-          text: "View Order",
+          text: t.ui.viewOrder,
           style: "cancel",
           onPress: () => router.replace(`/orders/${orderId}`),
         },
@@ -217,41 +219,33 @@ export default function PaymentWebView({
   const handlePollingTimeout = () => {
     setProcessing(false);
 
-    Alert.alert(
-      "Verifying Payment",
-      "We're still verifying your payment. This may take a few moments. You can check your order status in the Orders section.",
-      [
-        {
-          text: "View Order",
-          onPress: () => router.replace(`/orders/${orderId}`),
-        },
-        {
-          text: "Back to Checkout",
-          style: "cancel",
-          onPress: () => router.replace("/checkout/confirmation"),
-        },
-      ],
-    );
+    Alert.alert(t.ui.verifyingPayment, t.ui.verifyingPaymentMessage, [
+      {
+        text: t.ui.viewOrder,
+        onPress: () => router.replace(`/orders/${orderId}`),
+      },
+      {
+        text: t.ui.backToCheckout,
+        style: "cancel",
+        onPress: () => router.replace("/checkout/confirmation"),
+      },
+    ]);
   };
 
   // STEP 3: Handle status check API error
   const handleStatusCheckError = () => {
     setProcessing(false);
 
-    Alert.alert(
-      "Connection Issue",
-      "We couldn't verify your payment status. Please check your internet connection and view your order details.",
-      [
-        {
-          text: "View Orders",
-          onPress: () => router.replace("/(tabs)/orders"),
-        },
-        {
-          text: "Go Home",
-          onPress: () => router.replace("/(tabs)"),
-        },
-      ],
-    );
+    Alert.alert(t.ui.connectionIssue, t.ui.connectionIssueMessage, [
+      {
+        text: t.ui.viewOrders,
+        onPress: () => router.replace("/(tabs)/orders"),
+      },
+      {
+        text: t.ui.goHome,
+        onPress: () => router.replace("/(tabs)"),
+      },
+    ]);
   };
 
   const handleNavigationStateChange = async (navState: any) => {
@@ -282,33 +276,29 @@ export default function PaymentWebView({
   const handleClose = () => {
     // STEP 3: Stop polling if user closes WebView
     stopPolling();
-    Alert.alert(
-      "Cancel Payment",
-      "Are you sure you want to cancel this payment?",
-      [
-        {
-          text: "No",
-          style: "cancel",
+    Alert.alert(t.ui.cancelPayment, t.ui.cancelPaymentConfirm, [
+      {
+        text: t.ui.no,
+        style: "cancel",
+      },
+      {
+        text: t.ui.yes,
+        style: "destructive",
+        onPress: async () => {
+          // Clear active flow flag so recovery can work if user returns later
+          await setActivePaymentFlow(false);
+          onClose?.();
+          router.back();
         },
-        {
-          text: "Yes",
-          style: "destructive",
-          onPress: async () => {
-            // Clear active flow flag so recovery can work if user returns later
-            await setActivePaymentFlow(false);
-            onClose?.();
-            router.back();
-          },
-        },
-      ],
-    );
+      },
+    ]);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Secure Payment</Text>
+        <Text style={styles.headerTitle}>{t.ui.securePayment}</Text>
         <TouchableOpacity
           style={styles.closeButton}
           onPress={handleClose}
@@ -323,7 +313,7 @@ export default function PaymentWebView({
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.primary900} />
-            <Text style={styles.loadingText}>Loading payment gateway...</Text>
+            <Text style={styles.loadingText}>{t.ui.loadingPaymentGateway}</Text>
           </View>
         )}
 
@@ -346,8 +336,8 @@ export default function PaymentWebView({
         <View style={styles.processingOverlay}>
           <View style={styles.processingContent}>
             <ActivityIndicator size="large" color={Colors.primary900} />
-            <Text style={styles.processingText}>Processing payment...</Text>
-            <Text style={styles.processingSubtext}>Please wait</Text>
+            <Text style={styles.processingText}>{t.ui.processingPayment}</Text>
+            <Text style={styles.processingSubtext}>{t.ui.pleaseWait}</Text>
           </View>
         </View>
       )}

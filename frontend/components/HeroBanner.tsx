@@ -29,6 +29,7 @@ import type { Offer } from "@/services/api/types";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
+import { useTranslation } from "@/i18n";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width - 32;
@@ -40,6 +41,7 @@ type SlideItem =
   | { kind: "offer"; data: Offer };
 
 export const HeroBanner: React.FC = () => {
+  const { t } = useTranslation();
   const [slides, setSlides] = useState<SlideItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -139,25 +141,25 @@ export const HeroBanner: React.FC = () => {
 
   const getDiscountText = (promotion: Promotion) => {
     if (promotion.discount_type === "percentage") {
-      return `${promotion.discount_value}% OFF`;
+      return `${promotion.discount_value}% ${t.products.off}`;
     } else if (promotion.discount_type === "fixed") {
-      return `${promotion.discount_value} EGP OFF`;
+      return `${promotion.discount_value} ${t.ui.egpOff}`;
     }
-    return "Special Offer";
+    return t.ui.specialOfferBanner;
   };
 
   const getOfferDiscountText = (offer: Offer) => {
     switch (offer.type) {
       case "percentage":
-        return `${offer.value}% OFF`;
+        return `${offer.value}% ${t.products.off}`;
       case "fixed_amount":
-        return `${offer.value} EGP OFF`;
+        return `${offer.value} ${t.ui.egpOff}`;
       case "free_delivery":
-        return "FREE DELIVERY";
+        return t.ui.freeDeliveryUpper;
       case "bogo":
-        return "BUY 1 GET 1";
+        return t.ui.buyOneGetOneBadge;
       default:
-        return "Special Offer";
+        return t.ui.specialOfferBanner;
     }
   };
 
@@ -223,7 +225,7 @@ export const HeroBanner: React.FC = () => {
             {promotion.end_date && (
               <View style={styles.timerRow}>
                 <Clock size={12} color={Colors.neutralWhite} />
-                <Text style={styles.timerText}>Limited Time Only</Text>
+                <Text style={styles.timerText}>{t.ui.limitedTimeOnly}</Text>
               </View>
             )}
           </LinearGradient>
@@ -258,13 +260,16 @@ export const HeroBanner: React.FC = () => {
               <Text style={styles.offerSlideSubtitle} numberOfLines={1}>
                 {offer.subtitle ||
                   (offer.minimum_order > 0
-                    ? `Min. order ${offer.minimum_order} EGP`
-                    : "No minimum order")}
+                    ? t.ui.minOrderAmount.replace(
+                        "{amount}",
+                        String(offer.minimum_order),
+                      )
+                    : t.ui.noMinimumOrder)}
               </Text>
               {offer.ending_soon && (
                 <View style={styles.timerRow}>
                   <Clock size={12} color={Colors.neutralWhite} />
-                  <Text style={styles.timerText}>Ending Soon!</Text>
+                  <Text style={styles.timerText}>{t.ui.endingSoon}</Text>
                 </View>
               )}
             </View>
@@ -294,12 +299,12 @@ export const HeroBanner: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Hot Deals 🔥</Text>
+        <Text style={styles.sectionTitle}>{t.ui.hotDeals}</Text>
         <TouchableOpacity
           style={styles.viewAllButton}
           onPress={() => router.push("/(tabs)/offers")}
         >
-          <Text style={styles.viewAllText}>View All</Text>
+          <Text style={styles.viewAllText}>{t.ui.viewAll}</Text>
           <ChevronRight size={16} color={Colors.primary900} />
         </TouchableOpacity>
       </View>
@@ -329,10 +334,10 @@ export const HeroBanner: React.FC = () => {
                 strokeWidth={1.5}
               />
               <Text style={styles.placeholderTitle}>
-                Exciting Deals Coming Soon! 🎉
+                {t.ui.excitingDealsComingSoon}
               </Text>
               <Text style={styles.placeholderSubtitle}>
-                Stay tuned for amazing offers and exclusive promotions
+                {t.ui.stayTunedDeals}
               </Text>
             </LinearGradient>
           </View>

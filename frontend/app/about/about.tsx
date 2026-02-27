@@ -27,15 +27,14 @@ const FALLBACK_CONTENT = `
 
 <h2>Contact Information</h2>
 <ul>
-<li><strong>Email:</strong> support@elbaraka.com</li>
-<li><strong>Phone:</strong> +20 123 456 7890</li>
-<li><strong>Address:</strong> 123 Main Street, Cairo, Egypt</li>
+<li><strong>Email:</strong> kareemhesham105@gmail.com</li>
+<li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
 </ul>
 
 <h2>Follow Us</h2>
 <p>Stay connected with us on social media for the latest updates, offers, and more!</p>
 
-<p>© 2025 CART Hypermarket. All rights reserved.</p>
+<p>© 2026 CART. All rights reserved.</p>
 `;
 
 const FALLBACK_CONTENT_AR = `
@@ -61,15 +60,14 @@ const FALLBACK_CONTENT_AR = `
 
 <h2>معلومات الاتصال</h2>
 <ul>
-<li><strong>البريد الإلكتروني:</strong> support@elbaraka.com</li>
-<li><strong>الهاتف:</strong> 7890 456 123 20+</li>
-<li><strong>العنوان:</strong> 123 الشارع الرئيسي، القاهرة، مصر</li>
+<li><strong>البريد الإلكتروني:</strong> kareemhesham105@gmail.com</li>
+<li><strong>داخل التطبيق:</strong> الملف الشخصي → المساعدة والدعم → اتصل بالدعم</li>
 </ul>
 
 <h2>تابعنا</h2>
 <p>ابقَ على تواصل معنا على وسائل التواصل الاجتماعي لآخر التحديثات والعروض والمزيد!</p>
 
-<p>© 2025 CART هايبر ماركت. جميع الحقوق محفوظة.</p>
+<p>© 2026 CART. جميع الحقوق محفوظة.</p>
 `;
 
 export default function AboutScreen() {

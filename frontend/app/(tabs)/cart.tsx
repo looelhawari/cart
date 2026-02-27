@@ -63,7 +63,7 @@ export default function CartScreen() {
         const threshold = res?.data?.free_delivery_threshold;
         if (threshold && threshold > 0) setFreeDeliveryThreshold(threshold);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   useFocusEffect(
@@ -102,13 +102,11 @@ export default function CartScreen() {
       await applyPromoCodeToCart(promoCode.trim());
       setPromoCode("");
       setToastType("success");
-      setToastMessage("Promo code applied successfully!");
+      setToastMessage(t.ui.promoApplied);
       setShowToast(true);
     } catch (error: any) {
       setToastType("error");
-      setToastMessage(
-        error.message || "This promo code is not valid or has expired.",
-      );
+      setToastMessage(error.message || t.ui.promoInvalid);
       setShowToast(true);
     } finally {
       setIsApplyingPromo(false);
@@ -118,7 +116,7 @@ export default function CartScreen() {
   const handleRemovePromo = async () => {
     try {
       await removePromoCodeFromCart();
-    } catch (_) { }
+    } catch (_) {}
   };
 
   const handleCheckout = () => {
@@ -224,7 +222,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await clearCart();
-                } catch (_) { }
+                } catch (_) {}
               }}
               style={styles.clearButton}
             >
@@ -294,7 +292,7 @@ export default function CartScreen() {
                       } else {
                         await removeFromCart(item.id);
                       }
-                    } catch (_) { }
+                    } catch (_) {}
                   }}
                 >
                   {item.quantity === 1 ? (
@@ -329,7 +327,7 @@ export default function CartScreen() {
                     }
                     try {
                       await updateQuantity(item.id, item.quantity + 1);
-                    } catch (_) { }
+                    } catch (_) {}
                   }}
                   disabled={(() => {
                     const m = getMaxPerOrder(item.product?.barcode);
@@ -354,7 +352,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await removeFromCart(item.id);
-                } catch (_) { }
+                } catch (_) {}
               }}
             >
               <X size={18} color={Colors.neutralMedium} />
@@ -392,7 +390,7 @@ export default function CartScreen() {
                   <View style={styles.appliedPromoText}>
                     <Text style={styles.appliedPromoCode}>{appliedPromo}</Text>
                     <Text style={styles.appliedPromoSaved}>
-                      You saved{" "}
+                      {t.ui.youSaved}{" "}
                       {parseFloat(discount?.toString() || "0").toFixed(2)}{" "}
                       {t.common?.currency || "EGP"}!
                     </Text>
@@ -421,7 +419,7 @@ export default function CartScreen() {
                 style={[
                   styles.applyButton,
                   (!promoCode.trim() || isApplyingPromo) &&
-                  styles.applyButtonDisabled,
+                    styles.applyButtonDisabled,
                 ]}
                 onPress={handleApplyPromo}
                 disabled={!promoCode.trim() || isApplyingPromo}
@@ -449,22 +447,37 @@ export default function CartScreen() {
                 <View style={styles.freeDeliveryIconRow}>
                   <Ionicons name="gift" size={20} color="#16a34a" />
                   <Text style={styles.freeDeliveryUnlocked}>
-                    {t.cart?.freeDeliveryUnlocked || "🎉 You've unlocked FREE delivery!"}
+                    {t.cart?.freeDeliveryUnlocked ||
+                      "🎉 You've unlocked FREE delivery!"}
                   </Text>
                 </View>
-                <View style={[styles.freeDeliveryProgressBar, { backgroundColor: "#bbf7d0" }]}>
-                  <View style={[styles.freeDeliveryProgressFill, { width: "100%" }]} />
+                <View
+                  style={[
+                    styles.freeDeliveryProgressBar,
+                    { backgroundColor: "#bbf7d0" },
+                  ]}
+                >
+                  <View
+                    style={[styles.freeDeliveryProgressFill, { width: "100%" }]}
+                  />
                 </View>
               </>
             ) : (
               <>
                 <View style={styles.freeDeliveryIconRow}>
-                  <Ionicons name="bicycle" size={20} color={Colors.primary900} />
+                  <Ionicons
+                    name="bicycle"
+                    size={20}
+                    color={Colors.primary900}
+                  />
                   <Text style={styles.freeDeliveryHint}>
                     {t.cart?.addMoreForFreeDelivery
                       ? t.cart.addMoreForFreeDelivery
-                        .replace("{amount}", (freeDeliveryThreshold - subtotal).toFixed(2))
-                        .replace("{currency}", t.common?.currency || "EGP")
+                          .replace(
+                            "{amount}",
+                            (freeDeliveryThreshold - subtotal).toFixed(2),
+                          )
+                          .replace("{currency}", t.common?.currency || "EGP")
                       : `Add ${(freeDeliveryThreshold - subtotal).toFixed(2)} ${t.common?.currency || "EGP"} more for FREE delivery!`}
                   </Text>
                 </View>
@@ -472,7 +485,9 @@ export default function CartScreen() {
                   <View
                     style={[
                       styles.freeDeliveryProgressFill,
-                      { width: `${Math.min(100, (subtotal / freeDeliveryThreshold) * 100)}%` },
+                      {
+                        width: `${Math.min(100, (subtotal / freeDeliveryThreshold) * 100)}%`,
+                      },
                     ]}
                   />
                 </View>
@@ -485,7 +500,7 @@ export default function CartScreen() {
             ORDER SUMMARY
         ═══════════════════════════════════════════════════════════════════════════ */}
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Order Summary</Text>
+          <Text style={styles.summaryTitle}>{t.ui.orderSummary}</Text>
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>
