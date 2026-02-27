@@ -578,6 +578,10 @@ export default {
     secureAndSafe: "آمن ومحمي",
     allPaymentsSecure:
       "جميع المدفوعات تتم معالجتها بشكل آمن من خلال باي موب مع تشفير على مستوى البنوك ومصادقة 3D Secure.",
+    instantPaymentOptions: "يمكنك الدفع باستخدام Instapay عند وصول الطلب",
+    payOnArrival: "ادفع عند الوصول عندما يصل طلبك. لا يتطلب دفعاً مقدماً.",
+    haveExactChange: "يرجى إعداد التغيير المطلوب بدقة.",
+    PCIDSSCompliant: "PCI DSS متوافق لضمان أمان بيانات بطاقتك",
   },
 
   // Orders

@@ -582,6 +582,10 @@ export default {
     secureAndSafe: "Secure & Safe",
     allPaymentsSecure:
       "All payments are processed securely through Paymob with bank-level encryption and 3D Secure authentication.",
+    instantPaymentOptions: "You could pay with Instapay when order arrives",
+    payOnArrival: "Pay on Arrival when your order arrives. No prepayment required.",
+    haveExactChange: "Please have exact change ready.",
+    PCIDSSCompliant: "PCI DSS compliant, ensuring your card data is protected.",
   },
 
   // Orders

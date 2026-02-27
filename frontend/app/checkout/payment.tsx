@@ -347,7 +347,7 @@ export default function CheckoutPaymentScreen() {
                 <View style={styles.securityBadge}>
                   <ShieldCheck size={16} color={Colors.primary900} />
                   <Text style={styles.securityBadgeText}>
-                    PCI-DSS compliant
+                    {t.payment.PCIDSSCompliant}
                   </Text>
                 </View>
               </View>
@@ -370,19 +370,19 @@ export default function CheckoutPaymentScreen() {
               <View style={styles.codFeatureRow}>
                 <Check size={16} color={Colors.primary900} />
                 <Text style={styles.codFeatureText}>
-                  You could pay with Instapay when order delivers
+                  {t.payment.instantPaymentOptions}
                 </Text>
               </View>
               <View style={styles.codFeatureRow}>
                 <Check size={16} color={Colors.primary900} />
                 <Text style={styles.codFeatureText}>
-                  Pay when your order arrives
+                  {t.payment.payOnArrival}
                 </Text>
               </View>
               <View style={styles.codFeatureRow}>
                 <Check size={16} color={Colors.primary900} />
                 <Text style={styles.codFeatureText}>
-                  Please have exact change ready
+                  {t.payment.haveExactChange}
                 </Text>
               </View>
             </View>
