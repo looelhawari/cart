@@ -863,6 +863,18 @@ export default {
     networkError: "Network error. Please check your connection.",
     sessionExpired: "Session Expired",
     sessionExpiredMessage: "Your session has expired. Please login again.",
+    deleteAccountTitle: "Delete Account",
+    deleteAccountWarning:
+      "This action is permanent and irreversible. All your data, orders, addresses, and personal information will be permanently deleted. Your account cannot be recovered after deletion.",
+    deleteAccountConfirm: "Delete My Account",
+    deleteAccountCancel: "Keep Account",
+    deleteAccountSuccess: "Account Deleted",
+    deleteAccountSuccessMessage: "Your account has been permanently deleted.",
+    deleteAccountError:
+      "Failed to delete account. Please check your password and try again.",
+    enterPassword: "Enter your password to confirm",
+    deleteAccountActiveOrders:
+      "You have active orders. Please wait until they are completed or cancel them before deleting your account.",
   },
 
   // Offers

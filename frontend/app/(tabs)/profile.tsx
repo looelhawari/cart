@@ -10,6 +10,10 @@ import {
   Animated,
   TextInput,
   InteractionManager,
+  Modal,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -37,6 +41,7 @@ export default function ProfileScreen() {
     user,
     fetchProfile,
     logout,
+    deleteAccount,
     isAuthenticated,
     favorites,
     fetchFavorites,
@@ -46,6 +51,12 @@ export default function ProfileScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [ordersCount, setOrdersCount] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
+
+  // Delete Account modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -150,6 +161,59 @@ export default function ProfileScreen() {
         },
       ],
     );
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword.trim()) {
+      Alert.alert(
+        t.alerts?.deleteAccountTitle || "Delete Account",
+        t.alerts?.enterPassword || "Enter your password to confirm",
+      );
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      await deleteAccount(deletePassword);
+      setShowDeleteModal(false);
+      setDeletePassword("");
+      Alert.alert(
+        t.alerts?.deleteAccountSuccess || "Account Deleted",
+        t.alerts?.deleteAccountSuccessMessage ||
+          "Your account has been permanently deleted.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace("/login"),
+          },
+        ],
+      );
+    } catch (error: any) {
+      const errorMessage =
+        error?.message ||
+        error?.errors?.password?.[0] ||
+        t.alerts?.deleteAccountError ||
+        "Failed to delete account. Please check your password and try again.";
+
+      // Check for active orders error
+      if (
+        errorMessage.toLowerCase().includes("active order") ||
+        errorMessage.toLowerCase().includes("pending order")
+      ) {
+        Alert.alert(
+          t.alerts?.deleteAccountTitle || "Delete Account",
+          t.alerts?.deleteAccountActiveOrders ||
+            "You have active orders. Please wait until they are completed or cancel them before deleting your account.",
+        );
+      } else {
+        Alert.alert(
+          t.alerts?.deleteAccountTitle || "Delete Account",
+          errorMessage,
+        );
+      }
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const menuItems: MenuItem[] = [
@@ -523,6 +587,18 @@ export default function ProfileScreen() {
           </>
         )}
 
+        {/* Delete Account Button */}
+        <TouchableOpacity
+          style={styles.deleteAccountButton}
+          activeOpacity={0.9}
+          onPress={() => setShowDeleteModal(true)}
+        >
+          <Ionicons name="trash-outline" size={20} color="#DC2626" />
+          <Text style={styles.deleteAccountText}>
+            {t.alerts?.deleteAccountTitle || "Delete Account"}
+          </Text>
+        </TouchableOpacity>
+
         {/* Logout Button */}
         <TouchableOpacity
           style={styles.logoutButton}
@@ -538,6 +614,139 @@ export default function ProfileScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          DELETE ACCOUNT MODAL
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!deleteLoading) {
+            setShowDeleteModal(false);
+            setDeletePassword("");
+          }
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              if (!deleteLoading) {
+                setShowDeleteModal(false);
+                setDeletePassword("");
+              }
+            }}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => {}}
+              style={styles.modalContent}
+            >
+              {/* Modal Header */}
+              <View style={styles.deleteModalHeader}>
+                <View style={styles.deleteModalIconBg}>
+                  <Ionicons name="warning" size={28} color="#DC2626" />
+                </View>
+                <Text style={styles.deleteModalTitle}>
+                  {t.alerts?.deleteAccountTitle || "Delete Account"}
+                </Text>
+              </View>
+
+              {/* Warning Message */}
+              <View style={styles.deleteWarningBox}>
+                <Ionicons
+                  name="alert-circle"
+                  size={18}
+                  color="#DC2626"
+                  style={{ marginTop: 2 }}
+                />
+                <Text style={styles.deleteWarningText}>
+                  {t.alerts?.deleteAccountWarning ||
+                    "This action is permanent and irreversible. All your data, orders, addresses, and personal information will be permanently deleted. Your account cannot be recovered after deletion."}
+                </Text>
+              </View>
+
+              {/* Password Input */}
+              <Text style={styles.deleteInputLabel}>
+                {t.alerts?.enterPassword || "Enter your password to confirm"}
+              </Text>
+              <View style={styles.deletePasswordContainer}>
+                <Ionicons
+                  name="lock-closed"
+                  size={18}
+                  color={Colors.neutralMedium}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  style={styles.deletePasswordInput}
+                  placeholder="••••••••"
+                  placeholderTextColor={Colors.neutralGray}
+                  secureTextEntry={!showDeletePassword}
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  autoCapitalize="none"
+                  editable={!deleteLoading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowDeletePassword(!showDeletePassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons
+                    name={showDeletePassword ? "eye-off" : "eye"}
+                    size={20}
+                    color={Colors.neutralMedium}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.deleteModalActions}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancelBtn}
+                  onPress={() => {
+                    setShowDeleteModal(false);
+                    setDeletePassword("");
+                  }}
+                  disabled={deleteLoading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.deleteModalCancelText}>
+                    {t.alerts?.deleteAccountCancel || "Keep Account"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.deleteModalConfirmBtn,
+                    (!deletePassword.trim() || deleteLoading) &&
+                      styles.deleteModalConfirmBtnDisabled,
+                  ]}
+                  onPress={handleDeleteAccount}
+                  disabled={!deletePassword.trim() || deleteLoading}
+                  activeOpacity={0.7}
+                >
+                  {deleteLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="trash" size={16} color="#FFFFFF" />
+                      <Text style={styles.deleteModalConfirmText}>
+                        {t.alerts?.deleteAccountConfirm || "Delete My Account"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -788,6 +997,144 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     color: Colors.neutralMedium,
     marginTop: 16,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DELETE ACCOUNT
+  // ═══════════════════════════════════════════════════════════════════════════
+  deleteAccountButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FEF2F2",
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginTop: 20,
+    borderWidth: 1.5,
+    borderColor: "#DC2626" + "25",
+  },
+  deleteAccountText: {
+    fontSize: 14,
+    fontFamily: "Poppins-Bold",
+    color: "#DC2626",
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DELETE ACCOUNT MODAL
+  // ═══════════════════════════════════════════════════════════════════════════
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 20,
+    padding: 24,
+    width: "88%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  deleteModalHeader: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  deleteModalIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  deleteModalTitle: {
+    fontSize: 18,
+    fontFamily: "Poppins-Bold",
+    color: "#DC2626",
+    textAlign: "center",
+  },
+  deleteWarningBox: {
+    flexDirection: "row",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  deleteWarningText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: "#991B1B",
+    lineHeight: 19,
+  },
+  deleteInputLabel: {
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: Colors.neutralCharcoal,
+    marginBottom: 8,
+  },
+  deletePasswordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: Colors.neutralLight,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 20,
+  },
+  deletePasswordInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
+    color: Colors.neutralCharcoal,
+    padding: 0,
+  },
+  deleteModalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  deleteModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.neutralLight,
+  },
+  deleteModalCancelText: {
+    fontSize: 14,
+    fontFamily: "Poppins-Bold",
+    color: Colors.neutralCharcoal,
+  },
+  deleteModalConfirmBtn: {
+    flex: 1,
+    flexDirection: "row",
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DC2626",
+    gap: 6,
+  },
+  deleteModalConfirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  deleteModalConfirmText: {
+    fontSize: 14,
+    fontFamily: "Poppins-Bold",
+    color: "#FFFFFF",
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

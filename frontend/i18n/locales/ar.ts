@@ -854,6 +854,17 @@ export default {
     networkError: "خطأ في الشبكة. تحقق من الاتصال.",
     sessionExpired: "انتهت الجلسة",
     sessionExpiredMessage: "انتهت جلستك. سجل الدخول مرة أخرى.",
+    deleteAccountTitle: "حذف الحساب",
+    deleteAccountWarning:
+      "هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وطلباتك وعناوينك ومعلوماتك الشخصية نهائياً. لا يمكن استعادة حسابك بعد الحذف.",
+    deleteAccountConfirm: "حذف حسابي",
+    deleteAccountCancel: "الاحتفاظ بالحساب",
+    deleteAccountSuccess: "تم حذف الحساب",
+    deleteAccountSuccessMessage: "تم حذف حسابك نهائياً.",
+    deleteAccountError: "فشل حذف الحساب. تحقق من كلمة المرور وحاول مرة أخرى.",
+    enterPassword: "أدخل كلمة المرور للتأكيد",
+    deleteAccountActiveOrders:
+      "لديك طلبات نشطة. يرجى الانتظار حتى اكتمالها أو إلغائها قبل حذف حسابك.",
   },
 
   // Offers
