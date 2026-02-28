@@ -344,7 +344,7 @@
             <span class="step-number">1</span>
             <div class="step-content">
                 <strong>Open the CART app</strong>
-                <span>Launch the CART Hypermarket app on your device.</span>
+                <span>Launch the CART app on your device.</span>
             </div>
         </div>
         <div class="step">

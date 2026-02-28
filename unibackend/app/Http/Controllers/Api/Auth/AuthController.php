@@ -56,6 +56,9 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): JsonResponse
     {
+        // NOTE: Cleanup of stale unverified records is handled in
+        // RegisterRequest::prepareForValidation() — before unique validation runs.
+
         $user = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,

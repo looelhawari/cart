@@ -338,7 +338,7 @@
 
     <div class="card">
         <h2>9. Biometric Data</h2>
-        <p>If you enable biometric login (fingerprint, Face ID, or iris recognition), your biometric data is processed entirely on your device by the operating system. <strong>We never receive, transmit, or store your actual biometric data.</strong> We only store a flag indicating that biometric login is enabled, and encrypted credentials in your device's secure enclave.</p>
+        <p>If you enable biometric login (fingerprint), your biometric data is processed entirely on your device by the operating system. <strong>We never receive, transmit, or store your actual biometric data.</strong> We only store a flag indicating that biometric login is enabled, and encrypted credentials in your device's secure enclave.</p>
     </div>
 
     <div class="card">

@@ -108,6 +108,11 @@ export default {
     enterPhone: "Please enter your phone number",
     enterPassword: "Please enter a password",
     passwordMinLength: "Password must be at least 8 characters",
+    passwordNeedsUppercase:
+      "Password must contain at least one uppercase letter",
+    passwordNeedsNumber: "Password must contain at least one number",
+    passwordNeedsSpecialChar:
+      "Password must contain at least one special character",
     passwordsNotMatch: "Passwords do not match",
     validationError: "Validation Error",
     checkInputData: "Please check your input data",
@@ -583,7 +588,8 @@ export default {
     allPaymentsSecure:
       "All payments are processed securely through Paymob with bank-level encryption and 3D Secure authentication.",
     instantPaymentOptions: "You could pay with Instapay when order arrives",
-    payOnArrival: "Pay on Arrival when your order arrives. No prepayment required.",
+    payOnArrival:
+      "Pay on Arrival when your order arrives. No prepayment required.",
     haveExactChange: "Please have exact change ready.",
     PCIDSSCompliant: "PCI DSS compliant, ensuring your card data is protected.",
   },

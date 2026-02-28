@@ -80,6 +80,11 @@ export default function SignupScreen() {
   const [resendToast, setResendToast] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
+  // Track the email/phone that were used in a successful register() call
+  // so we can skip "already taken" checks for our own unverified record
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
+
   // Start OTP timer if coming from login with step=3
   useEffect(() => {
     if (params.step === "3") {
@@ -87,6 +92,14 @@ export default function SignupScreen() {
     }
   }, []);
   const checkEmailAvailability = async (emailToCheck: string) => {
+    // Skip check if this email belongs to our own pending registration
+    if (
+      registeredEmail &&
+      emailToCheck.trim().toLowerCase() === registeredEmail.toLowerCase()
+    ) {
+      setEmailError("");
+      return;
+    }
     try {
       setIsCheckingEmail(true);
       setEmailError("");
@@ -115,6 +128,11 @@ export default function SignupScreen() {
   };
 
   const checkPhoneAvailability = async (phoneToCheck: string) => {
+    // Skip check if this phone belongs to our own pending registration
+    if (registeredPhone && phoneToCheck.trim() === registeredPhone.trim()) {
+      setPhoneError("");
+      return;
+    }
     try {
       setIsCheckingPhone(true);
       setPhoneError("");
@@ -179,6 +197,18 @@ export default function SignupScreen() {
       Alert.alert(t.common.error, t.signup.passwordMinLength);
       return false;
     }
+    if (!/[A-Z]/.test(password)) {
+      Alert.alert(t.common.error, t.signup.passwordNeedsUppercase);
+      return false;
+    }
+    if (!/[0-9]/.test(password)) {
+      Alert.alert(t.common.error, t.signup.passwordNeedsNumber);
+      return false;
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      Alert.alert(t.common.error, t.signup.passwordNeedsSpecialChar);
+      return false;
+    }
     if (password !== confirmPassword) {
       Alert.alert(t.common.error, t.signup.passwordsNotMatch);
       return false;
@@ -187,24 +217,91 @@ export default function SignupScreen() {
   };
 
   const handleNext = async () => {
-    if (step === 1 && validateStep1()) {
-      setStep(2);
-    } else if (step === 2 && validateStep2()) {
-      // Navigate to OTP step instantly — register in background
-      setStep(3);
-      startOtpTimer();
+    if (step === 1) {
+      if (!validateStep1()) return;
 
-      // Fire registration in background (non-blocking)
-      register({
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone,
-        password,
-        password_confirmation: confirmPassword,
-        language,
-      }).catch((error: any) => {
-        // Registration failed — pull user back
+      // Actively verify email & phone are not already registered
+      setLoading(true);
+      try {
+        let hasError = false;
+        const headers = {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "CART-Mobile-App",
+        };
+
+        // Skip check for email/phone that belong to our own unverified record
+        const skipEmailCheck =
+          registeredEmail &&
+          email.trim().toLowerCase() === registeredEmail.toLowerCase();
+        const skipPhoneCheck =
+          registeredPhone && phone.trim() === registeredPhone.trim();
+
+        if (!skipEmailCheck) {
+          const emailRes = await fetch(
+            `${API_CONFIG.BASE_URL}/auth/check-email`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ email: email.trim() }),
+            },
+          );
+          const emailData = await emailRes.json();
+          if (!emailRes.ok && emailData.errors?.email) {
+            setEmailError(emailData.errors.email[0]);
+            hasError = true;
+          }
+        }
+
+        if (!skipPhoneCheck) {
+          const phoneRes = await fetch(
+            `${API_CONFIG.BASE_URL}/auth/check-phone`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ phone: phone.trim() }),
+            },
+          );
+          const phoneData = await phoneRes.json();
+          if (!phoneRes.ok && phoneData.errors?.phone) {
+            setPhoneError(phoneData.errors.phone[0]);
+            hasError = true;
+          }
+        }
+
+        if (hasError) {
+          Alert.alert(t.signup.validationError, t.signup.checkInputData);
+          return;
+        }
+
+        setStep(2);
+      } catch (error) {
+        Alert.alert(t.common.error, t.alerts.networkError);
+      } finally {
+        setLoading(false);
+      }
+    } else if (step === 2) {
+      if (!validateStep2()) return;
+
+      // Wait for registration to succeed before navigating to OTP
+      setLoading(true);
+      try {
+        await register({
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+          password,
+          password_confirmation: confirmPassword,
+          language,
+        });
+        // Track what we registered so we can skip checks if user edits and comes back
+        setRegisteredEmail(email.trim());
+        setRegisteredPhone(phone.trim());
+        setStep(3);
+        startOtpTimer();
+      } catch (error: any) {
         if (error.errors) {
           if (error.errors.email) {
             setEmailError(error.errors.email[0]);
@@ -218,13 +315,14 @@ export default function SignupScreen() {
             error.message || t.signup.checkInputData,
           );
         } else {
-          setStep(2);
           Alert.alert(
             t.common.error,
             error.message || t.signup.registrationFailed,
           );
         }
-      });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 

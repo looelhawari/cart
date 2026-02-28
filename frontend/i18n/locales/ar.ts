@@ -108,6 +108,11 @@ export default {
     enterPhone: "الرجاء إدخال رقم الهاتف",
     enterPassword: "الرجاء إدخال كلمة المرور",
     passwordMinLength: "يجب أن تكون كلمة المرور 8 أحرف على الأقل",
+    passwordNeedsUppercase:
+      "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
+    passwordNeedsNumber: "يجب أن تحتوي كلمة المرور على رقم واحد على الأقل",
+    passwordNeedsSpecialChar:
+      "يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل",
     passwordsNotMatch: "كلمتا المرور غير متطابقتين",
     validationError: "خطأ في التحقق",
     checkInputData: "الرجاء التحقق من البيانات المدخلة",
