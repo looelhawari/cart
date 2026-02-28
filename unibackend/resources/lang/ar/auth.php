@@ -25,9 +25,13 @@ return [
     'token_refreshed_successfully' => 'تم تحديث الرمز بنجاح.',
 
     // Forgot / Reset Password
-    'email_not_verified_reset' => 'بريدك الإلكتروني غير محقق. يرجى التحقق من بريدك الإلكتروني أولاً قبل إعادة تعيين كلمة المرور.',
+    'email_not_verified_reset' => 'هذا البريد الإلكتروني غير محقق. يرجى التسجيل والتحقق من بريدك الإلكتروني أولاً.',
     'password_reset_otp_sent' => 'تم إرسال رمز إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.',
     'password_reset_successfully' => 'تم إعادة تعيين كلمة المرور بنجاح.',
+
+    // OTP email delivery
+    'otp_email_failed' => 'فشل إرسال بريد التحقق. يرجى المحاولة لاحقاً.',
+    'otp_email_failed_resend' => 'فشل إعادة إرسال بريد التحقق. يرجى المحاولة لاحقاً.',
 
     // Profile
     'profile_updated_successfully' => 'تم تحديث الملف الشخصي بنجاح',

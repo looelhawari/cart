@@ -25,9 +25,13 @@ return [
     'token_refreshed_successfully' => 'Token refreshed successfully.',
 
     // Forgot / Reset Password
-    'email_not_verified_reset' => 'Your email is not verified. Please verify your email first before resetting your password.',
+    'email_not_verified_reset' => 'This email is not verified. Please sign up and verify your email first.',
     'password_reset_otp_sent' => 'Password reset OTP sent to your email.',
     'password_reset_successfully' => 'Password reset successfully.',
+
+    // OTP email delivery
+    'otp_email_failed' => 'Failed to send verification email. Please try again later.',
+    'otp_email_failed_resend' => 'Failed to resend verification email. Please try again later.',
 
     // Profile
     'profile_updated_successfully' => 'Profile updated successfully',

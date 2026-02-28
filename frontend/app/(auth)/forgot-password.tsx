@@ -82,30 +82,10 @@ export default function ForgotPasswordScreen() {
       startOtpTimer();
       Alert.alert(t.common.success, t.forgotPassword.codeSent);
     } catch (error: any) {
-      // Check if user needs email verification first
-      if (error.requires_verification) {
-        Alert.alert(
-          t.forgotPassword.verifyFirst,
-          t.forgotPassword.emailNotVerified,
-          [
-            {
-              text: t.forgotPassword.goToVerify,
-              onPress: () => {
-                router.push({
-                  pathname: "/(auth)/signup",
-                  params: { email: email, step: "3", from: "forgot-password" },
-                });
-              },
-            },
-            { text: t.common.cancel, style: "cancel" },
-          ],
-        );
-      } else {
-        Alert.alert(
-          t.common.error,
-          error.message || t.forgotPassword.failedToSend,
-        );
-      }
+      Alert.alert(
+        t.common.error,
+        error.message || t.forgotPassword.failedToSend,
+      );
     } finally {
       setLoading(false);
     }

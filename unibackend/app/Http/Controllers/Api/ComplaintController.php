@@ -130,7 +130,7 @@ class ComplaintController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Complaint submitted successfully',
+                'message' => __('complaint.submitted'),
                 'data' => [
                     'complaint' => new ComplaintResource($complaint->load('attachments')),
                 ],
@@ -138,7 +138,7 @@ class ComplaintController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create complaint',
+                'message' => __('complaint.create_failed'),
                 'error' => $e->getMessage(),
             ], 500, [], JSON_UNESCAPED_UNICODE);
         }
@@ -160,7 +160,7 @@ class ComplaintController extends Controller
         if (!$complaint) {
             return response()->json([
                 'success' => false,
-                'message' => 'Complaint not found',
+                'message' => __('complaint.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 
@@ -187,14 +187,14 @@ class ComplaintController extends Controller
         if (!$complaint) {
             return response()->json([
                 'success' => false,
-                'message' => 'Complaint not found',
+                'message' => __('complaint.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 
         if ($complaint->status === 'closed') {
             return response()->json([
                 'success' => false,
-                'message' => 'This complaint is closed',
+                'message' => __('complaint.closed'),
             ], 422, [], JSON_UNESCAPED_UNICODE);
         }
 
@@ -219,7 +219,7 @@ class ComplaintController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Reply sent successfully',
+            'message' => __('complaint.reply_sent'),
             'data' => [
                 'bot_response' => $botResponse,
             ],
@@ -241,14 +241,14 @@ class ComplaintController extends Controller
         if (!$complaint) {
             return response()->json([
                 'success' => false,
-                'message' => 'Complaint not found',
+                'message' => __('complaint.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 
         if ($complaint->status === 'closed') {
             return response()->json([
                 'success' => true,
-                'message' => 'Complaint already closed',
+                'message' => __('complaint.already_closed'),
             ], 200, [], JSON_UNESCAPED_UNICODE);
         }
 
@@ -259,7 +259,7 @@ class ComplaintController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Complaint closed successfully',
+            'message' => __('complaint.closed_successfully'),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -278,14 +278,14 @@ class ComplaintController extends Controller
         if (!$complaint) {
             return response()->json([
                 'success' => false,
-                'message' => 'Complaint not found',
+                'message' => __('complaint.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 
         if ($complaint->escalated_to_agent) {
             return response()->json([
                 'success' => true,
-                'message' => 'Already escalated to agent',
+                'message' => __('complaint.already_escalated'),
             ], 200, [], JSON_UNESCAPED_UNICODE);
         }
 
@@ -315,7 +315,7 @@ class ComplaintController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Escalated to support agent',
+            'message' => __('complaint.escalated'),
             'data' => [
                 'escalated' => true,
             ],
@@ -342,7 +342,7 @@ class ComplaintController extends Controller
         if (!$complaint) {
             return response()->json([
                 'success' => false,
-                'message' => 'Complaint not found',
+                'message' => __('complaint.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 
@@ -353,7 +353,7 @@ class ComplaintController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Thank you for your feedback!',
+            'message' => __('complaint.feedback_thanks'),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 
@@ -371,7 +371,7 @@ class ComplaintController extends Controller
         if (!$complaint) {
             return response()->json([
                 'success' => false,
-                'message' => 'Complaint not found',
+                'message' => __('complaint.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 

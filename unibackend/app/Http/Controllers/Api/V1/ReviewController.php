@@ -71,7 +71,7 @@ class ReviewController extends Controller
         if (!$hasOrdered) {
             return response()->json([
                 'success' => false,
-                'message' => 'You can only review products you have purchased and received.'
+                'message' => __('review.only_purchased')
             ], 403);
         }
 
@@ -83,7 +83,7 @@ class ReviewController extends Controller
         if ($existingReview) {
             return response()->json([
                 'success' => false,
-                'message' => 'You have already reviewed this product.'
+                'message' => __('review.already_reviewed')
             ], 409);
         }
 
@@ -101,7 +101,7 @@ class ReviewController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Review submitted successfully and is pending approval.',
+            'message' => __('review.submitted'),
             'data' => new ReviewResource($review)
         ], 201);
     }
@@ -132,7 +132,7 @@ class ReviewController extends Controller
         if ($review->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized to update this review.'
+                'message' => __('review.unauthorized_update')
             ], 403);
         }
 
@@ -148,7 +148,7 @@ class ReviewController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Review updated successfully.',
+            'message' => __('review.updated'),
             'data' => new ReviewResource($review)
         ]);
     }
@@ -165,7 +165,7 @@ class ReviewController extends Controller
         if ($review->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized to delete this review.'
+                'message' => __('review.unauthorized_delete')
             ], 403);
         }
 
@@ -177,7 +177,7 @@ class ReviewController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Review deleted successfully.'
+            'message' => __('review.deleted')
         ]);
     }
 
@@ -193,7 +193,7 @@ class ReviewController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Review marked as helpful.'
+            'message' => __('review.marked_helpful')
         ]);
     }
 
@@ -224,7 +224,7 @@ class ReviewController extends Controller
         if (!$product) {
             return response()->json([
                 'success' => false,
-                'message' => 'Product not found'
+                'message' => __('review.product_not_found')
             ], 404);
         }
 

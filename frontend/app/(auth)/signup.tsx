@@ -37,6 +37,7 @@ import {
 } from "lucide-react-native";
 import { useTranslation } from "@/i18n";
 import { API_CONFIG } from "@/config/app.config";
+import { getCommonHeaders } from "@/services/api/base";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -96,12 +97,7 @@ export default function SignupScreen() {
           try {
             await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                "ngrok-skip-browser-warning": "true",
-                "User-Agent": "CART-Mobile-App",
-              },
+              headers: getCommonHeaders(),
               body: JSON.stringify({ email: params.email }),
             });
           } catch (error) {
@@ -456,12 +452,7 @@ export default function SignupScreen() {
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "CART-Mobile-App",
-        },
+        headers: getCommonHeaders(),
         body: JSON.stringify({ email }),
       });
 
@@ -502,22 +493,6 @@ export default function SignupScreen() {
     try {
       setLoading(true);
       await verifyEmail({ email, otp: otpDigits.join("") });
-
-      // If redirected from forgot-password, go back there after verification
-      if (params.from === "forgot-password") {
-        Alert.alert(t.common.success, t.signup.emailVerifiedSuccess, [
-          {
-            text: t.common.ok,
-            onPress: () => {
-              router.replace({
-                pathname: "/(auth)/forgot-password",
-                params: { email },
-              });
-            },
-          },
-        ]);
-        return;
-      }
 
       setStep(4);
 

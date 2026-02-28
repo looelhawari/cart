@@ -39,7 +39,7 @@ class CategoryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve categories',
+                'message' => __('category.fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -109,7 +109,7 @@ class CategoryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve categories with products',
+                'message' => __('category.with_products_fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -130,7 +130,7 @@ class CategoryController extends Controller
             if (!$category) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Category not found',
+                    'message' => __('category.not_found'),
                 ], 404);
             }
 
@@ -141,7 +141,7 @@ class CategoryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Category not found',
+                'message' => __('category.not_found'),
             ], 404);
         }
     }
@@ -253,7 +253,7 @@ class CategoryController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Category not found',
+                'message' => __('category.not_found'),
             ], 404);
         }
     }

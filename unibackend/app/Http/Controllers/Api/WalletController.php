@@ -34,7 +34,7 @@ class WalletController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated',
+                    'message' => __('wallet.unauthenticated'),
                 ], 401);
             }
 
@@ -78,7 +78,7 @@ class WalletController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch wallet',
+                'message' => __('wallet.fetch_failed'),
             ], 500);
         }
     }
@@ -95,7 +95,7 @@ class WalletController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated',
+                    'message' => __('wallet.unauthenticated'),
                 ], 401);
             }
 
@@ -128,7 +128,7 @@ class WalletController extends Controller
             Log::error('Failed to fetch transactions', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch transactions',
+                'message' => __('wallet.transactions_fetch_failed'),
             ], 500);
         }
     }

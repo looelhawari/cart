@@ -40,7 +40,7 @@ class SocialAuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('social_auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -51,7 +51,7 @@ class SocialAuthController extends Controller
             if (!$payload) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid or expired Google token',
+                    'message' => __('social_auth.invalid_google_token'),
                 ], 401);
             }
         } catch (\Exception $e) {
@@ -60,7 +60,7 @@ class SocialAuthController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Google token verification failed',
+                'message' => __('social_auth.google_verification_failed'),
             ], 401);
         }
 
@@ -77,7 +77,7 @@ class SocialAuthController extends Controller
         if (!$email) {
             return response()->json([
                 'success' => false,
-                'message' => 'Google account must have an email address',
+                'message' => __('social_auth.google_email_required'),
             ], 422);
         }
 
@@ -190,7 +190,7 @@ class SocialAuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('social_auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -201,7 +201,7 @@ class SocialAuthController extends Controller
             if (!$applePayload) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid Apple token',
+                    'message' => __('social_auth.invalid_apple_token'),
                 ], 401);
             }
 
@@ -215,7 +215,7 @@ class SocialAuthController extends Controller
             Log::error('Apple auth failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid Apple token',
+                'message' => __('social_auth.invalid_apple_token'),
             ], 401);
         }
 
@@ -481,7 +481,7 @@ class SocialAuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Authentication failed. Please try again.',
+                'message' => __('social_auth.auth_failed'),
             ], 500);
         }
 
@@ -489,7 +489,7 @@ class SocialAuthController extends Controller
         if (!$user->is_active) {
             return response()->json([
                 'success' => false,
-                'message' => 'Your account has been deactivated. Please contact support.',
+                'message' => __('social_auth.account_deactivated'),
                 'error_code' => 'ACCOUNT_DEACTIVATED',
             ], 403);
         }
@@ -511,7 +511,7 @@ class SocialAuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Login successful',
+            'message' => __('social_auth.login_successful'),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -564,7 +564,7 @@ class SocialAuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('social_auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -576,7 +576,7 @@ class SocialAuthController extends Controller
         if (!$user->is_social_only) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only social-only accounts can relink their Google account. Password-based accounts should use the Change Email flow instead.',
+                'message' => __('social_auth.not_social_only'),
                 'error_code' => 'NOT_SOCIAL_ONLY',
             ], 403);
         }
@@ -584,7 +584,7 @@ class SocialAuthController extends Controller
         if (empty($user->google_id)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Your account is not linked to a Google account.',
+                'message' => __('social_auth.no_google_link'),
                 'error_code' => 'NO_GOOGLE_LINK',
             ], 400);
         }
@@ -596,7 +596,7 @@ class SocialAuthController extends Controller
             if (!$payload) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid or expired Google token.',
+                    'message' => __('social_auth.invalid_google_token_relink'),
                 ], 401);
             }
         } catch (\Exception $e) {
@@ -606,7 +606,7 @@ class SocialAuthController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Google token verification failed.',
+                'message' => __('social_auth.google_verification_failed_relink'),
             ], 401);
         }
 
@@ -620,14 +620,14 @@ class SocialAuthController extends Controller
         if (!$newEmail) {
             return response()->json([
                 'success' => false,
-                'message' => 'The Google account must have an email address.',
+                'message' => __('social_auth.google_email_required_relink'),
             ], 422);
         }
 
         if (!$emailVerified) {
             return response()->json([
                 'success' => false,
-                'message' => 'The Google account email must be verified.',
+                'message' => __('social_auth.google_email_not_verified'),
                 'error_code' => 'EMAIL_NOT_VERIFIED',
             ], 403);
         }
@@ -636,7 +636,7 @@ class SocialAuthController extends Controller
         if ($newGoogleId === $user->google_id) {
             return response()->json([
                 'success' => false,
-                'message' => 'This is already your linked Google account.',
+                'message' => __('social_auth.same_google_account'),
                 'error_code' => 'SAME_ACCOUNT',
             ], 400);
         }
@@ -651,8 +651,8 @@ class SocialAuthController extends Controller
 
         if ($conflict) {
             $reason = $conflict->google_id === $newGoogleId
-                ? 'This Google account is already linked to another user.'
-                : 'The email address of this Google account is already in use by another user.';
+                ? __('social_auth.google_already_linked')
+                : __('social_auth.email_already_in_use');
 
             return response()->json([
                 'success' => false,
@@ -703,7 +703,7 @@ class SocialAuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Google account relinked successfully.',
+            'message' => __('social_auth.google_relinked'),
             'data' => [
                 'user' => [
                     'id' => $user->id,

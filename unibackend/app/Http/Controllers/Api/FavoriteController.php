@@ -55,8 +55,8 @@ class FavoriteController extends Controller
         return response()->json([
             'success' => true,
             'message' => $favorite->wasRecentlyCreated
-                ? 'Added to favorites'
-                : 'Already in favorites',
+                ? __('favorite.added')
+                : __('favorite.already_added'),
             'data' => [
                 'favorite' => new FavoriteResource($favorite->load('product')),
             ],
@@ -78,7 +78,7 @@ class FavoriteController extends Controller
         if (!$favorite) {
             return response()->json([
                 'success' => false,
-                'message' => 'Favorite not found',
+                'message' => __('favorite.not_found'),
             ], 404, [], JSON_UNESCAPED_UNICODE);
         }
 
@@ -86,7 +86,7 @@ class FavoriteController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Removed from favorites',
+            'message' => __('favorite.removed'),
         ], 200, [], JSON_UNESCAPED_UNICODE);
     }
 }

@@ -79,7 +79,11 @@ class AuthController extends Controller
 
         // Generate and send OTP for email verification
         $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+        if (!$sent) {
+            Log::error("Failed to send registration OTP email to {$user->email}");
+        }
 
         return response()->json([
             'success' => true,
@@ -193,7 +197,11 @@ class AuthController extends Controller
         if (!$user->is_verified) {
             // Resend OTP
             $otp = $this->otpService->createEmailVerificationOtp($user->email);
-            $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+            $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+            if (!$sent) {
+                Log::error("Failed to send login verification OTP to {$user->email}");
+            }
 
             return response()->json([
                 'success' => false,
@@ -433,17 +441,30 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->email)->first();
 
-        // Check if user's email is verified
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.no_account_found'),
+            ], 404);
+        }
+
+        // Check if user's email is verified — don't redirect, just error
         if (!$user->email_verified_at) {
             return response()->json([
                 'success' => false,
                 'message' => __('auth.email_not_verified_reset'),
-                'requires_verification' => true,
             ], 403);
         }
 
         $otp = $this->otpService->createPasswordResetOtp($user->email);
-        $this->otpService->sendEmail($user->email, $otp->otp, 'Password Reset');
+        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Password Reset');
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_email_failed'),
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
@@ -725,7 +746,14 @@ class AuthController extends Controller
 
         // Generate and send new OTP
         $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_email_failed_resend'),
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
@@ -926,7 +954,14 @@ class AuthController extends Controller
         // ── Send OTP to the new email ──────────────────────────────────
         $newEmail = strtolower(trim($request->new_email));
         $otp = $this->otpService->createEmailChangeOtp($newEmail);
-        $this->otpService->sendEmail($newEmail, $otp->otp, 'Email Change Verification');
+        $sent = $this->otpService->sendEmail($newEmail, $otp->otp, 'Email Change Verification');
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_email_failed'),
+            ], 500);
+        }
 
         ActivityLog::log('email_change_requested', $user->id, 'User', $user->id);
 

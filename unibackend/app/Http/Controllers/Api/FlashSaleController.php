@@ -51,7 +51,7 @@ class FlashSaleController extends Controller
         if (!$sale) {
             return response()->json([
                 'success' => false,
-                'message' => 'Flash sale not found',
+                'message' => __('flash_sale.not_found'),
             ], 404);
         }
 

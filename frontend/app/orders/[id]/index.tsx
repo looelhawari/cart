@@ -106,6 +106,21 @@ export default function OrderDetailsScreen() {
   const [emailingInvoice, setEmailingInvoice] = useState(false);
   const [sharingOrder, setSharingOrder] = useState(false);
 
+  /** Map backend order status to frontend translated label */
+  const getTranslatedStatus = (status: string): string => {
+    const statusMap: Record<string, string> = {
+      pending: t.orders.status.pending,
+      pending_payment: t.orders.status.pending,
+      confirmed: t.orders.status.confirmed,
+      preparing: t.orders.status.preparing,
+      out_for_delivery: t.orders.status.outForDelivery,
+      delivered: t.orders.status.delivered,
+      cancelled: t.orders.status.cancelled,
+      failed: t.orders.status.failed,
+    };
+    return statusMap[status] || status;
+  };
+
   // Create responsive styles
   const styles = StyleSheet.create({
     container: {
@@ -900,7 +915,7 @@ export default function OrderDetailsScreen() {
       const shareText = t.ui.shareOrderText
         .replace("{orderNumber}", order?.order_number || "")
         .replace("{total}", safePrice(order?.total))
-        .replace("{status}", order?.status_label || order?.status || "");
+        .replace("{status}", getTranslatedStatus(order?.status || ""));
       const result = await Share.share(
         {
           title: t.ui.shareOrderTitle.replace(
@@ -1172,7 +1187,7 @@ export default function OrderDetailsScreen() {
                   { color: getStatusColor(order.status) },
                 ]}
               >
-                {order.status_label}
+                {getTranslatedStatus(order.status)}
               </Text>
             </LinearGradient>
           </View>
@@ -1452,10 +1467,10 @@ export default function OrderDetailsScreen() {
                     )}
                   </View>
                   <View style={styles.timelineContent}>
-                    <Text style={styles.timelineStatus}>{history.status}</Text>
+                    <Text style={styles.timelineStatus}>{getTranslatedStatus(history.status)}</Text>
                     <Text style={styles.timelineDate}>
                       {new Date(history.created_at).toLocaleDateString(
-                        "en-US",
+                        dateLocale,
                         {
                           month: "short",
                           day: "numeric",

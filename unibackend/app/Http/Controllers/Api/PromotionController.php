@@ -41,7 +41,7 @@ class PromotionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch promotions',
+                'message' => __('promotion.fetch_failed'),
             ], 500);
         }
     }
@@ -66,7 +66,7 @@ class PromotionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch featured promotions',
+                'message' => __('promotion.featured_fetch_failed'),
             ], 500);
         }
     }
@@ -93,7 +93,7 @@ class PromotionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Promotion not found',
+                'message' => __('promotion.not_found'),
             ], 404);
         }
     }
@@ -131,7 +131,7 @@ class PromotionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch promotion products',
+                'message' => __('promotion.products_fetch_failed'),
             ], 500);
         }
     }

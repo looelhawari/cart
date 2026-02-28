@@ -129,7 +129,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve products',
+                'message' => __('product.fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -155,7 +155,7 @@ class ProductController extends Controller
             if (!$product) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Product not found',
+                    'message' => __('product.not_found'),
                 ], 404);
             }
 
@@ -166,7 +166,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Product not found',
+                'message' => __('product.not_found'),
             ], 404);
         }
     }
@@ -196,7 +196,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve featured products',
+                'message' => __('product.featured_fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -227,7 +227,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve flash deals',
+                'message' => __('product.flash_deals_fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }

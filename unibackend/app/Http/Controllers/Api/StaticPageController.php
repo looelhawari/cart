@@ -20,7 +20,7 @@ class StaticPageController extends Controller
             if (!in_array($slug, StaticPage::VALID_SLUGS)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid page type',
+                    'message' => __('page.invalid_type'),
                 ], 400);
             }
 
@@ -31,7 +31,7 @@ class StaticPageController extends Controller
             if (!$page) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Page not found or inactive',
+                    'message' => __('page.not_found'),
                 ], 404);
             }
 
@@ -56,7 +56,7 @@ class StaticPageController extends Controller
             Log::error('Failed to fetch static page: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch page',
+                'message' => __('page.fetch_failed'),
             ], 500);
         }
     }
@@ -91,7 +91,7 @@ class StaticPageController extends Controller
             Log::error('Failed to fetch static pages: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch pages',
+                'message' => __('page.list_fetch_failed'),
             ], 500);
         }
     }
