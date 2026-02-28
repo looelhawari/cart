@@ -14,7 +14,7 @@ import {
   I18nManager,
   Animated,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/store";
 import { authApi } from "@/services/api";
 import Colors from "@/constants/Colors";
@@ -39,12 +39,13 @@ type Step = 1 | 2 | 3;
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { t } = useTranslation();
 
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState((params.email as string) || "");
   const [otp, setOtp] = useState("");
   const [otpTimer, setOtpTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
@@ -92,7 +93,7 @@ export default function ForgotPasswordScreen() {
               onPress: () => {
                 router.push({
                   pathname: "/(auth)/signup",
-                  params: { email: email, step: "3" },
+                  params: { email: email, step: "3", from: "forgot-password" },
                 });
               },
             },

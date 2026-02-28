@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'failed_delivery_slots' => 'Failed to retrieve delivery slots',
+    'auth_required' => 'Authentication required',
+    'failed_addresses' => 'Failed to retrieve addresses',
+    'failed_payment_methods' => 'Failed to retrieve payment methods',
+    'failed_calculate_summary' => 'Failed to calculate summary',
+    'validation_failed' => 'Validation failed',
+    'unauthorized_order' => 'Unauthorized access to order',
+    'already_paid' => 'Order already paid',
+    'cannot_pay_status' => 'Cannot process payment for a :status order.',
+    'payment_failed' => 'Payment processing failed. Please try again.',
+    'unauthorized' => 'Unauthorized',
+    'method_cod_name' => 'Cash on Delivery',
+    'method_cod_desc' => 'Pay when you receive your order',
+    'method_card_name' => 'Credit/Debit Card',
+    'method_card_desc' => 'Pay securely with your card',
+    'method_wallet_name' => 'Wallet',
+    'method_wallet_desc' => 'Pay with your wallet balance',
+    'method_wallet_card_name' => 'Wallet + Card',
+    'method_wallet_card_desc' => 'Pay :amount EGP with wallet, remainder with card',
+    'failed_payment_options' => 'Failed to retrieve payment options',
+    'promo_applied' => 'Promo code applied successfully',
+];

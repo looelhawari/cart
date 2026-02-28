@@ -141,6 +141,7 @@ export default {
     editEmailConfirm: "هل تريد تغيير عنوان بريدك الإلكتروني؟",
     yesEdit: "نعم، تعديل",
     verificationFailed: "فشل التحقق",
+    emailVerifiedSuccess: "تم التحقق من البريد الإلكتروني! يمكنك الآن إعادة تعيين كلمة المرور.",
     verify: "تحقق",
     // Step 4 - Success
     accountCreated: "تم إنشاء الحساب!",

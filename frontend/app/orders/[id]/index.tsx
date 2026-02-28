@@ -2833,7 +2833,7 @@ export default function OrderDetailsScreen() {
                   setSelectedReasonKey("");
                 }}
               >
-                <Text style={styles.modalButtonTextSecondary}>Cancel</Text>
+                <Text style={styles.modalButtonTextSecondary}>{t.common.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -2915,7 +2915,7 @@ export default function OrderDetailsScreen() {
                     color: Colors.neutralCharcoal,
                   }}
                 >
-                  {refundResult.type}
+                  {refundResult.type === 'full' ? t.orderDetail.fullOrder : refundResult.type === 'partial' ? t.orderDetail.partialItems : refundResult.type === 'penalty' ? t.orderDetail.withPenalty : refundResult.type}
                 </Text>
               </View>
               {refundResult.penalty_amount > 0 && (

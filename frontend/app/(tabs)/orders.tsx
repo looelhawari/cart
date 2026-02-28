@@ -437,7 +437,10 @@ export default function OrdersScreen() {
                 size={14}
                 color={statusConfig.color}
               />
-              <Text style={[styles.statusText, { color: statusConfig.color }]}>
+              <Text
+                style={[styles.statusText, { color: statusConfig.color }]}
+                numberOfLines={1}
+              >
                 {statusConfig.label}
               </Text>
             </View>
@@ -920,6 +923,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 10,
     gap: 5,
+    flexShrink: 0,
   },
   statusText: {
     fontSize: 11,

@@ -64,4 +64,44 @@ return [
     'failed_send_invoice' => 'Failed to send invoice email. Please try again.',
     'failed_generate_invoice_data' => 'Failed to generate invoice data.',
     'failed_generate_invoice' => 'Failed to generate invoice.',
+
+    // Order status labels
+    'status_pending' => 'Pending',
+    'status_pending_payment' => 'Pending Payment',
+    'status_confirmed' => 'Confirmed',
+    'status_preparing' => 'Preparing',
+    'status_out_for_delivery' => 'Out for Delivery',
+    'status_delivered' => 'Delivered',
+    'status_cancelled' => 'Cancelled',
+    'status_failed' => 'Failed',
+    'status_unknown' => 'Unknown',
+
+    // Payment status labels
+    'payment_status_pending' => 'Pending',
+    'payment_status_completed' => 'Completed',
+    'payment_status_failed' => 'Failed',
+    'payment_status_refunded' => 'Refunded',
+    'payment_status_partially_refunded' => 'Partially Refunded',
+    'payment_status_unknown' => 'Unknown',
+
+    // Cancellation eligibility reasons
+    'eligibility_already_cancelled' => 'This order has already been cancelled.',
+    'eligibility_currently_cancelling' => 'This order is currently being cancelled.',
+    'eligibility_cod_can_cancel' => 'Order will be cancelled and items restocked.',
+    'eligibility_full_refund' => 'Full refund will be processed to your card. Refunds typically take :days.',
+    'eligibility_full_refund_with_previous' => 'Full refund of the remaining amount (:estimated EGP) will be processed to your card. Previously refunded: :already EGP. Refunds typically take :days.',
+    'eligibility_penalty_refund' => 'A :penalty% preparation fee will be deducted. You will receive :refund EGP (:percent% of the order total) back to your card within :days.',
+    'eligibility_penalty_refund_with_previous' => 'A :penalty% preparation fee will be deducted from the remaining amount. You will receive :refund EGP (:percent% of :remaining EGP remaining) back to your card within :days.',
+    'blocked_out_for_delivery' => 'Your order is already out for delivery and cannot be cancelled. Please refuse the delivery or contact our support team.',
+    'blocked_delivered' => 'This order has been delivered and cannot be cancelled. Please contact support for returns.',
+    'blocked_already_cancelled' => 'This order has already been cancelled.',
+    'blocked_already_failed' => 'This order has already failed.',
+    'blocked_default' => 'This order cannot be cancelled in its current status.',
+
+    // Timeline labels
+    'timeline_placed' => 'Order Placed',
+    'timeline_confirmed' => 'Order Confirmed',
+    'timeline_preparing' => 'Preparing Your Order',
+    'timeline_out_for_delivery' => 'Out for Delivery',
+    'timeline_delivered' => 'Delivered',
 ];

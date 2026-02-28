@@ -11,7 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Image,
+  I18nManager,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useStore } from "@/store";
@@ -744,12 +744,14 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   passwordInput: {
-    paddingRight: Spacing.xxl,
+    paddingRight: I18nManager.isRTL ? undefined : Spacing.xxl,
+    paddingLeft: I18nManager.isRTL ? Spacing.xxl : undefined,
   },
   eyeIcon: {
     padding: Spacing.xs,
     position: "absolute",
-    right: Spacing.sm,
+    right: I18nManager.isRTL ? undefined : Spacing.sm,
+    left: I18nManager.isRTL ? Spacing.sm : undefined,
   },
   optionsRow: {
     flexDirection: "row",

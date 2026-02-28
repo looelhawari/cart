@@ -531,7 +531,7 @@ class OrderCancellationService
         if (in_array($order->status, ['cancelled', 'failed'])) {
             return [
                 'can_cancel' => false,
-                'reason' => 'This order has already been cancelled.',
+                'reason' => __('order.eligibility_already_cancelled'),
                 'refund_type' => null,
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
@@ -542,7 +542,7 @@ class OrderCancellationService
         if ($order->status === 'cancelling') {
             return [
                 'can_cancel' => false,
-                'reason' => 'This order is currently being cancelled.',
+                'reason' => __('order.eligibility_currently_cancelling'),
                 'refund_type' => null,
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
@@ -562,7 +562,7 @@ class OrderCancellationService
             return [
                 'can_cancel' => $canCancel,
                 'reason' => $canCancel
-                    ? 'Order will be cancelled and items restocked.'
+                    ? __('order.eligibility_cod_can_cancel')
                     : $this->getBlockedMessage($order->status, true),
                 'refund_type' => 'none',
                 'refund_percent' => 0,
@@ -582,9 +582,10 @@ class OrderCancellationService
                 : (float) $order->total;
             $estimatedRefund = max(0, $maxPayable - $alreadyRefunded);
 
+            $estimatedDays = __('order.estimated_days');
             $reason = $alreadyRefunded > 0
-                ? "Full refund of the remaining amount ({$estimatedRefund} EGP) will be processed to your card. Previously refunded: {$alreadyRefunded} EGP. Refunds typically take 5-14 business days."
-                : 'Full refund will be processed to your card. Refunds typically take 5-14 business days.';
+                ? __('order.eligibility_full_refund_with_previous', ['estimated' => $estimatedRefund, 'already' => $alreadyRefunded, 'days' => $estimatedDays])
+                : __('order.eligibility_full_refund', ['days' => $estimatedDays]);
 
             return [
                 'can_cancel' => true,
@@ -609,9 +610,10 @@ class OrderCancellationService
             $penaltyAmount = round($remainingAmount * ($penalty / 100), 2);
             $refundAmount = round($remainingAmount - $penaltyAmount, 2);
 
+            $estimatedDays = __('order.estimated_days');
             $reason = $alreadyRefunded > 0
-                ? "A {$penalty}% preparation fee will be deducted from the remaining amount. You will receive {$refundAmount} EGP ({$refundPercent}% of {$remainingAmount} EGP remaining) back to your card within 5-14 business days."
-                : "A {$penalty}% preparation fee will be deducted. You will receive {$refundAmount} EGP ({$refundPercent}% of the order total) back to your card within 5-14 business days.";
+                ? __('order.eligibility_penalty_refund_with_previous', ['penalty' => $penalty, 'refund' => $refundAmount, 'percent' => $refundPercent, 'remaining' => $remainingAmount, 'days' => $estimatedDays])
+                : __('order.eligibility_penalty_refund', ['penalty' => $penalty, 'refund' => $refundAmount, 'percent' => $refundPercent, 'days' => $estimatedDays]);
 
             return [
                 'can_cancel' => true,
@@ -1195,11 +1197,11 @@ class OrderCancellationService
     private function getBlockedMessage(string $status, bool $isCod): string
     {
         return match ($status) {
-            'out_for_delivery' => 'Your order is already out for delivery and cannot be cancelled. Please refuse the delivery or contact our support team.',
-            'delivered' => 'This order has been delivered and cannot be cancelled. Please contact support for returns.',
-            'cancelled' => 'This order has already been cancelled.',
-            'failed' => 'This order has already failed.',
-            default => 'This order cannot be cancelled in its current status.',
+            'out_for_delivery' => __('order.blocked_out_for_delivery'),
+            'delivered' => __('order.blocked_delivered'),
+            'cancelled' => __('order.blocked_already_cancelled'),
+            'failed' => __('order.blocked_already_failed'),
+            default => __('order.blocked_default'),
         };
     }
 

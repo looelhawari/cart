@@ -141,6 +141,7 @@ export default {
     editEmailConfirm: "Do you want to change your email address?",
     yesEdit: "Yes, Edit",
     verificationFailed: "Verification failed",
+    emailVerifiedSuccess: "Email verified! You can now reset your password.",
     verify: "Verify",
     // Step 4 - Success
     accountCreated: "Account Created!",

@@ -207,31 +207,31 @@ class OrderController extends Controller
                 'timeline' => [
                     [
                         'status'    => 'pending',
-                        'label'     => 'Order Placed',
+                        'label'     => __('order.timeline_placed'),
                         'completed' => true,
                         'time'      => $order->created_at?->toIso8601String(),
                     ],
                     [
                         'status'    => 'confirmed',
-                        'label'     => 'Order Confirmed',
+                        'label'     => __('order.timeline_confirmed'),
                         'completed' => in_array($order->status, ['confirmed', 'preparing', 'out_for_delivery', 'delivered']),
                         'time'      => null, // From status_history if available
                     ],
                     [
                         'status'    => 'preparing',
-                        'label'     => 'Preparing Your Order',
+                        'label'     => __('order.timeline_preparing'),
                         'completed' => in_array($order->status, ['preparing', 'out_for_delivery', 'delivered']),
                         'time'      => null,
                     ],
                     [
                         'status'    => 'out_for_delivery',
-                        'label'     => 'Out for Delivery',
+                        'label'     => __('order.timeline_out_for_delivery'),
                         'completed' => in_array($order->status, ['out_for_delivery', 'delivered']),
                         'time'      => $order->driver_picked_up_at?->toIso8601String(),
                     ],
                     [
                         'status'    => 'delivered',
-                        'label'     => 'Delivered',
+                        'label'     => __('order.timeline_delivered'),
                         'completed' => $order->status === 'delivered',
                         'time'      => $order->actual_delivered_at?->toIso8601String(),
                     ],

@@ -77,8 +77,7 @@ class DeliveryZoneController extends Controller
                 'success' => true,
                 'data'    => [
                     'is_covered'   => false,
-                    'message'      => 'Sorry, we do not deliver to this area yet.',
-                    'message_ar'   => 'عذرًا، لا نقوم بالتوصيل إلى هذه المنطقة حاليًا.',
+                    'message'      => __('delivery_zone.not_covered'),
                     'zone'         => null,
                 ],
             ]);
@@ -155,7 +154,7 @@ class DeliveryZoneController extends Controller
         if (!$result) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unable to determine address for these coordinates',
+                'message' => __('delivery_zone.geocode_failed'),
             ], 404);
         }
 

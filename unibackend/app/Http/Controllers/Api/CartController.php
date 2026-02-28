@@ -82,7 +82,7 @@ class CartController extends Controller
             Log::error('Cart GET error', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve cart',
+                'message' => __('cart.failed_retrieve'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -102,7 +102,7 @@ class CartController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('cart.validation_failed'),
                 'errors' => $validator->errors(),
             ], 400);
         }
@@ -129,7 +129,7 @@ class CartController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Product added to cart',
+                'message' => __('cart.product_added'),
                 'data' => [
                     'cart_item' => [
                         'id' => $cartItem->id,
@@ -162,7 +162,7 @@ class CartController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('cart.validation_failed'),
                 'errors' => $validator->errors(),
             ], 400);
         }
@@ -184,13 +184,13 @@ class CartController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Cart updated',
+                'message' => __('cart.updated'),
                 'data' => $cartDetails,
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cart item not found',
+                'message' => __('cart.item_not_found'),
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
@@ -224,18 +224,18 @@ class CartController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Item removed from cart',
+                'message' => __('cart.item_removed'),
                 'data' => $cartDetails,
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cart item not found',
+                'message' => __('cart.item_not_found'),
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to remove item',
+                'message' => __('cart.failed_remove_item'),
             ], 500);
         }
     }
@@ -256,12 +256,12 @@ class CartController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Cart cleared',
+                'message' => __('cart.cleared'),
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to clear cart',
+                'message' => __('cart.failed_clear'),
             ], 500);
         }
     }
@@ -279,7 +279,7 @@ class CartController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('cart.validation_failed'),
                 'errors' => $validator->errors(),
             ], 400);
         }
@@ -341,7 +341,7 @@ class CartController extends Controller
                 'success' => true,
                 'message' => $promoEvaluation['validation_state'] === 'pending'
                     ? $this->cartService->promoReasonMessage($promoEvaluation['invalid_reason'])
-                    : 'Promo code applied',
+                    : __('cart.promo_applied'),
                 'data' => [
                     'promo' => $promoEvaluation,
                     ...$cartDetails,
@@ -375,13 +375,13 @@ class CartController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Promo code removed',
+                'message' => __('cart.promo_removed'),
                 'data' => $cartDetails,
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to remove promo code',
+                'message' => __('cart.failed_remove_promo'),
             ], 500);
         }
     }

@@ -64,4 +64,44 @@ return [
     'failed_send_invoice' => 'فشل في إرسال بريد الفاتورة. يرجى المحاولة مرة أخرى.',
     'failed_generate_invoice_data' => 'فشل في إنشاء بيانات الفاتورة.',
     'failed_generate_invoice' => 'فشل في إنشاء الفاتورة.',
+
+    // Order status labels
+    'status_pending' => 'قيد الانتظار',
+    'status_pending_payment' => 'في انتظار الدفع',
+    'status_confirmed' => 'تم التأكيد',
+    'status_preparing' => 'جاري التجهيز',
+    'status_out_for_delivery' => 'في الطريق',
+    'status_delivered' => 'تم التوصيل',
+    'status_cancelled' => 'ملغي',
+    'status_failed' => 'فشل',
+    'status_unknown' => 'غير معروف',
+
+    // Payment status labels
+    'payment_status_pending' => 'قيد الانتظار',
+    'payment_status_completed' => 'مكتمل',
+    'payment_status_failed' => 'فشل',
+    'payment_status_refunded' => 'مسترد',
+    'payment_status_partially_refunded' => 'مسترد جزئياً',
+    'payment_status_unknown' => 'غير معروف',
+
+    // Cancellation eligibility reasons
+    'eligibility_already_cancelled' => 'تم إلغاء هذا الطلب بالفعل.',
+    'eligibility_currently_cancelling' => 'يتم إلغاء هذا الطلب حالياً.',
+    'eligibility_cod_can_cancel' => 'سيتم إلغاء الطلب وإعادة المنتجات للمخزون.',
+    'eligibility_full_refund' => 'سيتم استرداد المبلغ الكامل إلى بطاقتك. عادةً ما يستغرق الاسترداد :days.',
+    'eligibility_full_refund_with_previous' => 'سيتم استرداد المبلغ المتبقي (:estimated ج.م) إلى بطاقتك. المسترد سابقاً: :already ج.م. عادةً ما يستغرق الاسترداد :days.',
+    'eligibility_penalty_refund' => 'سيتم خصم رسوم تحضير بنسبة :penalty%. ستحصل على :refund ج.م (:percent% من إجمالي الطلب) إلى بطاقتك خلال :days.',
+    'eligibility_penalty_refund_with_previous' => 'سيتم خصم رسوم تحضير بنسبة :penalty% من المبلغ المتبقي. ستحصل على :refund ج.م (:percent% من :remaining ج.م المتبقية) إلى بطاقتك خلال :days.',
+    'blocked_out_for_delivery' => 'طلبك في الطريق بالفعل ولا يمكن إلغاؤه. يرجى رفض الاستلام أو التواصل مع فريق الدعم.',
+    'blocked_delivered' => 'تم تسليم هذا الطلب ولا يمكن إلغاؤه. يرجى التواصل مع الدعم للإرجاع.',
+    'blocked_already_cancelled' => 'تم إلغاء هذا الطلب بالفعل.',
+    'blocked_already_failed' => 'فشل هذا الطلب بالفعل.',
+    'blocked_default' => 'لا يمكن إلغاء هذا الطلب في حالته الحالية.',
+
+    // Timeline labels
+    'timeline_placed' => 'تم تقديم الطلب',
+    'timeline_confirmed' => 'تم تأكيد الطلب',
+    'timeline_preparing' => 'جاري تحضير طلبك',
+    'timeline_out_for_delivery' => 'في الطريق إليك',
+    'timeline_delivered' => 'تم التوصيل',
 ];
