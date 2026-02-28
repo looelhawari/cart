@@ -1,12 +1,5 @@
 import React, { useState, useEffect, memo, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Heart, Check } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -58,7 +51,6 @@ export const ProductCard = memo(function ProductCard({
     product.is_in_stock === false || (product.stock_quantity || 0) <= 0;
   const isLowStock = !isOutOfStock && (product.stock_quantity || 0) <= 3;
 
-  const [isAdding, setIsAdding] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const successTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -186,7 +178,7 @@ export const ProductCard = memo(function ProductCard({
             isOutOfStock && styles.addButtonDisabled,
             addedSuccess && styles.addButtonSuccess,
           ]}
-          onPress={async (e) => {
+          onPress={(e) => {
             e.stopPropagation();
             if (isOutOfStock) {
               if (onAddToCart) {
@@ -202,16 +194,21 @@ export const ProductCard = memo(function ProductCard({
               }
               return;
             }
-            if (isAdding) return;
-            setIsAdding(true);
-            setAddedSuccess(false);
-            try {
-              await addToCart(productId, 1);
-              setAddedSuccess(true);
-              successTimeout.current = setTimeout(() => {
-                setAddedSuccess(false);
-              }, 1500);
-            } catch (error: any) {
+            if (addedSuccess) return;
+
+            // Show success immediately (optimistic) — store already updates cart optimistically
+            setAddedSuccess(true);
+            if (successTimeout.current) clearTimeout(successTimeout.current);
+            successTimeout.current = setTimeout(() => {
+              setAddedSuccess(false);
+            }, 1500);
+
+            // Fire API call in background — no await
+            addToCart(productId, 1).catch((error: any) => {
+              // Revert success state on error
+              setAddedSuccess(false);
+              if (successTimeout.current) clearTimeout(successTimeout.current);
+
               console.error("Failed to add to cart:", error);
               const msg =
                 error?.message ||
@@ -225,15 +222,11 @@ export const ProductCard = memo(function ProductCard({
                 setToastMessage(msg);
                 setShowToast(true);
               }
-            } finally {
-              setIsAdding(false);
-            }
+            });
           }}
-          disabled={isOutOfStock || isAdding}
+          disabled={isOutOfStock}
         >
-          {isAdding ? (
-            <ActivityIndicator size="small" color={Colors.neutralWhite} />
-          ) : addedSuccess ? (
+          {addedSuccess ? (
             <View style={styles.addedRow}>
               <Check size={16} color={Colors.neutralWhite} />
               <Text style={styles.addButtonText}>{t.cart.itemAdded}</Text>

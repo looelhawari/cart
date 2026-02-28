@@ -61,7 +61,11 @@ interface StoreState {
   deleteAccount: (password: string) => Promise<void>;
   register: (
     data: RegisterData,
-  ) => Promise<{ requiresVerification: boolean; email: string }>;
+  ) => Promise<{
+    requiresVerification: boolean;
+    email: string;
+    emailSent: boolean;
+  }>;
   verifyEmail: (data: VerifyEmailData) => Promise<void>;
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;
   resetPassword: (data: ResetPasswordData) => Promise<void>;
@@ -227,6 +231,7 @@ export const useStore = create<StoreState>()(
         return {
           requiresVerification: true,
           email: response.data.user.email,
+          emailSent: response.data.email_sent ?? true,
         };
       },
 

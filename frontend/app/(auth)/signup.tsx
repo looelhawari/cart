@@ -88,7 +88,15 @@ export default function SignupScreen() {
   const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
 
   // Start OTP timer and auto-send OTP if coming from login with step=3
+  // or from forgot-password with autoVerify=true
   useEffect(() => {
+    if (params.autoVerify === "true" && params.verifyEmail) {
+      // Coming from forgot-password — go directly to OTP step
+      setEmail(params.verifyEmail as string);
+      setStep(3);
+      startOtpTimer();
+      return;
+    }
     if (params.step === "3") {
       startOtpTimer();
       // Auto-send OTP for unverified users redirected from login
@@ -303,7 +311,7 @@ export default function SignupScreen() {
       // Wait for registration to succeed before navigating to OTP
       setLoading(true);
       try {
-        await register({
+        const result = await register({
           first_name: firstName,
           last_name: lastName,
           email,
@@ -317,6 +325,20 @@ export default function SignupScreen() {
         setRegisteredPhone(phone.trim());
         setStep(3);
         startOtpTimer();
+
+        // If the initial OTP email wasn't sent, auto-trigger a resend
+        if (result?.emailSent === false) {
+          console.warn("[Signup] Initial OTP email failed, auto-resending...");
+          try {
+            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+              method: "POST",
+              headers: getCommonHeaders(),
+              body: JSON.stringify({ email }),
+            });
+          } catch (retryError) {
+            console.warn("[Signup] Auto-resend also failed:", retryError);
+          }
+        }
       } catch (error: any) {
         if (error.errors) {
           if (error.errors.email) {
@@ -444,10 +466,8 @@ export default function SignupScreen() {
   const handleResendOtp = async () => {
     if (!canResend || isResending) return;
 
-    // Optimistic: immediately reset timer and show toast
     setIsResending(true);
     startOtpTimer();
-    showResendToast();
 
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
@@ -456,12 +476,20 @@ export default function SignupScreen() {
         body: JSON.stringify({ email }),
       });
 
-      if (!response.ok) {
-        // Silently log — user already saw success toast, backend will retry
-        console.warn("Resend OTP server error:", response.status);
+      if (response.ok) {
+        showResendToast();
+      } else {
+        const data = await response.json().catch(() => null);
+        Alert.alert(
+          t.common.error,
+          data?.message || t.signup.failedToResendOtp,
+        );
       }
     } catch (error: any) {
-      console.warn("Resend OTP network error:", error.message);
+      Alert.alert(
+        t.common.error,
+        t.alerts.networkError || "Network error. Please check your connection.",
+      );
     } finally {
       setIsResending(false);
     }

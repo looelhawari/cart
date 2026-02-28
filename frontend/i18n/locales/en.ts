@@ -171,8 +171,13 @@ export default {
     passwordResetSuccess: "Password has been reset successfully",
     failedToReset: "Failed to reset password",
     sendResetCode: "Send Reset Code",
-    emailNotVerified:
-      "Your email is not verified. Please verify your email first before resetting your password.",
+    emailNotVerified: "Email Not Verified",
+    emailNotVerifiedMessage:
+      "Your email address has not been verified yet. Please verify your email first.",
+    emailNotFound: "Email Not Found",
+    emailNotFoundMessage:
+      "No account found with this email address. Please check your email or create a new account.",
+    verifyNow: "Verify Now",
     verifyFirst: "Verify Email First",
     goToVerify: "Go to Verify",
   },

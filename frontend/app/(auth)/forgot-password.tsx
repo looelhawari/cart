@@ -34,6 +34,7 @@ import {
 } from "lucide-react-native";
 import { useTranslation } from "@/i18n";
 import { API_CONFIG } from "@/config/app.config";
+import { getCommonHeaders } from "@/services/api/base";
 
 type Step = 1 | 2 | 3;
 
@@ -77,10 +78,80 @@ export default function ForgotPasswordScreen() {
 
     try {
       setLoading(true);
-      await forgotPassword({ email });
-      setStep(2);
-      startOtpTimer();
-      Alert.alert(t.common.success, t.forgotPassword.codeSent);
+
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/auth/forgot-password`,
+        {
+          method: "POST",
+          headers: getCommonHeaders(),
+          body: JSON.stringify({ email: email.trim() }),
+        },
+      );
+
+      if (response.ok) {
+        // Success — OTP sent, proceed to step 2
+        setStep(2);
+        startOtpTimer();
+        Alert.alert(t.common.success, t.forgotPassword.codeSent);
+        return;
+      }
+
+      const data = await response.json().catch(() => null);
+
+      if (response.status === 404) {
+        // Email not found in database
+        Alert.alert(
+          t.forgotPassword.emailNotFound || "Email Not Found",
+          t.forgotPassword.emailNotFoundMessage ||
+            "No account found with this email address. Please check your email or create a new account.",
+        );
+        return;
+      }
+
+      if (response.status === 403) {
+        // Email exists but not verified — show popup with verify button
+        Alert.alert(
+          t.forgotPassword.emailNotVerified || "Email Not Verified",
+          t.forgotPassword.emailNotVerifiedMessage ||
+            "Your email address has not been verified yet. Please verify your email first.",
+          [
+            { text: t.common.cancel, style: "cancel" },
+            {
+              text: t.forgotPassword.verifyNow || "Verify Now",
+              onPress: async () => {
+                // Auto-send verification OTP before navigating
+                try {
+                  await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+                    method: "POST",
+                    headers: getCommonHeaders(),
+                    body: JSON.stringify({ email: email.trim() }),
+                  });
+                } catch (err) {
+                  console.warn(
+                    "[ForgotPassword] Failed to auto-send OTP:",
+                    err,
+                  );
+                }
+                // Navigate to signup screen at step 3 (verify) with email pre-filled
+                router.replace({
+                  pathname: "/(auth)/signup" as any,
+                  params: {
+                    verifyEmail: email.trim(),
+                    autoVerify: "true",
+                  },
+                });
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      // Other error
+      Alert.alert(
+        t.common.error,
+        data?.message || t.forgotPassword.failedToSend,
+      );
     } catch (error: any) {
       Alert.alert(
         t.common.error,

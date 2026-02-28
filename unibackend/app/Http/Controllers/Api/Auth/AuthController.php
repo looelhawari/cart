@@ -98,6 +98,7 @@ class AuthController extends Controller
                     'language' => $user->language,
                     'is_verified' => $user->is_verified,
                 ],
+                'email_sent' => $sent,
             ],
         ], 201);
     }
