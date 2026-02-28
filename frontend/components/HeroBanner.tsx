@@ -286,7 +286,9 @@ export const HeroBanner: React.FC = () => {
                         : "B1G1"}
                 </Text>
                 {offer.type === "fixed_amount" && (
-                  <Text style={styles.offerDiscountUnit}>EGP</Text>
+                  <Text style={styles.offerDiscountUnit}>
+                    {t.common.currency}
+                  </Text>
                 )}
               </View>
             </View>

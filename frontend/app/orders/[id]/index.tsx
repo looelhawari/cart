@@ -42,7 +42,7 @@ import { createReview, rateDriver } from "@/services/api/reviewsApi";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { Toast } from "@/components/Toast";
-import { useTranslation } from "@/i18n";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 /** Safely format a number to 2 decimal places, never crashes */
 const safePrice = (val: any): string => {
@@ -52,6 +52,7 @@ const safePrice = (val: any): string => {
 
 export default function OrderDetailsScreen() {
   const { t } = useTranslation();
+  const { getLocalizedValue } = useLocalizedValue();
   const { isSmallDevice } = useResponsive();
   const { id } = useLocalSearchParams();
 
@@ -658,8 +659,8 @@ export default function OrderDetailsScreen() {
     );
     const reasonText = selectedReason
       ? cancelReason.trim()
-        ? `${selectedReason.label_en}: ${cancelReason.trim()}`
-        : selectedReason.label_en
+        ? `${getLocalizedValue(selectedReason, "label")}: ${cancelReason.trim()}`
+        : getLocalizedValue(selectedReason, "label")
       : cancelReason.trim() || t.orderDetail.cancelledByUser;
 
     setCancelling(true);
@@ -700,8 +701,8 @@ export default function OrderDetailsScreen() {
     );
     const reasonText = selectedReason
       ? cancelReason.trim()
-        ? `${selectedReason.label_en}: ${cancelReason.trim()}`
-        : selectedReason.label_en
+        ? `${getLocalizedValue(selectedReason, "label")}: ${cancelReason.trim()}`
+        : getLocalizedValue(selectedReason, "label")
       : cancelReason.trim() || t.orderDetail.itemNoLongerNeeded;
 
     setPartialCancelling(true);
@@ -1607,8 +1608,11 @@ export default function OrderDetailsScreen() {
                   ]}
                 >
                   {t.orderDetail.paymentStatus}{" "}
-                  {order.payment_status.charAt(0).toUpperCase() +
-                    order.payment_status.slice(1)}
+                  {(t.orderDetail as any)[
+                    `paymentStatus${order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}`
+                  ] ||
+                    order.payment_status.charAt(0).toUpperCase() +
+                      order.payment_status.slice(1)}
                 </Text>
                 {order.payment_status === "refunded" && (
                   <Text
@@ -1846,7 +1850,7 @@ export default function OrderDetailsScreen() {
                         },
                       ]}
                     >
-                      {safePrice(item.subtotal)} EGP
+                      {safePrice(item.subtotal)} {t.common.currency}
                     </Text>
                     {isRefunded && (
                       <Text
@@ -1874,7 +1878,7 @@ export default function OrderDetailsScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>{t.orders.subtotal}</Text>
               <Text style={styles.summaryValue}>
-                {safePrice(order.subtotal)} EGP
+                {safePrice(order.subtotal)} {t.common.currency}
               </Text>
             </View>
             <View style={styles.summaryRow}>
@@ -1884,7 +1888,7 @@ export default function OrderDetailsScreen() {
               <Text style={styles.summaryValue}>
                 {order.delivery_fee === 0
                   ? t.common.free
-                  : `${safePrice(order.delivery_fee)} EGP`}
+                  : `${safePrice(order.delivery_fee)} ${t.common.currency}`}
               </Text>
             </View>
             {order.discount > 0 && (
@@ -1893,7 +1897,7 @@ export default function OrderDetailsScreen() {
                   {t.orders.discount}
                 </Text>
                 <Text style={[styles.summaryValue, styles.discountValue]}>
-                  -{safePrice(order.discount)} EGP
+                  -{safePrice(order.discount)} {t.common.currency}
                 </Text>
               </View>
             )}
@@ -1908,7 +1912,7 @@ export default function OrderDetailsScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>{t.orders.total}</Text>
               <Text style={styles.totalValue}>
-                {safePrice(order.total)} EGP
+                {safePrice(order.total)} {t.common.currency}
               </Text>
             </View>
             {order.refunded_amount && order.refunded_amount > 0 ? (
@@ -1941,7 +1945,7 @@ export default function OrderDetailsScreen() {
                       { color: "#DC2626", fontWeight: "700" as const },
                     ]}
                   >
-                    -{safePrice(order.refunded_amount)} EGP
+                    -{safePrice(order.refunded_amount)} {t.common.currency}
                   </Text>
                 </View>
                 <View style={[styles.summaryRow, { marginTop: 4 }]}>
@@ -1951,12 +1955,13 @@ export default function OrderDetailsScreen() {
                       { fontSize: Typography.bodyBase },
                     ]}
                   >
-                    Net Paid
+                    {t.orderDetail.netPaid}
                   </Text>
                   <Text
                     style={[styles.totalValue, { color: Colors.primary900 }]}
                   >
-                    {safePrice(order.total - order.refunded_amount)} EGP
+                    {safePrice(order.total - order.refunded_amount)}{" "}
+                    {t.common.currency}
                   </Text>
                 </View>
               </>
@@ -2177,7 +2182,7 @@ export default function OrderDetailsScreen() {
                         <Text
                           style={{ fontSize: 12, color: Colors.neutralMedium }}
                         >
-                          Penalty ({refund.penalty_percent}%)
+                          {t.orderDetail.penalty} ({refund.penalty_percent}%)
                         </Text>
                         <Text
                           style={{
@@ -2186,7 +2191,8 @@ export default function OrderDetailsScreen() {
                             fontWeight: "600",
                           }}
                         >
-                          -{safePrice(refund.penalty_amount)} EGP
+                          -{safePrice(refund.penalty_amount)}{" "}
+                          {t.common.currency}
                         </Text>
                       </View>
                     )}
@@ -2237,7 +2243,7 @@ export default function OrderDetailsScreen() {
                             marginBottom: 6,
                           }}
                         >
-                          Cancelled Items:
+                          {t.orderDetail.cancelledItems}
                         </Text>
                         {refund.refunded_items.map((ri: any, riIdx: number) => (
                           <View
@@ -2268,7 +2274,7 @@ export default function OrderDetailsScreen() {
                                 color: "#DC2626",
                               }}
                             >
-                              {safePrice(ri.amount)} EGP
+                              {safePrice(ri.amount)} {t.common.currency}
                             </Text>
                           </View>
                         ))}
@@ -2326,11 +2332,14 @@ export default function OrderDetailsScreen() {
                       <Text
                         style={{ fontSize: 11, color: Colors.neutralMedium }}
                       >
-                        {formattedDate} at {formattedTime}
+                        {formattedDate} {t.orderDetail.at} {formattedTime}
                       </Text>
                     </View>
                     <Text style={{ fontSize: 11, color: Colors.neutralMedium }}>
-                      by {refund.initiated_by === "customer" ? "You" : "Admin"}
+                      {t.orderDetail.by}{" "}
+                      {refund.initiated_by === "customer"
+                        ? t.orderDetail.you
+                        : t.orderDetail.admin}
                     </Text>
                   </View>
                 </View>
@@ -2489,7 +2498,7 @@ export default function OrderDetailsScreen() {
                     marginBottom: 4,
                   }}
                 >
-                  âœ… Full Refund
+                  ✅ {t.orderDetail.fullRefundNotice}
                 </Text>
                 <Text
                   style={{
@@ -2526,7 +2535,7 @@ export default function OrderDetailsScreen() {
             )}
 
             <Text style={styles.modalMessage}>
-              Select a reason for cancellation:
+              {t.orderDetail.selectReasonForCancellation}
             </Text>
 
             {/* Predefined Reasons Dropdown */}
@@ -2583,7 +2592,7 @@ export default function OrderDetailsScreen() {
                       flex: 1,
                     }}
                   >
-                    {reason.label_en}
+                    {getLocalizedValue(reason, "label")}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -2802,7 +2811,7 @@ export default function OrderDetailsScreen() {
                     <Text
                       style={{ fontSize: 13, color: Colors.neutralCharcoal }}
                     >
-                      {reason.label_en}
+                      {getLocalizedValue(reason, "label")}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -3052,7 +3061,7 @@ export default function OrderDetailsScreen() {
             }}
           >
             {/* Download Invoice */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               onPress={handleDownloadInvoice}
               disabled={downloadingInvoice}
               activeOpacity={0.6}
@@ -3082,16 +3091,16 @@ export default function OrderDetailsScreen() {
               >
                 {t.orderDetail.downloadInvoice}
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             {/* Separator */}
-            <View
+            {/* <View
               style={{
                 height: 1,
                 backgroundColor: Colors.neutralLight,
                 marginHorizontal: 16,
               }}
-            />
+            /> */}
 
             {/* Email Invoice */}
             <TouchableOpacity

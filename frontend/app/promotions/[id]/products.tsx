@@ -105,7 +105,7 @@ export default function PromotionProductsScreen() {
     if (promotion.discount_type === "percentage") {
       return `${promotion.discount_value}% OFF`;
     } else if (promotion.discount_type === "fixed") {
-      return `${promotion.discount_value} EGP OFF`;
+      return `${promotion.discount_value} ${t.common.currency} ${t.ui.off}`;
     }
     return t.ui.specialOffer;
   };

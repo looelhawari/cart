@@ -496,8 +496,11 @@ export default function MapAddressPicker({
                   <Text style={styles.zoneOkText}>
                     {(zoneInfo as any)?.zone_name ||
                       zoneInfo?.name ||
-                      "Delivery zone"}{" "}
-                    — EGP {zoneInfo?.delivery_fee || 0} delivery fee
+                      t.ui.deliveryZone}{" "}
+                    {t.ui.deliveryFeeAmount.replace(
+                      "{amount}",
+                      String(zoneInfo?.delivery_fee || 0),
+                    )}
                   </Text>
                 </View>
                 {(zoneInfo?.estimated_delivery_time ||

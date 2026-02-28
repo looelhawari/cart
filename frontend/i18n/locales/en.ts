@@ -754,6 +754,8 @@ export default {
     contactInformation: "Contact Information",
     recipientName: "Recipient Name",
     enterRecipientName: "Enter recipient name",
+    pickFromMap: "Pick Location from Map",
+    changeLocation: "Change Location",
     phoneNumber: "Phone Number",
     enterPhoneNumber: "Enter phone number",
     addressDetails: "Address Details",
@@ -885,9 +887,9 @@ export default {
     enterPassword: "Enter your password to confirm",
     deleteAccountActiveOrders:
       "You have active orders. Please wait until they are completed or cancel them before deleting your account.",
-      deleteDataOrders: "Order history & saved items",
-      deleteDataAddresses: "Saved addresses & preferences",
-      deleteDataPayment: "Payment methods",
+    deleteDataOrders: "Order history & saved items",
+    deleteDataAddresses: "Saved addresses & preferences",
+    deleteDataPayment: "Payment methods",
   },
 
   // Offers
@@ -1212,6 +1214,11 @@ export default {
     walletPlusCardPayment: "Wallet + Card Payment",
     cardPayment: "Card Payment",
     paymentStatus: "Status:",
+    paymentStatusPending: "Pending",
+    paymentStatusCompleted: "Completed",
+    paymentStatusPaid: "Paid",
+    paymentStatusFailed: "Failed",
+    paymentStatusRefunded: "Refunded",
     paymentRefundedMessage:
       "Your payment has been refunded to your original payment method",
     // Item details
@@ -2061,6 +2068,6 @@ export default {
     cancel: "Cancel",
     kmAway: "km away",
     deliveryZone: "Delivery zone",
-    deliveryFeeAmount: "— EGP {amount} delivery fee",
+    deliveryFeeAmount: "— {amount} EGP delivery fee",
   },
 };

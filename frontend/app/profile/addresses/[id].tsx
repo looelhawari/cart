@@ -335,7 +335,7 @@ export default function AddEditAddressScreen() {
                   <Text style={styles.mapPickerZone}>
                     ✓ {zoneName}
                     {deliveryFee !== null &&
-                      ` • EGP ${deliveryFee} ${t.ui.delivery}`}
+                      ` • ${t.common.currency} ${deliveryFee} ${t.ui.delivery}`}
                     {estimatedTime && ` • ${estimatedTime}`}
                   </Text>
                 </View>

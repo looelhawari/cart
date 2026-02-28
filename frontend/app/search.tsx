@@ -440,7 +440,7 @@ export default function SearchScreen() {
             {product.sale_price ? (
               <>
                 <Text style={styles.suggestionSalePrice}>
-                  {product.sale_price.toFixed(2)} EGP
+                  {product.sale_price.toFixed(2)} {t.common.currency}
                 </Text>
                 <Text style={styles.suggestionOldPrice}>
                   {product.price.toFixed(2)}
@@ -448,7 +448,7 @@ export default function SearchScreen() {
               </>
             ) : (
               <Text style={styles.suggestionPrice}>
-                {product.price.toFixed(2)} EGP
+                {product.price.toFixed(2)} {t.common.currency}
               </Text>
             )}
           </View>
@@ -809,8 +809,8 @@ export default function SearchScreen() {
                     </Text>
                     <Text style={styles.offerDiscount}>
                       {offer.discount_type === "percentage"
-                        ? `${offer.discount_value}% OFF`
-                        : `${offer.discount_value} EGP OFF`}
+                        ? `${offer.discount_value}% ${t.cart.off}`
+                        : `${offer.discount_value} ${t.common.currency} ${t.cart.off}`}
                     </Text>
                   </View>
                   <ChevronRight size={16} color={Colors.neutralMedium} />

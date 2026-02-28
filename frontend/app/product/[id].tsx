@@ -118,6 +118,21 @@ export default function ProductDetailScreen() {
   const [toastType, setToastType] = useState<"success" | "error" | "info">(
     "success",
   );
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [addedToCartSuccess, setAddedToCartSuccess] = useState(false);
+  const addedToCartTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [relatedAdding, setRelatedAdding] = useState<Record<number, boolean>>(
+    {},
+  );
+  const [relatedAdded, setRelatedAdded] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    return () => {
+      if (addedToCartTimer.current) clearTimeout(addedToCartTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -399,21 +414,27 @@ export default function ProductDetailScreen() {
       }
     }
 
+    if (isAddingToCart) return;
+    setIsAddingToCart(true);
+    setAddedToCartSuccess(false);
     try {
       if (cartItem) {
         await updateQuantity(cartItem.id, cartItem.quantity + quantity);
       } else {
         await addToCart(product.barcode, quantity);
       }
-      setToastType("success");
-      setToastMessage(`${quantity} ${t.cart.itemAdded}`);
-      setShowToast(true);
+      setAddedToCartSuccess(true);
+      addedToCartTimer.current = setTimeout(() => {
+        setAddedToCartSuccess(false);
+      }, 1000);
     } catch (error) {
       const err: any = error;
       const msg = err?.message || err?.error || t.products.failedToAddToCart;
       setToastType("error");
       setToastMessage(msg);
       setShowToast(true);
+    } finally {
+      setIsAddingToCart(false);
     }
   };
 
@@ -473,11 +494,11 @@ export default function ProductDetailScreen() {
                     offerPricing.originalPrice) *
                     100,
                 );
-                shareMessage += `🔥 ${promoDiscount}% OFF! Now ${offerPricing.discountedPrice.toFixed(2)} EGP (was ${offerPricing.originalPrice.toFixed(2)} EGP)\n`;
+                shareMessage += `🔥 ${promoDiscount}% ${t.ui.off}! ${offerPricing.discountedPrice.toFixed(2)} ${t.common.currency} (${offerPricing.originalPrice.toFixed(2)} ${t.common.currency})\n`;
               } else if (discount > 0) {
-                shareMessage += `💰 ${discount}% OFF! Now ${basePrice.toFixed(2)} EGP (was ${price.toFixed(2)} EGP)\n`;
+                shareMessage += `💰 ${discount}% ${t.ui.off}! ${basePrice.toFixed(2)} ${t.common.currency} (${price.toFixed(2)} ${t.common.currency})\n`;
               } else {
-                shareMessage += `💰 ${basePrice.toFixed(2)} EGP\n`;
+                shareMessage += `💰 ${basePrice.toFixed(2)} ${t.common.currency}\n`;
               }
 
               shareMessage += `\n🛍️ ${t.ui.shopOnCart}\n${productUrl}`;
@@ -1417,20 +1438,39 @@ export default function ProductDetailScreen() {
                     style={[
                       styles.relatedAddToCartBtn,
                       itemOutOfStock && styles.relatedAddToCartBtnDisabled,
+                      relatedAdded[item.barcode] && {
+                        backgroundColor: "#16a34a",
+                      },
                     ]}
                     onPress={async (e) => {
                       e.stopPropagation();
+                      if (itemOutOfStock || relatedAdding[item.barcode]) return;
                       if (itemOutOfStock) {
                         setToastType("error");
                         setToastMessage(t.products.outOfStock);
                         setShowToast(true);
                         return;
                       }
+                      setRelatedAdding((prev) => ({
+                        ...prev,
+                        [item.barcode]: true,
+                      }));
+                      setRelatedAdded((prev) => ({
+                        ...prev,
+                        [item.barcode]: false,
+                      }));
                       try {
                         await addToCart(item.barcode, 1);
-                        setToastType("success");
-                        setToastMessage(t.cart.itemAdded);
-                        setShowToast(true);
+                        setRelatedAdded((prev) => ({
+                          ...prev,
+                          [item.barcode]: true,
+                        }));
+                        setTimeout(() => {
+                          setRelatedAdded((prev) => ({
+                            ...prev,
+                            [item.barcode]: false,
+                          }));
+                        }, 1500);
                       } catch (err: any) {
                         const msg =
                           err?.message ||
@@ -1439,18 +1479,32 @@ export default function ProductDetailScreen() {
                         setToastType("error");
                         setToastMessage(msg);
                         setShowToast(true);
+                      } finally {
+                        setRelatedAdding((prev) => ({
+                          ...prev,
+                          [item.barcode]: false,
+                        }));
                       }
                     }}
-                    disabled={itemOutOfStock}
+                    disabled={itemOutOfStock || relatedAdding[item.barcode]}
                   >
-                    <ShoppingCart
-                      size={18}
-                      color={
-                        itemOutOfStock
-                          ? Colors.neutralMedium
-                          : Colors.neutralWhite
-                      }
-                    />
+                    {relatedAdding[item.barcode] ? (
+                      <ActivityIndicator
+                        size={16}
+                        color={Colors.neutralWhite}
+                      />
+                    ) : relatedAdded[item.barcode] ? (
+                      <Check size={18} color={Colors.neutralWhite} />
+                    ) : (
+                      <ShoppingCart
+                        size={18}
+                        color={
+                          itemOutOfStock
+                            ? Colors.neutralMedium
+                            : Colors.neutralWhite
+                        }
+                      />
+                    )}
                     <Text
                       style={[
                         styles.relatedAddToCartText,
@@ -1459,7 +1513,9 @@ export default function ProductDetailScreen() {
                     >
                       {itemOutOfStock
                         ? t.products.outOfStock
-                        : t.cart.addToCart}
+                        : relatedAdded[item.barcode]
+                          ? t.cart.itemAdded
+                          : t.cart.addToCart}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1471,39 +1527,71 @@ export default function ProductDetailScreen() {
     );
   };
 
-  const renderBottomBar = () => (
-    <View style={styles.bottomBar}>
-      <View style={styles.bottomPriceSection}>
-        <Text style={styles.bottomLabel}>{t.ui.totalPrice}</Text>
-        <Text style={styles.bottomPrice}>
-          {t.ui.egp}{" "}
-          {((product.salePrice || product.price) * quantity).toFixed(2)}
-        </Text>
+  const renderBottomBar = () => {
+    // Use the best available price: offer price > sale price > regular price
+    const effectivePrice = promoPrice !== null ? promoPrice : basePrice;
+    return (
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomPriceSection}>
+          <Text style={styles.bottomLabel}>{t.ui.totalPrice}</Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.bottomPrice}>
+              {t.common.currency} {(effectivePrice * quantity).toFixed(2)}
+            </Text>
+            {(promoPrice !== null || (salePrice > 0 && salePrice < price)) && (
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: Colors.neutralMedium,
+                  textDecorationLine: "line-through",
+                }}
+              >
+                {t.common.currency} {(price * quantity).toFixed(2)}
+              </Text>
+            )}
+          </View>
+        </View>
+        <View style={styles.bottomActions}>
+          <TouchableOpacity
+            style={[
+              styles.addToCartButton,
+              !product.inStock && styles.buttonDisabled,
+              addedToCartSuccess && styles.addToCartButtonSuccess,
+            ]}
+            onPress={handleAddToCart}
+            disabled={(product.stock_quantity || 0) <= 0 || isAddingToCart}
+          >
+            {isAddingToCart ? (
+              <ActivityIndicator size="small" color={Colors.primary900} />
+            ) : addedToCartSuccess ? (
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              >
+                <Check size={18} color={Colors.neutralWhite} />
+                <Text
+                  style={[styles.addToCartText, { color: Colors.neutralWhite }]}
+                >
+                  {t.cart.itemAdded}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.addToCartText}>{t.products.addToCart}</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.buyNowButton,
+              (product.stock_quantity || 0) <= 0 && styles.buttonDisabled,
+            ]}
+            onPress={handleBuyNow}
+            disabled={(product.stock_quantity || 0) <= 0}
+          >
+            <Text style={styles.buyNowText}>{t.ui.buyNow}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={[
-            styles.addToCartButton,
-            !product.inStock && styles.buttonDisabled,
-          ]}
-          onPress={handleAddToCart}
-          disabled={(product.stock_quantity || 0) <= 0}
-        >
-          <Text style={styles.addToCartText}>{t.products.addToCart}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.buyNowButton,
-            (product.stock_quantity || 0) <= 0 && styles.buttonDisabled,
-          ]}
-          onPress={handleBuyNow}
-          disabled={(product.stock_quantity || 0) <= 0}
-        >
-          <Text style={styles.buyNowText}>{t.ui.buyNow}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -2091,6 +2179,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  addToCartButtonSuccess: {
+    backgroundColor: "#16a34a",
   },
   addToCartText: {
     fontSize: Typography.bodyLarge,

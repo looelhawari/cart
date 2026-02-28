@@ -20,7 +20,6 @@ import { ChevronRight } from "lucide-react-native";
 
 import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
-import Spacing from "@/constants/Spacing";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { GuestModal } from "@/components/GuestModal";
 import { orderApi, Order } from "@/services/api/orderApi";

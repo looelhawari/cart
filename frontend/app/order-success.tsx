@@ -211,7 +211,7 @@ export default function OrderSuccessScreen() {
               </Text>
               <Text style={styles.promoValue}>
                 {promoCode || promoInfo?.code} (-
-                {promoDiscount || promoInfo?.discount} EGP)
+                {promoDiscount || promoInfo?.discount} {t.common.currency})
               </Text>
             </>
           ) : null}

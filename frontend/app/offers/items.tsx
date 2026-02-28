@@ -376,10 +376,10 @@ export default function OfferItemsScreen() {
   const offerValueLabel = useMemo(() => {
     if (!offer) return "Offer";
     if (offer.type === "percentage") {
-      return `${Math.round(offer.value)}% OFF`;
+      return `${Math.round(offer.value)}% ${t.ui.off}`;
     }
     if (offer.type === "fixed_amount") {
-      return `EGP ${Math.round(offer.value)} OFF`;
+      return `${t.common.currency} ${Math.round(offer.value)} ${t.ui.off}`;
     }
     return "Offer";
   }, [offer]);
@@ -524,11 +524,11 @@ export default function OfferItemsScreen() {
                           {item.discounted_price !== null
                             ? formatPrice(item.discounted_price)
                             : formatPrice(item.price)}{" "}
-                          EGP
+                          {t.common.currency}
                         </Text>
                         {item.discounted_price !== null && (
                           <Text style={styles.originalPrice}>
-                            {formatPrice(item.price)} EGP
+                            {formatPrice(item.price)} {t.common.currency}
                           </Text>
                         )}
                       </View>

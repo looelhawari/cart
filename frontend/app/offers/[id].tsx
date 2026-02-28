@@ -144,21 +144,19 @@ export default function OfferDetailScreen() {
     offer.type === "percentage"
       ? `${offer.value}%`
       : offer.type === "fixed_amount"
-        ? `EGP ${offer.value}`
+        ? `${t.common.currency} ${offer.value}`
         : offer.type === "free_delivery"
-          ? "FREE"
+          ? t.ui.freeDeliveryUpper
           : "BOGO";
 
   const valueLabel =
     offer.type === "percentage"
-      ? "OFF"
+      ? t.ui.off
       : offer.type === "fixed_amount"
-        ? "OFF"
+        ? t.ui.off
         : offer.type === "free_delivery"
-          ? "DELIVERY"
-          : "Deal";
-
-  // Copy code to clipboard
+          ? t.ui.freeDeliveryUpper
+          : t.ui.off;
   const handleCopyCode = async () => {
     await ExpoClipboard.setStringAsync(offer.code);
   };
@@ -425,12 +423,12 @@ export default function OfferDetailScreen() {
                   <View style={styles.targetInfo}>
                     <Text style={styles.targetName}>{getName(prod)}</Text>
                     <Text style={styles.targetMeta}>
-                      EGP {prod.sale_price ?? prod.price}
+                      {t.common.currency} {prod.sale_price ?? prod.price}
                       {prod.sale_price != null &&
                         prod.sale_price < prod.price && (
                           <Text style={styles.strikePrice}>
                             {" "}
-                            EGP {prod.price}
+                            {t.common.currency} {prod.price}
                           </Text>
                         )}
                     </Text>
@@ -511,14 +509,14 @@ export default function OfferDetailScreen() {
               <DetailCell
                 icon="cart-outline"
                 label={t.ui.minOrder}
-                value={`EGP ${offer.minimum_order}`}
+                value={`${t.common.currency} ${offer.minimum_order}`}
               />
             )}
             {offer.maximum_discount != null && (
               <DetailCell
                 icon="trending-down-outline"
                 label={t.ui.maxDiscount}
-                value={`EGP ${offer.maximum_discount}`}
+                value={`${t.common.currency} ${offer.maximum_discount}`}
               />
             )}
           </View>
@@ -578,10 +576,10 @@ function BogoRuleCard({ rule, index }: { rule: OfferBogoRule; index: number }) {
   const { t } = useTranslation();
   const discountLabel =
     rule.get_discount_type === "free"
-      ? "FREE"
+      ? t.ui.freeDeliveryUpper
       : rule.get_discount_type === "percentage"
-        ? `${rule.get_discount_value}% OFF`
-        : `EGP ${rule.get_discount_value} OFF`;
+        ? `${rule.get_discount_value}% ${t.ui.off}`
+        : `${t.common.currency} ${rule.get_discount_value} ${t.ui.off}`;
 
   return (
     <View style={styles.bogoCard}>

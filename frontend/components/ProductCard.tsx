@@ -1,6 +1,13 @@
-import React, { useState, useEffect, memo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { Heart } from "lucide-react-native";
+import React, { useState, useEffect, memo, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+} from "react-native";
+import { Heart, Check } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
@@ -51,11 +58,22 @@ export const ProductCard = memo(function ProductCard({
     product.is_in_stock === false || (product.stock_quantity || 0) <= 0;
   const isLowStock = !isOutOfStock && (product.stock_quantity || 0) <= 3;
 
+  const [isAdding, setIsAdding] = useState(false);
+  const [addedSuccess, setAddedSuccess] = useState(false);
+  const successTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error" | "info">(
     "info",
   );
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeout.current) clearTimeout(successTimeout.current);
+    };
+  }, []);
 
   // Cache product image
   useEffect(() => {
@@ -146,21 +164,28 @@ export const ProductCard = memo(function ProductCard({
           {hasDiscount ? (
             <>
               <Text style={styles.salePrice}>
-                {parseFloat(displaySalePrice.toString()).toFixed(2)} EGP
+                {parseFloat(displaySalePrice.toString()).toFixed(2)}{" "}
+                {t.common.currency}
               </Text>
               <Text style={styles.originalPrice}>
-                {parseFloat(displayPrice.toString()).toFixed(2)} EGP
+                {parseFloat(displayPrice.toString()).toFixed(2)}{" "}
+                {t.common.currency}
               </Text>
             </>
           ) : (
             <Text style={styles.price}>
-              {parseFloat(displayPrice.toString()).toFixed(2)} EGP
+              {parseFloat(displayPrice.toString()).toFixed(2)}{" "}
+              {t.common.currency}
             </Text>
           )}
         </View>
 
         <TouchableOpacity
-          style={[styles.addButton, isOutOfStock && styles.addButtonDisabled]}
+          style={[
+            styles.addButton,
+            isOutOfStock && styles.addButtonDisabled,
+            addedSuccess && styles.addButtonSuccess,
+          ]}
           onPress={async (e) => {
             e.stopPropagation();
             if (isOutOfStock) {
@@ -177,19 +202,15 @@ export const ProductCard = memo(function ProductCard({
               }
               return;
             }
+            if (isAdding) return;
+            setIsAdding(true);
+            setAddedSuccess(false);
             try {
               await addToCart(productId, 1);
-              if (onAddToCart) {
-                onAddToCart({
-                  success: true,
-                  message: t.cart.itemAdded,
-                  type: "success",
-                });
-              } else {
-                setToastType("success");
-                setToastMessage(t.cart.itemAdded);
-                setShowToast(true);
-              }
+              setAddedSuccess(true);
+              successTimeout.current = setTimeout(() => {
+                setAddedSuccess(false);
+              }, 1500);
             } catch (error: any) {
               console.error("Failed to add to cart:", error);
               const msg =
@@ -204,11 +225,22 @@ export const ProductCard = memo(function ProductCard({
                 setToastMessage(msg);
                 setShowToast(true);
               }
+            } finally {
+              setIsAdding(false);
             }
           }}
-          disabled={isOutOfStock}
+          disabled={isOutOfStock || isAdding}
         >
-          <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
+          {isAdding ? (
+            <ActivityIndicator size="small" color={Colors.neutralWhite} />
+          ) : addedSuccess ? (
+            <View style={styles.addedRow}>
+              <Check size={16} color={Colors.neutralWhite} />
+              <Text style={styles.addButtonText}>{t.cart.itemAdded}</Text>
+            </View>
+          ) : (
+            <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
+          )}
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -321,6 +353,14 @@ const styles = StyleSheet.create({
   },
   addButtonDisabled: {
     backgroundColor: Colors.neutralGray,
+  },
+  addButtonSuccess: {
+    backgroundColor: "#16a34a",
+  },
+  addedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   addButtonText: {
     color: Colors.neutralWhite,

@@ -24,10 +24,11 @@ import { ProductCard } from "@/components/ProductCard";
 import { getCategoryProducts } from "@/services/api/categoryApi";
 import type { Product, Category } from "@/types";
 import { useStore } from "@/store";
-import { useTranslation } from "@/i18n";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 export default function CategoryProductsScreen() {
   const { t } = useTranslation();
+  const { getName } = useLocalizedValue();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState<Category | null>(null);
@@ -103,7 +104,7 @@ export default function CategoryProductsScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {category.name_en}
+          {getName(category)}
         </Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -143,7 +144,7 @@ export default function CategoryProductsScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.subcategoryContent}>
-                  <Text style={styles.subcategoryName}>{sub.name_en}</Text>
+                  <Text style={styles.subcategoryName}>{getName(sub)}</Text>
                   <ChevronRight size={16} color={Colors.primary900} />
                 </View>
                 {sub.products_count > 0 && (
@@ -161,7 +162,7 @@ export default function CategoryProductsScreen() {
       {products.length > 0 && (
         <View style={styles.productsSection}>
           <Text style={styles.sectionTitle}>
-            {t.ui.productsIn.replace("{name}", category.name_en || "")}
+            {t.ui.productsIn.replace("{name}", getName(category))}
           </Text>
           <Text style={styles.productsCount}>
             {products.length}{" "}

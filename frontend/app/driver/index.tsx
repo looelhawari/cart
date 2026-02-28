@@ -33,7 +33,7 @@ import {
   DriverDashboard,
   DriverOrder,
 } from "@/services/api/driverApi";
-import { useTranslation } from "@/i18n";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "#3b82f6",
@@ -56,6 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function DriverDashboardScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { getName } = useLocalizedValue();
   const logout = useStore((s) => s.logout);
   const user = useStore((s) => s.user);
 
@@ -235,8 +236,8 @@ export default function DriverDashboardScreen() {
             {user?.first_name || t.driver.driverFallback}
           </Text>
           <Text style={styles.subGreeting}>
-            {dashboard?.assigned_zone?.name_en
-              ? `${t.driver.zone}${dashboard.assigned_zone.name_en}`
+            {dashboard?.assigned_zone
+              ? `${t.driver.zone}${getName(dashboard.assigned_zone)}`
               : t.driver.noZoneAssigned}
           </Text>
         </View>
