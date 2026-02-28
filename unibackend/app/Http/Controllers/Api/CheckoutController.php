@@ -171,7 +171,7 @@ class CheckoutController extends Controller
             if (!$storeStatus['is_open']) {
                 $lang = $request->header('Accept-Language', 'en');
                 $message = $lang === 'ar' ? $storeStatus['message_ar'] : $storeStatus['message_en'];
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => $message,
