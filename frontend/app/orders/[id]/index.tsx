@@ -1467,7 +1467,9 @@ export default function OrderDetailsScreen() {
                     )}
                   </View>
                   <View style={styles.timelineContent}>
-                    <Text style={styles.timelineStatus}>{getTranslatedStatus(history.status)}</Text>
+                    <Text style={styles.timelineStatus}>
+                      {getTranslatedStatus(history.status)}
+                    </Text>
                     <Text style={styles.timelineDate}>
                       {new Date(history.created_at).toLocaleDateString(
                         dateLocale,

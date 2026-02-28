@@ -299,8 +299,8 @@ class ComplaintController extends Controller
         // Send escalation confirmation message
         $lang = $request->header('Accept-Language', 'en');
         $lang = str_contains($lang, 'ar') ? 'ar' : 'en';
-        
-        $message = $lang === 'ar' 
+
+        $message = $lang === 'ar'
             ? "تم تحويلك إلى موظف دعم! 🎧\n\nسيرد عليك أحد موظفينا قريباً."
             : "You've been connected to a support agent! 🎧\n\nOne of our team members will respond shortly.";
 

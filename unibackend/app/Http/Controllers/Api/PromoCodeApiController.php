@@ -86,7 +86,7 @@ class PromoCodeApiController extends Controller
         ]);
 
         $userId = $request->user()?->id;
-        
+
         if (!$userId) {
             return response()->json([
                 'success' => false,
@@ -131,8 +131,8 @@ class PromoCodeApiController extends Controller
                 'data' => $generalCodes->map(fn($code) => [
                     'code' => $code->code,
                     'display' => $code->discount_display,
-                    'reason' => $code->first_order_only 
-                        ? __('promo.welcome_offer') 
+                    'reason' => $code->first_order_only
+                        ? __('promo.welcome_offer')
                         : __('promo.special_offer'),
                 ]),
             ]);
@@ -169,7 +169,7 @@ class PromoCodeApiController extends Controller
 
         $userId = $request->user()?->id;
         $subtotal = $request->subtotal ?? 0;
-        
+
         $isFirstOrder = false;
         if ($userId) {
             $isFirstOrder = Order::where('user_id', $userId)
@@ -263,7 +263,7 @@ class PromoCodeApiController extends Controller
                 'remaining_uses' => $userId ? $promoCode->getRemainingUsesForUser($userId) : null,
                 'products' => $promoCode->applies_to === 'product' ? $promoCode->products : null,
                 'categories' => $promoCode->applies_to === 'category' ? $promoCode->categories : null,
-                'bogo_rules' => $promoCode->type === 'bogo' 
+                'bogo_rules' => $promoCode->type === 'bogo'
                     ? $promoCode->activeBogoRules->map(fn($r) => [
                         'description' => $r->description,
                         'buy_qty' => $r->buy_qty,

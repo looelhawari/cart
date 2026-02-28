@@ -232,7 +232,7 @@ class ReviewController extends Controller
         $existingReview = Review::where('user_id', $user->id)
             ->where('product_id', $productId)
             ->first();
-        
+
         $alreadyReviewed = $existingReview !== null;
 
         // Get eligible orders (delivered orders containing this product that haven't been reviewed)
@@ -261,7 +261,7 @@ class ReviewController extends Controller
             'already_reviewed' => $alreadyReviewed,
             'eligible_orders' => $eligibleOrders,
         ];
-        
+
         // Include the existing review if user has already reviewed
         if ($existingReview) {
             $responseData['existing_review'] = new ReviewResource($existingReview);
