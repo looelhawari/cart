@@ -18,9 +18,9 @@ import Colors from "@/constants/Colors";
 
 // Support Contact Info
 const SUPPORT_INFO = {
-  phone: "+20 100 123 4567",
+  phone: "+20 1144689191",
   email: "kareemhesham105@gmail.com",
-  whatsapp: "+201001234567",
+  whatsapp: "+20 1144689191",
   workingHours: "Saturday - Thursday: 9 AM - 10 PM",
   responseTime: "Within 24 hours",
 };
@@ -185,7 +185,7 @@ export default function HelpScreen() {
   };
 
   const handleTrackOrder = () => {
-    router.push("/profile/orders" as any);
+    router.push("/orders" as any);
   };
 
   const handleMyMessages = () => {
@@ -265,7 +265,7 @@ export default function HelpScreen() {
 
             <TouchableOpacity
               style={styles.quickActionCard}
-              onPress={() => router.push("/profile/orders" as any)}
+              onPress={() => router.push("/complaints" as any)}
             >
               <View
                 style={[styles.quickActionIcon, { backgroundColor: "#FFF3E0" }]}

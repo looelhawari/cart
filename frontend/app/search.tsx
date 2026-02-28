@@ -131,6 +131,7 @@ export default function SearchScreen() {
   const suggestionsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const autoSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchSubmittedQuery = useRef<string>("");
+  const searchVersionRef = useRef(0);
 
   // ─── Load popular data + categories on mount ──────────────────
   useEffect(() => {
@@ -156,14 +157,14 @@ export default function SearchScreen() {
     try {
       const response = await getCategories(true);
       if (response.success) {
-        setCategories(response.data.categories.slice(0, 8));
+        setCategories(response.data.categories.slice(0, 9));
       }
     } catch (error) {
       console.error("Failed to load categories:", error);
     }
   };
 
-  // ─── Debounced Dynamic Search (500ms) ──────────────────────────
+  // ─── Debounced Search with Suggestions ─────────────────────────
   useEffect(() => {
     if (suggestionsTimeoutRef.current) {
       clearTimeout(suggestionsTimeoutRef.current);
@@ -173,16 +174,21 @@ export default function SearchScreen() {
     }
 
     const trimmed = searchQuery.trim();
+    // Bump version on every keystroke to discard stale API results
+    searchVersionRef.current += 1;
+
     if (trimmed.length >= 2) {
-      if (searchState !== "results") {
-        setSearchState("typing");
-      }
+      // Always show suggestions while user is actively typing
+      setSearchState("typing");
       setSuggestionsLoading(true);
 
-      // Fast typeahead suggestions (200ms)
+      // Typeahead suggestions — fast 300 ms debounce
+      const ver = searchVersionRef.current;
       suggestionsTimeoutRef.current = setTimeout(async () => {
         try {
           const response = await getSearchSuggestions(trimmed);
+          // Discard if user has typed more since this request
+          if (searchVersionRef.current !== ver) return;
           if (response.success) {
             setSuggestedProducts(response.data.products);
             setSuggestedCategories(response.data.categories);
@@ -191,20 +197,26 @@ export default function SearchScreen() {
         } catch (error) {
           console.error("Suggestions error:", error);
         } finally {
-          setSuggestionsLoading(false);
+          if (searchVersionRef.current === ver) {
+            setSuggestionsLoading(false);
+          }
         }
-      }, 90);
+      }, 300);
 
-      // Auto-execute full search after 500ms of inactivity (enterprise dynamic search)
+      // Auto-execute full search after 800 ms of inactivity
       autoSearchTimeoutRef.current = setTimeout(() => {
-        executeSearch(trimmed);
-      }, 90);
-    } else if (trimmed.length === 0 && searchState === "typing") {
-      setSearchState("idle");
+        executeSearch(trimmed, 1, false, false);
+      }, 800);
+    } else {
+      // Short / empty query — clear suggestions
       setSuggestedProducts([]);
       setSuggestedCategories([]);
       setSuggestedOffers([]);
       setSuggestionsLoading(false);
+      if (trimmed.length === 0) {
+        setSearchState("idle");
+        setSearchResults([]);
+      }
     }
 
     return () => {
@@ -219,9 +231,16 @@ export default function SearchScreen() {
 
   // ─── Full Search Execution ─────────────────────────────────────
   const executeSearch = useCallback(
-    async (query: string, page: number = 1, append: boolean = false) => {
+    async (
+      query: string,
+      page: number = 1,
+      append: boolean = false,
+      dismissKeyboard: boolean = true,
+    ) => {
       const trimmed = query.trim();
       if (!trimmed && !selectedCategory) return;
+
+      const ver = searchVersionRef.current;
 
       if (!append) {
         setResultsLoading(true);
@@ -231,7 +250,7 @@ export default function SearchScreen() {
         setLoadingMore(true);
       }
 
-      Keyboard.dismiss();
+      if (dismissKeyboard) Keyboard.dismiss();
 
       // Save to recent searches
       if (trimmed) {
@@ -252,6 +271,9 @@ export default function SearchScreen() {
           false,
         );
 
+        // Discard stale results if user typed more since this search started
+        if (searchVersionRef.current !== ver && !append) return;
+
         if (response.success) {
           const newProducts = response.data.products;
           setSearchResults((prev) =>
@@ -269,8 +291,10 @@ export default function SearchScreen() {
         console.error("Search error:", error);
         if (!append) setSearchResults([]);
       } finally {
-        setResultsLoading(false);
-        setLoadingMore(false);
+        if (searchVersionRef.current === ver || append) {
+          setResultsLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [selectedSort, selectedCategory, addRecentSearch],
@@ -283,6 +307,7 @@ export default function SearchScreen() {
       clearTimeout(autoSearchTimeoutRef.current);
       autoSearchTimeoutRef.current = null;
     }
+    Keyboard.dismiss();
     executeSearch(searchQuery);
   }, [searchQuery, executeSearch]);
 
@@ -293,6 +318,7 @@ export default function SearchScreen() {
 
   const handleSuggestionCategoryPress = useCallback(
     (categoryId: number) => {
+      Keyboard.dismiss();
       setSelectedCategory(categoryId);
       executeSearch(searchQuery, 1);
     },
@@ -301,6 +327,7 @@ export default function SearchScreen() {
 
   const handleRecentSearchPress = useCallback(
     (query: string) => {
+      Keyboard.dismiss();
       setSearchQuery(query);
       executeSearch(query);
     },
@@ -309,6 +336,7 @@ export default function SearchScreen() {
 
   const handleTrendingPress = useCallback(
     (termEn: string) => {
+      Keyboard.dismiss();
       setSearchQuery(termEn);
       executeSearch(termEn);
     },
@@ -450,7 +478,7 @@ export default function SearchScreen() {
           <Search size={18} color={Colors.neutralMedium} />
           <TextInput
             ref={searchInputRef}
-            style={styles.searchInput}
+            style={[styles.searchInput, { writingDirection: "auto" }]}
             placeholder={t.common.searchPlaceholder}
             placeholderTextColor={Colors.neutralMedium}
             value={searchQuery}
@@ -458,6 +486,9 @@ export default function SearchScreen() {
             autoFocus
             returnKeyType="search"
             onSubmitEditing={handleSubmitSearch}
+            textAlign="left"
+            autoCorrect={false}
+            spellCheck={false}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity
@@ -480,6 +511,7 @@ export default function SearchScreen() {
           style={styles.content}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.idleContent}
+          keyboardShouldPersistTaps="handled"
         >
           {/* ── Recent Searches ──────────────────────────────────── */}
           {recentSearches.length > 0 && (
@@ -569,7 +601,7 @@ export default function SearchScreen() {
           )}
 
           {/* ── Top Categories ───────────────────────────────────── */}
-          {popularData && popularData.top_categories.length > 0 && (
+          {categories.length > 0 && (
             <View style={styles.sectionCard}>
               <View style={styles.sectionTitleRow}>
                 <View
@@ -585,13 +617,13 @@ export default function SearchScreen() {
                 </Text>
               </View>
               <View style={styles.topCategoriesGrid}>
-                {popularData.top_categories.map((cat) => (
+                {categories.map((cat) => (
                   <TouchableOpacity
                     key={`topcat-${cat.id}`}
                     style={styles.topCategoryCard}
                     onPress={() => {
-                      setSelectedCategory(cat.id);
-                      executeSearch("");
+                      Keyboard.dismiss();
+                      router.push(`/categories/${cat.id}` as any);
                     }}
                     activeOpacity={0.7}
                   >
@@ -607,18 +639,35 @@ export default function SearchScreen() {
                           style={[
                             styles.topCategoryImage,
                             styles.topCategoryPlaceholder,
+                            {
+                              backgroundColor: [
+                                "#10B981",
+                                "#3B82F6",
+                                "#8B5CF6",
+                                "#EC4899",
+                                "#F59E0B",
+                                "#06B6D4",
+                                "#EF4444",
+                                "#6366F1",
+                                "#14B8A6",
+                              ][cat.id % 9],
+                            },
                           ]}
                         >
-                          <Grid3x3 size={22} color={Colors.neutralMedium} />
+                          <Text style={styles.topCategoryInitial}>
+                            {getName(cat).charAt(0).toUpperCase()}
+                          </Text>
                         </View>
                       )}
                     </View>
                     <Text style={styles.topCategoryName} numberOfLines={2}>
-                      {getName({ name_en: cat.name_en, name_ar: cat.name_ar })}
+                      {getName(cat)}
                     </Text>
-                    <Text style={styles.topCategoryCount}>
-                      {cat.product_count} {t.search.products.toLowerCase()}
-                    </Text>
+                    {cat.products_count != null && (
+                      <Text style={styles.topCategoryCount}>
+                        {cat.products_count} {t.search.products.toLowerCase()}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1165,6 +1214,11 @@ const styles = StyleSheet.create({
   topCategoryPlaceholder: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  topCategoryInitial: {
+    fontSize: 24,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.neutralWhite,
   },
   topCategoryName: {
     fontSize: Typography.bodySmall,

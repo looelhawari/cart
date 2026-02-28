@@ -885,6 +885,9 @@ export default {
     enterPassword: "Enter your password to confirm",
     deleteAccountActiveOrders:
       "You have active orders. Please wait until they are completed or cancel them before deleting your account.",
+      deleteDataOrders: "Order history & saved items",
+      deleteDataAddresses: "Saved addresses & preferences",
+      deleteDataPayment: "Payment methods",
   },
 
   // Offers
@@ -1004,6 +1007,10 @@ export default {
     // Confirmation screen keys
     reviewOrder: "Review Order",
     deliveryDate: "Delivery Date",
+    deliveryNotes: "Delivery Notes",
+    deliveryNotesPlaceholder:
+      "E.g., Don't ring the doorbell, Call on arrival...",
+    deliveryNotesOptional: "(Optional)",
     tomorrow: "Tomorrow",
     cardPayment: "Card Payment",
     securePaymentPaymob: "Secure payment via Paymob",

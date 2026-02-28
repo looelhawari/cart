@@ -773,7 +773,7 @@ export default function HomeScreen() {
               </View>
               <TouchableOpacity
                 style={styles.viewAllButtonAlt}
-                onPress={() => router.push("/deals/flash")}
+                onPress={() => router.push("/(tabs)/offers")}
                 activeOpacity={0.85}
               >
                 <Text style={styles.viewAllTextAlt}>

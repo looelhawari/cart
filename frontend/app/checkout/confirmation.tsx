@@ -468,7 +468,7 @@ export default function CheckoutConfirmationScreen() {
               {t.checkout?.deliveryNotes || "Delivery Notes"}
             </Text>
             <Text style={styles.optionalLabel}>
-              {t.common?.optional || "(Optional)"}
+              {t.checkout?.deliveryNotesOptional || "(Optional)"}
             </Text>
           </View>
           <TextInput

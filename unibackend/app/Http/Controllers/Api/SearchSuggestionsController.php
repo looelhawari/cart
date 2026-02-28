@@ -78,7 +78,7 @@ class SearchSuggestionsController extends Controller
                 }])
                 ->having('products_count', '>', 0)
                 ->orderByDesc('products_count')
-                ->limit(8)
+                ->limit(9)
                 ->get(['id', 'name_en', 'name_ar', 'image'])
                 ->map(fn($c) => [
                     'id' => $c->id,
@@ -126,10 +126,12 @@ class SearchSuggestionsController extends Controller
             ->where(function ($q) use ($query) {
                 $q->where('name_en', 'LIKE', "%{$query}%")
                   ->orWhere('name_ar', 'LIKE', "%{$query}%")
+                  ->orWhere('description_en', 'LIKE', "%{$query}%")
+                  ->orWhere('description_ar', 'LIKE', "%{$query}%")
                   ->orWhere('barcode', 'LIKE', "{$query}%");
             })
             ->orderByDesc('sales_count') // best sellers first
-            ->limit(5)
+            ->limit(8)
             ->get(['barcode', 'name_en', 'name_ar', 'price', 'sale_price', 'image_url', 'unit'])
             ->map(fn($p) => [
                 'barcode' => $p->barcode,

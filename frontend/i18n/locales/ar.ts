@@ -874,6 +874,9 @@ export default {
     enterPassword: "أدخل كلمة المرور للتأكيد",
     deleteAccountActiveOrders:
       "لديك طلبات نشطة. يرجى الانتظار حتى اكتمالها أو إلغائها قبل حذف حسابك.",
+    deleteDataOrders: "سجل الطلبات والمنتجات المحفوظة",
+    deleteDataAddresses: "العناوين والتفضيلات المحفوظة",
+    deleteDataPayment: "طرق الدفع المحفوظة",
   },
 
   // Offers
@@ -993,6 +996,9 @@ export default {
     // Confirmation screen keys
     reviewOrder: "مراجعة الطلب",
     deliveryDate: "تاريخ التوصيل",
+    deliveryNotes: "ملاحظات التوصيل",
+    deliveryNotesPlaceholder: "مثلاً، لا ترن الجرس، اتصل عند الوصول...",
+    deliveryNotesOptional: "(اختياري)",
     tomorrow: "غداً",
     cardPayment: "الدفع بالبطاقة",
     securePaymentPaymob: "دفع آمن عبر باي موب",
