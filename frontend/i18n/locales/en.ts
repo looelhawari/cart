@@ -170,7 +170,8 @@ export default {
     passwordResetSuccess: "Password has been reset successfully",
     failedToReset: "Failed to reset password",
     sendResetCode: "Send Reset Code",
-    emailNotVerified: "Your email is not verified. Please verify your email first before resetting your password.",
+    emailNotVerified:
+      "Your email is not verified. Please verify your email first before resetting your password.",
     verifyFirst: "Verify Email First",
     goToVerify: "Go to Verify",
   },
@@ -607,20 +608,27 @@ export default {
 
   paymentErrors: {
     verificationFailedTitle: "Payment Verification Failed",
-    verificationFailedMessage: "We couldn't verify your payment. Please try again or use a different card.",
+    verificationFailedMessage:
+      "We couldn't verify your payment. Please try again or use a different card.",
     cancelledTitle: "Payment Cancelled",
     cancelledMessage: "You cancelled the payment. Your order is still pending.",
     declinedTitle: "Payment Declined",
-    declinedMessage: "Your bank declined this transaction. Please check with your bank or try another card.",
+    declinedMessage:
+      "Your bank declined this transaction. Please check with your bank or try another card.",
     cardErrorTitle: "Card Error",
-    cardErrorMessage: "There's an issue with your card. Please use a different card.",
+    cardErrorMessage:
+      "There's an issue with your card. Please use a different card.",
     connectionErrorTitle: "Connection Error",
-    connectionErrorMessage: "We couldn't connect to the payment service. Please check your internet and try again.",
+    connectionErrorMessage:
+      "We couldn't connect to the payment service. Please check your internet and try again.",
     serviceUnavailableTitle: "Payment Service Unavailable",
-    serviceUnavailableMessage: "The payment service is temporarily unavailable. Please try again in a few minutes.",
+    serviceUnavailableMessage:
+      "The payment service is temporarily unavailable. Please try again in a few minutes.",
     failedTitle: "Payment Failed",
-    failedMessage: "We couldn't process your payment. Don't worry, no money was deducted. Please try again.",
-    pendingMessage: "Your payment is being processed. This usually takes a few seconds.",
+    failedMessage:
+      "We couldn't process your payment. Don't worry, no money was deducted. Please try again.",
+    pendingMessage:
+      "Your payment is being processed. This usually takes a few seconds.",
     successMessage: "Payment successful! Your order has been confirmed.",
   },
 

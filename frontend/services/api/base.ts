@@ -164,7 +164,7 @@ export const apiRequest = async <T>(
   if (__DEV__) {
     console.log(`[API] ${options.method || "GET"} ${API_BASE_URL}${endpoint}`);
     if (!token) {
-      console.warn('[API] ⚠️ No auth token available for request');
+      console.warn("[API] ⚠️ No auth token available for request");
     }
   }
 
@@ -178,8 +178,8 @@ export const apiRequest = async <T>(
 
     // Log authentication errors
     if (__DEV__ && response.status === 401) {
-      console.error('[API] 401 Unauthenticated:', endpoint);
-      console.error('[API] Token present:', token ? 'YES' : 'NO');
+      console.error("[API] 401 Unauthenticated:", endpoint);
+      console.error("[API] Token present:", token ? "YES" : "NO");
     }
 
     throw error;

@@ -726,7 +726,8 @@ export default function OrderDetailsScreen() {
             result.refund.refund_amount ?? result.refund.amount ?? 0,
           penalty_amount: result.refund.penalty_amount ?? 0,
           penalty_percent: result.refund.penalty_percent ?? 0,
-          estimated_days: result.refund.estimated_days ?? t.orderDetail.defaultEstimatedDays,
+          estimated_days:
+            result.refund.estimated_days ?? t.orderDetail.defaultEstimatedDays,
         });
         setShowRefundResult(true);
       }
@@ -1543,11 +1544,14 @@ export default function OrderDetailsScreen() {
                   {t.orderDetail.deliverySchedule}
                 </Text>
                 <Text style={styles.infoValue}>
-                  {new Date(order.delivery_date).toLocaleDateString(dateLocale, {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                  {new Date(order.delivery_date).toLocaleDateString(
+                    dateLocale,
+                    {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    },
+                  )}
                 </Text>
                 <Text style={styles.infoValue}>{order.delivery_time_slot}</Text>
               </View>

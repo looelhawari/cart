@@ -53,7 +53,14 @@ export default function ForgotPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [otpDigits, setOtpDigits] = useState<string[]>([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
   const otpInputRefs = useRef<(TextInput | null)[]>([]);
   const [resendToast, setResendToast] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -148,7 +155,10 @@ export default function ForgotPasswordScreen() {
     const newDigits = [...otpDigits];
     // Handle paste of full OTP
     if (text.length > 1) {
-      const pastedDigits = text.replace(/[^0-9]/g, "").slice(0, 6).split("");
+      const pastedDigits = text
+        .replace(/[^0-9]/g, "")
+        .slice(0, 6)
+        .split("");
       for (let i = 0; i < 6; i++) {
         newDigits[i] = pastedDigits[i] || "";
       }

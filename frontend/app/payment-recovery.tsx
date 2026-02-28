@@ -225,14 +225,18 @@ export default function PaymentRecoveryScreen() {
               onPress={handleRetryPayment}
             >
               <RefreshCw size={20} color={Colors.neutralWhite} />
-              <Text style={styles.primaryButtonText}>{t.paymentFlow.retryPayment}</Text>
+              <Text style={styles.primaryButtonText}>
+                {t.paymentFlow.retryPayment}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleViewOrder}
             >
-              <Text style={styles.secondaryButtonText}>{t.paymentFlow.viewOrder}</Text>
+              <Text style={styles.secondaryButtonText}>
+                {t.paymentFlow.viewOrder}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleGoHome}>
@@ -253,9 +257,7 @@ export default function PaymentRecoveryScreen() {
           <Text style={styles.subtitle}>
             {t.paymentFlow.paymentBeingProcessed}
           </Text>
-          <Text style={styles.infoText}>
-            {t.paymentFlow.canTakeFewMinutes}
-          </Text>
+          <Text style={styles.infoText}>{t.paymentFlow.canTakeFewMinutes}</Text>
 
           <View style={styles.actions}>
             <TouchableOpacity
@@ -263,14 +265,18 @@ export default function PaymentRecoveryScreen() {
               onPress={checkPendingPayment}
             >
               <RefreshCw size={20} color={Colors.neutralWhite} />
-              <Text style={styles.primaryButtonText}>{t.paymentFlow.checkAgain}</Text>
+              <Text style={styles.primaryButtonText}>
+                {t.paymentFlow.checkAgain}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleViewOrder}
             >
-              <Text style={styles.secondaryButtonText}>{t.paymentFlow.viewOrder}</Text>
+              <Text style={styles.secondaryButtonText}>
+                {t.paymentFlow.viewOrder}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

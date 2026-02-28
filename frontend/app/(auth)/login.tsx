@@ -202,7 +202,10 @@ export default function LoginScreen() {
                     t.common.success,
                     t.login.biometricEnabled.replace(
                       "{type}",
-                      getBiometricTypeName(biometricSupport.type, biometricNames),
+                      getBiometricTypeName(
+                        biometricSupport.type,
+                        biometricNames,
+                      ),
                     ),
                   );
                 } catch (error: any) {

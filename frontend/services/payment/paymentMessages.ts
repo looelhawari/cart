@@ -43,8 +43,10 @@ export const mapPaymentError = (
     message.includes("3d secure")
   ) {
     return {
-      title: translations?.verificationFailedTitle || "Payment Verification Failed",
-      message: translations?.verificationFailedMessage ||
+      title:
+        translations?.verificationFailedTitle || "Payment Verification Failed",
+      message:
+        translations?.verificationFailedMessage ||
         "We couldn't verify your payment. Please try again or use a different card.",
       actionable: true,
       retryable: true,
@@ -59,7 +61,9 @@ export const mapPaymentError = (
   ) {
     return {
       title: translations?.cancelledTitle || "Payment Cancelled",
-      message: translations?.cancelledMessage || "You cancelled the payment. Your order is still pending.",
+      message:
+        translations?.cancelledMessage ||
+        "You cancelled the payment. Your order is still pending.",
       actionable: true,
       retryable: true,
     };
@@ -74,7 +78,8 @@ export const mapPaymentError = (
   ) {
     return {
       title: translations?.declinedTitle || "Payment Declined",
-      message: translations?.declinedMessage ||
+      message:
+        translations?.declinedMessage ||
         "Your bank declined this transaction. Please check with your bank or try another card.",
       actionable: true,
       retryable: true,
@@ -89,7 +94,9 @@ export const mapPaymentError = (
   ) {
     return {
       title: translations?.cardErrorTitle || "Card Error",
-      message: translations?.cardErrorMessage || "There's an issue with your card. Please use a different card.",
+      message:
+        translations?.cardErrorMessage ||
+        "There's an issue with your card. Please use a different card.",
       actionable: true,
       retryable: true,
     };
@@ -103,7 +110,8 @@ export const mapPaymentError = (
   ) {
     return {
       title: translations?.connectionErrorTitle || "Connection Error",
-      message: translations?.connectionErrorMessage ||
+      message:
+        translations?.connectionErrorMessage ||
         "We couldn't connect to the payment service. Please check your internet and try again.",
       actionable: true,
       retryable: true,
@@ -113,8 +121,10 @@ export const mapPaymentError = (
   // Generic system error
   if (message.includes("system error") || message.includes("technical")) {
     return {
-      title: translations?.serviceUnavailableTitle || "Payment Service Unavailable",
-      message: translations?.serviceUnavailableMessage ||
+      title:
+        translations?.serviceUnavailableTitle || "Payment Service Unavailable",
+      message:
+        translations?.serviceUnavailableMessage ||
         "The payment service is temporarily unavailable. Please try again in a few minutes.",
       actionable: true,
       retryable: true,
@@ -124,7 +134,8 @@ export const mapPaymentError = (
   // Default fallback
   return {
     title: translations?.failedTitle || "Payment Failed",
-    message: translations?.failedMessage ||
+    message:
+      translations?.failedMessage ||
       "We couldn't process your payment. Don't worry, no money was deducted. Please try again.",
     actionable: true,
     retryable: true,
@@ -134,13 +145,23 @@ export const mapPaymentError = (
 /**
  * Get reassuring message for pending payments
  */
-export const getPendingPaymentMessage = (translations?: PaymentErrorTranslations): string => {
-  return translations?.pendingMessage || "Your payment is being processed. This usually takes a few seconds.";
+export const getPendingPaymentMessage = (
+  translations?: PaymentErrorTranslations,
+): string => {
+  return (
+    translations?.pendingMessage ||
+    "Your payment is being processed. This usually takes a few seconds."
+  );
 };
 
 /**
  * Get success message
  */
-export const getSuccessMessage = (translations?: PaymentErrorTranslations): string => {
-  return translations?.successMessage || "Payment successful! Your order has been confirmed.";
+export const getSuccessMessage = (
+  translations?: PaymentErrorTranslations,
+): string => {
+  return (
+    translations?.successMessage ||
+    "Payment successful! Your order has been confirmed."
+  );
 };
