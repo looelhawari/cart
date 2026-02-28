@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  I18nManager,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useStore } from "@/store";
@@ -26,8 +28,12 @@ import {
   Eye,
   EyeOff,
   Lock as LockIcon,
+  RefreshCw,
+  ShieldCheck,
+  CheckCircle,
 } from "lucide-react-native";
 import { useTranslation } from "@/i18n";
+import { API_CONFIG } from "@/config/app.config";
 
 type Step = 1 | 2 | 3;
 
@@ -40,11 +46,17 @@ export default function ForgotPasswordScreen() {
 
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [otpTimer, setOtpTimer] = useState(60);
+  const [otpTimer, setOtpTimer] = useState(30);
+  const [canResend, setCanResend] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const otpInputRefs = useRef<(TextInput | null)[]>([]);
+  const [resendToast, setResendToast] = useState(false);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const forgotPassword = useStore((state) => state.forgotPassword);
   const verifyResetOtp = authApi.verifyResetOtp.bind(authApi);
@@ -59,19 +71,131 @@ export default function ForgotPasswordScreen() {
       setLoading(true);
       await forgotPassword({ email });
       setStep(2);
+      startOtpTimer();
       Alert.alert(t.common.success, t.forgotPassword.codeSent);
     } catch (error: any) {
-      Alert.alert(
-        t.common.error,
-        error.message || t.forgotPassword.failedToSend,
-      );
+      // Check if user needs email verification first
+      if (error.requires_verification) {
+        Alert.alert(
+          t.forgotPassword.verifyFirst,
+          t.forgotPassword.emailNotVerified,
+          [
+            {
+              text: t.forgotPassword.goToVerify,
+              onPress: () => {
+                router.push({
+                  pathname: "/(auth)/signup",
+                  params: { email: email, step: "3" },
+                });
+              },
+            },
+            { text: t.common.cancel, style: "cancel" },
+          ],
+        );
+      } else {
+        Alert.alert(
+          t.common.error,
+          error.message || t.forgotPassword.failedToSend,
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // OTP Timer Effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (step === 2 && otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [step, otpTimer]);
+
+  const startOtpTimer = () => {
+    setOtpTimer(30);
+    setCanResend(false);
+  };
+
+  const showResendToast = useCallback(() => {
+    setResendToast(true);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2500),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setResendToast(false));
+  }, [toastOpacity]);
+
+  const handleOtpDigitChange = (text: string, index: number) => {
+    const newDigits = [...otpDigits];
+    // Handle paste of full OTP
+    if (text.length > 1) {
+      const pastedDigits = text.replace(/[^0-9]/g, "").slice(0, 6).split("");
+      for (let i = 0; i < 6; i++) {
+        newDigits[i] = pastedDigits[i] || "";
+      }
+      setOtpDigits(newDigits);
+      setOtp(newDigits.join(""));
+      const lastFilledIndex = Math.min(pastedDigits.length - 1, 5);
+      otpInputRefs.current[lastFilledIndex]?.focus();
+      return;
+    }
+    newDigits[index] = text.replace(/[^0-9]/g, "");
+    setOtpDigits(newDigits);
+    setOtp(newDigits.join(""));
+    // Auto-advance to next input
+    if (text && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === "Backspace" && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+      const newDigits = [...otpDigits];
+      newDigits[index - 1] = "";
+      setOtpDigits(newDigits);
+      setOtp(newDigits.join(""));
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend || isResending) return;
+
+    setIsResending(true);
+    startOtpTimer();
+    showResendToast();
+
+    try {
+      await forgotPassword({ email });
+    } catch (error: any) {
+      console.warn("Resend forgot password OTP error:", error.message);
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   const handleVerifyOtp = async () => {
-    if (!otp || otp.length !== 6) {
+    const otpCode = otpDigits.join("");
+    if (!otpCode || otpCode.length !== 6) {
       Alert.alert(t.common.error, t.forgotPassword.enterCode);
       return;
     }
@@ -79,7 +203,7 @@ export default function ForgotPasswordScreen() {
     try {
       setLoading(true);
       // Verify OTP with backend before proceeding
-      await verifyResetOtp({ email, otp });
+      await verifyResetOtp({ email, otp: otpCode });
       setStep(3);
     } catch (error: any) {
       Alert.alert(t.common.error, error.message || t.forgotPassword.invalidOtp);
@@ -108,7 +232,7 @@ export default function ForgotPasswordScreen() {
       setLoading(true);
       await resetPassword({
         email,
-        otp,
+        otp: otpDigits.join(""),
         password: newPassword,
         password_confirmation: confirmPassword,
       });
@@ -170,33 +294,71 @@ export default function ForgotPasswordScreen() {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>{t.forgotPassword.verifyCode}</Text>
-      <Text style={styles.stepSubtitle}>
+      {/* Toast notification */}
+      {resendToast && (
+        <Animated.View style={[styles.toast, { opacity: toastOpacity }]}>
+          <CheckCircle size={18} color={Colors.neutralWhite} />
+          <Text style={styles.toastText}>{t.forgotPassword.codeSent}</Text>
+        </Animated.View>
+      )}
+
+      {/* Header icon */}
+      <View style={styles.otpHeaderIcon}>
+        <View style={styles.otpIconCircle}>
+          <ShieldCheck size={32} color={Colors.primary900} />
+        </View>
+      </View>
+
+      <Text style={[styles.stepTitle, styles.otpTitle]}>
+        {t.forgotPassword.verifyCode}
+      </Text>
+      <Text style={styles.otpSubtitle}>
         {t.forgotPassword.enterCodeSentTo}
         {"\n"}
         {email}
       </Text>
 
-      <View style={styles.otpContainer}>
-        <TextInput
-          style={styles.otpInput}
-          placeholder="000000"
-          placeholderTextColor={Colors.neutralMedium}
-          value={otp}
-          onChangeText={(text) => setOtp(text.slice(0, 6))}
-          keyboardType="number-pad"
-          maxLength={6}
-          autoFocus
-        />
+      {/* Individual digit inputs */}
+      <View style={styles.otpDigitsRow}>
+        {otpDigits.map((digit, index) => (
+          <TextInput
+            key={index}
+            ref={(ref) => {
+              otpInputRefs.current[index] = ref;
+            }}
+            style={[styles.otpDigitInput, digit ? styles.otpDigitFilled : null]}
+            value={digit}
+            onChangeText={(text) => handleOtpDigitChange(text, index)}
+            onKeyPress={(e) => handleOtpKeyPress(e, index)}
+            keyboardType="number-pad"
+            maxLength={1}
+            autoFocus={index === 0}
+            selectTextOnFocus
+          />
+        ))}
       </View>
 
-      <TouchableOpacity style={styles.resendButton} disabled={otpTimer > 0}>
-        <Text style={styles.resendText}>
-          {otpTimer > 0
-            ? `${t.signup.resendIn} ${otpTimer}s`
-            : t.signup.resendCode}
-        </Text>
-      </TouchableOpacity>
+      {/* Timer / resend */}
+      <View style={styles.resendRow}>
+        {isResending ? (
+          <ActivityIndicator size="small" color={Colors.primary900} />
+        ) : canResend ? (
+          <TouchableOpacity
+            onPress={handleResendOtp}
+            style={styles.resendTouchable}
+          >
+            <RefreshCw size={16} color={Colors.primary900} />
+            <Text style={styles.resendActiveText}>{t.signup.resendCode}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.resendTimerRow}>
+            <RefreshCw size={16} color={Colors.neutralMedium} />
+            <Text style={styles.resendTimerText}>
+              {t.signup.resendIn} {otpTimer}s
+            </Text>
+          </View>
+        )}
+      </View>
 
       <TouchableOpacity
         style={[styles.actionButton, loading && styles.buttonDisabled]}
@@ -410,38 +572,114 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   passwordInput: {
-    paddingRight: Spacing.xxl,
+    paddingRight: I18nManager.isRTL ? undefined : Spacing.xxl,
+    paddingLeft: I18nManager.isRTL ? Spacing.xxl : undefined,
   },
   eyeIcon: {
     padding: Spacing.xs,
     position: "absolute",
-    right: Spacing.sm,
+    right: I18nManager.isRTL ? undefined : Spacing.sm,
+    left: I18nManager.isRTL ? Spacing.sm : undefined,
   },
-  otpContainer: {
-    marginTop: Spacing.xl,
+  otpHeaderIcon: {
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  otpInput: {
-    fontSize: 32,
-    fontFamily: "Poppins_700Bold",
+  otpIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.primary100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  otpTitle: {
     textAlign: "center",
-    letterSpacing: 12,
-    padding: Spacing.lg,
-    backgroundColor: Colors.neutralCloud,
+  },
+  otpSubtitle: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+    textAlign: "center",
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
+  },
+  otpDigitsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: Spacing.lg,
+  },
+  otpDigitInput: {
+    width: 48,
+    height: 56,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
+    backgroundColor: Colors.neutralCloud,
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
+    paddingTop: 0,
+    paddingBottom: 0,
+    includeFontPadding: false,
+  } as any,
+  otpDigitFilled: {
+    borderColor: Colors.primary900,
+    backgroundColor: Colors.primary100,
   },
-  resendButton: {
+  resendRow: {
     alignItems: "center",
+    marginTop: Spacing.sm,
     marginBottom: Spacing.xl,
-    padding: Spacing.md,
+    minHeight: 40,
+    justifyContent: "center",
   },
-  resendText: {
+  resendTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+  },
+  resendActiveText: {
     fontSize: Typography.bodyBase,
     fontFamily: "Poppins_600SemiBold",
     color: Colors.primary900,
+  },
+  resendTimerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  resendTimerText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+  },
+  toast: {
+    position: "absolute",
+    top: -8,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary900,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    marginHorizontal: Spacing.md,
+  },
+  toastText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.neutralWhite,
   },
   actionButton: {
     backgroundColor: Colors.primary900,

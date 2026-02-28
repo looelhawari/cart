@@ -149,9 +149,34 @@ export async function getSavedCredentials(): Promise<{ email: string; password: 
 }
 
 /**
- * Get biometric type name for UI display
+ * Biometric type name translations interface
  */
-export function getBiometricTypeName(type: string): string {
+export interface BiometricTypeNames {
+    faceId: string;
+    faceRecognition: string;
+    touchId: string;
+    fingerprint: string;
+    irisRecognition: string;
+    biometric: string;
+}
+
+/**
+ * Get biometric type name for UI display (localized)
+ */
+export function getBiometricTypeName(type: string, names?: BiometricTypeNames): string {
+    if (names) {
+        switch (type) {
+            case 'face':
+                return Platform.OS === 'ios' ? names.faceId : names.faceRecognition;
+            case 'fingerprint':
+                return Platform.OS === 'ios' ? names.touchId : names.fingerprint;
+            case 'iris':
+                return names.irisRecognition;
+            default:
+                return names.biometric;
+        }
+    }
+    // Fallback to English if no translations provided
     switch (type) {
         case 'face':
             return Platform.OS === 'ios' ? 'Face ID' : 'Face Recognition';

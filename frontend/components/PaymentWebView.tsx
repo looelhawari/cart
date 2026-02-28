@@ -185,7 +185,7 @@ export default function PaymentWebView({
   const handlePaymentFailure = async (errorMessage: string) => {
     try {
       await clearPendingPayment();
-      const errorInfo = mapPaymentError(errorMessage);
+      const errorInfo = mapPaymentError(errorMessage, t.paymentErrors);
 
       setProcessing(false);
 

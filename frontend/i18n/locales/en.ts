@@ -170,6 +170,9 @@ export default {
     passwordResetSuccess: "Password has been reset successfully",
     failedToReset: "Failed to reset password",
     sendResetCode: "Send Reset Code",
+    emailNotVerified: "Your email is not verified. Please verify your email first before resetting your password.",
+    verifyFirst: "Verify Email First",
+    goToVerify: "Go to Verify",
   },
 
   // Change Password
@@ -214,6 +217,14 @@ export default {
     verifyNow: "Verify Now",
     loginWithBiometric: "Login with {type}",
     or: "or",
+    biometricTypes: {
+      faceId: "Face ID",
+      faceRecognition: "Face Recognition",
+      touchId: "Touch ID",
+      fingerprint: "Fingerprint",
+      irisRecognition: "Iris Recognition",
+      biometric: "Biometric",
+    },
   },
 
   // Profile
@@ -592,6 +603,25 @@ export default {
       "Pay on Arrival when your order arrives. No prepayment required.",
     haveExactChange: "Please have exact change ready.",
     PCIDSSCompliant: "PCI DSS compliant, ensuring your card data is protected.",
+  },
+
+  paymentErrors: {
+    verificationFailedTitle: "Payment Verification Failed",
+    verificationFailedMessage: "We couldn't verify your payment. Please try again or use a different card.",
+    cancelledTitle: "Payment Cancelled",
+    cancelledMessage: "You cancelled the payment. Your order is still pending.",
+    declinedTitle: "Payment Declined",
+    declinedMessage: "Your bank declined this transaction. Please check with your bank or try another card.",
+    cardErrorTitle: "Card Error",
+    cardErrorMessage: "There's an issue with your card. Please use a different card.",
+    connectionErrorTitle: "Connection Error",
+    connectionErrorMessage: "We couldn't connect to the payment service. Please check your internet and try again.",
+    serviceUnavailableTitle: "Payment Service Unavailable",
+    serviceUnavailableMessage: "The payment service is temporarily unavailable. Please try again in a few minutes.",
+    failedTitle: "Payment Failed",
+    failedMessage: "We couldn't process your payment. Don't worry, no money was deducted. Please try again.",
+    pendingMessage: "Your payment is being processed. This usually takes a few seconds.",
+    successMessage: "Payment successful! Your order has been confirmed.",
   },
 
   // Orders
@@ -990,6 +1020,7 @@ export default {
     floor: "Floor",
     apt: "Apt",
     near: "Near",
+    outsideDeliveryArea: "Selected address is outside our delivery area",
     continueToReview: "Continue to Order Review",
     // Payment screen keys
     card: "Card",
@@ -1251,6 +1282,7 @@ export default {
     cardLabel: "Card",
     walletLabel: "Wallet",
     cashLabel: "Cash",
+    defaultEstimatedDays: "3-5 business days",
     cancelledItems: "Cancelled Items:",
     you: "You",
     admin: "Admin",

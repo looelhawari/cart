@@ -9,6 +9,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { I18nManager } from "react-native";
 import * as Updates from "expo-updates";
+import { setApiLanguage } from "@/services/api/base";
 
 import en from "./locales/en";
 import ar from "./locales/ar";
@@ -60,6 +61,7 @@ export function I18nProvider({ children }: I18nProviderProps) {
         ) {
           setLanguageState(savedLanguage);
           updateRTL(savedLanguage);
+          setApiLanguage(savedLanguage);
         }
       } catch (error) {
         console.error("Failed to load saved language:", error);
@@ -74,6 +76,7 @@ export function I18nProvider({ children }: I18nProviderProps) {
     try {
       await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       setLanguageState(lang);
+      setApiLanguage(lang);
 
       // Check if RTL direction needs to change
       const needsRTL = lang === "ar";

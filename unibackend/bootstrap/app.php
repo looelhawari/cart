@@ -25,11 +25,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \App\Http\Middleware\CheckPermission::class,
         ]);
 
-        // Apply ForceJsonResponse, SecurityHeaders, and Gzip to all API routes
+        // Apply ForceJsonResponse, SecurityHeaders, Gzip, and SetLocale to all API routes
         $middleware->appendToGroup('api', [
             \App\Http\Middleware\ForceJsonResponse::class,
             \App\Http\Middleware\SecurityHeaders::class,
             \App\Http\Middleware\GzipCompress::class, // 60-80% bandwidth reduction
+            \App\Http\Middleware\SetLocale::class,
         ]);
 
         // Prevent authentication redirects for API requests

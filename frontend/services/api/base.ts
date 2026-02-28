@@ -4,12 +4,27 @@ import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 // API Configuration
 export const API_BASE_URL = API_CONFIG.BASE_URL;
 
+// Language cache for Accept-Language header
+let _cachedLanguage: string = "en";
+const LANGUAGE_STORAGE_KEY = "app_language";
+
+// Initialize language from storage (called once at import time)
+AsyncStorage.getItem(LANGUAGE_STORAGE_KEY).then((lang) => {
+  if (lang === "en" || lang === "ar") _cachedLanguage = lang;
+});
+
+// Allow external updates (called by i18n when language changes)
+export const setApiLanguage = (lang: string) => {
+  _cachedLanguage = lang;
+};
+
 // Helper: Get common headers for all requests (including ngrok support)
 export const getCommonHeaders = (
   includeContentType: boolean = true,
 ): HeadersInit => {
   const headers: HeadersInit = {
     Accept: "application/json",
+    "Accept-Language": _cachedLanguage,
     "ngrok-skip-browser-warning": "true",
     "User-Agent": "CART-Mobile-App",
   };

@@ -51,7 +51,8 @@ const safePrice = (val: any): string => {
 };
 
 export default function OrderDetailsScreen() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dateLocale = locale === "ar" ? "ar-EG" : "en-US";
   const { getLocalizedValue } = useLocalizedValue();
   const { isSmallDevice } = useResponsive();
   const { id } = useLocalSearchParams();
@@ -725,7 +726,7 @@ export default function OrderDetailsScreen() {
             result.refund.refund_amount ?? result.refund.amount ?? 0,
           penalty_amount: result.refund.penalty_amount ?? 0,
           penalty_percent: result.refund.penalty_percent ?? 0,
-          estimated_days: result.refund.estimated_days ?? "3-5 business days",
+          estimated_days: result.refund.estimated_days ?? t.orderDetail.defaultEstimatedDays,
         });
         setShowRefundResult(true);
       }
@@ -1184,7 +1185,7 @@ export default function OrderDetailsScreen() {
                 color={Colors.neutralMedium}
               />
               <Text style={styles.orderMetaText}>
-                {new Date(order.created_at).toLocaleDateString("en-US", {
+                {new Date(order.created_at).toLocaleDateString(dateLocale, {
                   month: "short",
                   day: "numeric",
                   year: "numeric",
@@ -1194,7 +1195,7 @@ export default function OrderDetailsScreen() {
             <View style={styles.orderMetaItem}>
               <Clock size={14} color={Colors.neutralMedium} />
               <Text style={styles.orderMetaText}>
-                {new Date(order.created_at).toLocaleTimeString("en-US", {
+                {new Date(order.created_at).toLocaleTimeString(dateLocale, {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
@@ -1290,7 +1291,7 @@ export default function OrderDetailsScreen() {
           {lastUpdated && (
             <Text style={styles.lastUpdatedText}>
               {t.orderDetail.lastUpdated}{" "}
-              {lastUpdated.toLocaleTimeString("en-US", {
+              {lastUpdated.toLocaleTimeString(dateLocale, {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
@@ -1542,7 +1543,7 @@ export default function OrderDetailsScreen() {
                   {t.orderDetail.deliverySchedule}
                 </Text>
                 <Text style={styles.infoValue}>
-                  {new Date(order.delivery_date).toLocaleDateString("en-US", {
+                  {new Date(order.delivery_date).toLocaleDateString(dateLocale, {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
@@ -2053,12 +2054,12 @@ export default function OrderDetailsScreen() {
               const tc = typeConfig[refund.type] || typeConfig.full;
               const sc = statusConfig[refund.status] || statusConfig.pending;
               const refundDate = new Date(refund.created_at);
-              const formattedDate = refundDate.toLocaleDateString("en-US", {
+              const formattedDate = refundDate.toLocaleDateString(dateLocale, {
                 month: "short",
                 day: "numeric",
                 year: "numeric",
               });
-              const formattedTime = refundDate.toLocaleTimeString("en-US", {
+              const formattedTime = refundDate.toLocaleTimeString(dateLocale, {
                 hour: "2-digit",
                 minute: "2-digit",
               });
@@ -2206,7 +2207,7 @@ export default function OrderDetailsScreen() {
                       <Text
                         style={{ fontSize: 12, color: Colors.neutralMedium }}
                       >
-                        Method
+                        {t.orderDetail.method}
                       </Text>
                       <Text
                         style={{
@@ -2216,10 +2217,10 @@ export default function OrderDetailsScreen() {
                         }}
                       >
                         {refund.refund_method === "paymob"
-                          ? "ðŸ’³ Card"
+                          ? `💳 ${t.orderDetail.cardLabel}`
                           : refund.refund_method === "wallet"
-                            ? "ðŸ‘› Wallet"
-                            : "ðŸ’µ Cash"}
+                            ? `💛 ${t.orderDetail.walletLabel}`
+                            : `💵 ${t.orderDetail.cashLabel}`}
                       </Text>
                     </View>
                   </View>

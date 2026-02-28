@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  I18nManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -64,12 +65,10 @@ export default function SettingsScreen() {
   // Notification settings (from user_settings table)
   const [pushNotifications, setPushNotifications] = React.useState(true);
   const [emailNotifications, setEmailNotifications] = React.useState(true);
-  const [smsNotifications, setSmsNotifications] = React.useState(false);
   const [orderUpdates, setOrderUpdates] = React.useState(true);
   const [promotionalEmails, setPromotionalEmails] = React.useState(false);
 
   // Preferences
-  const [darkMode, setDarkMode] = React.useState(false);
   const [showLanguageModal, setShowLanguageModal] = React.useState(false);
   const [biometricSupport, setBiometricSupport] = React.useState<BiometricType>(
     {
@@ -941,7 +940,8 @@ const styles = StyleSheet.create({
   },
   eyeIconModal: {
     position: "absolute",
-    right: Spacing.md,
+    right: I18nManager.isRTL ? undefined : Spacing.md,
+    left: I18nManager.isRTL ? Spacing.md : undefined,
     top: "50%",
     transform: [{ translateY: -10 }],
   },

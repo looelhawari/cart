@@ -39,13 +39,16 @@ import {
   isBiometricLoginEnabled,
   getBiometricTypeName,
   BiometricType,
+  BiometricTypeNames,
 } from "@/services/biometricAuth";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, isRTL } = useTranslation();
   const { login, socialLogin } = useStore();
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
+
+  const biometricNames: BiometricTypeNames = t.login.biometricTypes;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -182,11 +185,11 @@ export default function LoginScreen() {
         Alert.alert(
           t.login.enableBiometric.replace(
             "{type}",
-            getBiometricTypeName(biometricSupport.type),
+            getBiometricTypeName(biometricSupport.type, biometricNames),
           ),
           t.login.wouldYouLikeBiometric.replace(
             "{type}",
-            getBiometricTypeName(biometricSupport.type),
+            getBiometricTypeName(biometricSupport.type, biometricNames),
           ),
           [
             {
@@ -199,7 +202,7 @@ export default function LoginScreen() {
                     t.common.success,
                     t.login.biometricEnabled.replace(
                       "{type}",
-                      getBiometricTypeName(biometricSupport.type),
+                      getBiometricTypeName(biometricSupport.type, biometricNames),
                     ),
                   );
                 } catch (error: any) {
@@ -322,12 +325,14 @@ export default function LoginScreen() {
       color: Colors.neutralCharcoal,
     },
     passwordInput: {
-      paddingRight: Spacing.xxl,
+      paddingRight: isRTL ? undefined : Spacing.xxl,
+      paddingLeft: isRTL ? Spacing.xxl : undefined,
     },
     eyeIcon: {
       padding: Spacing.xs,
-      position: "absolute",
-      right: Spacing.sm,
+      position: "absolute" as const,
+      right: isRTL ? undefined : Spacing.sm,
+      left: isRTL ? Spacing.sm : undefined,
     },
     optionsRow: {
       flexDirection: "row",
@@ -601,7 +606,7 @@ export default function LoginScreen() {
                 <Text style={styles.biometricButtonText}>
                   {t.login.loginWithBiometric.replace(
                     "{type}",
-                    getBiometricTypeName(biometricSupport.type),
+                    getBiometricTypeName(biometricSupport.type, biometricNames),
                   )}
                 </Text>
               </TouchableOpacity>

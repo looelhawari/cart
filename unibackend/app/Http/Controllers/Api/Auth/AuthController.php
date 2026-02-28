@@ -433,6 +433,15 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->email)->first();
 
+        // Check if user's email is verified
+        if (!$user->email_verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your email is not verified. Please verify your email first before resetting your password.',
+                'requires_verification' => true,
+            ], 403);
+        }
+
         $otp = $this->otpService->createPasswordResetOtp($user->email);
         $this->otpService->sendEmail($user->email, $otp->otp, 'Password Reset');
 

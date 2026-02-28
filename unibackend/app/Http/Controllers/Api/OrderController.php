@@ -50,7 +50,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -74,7 +74,7 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve orders',
+                'message' => __('order.failed_retrieve_orders'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -92,7 +92,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -105,12 +105,12 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve order',
+                'message' => __('order.failed_retrieve_order'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -128,7 +128,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required. Please login to place an order.',
+                    'message' => __('order.auth_required_login'),
                 ], 401);
             }
 
@@ -139,7 +139,7 @@ class OrderController extends Controller
             if ($cart->items->count() === 0) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cart is empty',
+                    'message' => __('order.cart_empty'),
                 ], 422);
             }
 
@@ -167,7 +167,7 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Order placed successfully',
+                'message' => __('order.order_placed'),
                 'data' => ['order' => $order],
             ], 201, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
@@ -190,7 +190,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -310,12 +310,12 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve tracking data',
+                'message' => __('order.failed_retrieve_tracking'),
                 'error'   => $e->getMessage(),
             ], 500);
         }
@@ -334,7 +334,7 @@ class OrderController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('order.validation_failed'),
                 'errors' => $validator->errors(),
             ], 400);
         }
@@ -345,14 +345,14 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
             $result = $this->cancellationService->cancelOrder(
                 $id,
                 $user->id,
-                $request->input('reason', 'Cancelled by user')
+                $request->input('reason', __('order.cancelled_by_user'))
             );
 
             return response()->json([
@@ -366,7 +366,7 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found or does not belong to you',
+                'message' => __('order.order_not_found'),
             ], 404);
         } catch (\Illuminate\Database\QueryException $e) {
             \Illuminate\Support\Facades\Log::error('[CANCEL] Database error', [
@@ -375,7 +375,7 @@ class OrderController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'A system error occurred while processing your cancellation. Please try again or contact support.',
+                'message' => __('order.system_error'),
             ], 500);
         } catch (\Exception $e) {
             // Sanitize all error messages — never expose raw internal/HTTP/Paymob details
@@ -389,7 +389,7 @@ class OrderController extends Controller
 
             $message = $isSafe
                 ? $rawMsg
-                : 'An unexpected error occurred. Please try again or contact support.';
+                : __('order.unexpected_error');
 
             \Illuminate\Support\Facades\Log::error('[CANCEL] Exception', [
                 'order_id' => $id,
@@ -416,7 +416,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -433,7 +433,7 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('[CAN-CANCEL] Error', [
@@ -442,7 +442,7 @@ class OrderController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to check cancellation eligibility. Please try again.',
+                'message' => __('order.failed_cancel_check'),
             ], 500);
         }
     }
@@ -459,7 +459,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -477,7 +477,7 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('[REFUND-HISTORY] Error', [
@@ -486,7 +486,7 @@ class OrderController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve refund history. Please try again.',
+                'message' => __('order.failed_refund_history'),
             ], 500);
         }
     }
@@ -503,7 +503,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -514,7 +514,7 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Items added to cart',
+                'message' => __('order.items_added_to_cart'),
                 'data' => [
                     'cart' => $cartDetails,
                     'added_items' => $reorderResult['added_items'],
@@ -525,12 +525,12 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to reorder',
+                'message' => __('order.failed_reorder'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -560,7 +560,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -573,7 +573,7 @@ class OrderController extends Controller
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation failed',
+                    'message' => __('order.validation_failed'),
                     'errors' => $validator->errors(),
                 ], 422);
             }
@@ -589,7 +589,7 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found or does not belong to you',
+                'message' => __('order.order_not_found'),
             ], 404);
         } catch (\Exception $e) {
             $statusCode = str_contains($e->getMessage(), 'Please wait') ? 429 : 400;
@@ -612,7 +612,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -629,7 +629,7 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('[INVOICE] Error', [
@@ -638,7 +638,7 @@ class OrderController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate invoice data.',
+                'message' => __('order.failed_generate_invoice_data'),
             ], 500);
         }
     }
@@ -655,7 +655,7 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
@@ -687,7 +687,7 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('[INVOICE-DOWNLOAD] Error', [
@@ -696,7 +696,7 @@ class OrderController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate invoice.',
+                'message' => __('order.failed_generate_invoice'),
             ], 500);
         }
     }
@@ -713,14 +713,14 @@ class OrderController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('order.auth_required'),
                 ], 401);
             }
 
             if (!$user->email) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No email address on your account. Please add one in your profile.',
+                    'message' => __('order.no_email_on_account'),
                 ], 422);
             }
 
@@ -734,7 +734,7 @@ class OrderController extends Controller
             if (!$pdfBytes) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unable to generate invoice PDF. Please try again later.',
+                    'message' => __('order.unable_generate_invoice_pdf'),
                 ], 500);
             }
 
@@ -751,12 +751,12 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Invoice sent to ' . $user->email,
+                'message' => __('order.invoice_sent_to', ['email' => $user->email]),
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found',
+                'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
             Log::error('[INVOICE-EMAIL] Error', [
@@ -765,7 +765,7 @@ class OrderController extends Controller
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to send invoice email. Please try again.',
+                'message' => __('order.failed_send_invoice'),
             ], 500);
         }
     }

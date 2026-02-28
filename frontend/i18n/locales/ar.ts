@@ -169,6 +169,9 @@ export default {
     passwordResetSuccess: "تم إعادة تعيين كلمة المرور بنجاح",
     failedToReset: "فشل إعادة تعيين كلمة المرور",
     sendResetCode: "إرسال رمز إعادة التعيين",
+    emailNotVerified: "بريدك الإلكتروني غير مُفعّل. الرجاء تأكيد بريدك الإلكتروني أولاً قبل إعادة تعيين كلمة المرور.",
+    verifyFirst: "تأكيد البريد أولاً",
+    goToVerify: "الذهاب للتأكيد",
   },
 
   // Change Password
@@ -214,6 +217,14 @@ export default {
     verifyNow: "تأكيد الآن",
     loginWithBiometric: "تسجيل الدخول بـ {type}",
     or: "أو",
+    biometricTypes: {
+      faceId: "Face ID",
+      faceRecognition: "التعرف على الوجه",
+      touchId: "Touch ID",
+      fingerprint: "بصمة الإصبع",
+      irisRecognition: "التعرف على القزحية",
+      biometric: "البيومتري",
+    },
   },
 
   // Profile
@@ -587,6 +598,25 @@ export default {
     payOnArrival: "ادفع عند الوصول عندما يصل طلبك. لا يتطلب دفعاً مقدماً.",
     haveExactChange: "يرجى إعداد التغيير المطلوب بدقة.",
     PCIDSSCompliant: "PCI DSS متوافق لضمان أمان بيانات بطاقتك",
+  },
+
+  paymentErrors: {
+    verificationFailedTitle: "فشل التحقق من الدفع",
+    verificationFailedMessage: "لم نتمكن من التحقق من دفعتك. يرجى المحاولة مرة أخرى أو استخدام بطاقة أخرى.",
+    cancelledTitle: "تم إلغاء الدفع",
+    cancelledMessage: "لقد ألغيت الدفع. طلبك لا يزال قيد الانتظار.",
+    declinedTitle: "تم رفض الدفع",
+    declinedMessage: "رفض البنك هذه المعاملة. يرجى التحقق مع البنك أو تجربة بطاقة أخرى.",
+    cardErrorTitle: "خطأ في البطاقة",
+    cardErrorMessage: "هناك مشكلة في بطاقتك. يرجى استخدام بطاقة أخرى.",
+    connectionErrorTitle: "خطأ في الاتصال",
+    connectionErrorMessage: "لم نتمكن من الاتصال بخدمة الدفع. يرجى التحقق من الإنترنت والمحاولة مرة أخرى.",
+    serviceUnavailableTitle: "خدمة الدفع غير متاحة",
+    serviceUnavailableMessage: "خدمة الدفع غير متاحة مؤقتاً. يرجى المحاولة مرة أخرى بعد بضع دقائق.",
+    failedTitle: "فشل الدفع",
+    failedMessage: "لم نتمكن من معالجة دفعتك. لا تقلق، لم يتم خصم أي مبلغ. يرجى المحاولة مرة أخرى.",
+    pendingMessage: "جارٍ معالجة دفعتك. عادةً ما يستغرق هذا بضع ثوانٍ.",
+    successMessage: "تم الدفع بنجاح! تم تأكيد طلبك.",
   },
 
   // Orders
@@ -979,6 +1009,7 @@ export default {
     floor: "طابق",
     apt: "شقة",
     near: "بالقرب من",
+    outsideDeliveryArea: "العنوان المحدد خارج منطقة التوصيل",
     continueToReview: "المتابعة لمراجعة الطلب",
     // Payment screen keys
     card: "بطاقة",
@@ -1235,6 +1266,7 @@ export default {
     cardLabel: "بطاقة",
     walletLabel: "محفظة",
     cashLabel: "نقداً",
+    defaultEstimatedDays: "٣-٥ أيام عمل",
     cancelledItems: "العناصر الملغاة:",
     you: "أنت",
     admin: "المشرف",

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  I18nManager,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/store";
@@ -61,7 +62,7 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpTimer, setOtpTimer] = useState(60);
+  const [otpTimer, setOtpTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [emailError, setEmailError] = useState("");
@@ -85,10 +86,29 @@ export default function SignupScreen() {
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
 
-  // Start OTP timer if coming from login with step=3
+  // Start OTP timer and auto-send OTP if coming from login with step=3
   useEffect(() => {
     if (params.step === "3") {
       startOtpTimer();
+      // Auto-send OTP for unverified users redirected from login
+      if (params.email) {
+        (async () => {
+          try {
+            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "ngrok-skip-browser-warning": "true",
+                "User-Agent": "CART-Mobile-App",
+              },
+              body: JSON.stringify({ email: params.email }),
+            });
+          } catch (error) {
+            console.warn("Auto-send OTP error:", error);
+          }
+        })();
+      }
     }
   }, []);
   const checkEmailAvailability = async (emailToCheck: string) => {
@@ -368,7 +388,7 @@ export default function SignupScreen() {
   }, [step, otpTimer]);
 
   const startOtpTimer = () => {
-    setOtpTimer(60);
+    setOtpTimer(30);
     setCanResend(false);
   };
 
@@ -1071,12 +1091,14 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   passwordInput: {
-    paddingRight: Spacing.xxl,
+    paddingRight: I18nManager.isRTL ? undefined : Spacing.xxl,
+    paddingLeft: I18nManager.isRTL ? Spacing.xxl : undefined,
   },
   eyeIcon: {
     padding: Spacing.xs,
     position: "absolute",
-    right: Spacing.sm,
+    right: I18nManager.isRTL ? undefined : Spacing.sm,
+    left: I18nManager.isRTL ? Spacing.sm : undefined,
   },
   requirementsContainer: {
     backgroundColor: Colors.neutralCloud,
