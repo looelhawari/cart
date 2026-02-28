@@ -341,8 +341,10 @@ const styles = StyleSheet.create({
   addButton: {
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
   addButtonDisabled: {
     backgroundColor: Colors.neutralGray,
@@ -353,7 +355,9 @@ const styles = StyleSheet.create({
   addedRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: Spacing.xs,
   },
   addButtonText: {
     color: Colors.neutralWhite,
