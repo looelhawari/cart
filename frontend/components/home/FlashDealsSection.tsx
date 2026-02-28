@@ -24,10 +24,7 @@ export const FlashDealsSection = memo(function FlashDealsSection({
 }: FlashDealsSectionProps) {
   const { t } = useTranslation();
 
-  const handleViewAll = useCallback(
-    () => router.push("/(tabs)/offers"),
-    [],
-  );
+  const handleViewAll = useCallback(() => router.push("/(tabs)/offers"), []);
 
   if (products.length === 0) return null;
 
@@ -45,7 +42,9 @@ export const FlashDealsSection = memo(function FlashDealsSection({
         badge={
           <View style={styles.timerBadge}>
             <Clock size={11} color={Colors.accentRed} />
-            <Text style={styles.timerText}>{t.ui?.endsSoon || "Ends Soon"}</Text>
+            <Text style={styles.timerText}>
+              {t.ui?.endsSoon || "Ends Soon"}
+            </Text>
           </View>
         }
       />

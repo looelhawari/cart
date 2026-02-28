@@ -1,10 +1,5 @@
 import React, { memo, useCallback } from "react";
-import {
-  View,
-  FlatList,
-  StyleSheet,
-  Dimensions,
-} from "react-native";
+import { View, FlatList, StyleSheet, Dimensions } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/Colors";

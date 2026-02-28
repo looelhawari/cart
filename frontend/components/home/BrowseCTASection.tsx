@@ -23,12 +23,20 @@ export const BrowseCTASection = memo(function BrowseCTASection() {
           style={styles.gradient}
         >
           <View style={styles.iconWrap}>
-            <Ionicons name="grid-outline" size={20} color={Colors.neutralWhite} />
+            <Ionicons
+              name="grid-outline"
+              size={20}
+              color={Colors.neutralWhite}
+            />
           </View>
           <Text style={styles.text}>
             {t.common?.browse || "Browse Categories"}
           </Text>
-          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.7)" />
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color="rgba(255,255,255,0.7)"
+          />
         </LinearGradient>
       </TouchableOpacity>
     </View>

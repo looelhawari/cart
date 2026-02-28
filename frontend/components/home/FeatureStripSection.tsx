@@ -37,11 +37,7 @@ export const FeatureStripSection = memo(function FeatureStripSection() {
 
       <View style={styles.card}>
         <View style={[styles.icon, { backgroundColor: "#3B82F618" }]}>
-          <Ionicons
-            name="shield-checkmark-outline"
-            size={19}
-            color="#3B82F6"
-          />
+          <Ionicons name="shield-checkmark-outline" size={19} color="#3B82F6" />
         </View>
         <Text style={styles.title}>{t.ui.quality}</Text>
         <Text style={styles.subtitle}>{t.ui.guaranteed}</Text>

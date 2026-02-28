@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -92,7 +98,11 @@ export default function HomeScreen() {
   );
 
   const handleCardAddToCart = useCallback(
-    (result: { success: boolean; message: string; type: "success" | "error" }) => {
+    (result: {
+      success: boolean;
+      message: string;
+      type: "success" | "error";
+    }) => {
       setToastType(result.type);
       setToastMessage(result.message);
       setShowToast(true);
@@ -248,18 +258,30 @@ export default function HomeScreen() {
   }, [t]);
 
   // ─── Fallback categories ─────────────────────────────────────────────────
-  const displayCategories = useMemo(() =>
-    quickCategories.length > 0
-      ? quickCategories
-      : ([
-          { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
-          { id: 2, name_en: "Vegetables", name_ar: "خضروات", slug: "vegetables" },
-          { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
-          { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
-          { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
-          { id: 6, name_en: "Beverages", name_ar: "مشروبات", slug: "beverages" },
-        ] as Category[]),
-  [quickCategories]);
+  const displayCategories = useMemo(
+    () =>
+      quickCategories.length > 0
+        ? quickCategories
+        : ([
+            { id: 1, name_en: "Fruits", name_ar: "فواكه", slug: "fruits" },
+            {
+              id: 2,
+              name_en: "Vegetables",
+              name_ar: "خضروات",
+              slug: "vegetables",
+            },
+            { id: 3, name_en: "Meat", name_ar: "لحوم", slug: "meat" },
+            { id: 4, name_en: "Dairy", name_ar: "ألبان", slug: "dairy" },
+            { id: 5, name_en: "Bakery", name_ar: "مخبوزات", slug: "bakery" },
+            {
+              id: 6,
+              name_en: "Beverages",
+              name_ar: "مشروبات",
+              slug: "beverages",
+            },
+          ] as Category[]),
+    [quickCategories],
+  );
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SECTION LIST — build the array once per render
@@ -365,10 +387,7 @@ export default function HomeScreen() {
     ],
   );
 
-  const sectionKeyExtractor = useCallback(
-    (item: HomeSection) => item.key,
-    [],
-  );
+  const sectionKeyExtractor = useCallback((item: HomeSection) => item.key, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // HEADER (rendered as ListHeaderComponent — stays outside the FlatList)
