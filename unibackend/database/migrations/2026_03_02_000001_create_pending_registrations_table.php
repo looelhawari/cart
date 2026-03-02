@@ -18,6 +18,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('pending_registrations')) {
+            return;
+        }
+
         Schema::create('pending_registrations', function (Blueprint $table) {
             $table->id();
             $table->uuid('registration_token')->unique();
