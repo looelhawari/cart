@@ -38,6 +38,7 @@ import {
 import { useTranslation } from "@/i18n";
 import { API_CONFIG } from "@/config/app.config";
 import { getCommonHeaders } from "@/services/api/base";
+import { authApi } from "@/services/api";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -45,8 +46,12 @@ export default function SignupScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const register = useStore((state) => state.register);
+  const registerVerify = useStore((state) => state.registerVerify);
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
   const { t } = useTranslation();
+
+  // Detect legacy verification flow (redirected from login or forgot-password)
+  const isLegacyVerification = !!params.step || !!params.autoVerify;
 
   const [step, setStep] = useState<Step>(
     params.step ? (parseInt(params.step as string) as Step) : 1,
@@ -82,8 +87,14 @@ export default function SignupScreen() {
   const [resendToast, setResendToast] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
+  // ── New deferred-insertion flow state ──────────────────
+  const [registrationToken, setRegistrationToken] = useState<string | null>(
+    null,
+  );
+
   // Track the email/phone that were used in a successful register() call
   // so we can skip "already taken" checks for our own unverified record
+  // (only relevant for the legacy verification path)
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
 
@@ -244,110 +255,86 @@ export default function SignupScreen() {
     if (step === 1) {
       if (!validateStep1()) return;
 
-      // Actively verify email & phone are not already registered
       setLoading(true);
       try {
-        let hasError = false;
-        const headers = {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "CART-Mobile-App",
-        };
+        // ── New deferred-insertion flow ───────────────────
+        const response = await authApi.registerStep1({
+          first_name: firstName,
+          last_name: lastName,
+          email: email.trim(),
+          phone: phone.trim(),
+          language,
+          registration_token: registrationToken || undefined,
+        });
 
-        // Skip check for email/phone that belong to our own unverified record
-        const skipEmailCheck =
-          registeredEmail &&
-          email.trim().toLowerCase() === registeredEmail.toLowerCase();
-        const skipPhoneCheck =
-          registeredPhone && phone.trim() === registeredPhone.trim();
+        setRegistrationToken(response.data.registration_token);
 
-        if (!skipEmailCheck) {
-          const emailRes = await fetch(
-            `${API_CONFIG.BASE_URL}/auth/check-email`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ email: email.trim() }),
-            },
-          );
-          const emailData = await emailRes.json();
-          if (!emailRes.ok && emailData.errors?.email) {
-            setEmailError(emailData.errors.email[0]);
-            hasError = true;
+        // If password already set (user is editing after step 2),
+        // skip directly to OTP step
+        if (response.data.password_set) {
+          if (response.data.otp_resent) {
+            // Email changed → new OTP sent → reset timer
+            startOtpTimer();
+            setOtpDigits(["", "", "", "", "", ""]);
+            setOtp("");
           }
+          setStep(3);
+        } else {
+          setStep(2);
         }
-
-        if (!skipPhoneCheck) {
-          const phoneRes = await fetch(
-            `${API_CONFIG.BASE_URL}/auth/check-phone`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ phone: phone.trim() }),
-            },
+      } catch (error: any) {
+        if (error.errors) {
+          if (error.errors.email) setEmailError(error.errors.email[0]);
+          if (error.errors.phone) setPhoneError(error.errors.phone[0]);
+          Alert.alert(
+            t.signup.validationError,
+            error.message || t.signup.checkInputData,
           );
-          const phoneData = await phoneRes.json();
-          if (!phoneRes.ok && phoneData.errors?.phone) {
-            setPhoneError(phoneData.errors.phone[0]);
-            hasError = true;
-          }
+        } else {
+          Alert.alert(
+            t.common.error,
+            error.message || t.signup.registrationFailed,
+          );
         }
-
-        if (hasError) {
-          Alert.alert(t.signup.validationError, t.signup.checkInputData);
-          return;
-        }
-
-        setStep(2);
-      } catch (error) {
-        Alert.alert(t.common.error, t.alerts.networkError);
       } finally {
         setLoading(false);
       }
     } else if (step === 2) {
       if (!validateStep2()) return;
 
-      // Wait for registration to succeed before navigating to OTP
       setLoading(true);
       try {
-        const result = await register({
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          phone,
+        // ── New deferred-insertion flow ───────────────────
+        const response = await authApi.registerStep2({
+          registration_token: registrationToken!,
           password,
           password_confirmation: confirmPassword,
-          language,
         });
-        // Track what we registered so we can skip checks if user edits and comes back
-        setRegisteredEmail(email.trim());
-        setRegisteredPhone(phone.trim());
+
         setStep(3);
         startOtpTimer();
 
-        // If the initial OTP email wasn't sent, auto-trigger a resend
-        if (result?.emailSent === false) {
+        // If OTP email failed, auto-trigger resend
+        if (response.data?.email_sent === false) {
           console.warn("[Signup] Initial OTP email failed, auto-resending...");
           try {
-            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-              method: "POST",
-              headers: getCommonHeaders(),
-              body: JSON.stringify({ email }),
+            await authApi.registerResendOtp({
+              registration_token: registrationToken!,
             });
           } catch (retryError) {
             console.warn("[Signup] Auto-resend also failed:", retryError);
           }
         }
       } catch (error: any) {
-        if (error.errors) {
-          if (error.errors.email) {
-            setEmailError(error.errors.email[0]);
-          }
-          if (error.errors.phone) {
-            setPhoneError(error.errors.phone[0]);
-          }
+        if (error.status === 410) {
+          // Session expired → restart
+          Alert.alert(
+            t.common.error,
+            "Registration session expired. Please start over.",
+          );
           setStep(1);
+          setRegistrationToken(null);
+        } else if (error.errors) {
           Alert.alert(
             t.signup.validationError,
             error.message || t.signup.checkInputData,
@@ -470,20 +457,29 @@ export default function SignupScreen() {
     startOtpTimer();
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-        method: "POST",
-        headers: getCommonHeaders(),
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.ok) {
+      if (registrationToken) {
+        // New deferred-insertion flow
+        await authApi.registerResendOtp({
+          registration_token: registrationToken,
+        });
         showResendToast();
       } else {
-        const data = await response.json().catch(() => null);
-        Alert.alert(
-          t.common.error,
-          data?.message || t.signup.failedToResendOtp,
-        );
+        // Legacy flow (redirected from login)
+        const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+          method: "POST",
+          headers: getCommonHeaders(),
+          body: JSON.stringify({ email }),
+        });
+
+        if (response.ok) {
+          showResendToast();
+        } else {
+          const data = await response.json().catch(() => null);
+          Alert.alert(
+            t.common.error,
+            data?.message || t.signup.failedToResendOtp,
+          );
+        }
       }
     } catch (error: any) {
       Alert.alert(
@@ -506,6 +502,7 @@ export default function SignupScreen() {
         onPress: () => {
           setStep(1);
           setOtp("");
+          setOtpDigits(["", "", "", "", "", ""]);
         },
       },
     ]);
@@ -520,7 +517,17 @@ export default function SignupScreen() {
 
     try {
       setLoading(true);
-      await verifyEmail({ email, otp: otpDigits.join("") });
+
+      if (registrationToken) {
+        // New deferred-insertion flow — creates user atomically
+        await registerVerify({
+          registration_token: registrationToken,
+          otp: otpCode,
+        });
+      } else {
+        // Legacy flow (login → verify redirect)
+        await verifyEmail({ email, otp: otpCode });
+      }
 
       setStep(4);
 
@@ -528,7 +535,27 @@ export default function SignupScreen() {
         router.replace("/(tabs)");
       }, 2000);
     } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.signup.verificationFailed);
+      if (error.status === 410) {
+        // Pending registration expired
+        Alert.alert(
+          t.common.error,
+          "Registration session expired. Please start over.",
+        );
+        setStep(1);
+        setRegistrationToken(null);
+      } else if (error.status === 409) {
+        // Duplicate — another registration completed first
+        Alert.alert(
+          t.common.error,
+          "This email or phone is already registered. Please log in.",
+        );
+        router.replace("/(auth)/login");
+      } else {
+        Alert.alert(
+          t.common.error,
+          error.message || t.signup.verificationFailed,
+        );
+      }
     } finally {
       setLoading(false);
     }

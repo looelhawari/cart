@@ -19,6 +19,47 @@ export interface RegisterData {
   language: "en" | "ar";
 }
 
+// ── New multi-step registration types ───────────────────
+export interface RegisterStep1Data {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  language: "en" | "ar";
+  registration_token?: string;
+}
+
+export interface RegisterStep1Response {
+  success: boolean;
+  message: string;
+  data: {
+    registration_token: string;
+    step_completed: "step1" | "step2" | "otp_sent";
+    password_set: boolean;
+    otp_resent: boolean;
+  };
+}
+
+export interface RegisterStep2Data {
+  registration_token: string;
+  password: string;
+  password_confirmation: string;
+}
+
+export interface RegisterStep2Response {
+  success: boolean;
+  message: string;
+  data: {
+    email_sent: boolean;
+  };
+}
+
+export interface RegisterVerifyData {
+  registration_token: string;
+  otp: string;
+}
+// ────────────────────────────────────────────────────────
+
 export interface LoginData {
   email: string;
   password: string;
@@ -268,19 +309,66 @@ export const api = {
 
 // AUTH API SERVICE
 export const authApi = {
-  // Register
+  // ── Legacy register (kept for backward compat) ────────
   async register(data: RegisterData): Promise<any> {
     const response = await apiRequest<any>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return response;
+  },
 
-    // Registration doesn't return tokens - user must verify email first
-    // No tokens to save at this stage
+  // ── New multi-step registration (deferred insertion) ──
+
+  /** Step 1: Validate info, create/update pending registration */
+  async registerStep1(data: RegisterStep1Data): Promise<RegisterStep1Response> {
+    return apiRequest<RegisterStep1Response>("/auth/register/step1", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** Step 2: Set password, trigger OTP send */
+  async registerStep2(data: RegisterStep2Data): Promise<RegisterStep2Response> {
+    return apiRequest<RegisterStep2Response>("/auth/register/step2", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** Verify OTP → atomically create user → return tokens */
+  async registerVerify(data: RegisterVerifyData): Promise<AuthResponse> {
+    const response = await apiRequest<AuthResponse>("/auth/register/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    await saveTokens(response.data.access_token, response.data.refresh_token);
+
+    await AsyncStorage.setItem(
+      TOKEN_CONFIG.USER_CACHE_KEY,
+      JSON.stringify({
+        id: response.data.user.id,
+        first_name: response.data.user.first_name,
+        last_name: response.data.user.last_name,
+        email: response.data.user.email,
+        phone: response.data.user.phone,
+        language: response.data.user.language,
+      }),
+    );
 
     return response;
   },
 
+  /** Resend OTP for a pending registration */
+  async registerResendOtp(data: { registration_token: string }): Promise<any> {
+    return apiRequest("/auth/register/resend-otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // ── Legacy verify (kept for login→verify redirect flow) ──
   // Verify Email OTP
   async verifyEmail(data: VerifyEmailData): Promise<AuthResponse> {
     const response = await apiRequest<AuthResponse>("/auth/verify-email", {

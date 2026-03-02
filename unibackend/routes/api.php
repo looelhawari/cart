@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Admin\AdminStoreSettingsController;
 use App\Http\Controllers\Api\Admin\AdminReviewController;
 use App\Http\Controllers\Api\Admin\AdminRefundDashboardController;
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\Auth\RegistrationController;
 use App\Http\Controllers\Api\Auth\SocialAuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
@@ -70,6 +71,16 @@ Route::prefix('v1')->group(function () {
 
     // Auth routes (guest only) - using named 'auth' rate limiter (60/min by IP)
     Route::middleware(['guest', 'throttle:auth'])->group(function () {
+
+        // ── New multi-step registration (deferred insertion) ────────
+        Route::prefix('auth/register')->group(function () {
+            Route::post('/step1', [RegistrationController::class, 'step1']);
+            Route::post('/step2', [RegistrationController::class, 'step2']);
+            Route::post('/verify', [RegistrationController::class, 'verify']);
+            Route::post('/resend-otp', [RegistrationController::class, 'resendOtp']);
+        });
+
+        // ── Legacy endpoints (kept for backward compat with login→verify flow) ──
         Route::post('auth/register', [AuthController::class, 'register']);
         Route::post('auth/verify-email', [AuthController::class, 'verifyEmail']);
         Route::post('auth/resend-otp', [AuthController::class, 'resendOtp']);

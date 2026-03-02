@@ -8,6 +8,7 @@ import {
   RegisterData,
   LoginData,
   VerifyEmailData,
+  RegisterVerifyData,
   ForgotPasswordData,
   ResetPasswordData,
   User as ApiUser,
@@ -59,13 +60,12 @@ interface StoreState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: (password: string) => Promise<void>;
-  register: (
-    data: RegisterData,
-  ) => Promise<{
+  register: (data: RegisterData) => Promise<{
     requiresVerification: boolean;
     email: string;
     emailSent: boolean;
   }>;
+  registerVerify: (data: RegisterVerifyData) => Promise<void>;
   verifyEmail: (data: VerifyEmailData) => Promise<void>;
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;
   resetPassword: (data: ResetPasswordData) => Promise<void>;
@@ -233,6 +233,16 @@ export const useStore = create<StoreState>()(
           email: response.data.user.email,
           emailSent: response.data.email_sent ?? true,
         };
+      },
+
+      registerVerify: async (data: RegisterVerifyData) => {
+        const response = await authApi.registerVerify(data);
+
+        set({
+          isAuthenticated: true,
+          user: response.data.user,
+          pendingUser: null,
+        });
       },
 
       verifyEmail: async (data: VerifyEmailData) => {

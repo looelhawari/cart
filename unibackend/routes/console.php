@@ -16,6 +16,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// ==================== PENDING REGISTRATION CLEANUP ==========================
+
+Schedule::command('registrations:cleanup')->everyThirtyMinutes()
+    ->name('cleanup-pending-registrations')
+    ->withoutOverlapping();
+
 // ==================== ENTERPRISE NOTIFICATION SCHEDULES ====================
 
 // Cart abandonment reminders - every 15 minutes
