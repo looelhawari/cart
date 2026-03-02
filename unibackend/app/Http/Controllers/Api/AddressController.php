@@ -60,7 +60,7 @@ class AddressController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Address created successfully',
+            'message' => __('address.created'),
             'data' => $address->load('deliveryZone'),
         ], 201);
     }
@@ -159,7 +159,7 @@ class AddressController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Address updated successfully',
+            'message' => __('address.updated'),
             'data' => $address,
         ]);
     }
@@ -188,7 +188,7 @@ class AddressController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Address deleted successfully',
+            'message' => __('address.deleted'),
         ]);
     }
 
@@ -207,7 +207,7 @@ class AddressController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Default address set successfully',
+            'message' => __('address.default_set'),
             'data' => $address,
         ]);
     }

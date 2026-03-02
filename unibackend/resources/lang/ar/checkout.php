@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'failed_delivery_slots' => 'فشل في استرجاع مواعيد التوصيل',
+    'auth_required' => 'يجب تسجيل الدخول',
+    'failed_addresses' => 'فشل في استرجاع العناوين',
+    'failed_payment_methods' => 'فشل في استرجاع طرق الدفع',
+    'failed_calculate_summary' => 'فشل في حساب الملخص',
+    'validation_failed' => 'فشل التحقق',
+    'unauthorized_order' => 'وصول غير مصرح به للطلب',
+    'already_paid' => 'الطلب مدفوع بالفعل',
+    'cannot_pay_status' => 'لا يمكن معالجة الدفع لطلب بحالة :status.',
+    'payment_failed' => 'فشلت عملية الدفع. يرجى المحاولة مرة أخرى.',
+    'unauthorized' => 'غير مصرح',
+    'method_cod_name' => 'الدفع عند الاستلام',
+    'method_cod_desc' => 'ادفع عند استلام طلبك',
+    'method_card_name' => 'بطاقة ائتمان/خصم',
+    'method_card_desc' => 'ادفع بأمان ببطاقتك',
+    'method_wallet_name' => 'المحفظة',
+    'method_wallet_desc' => 'ادفع من رصيد محفظتك',
+    'method_wallet_card_name' => 'المحفظة + بطاقة',
+    'method_wallet_card_desc' => 'ادفع :amount جنيه من المحفظة، والباقي بالبطاقة',
+    'failed_payment_options' => 'فشل في استرجاع خيارات الدفع',
+    'promo_applied' => 'تم تطبيق كود الخصم بنجاح',
+];

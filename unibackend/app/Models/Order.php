@@ -150,35 +150,35 @@ class Order extends Model
     }
 
     /**
-     * Get status label for display
+     * Get status label for display (translated)
      */
     public function getStatusLabelAttribute(): string
     {
         return match($this->status) {
-            'pending' => 'Pending',
-            'pending_payment' => 'Pending Payment',
-            'confirmed' => 'Confirmed',
-            'preparing' => 'Preparing',
-            'out_for_delivery' => 'Out for Delivery',
-            'delivered' => 'Delivered',
-            'cancelled' => 'Cancelled',
-            'failed' => 'Failed',
-            default => 'Unknown',
+            'pending' => __('order.status_pending'),
+            'pending_payment' => __('order.status_pending_payment'),
+            'confirmed' => __('order.status_confirmed'),
+            'preparing' => __('order.status_preparing'),
+            'out_for_delivery' => __('order.status_out_for_delivery'),
+            'delivered' => __('order.status_delivered'),
+            'cancelled' => __('order.status_cancelled'),
+            'failed' => __('order.status_failed'),
+            default => __('order.status_unknown'),
         };
     }
 
     /**
-     * Get payment status label for display
+     * Get payment status label for display (translated)
      */
     public function getPaymentStatusLabelAttribute(): string
     {
         return match($this->payment_status) {
-            'pending' => 'Pending',
-            'completed' => 'Completed',
-            'failed' => 'Failed',
-            'refunded' => 'Refunded',
-            'partially_refunded' => 'Partially Refunded',
-            default => 'Unknown',
+            'pending' => __('order.payment_status_pending'),
+            'completed' => __('order.payment_status_completed'),
+            'failed' => __('order.payment_status_failed'),
+            'refunded' => __('order.payment_status_refunded'),
+            'partially_refunded' => __('order.payment_status_partially_refunded'),
+            default => __('order.payment_status_unknown'),
         };
     }
 

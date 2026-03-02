@@ -16,6 +16,7 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "@/i18n";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/Colors";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/services/payment/paymentRecovery";
 
 export default function PaymentReturnScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{
     success?: string;
@@ -85,7 +87,7 @@ export default function PaymentReturnScreen() {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={Colors.primary900} />
-      <Text style={styles.text}>Processing payment...</Text>
+      <Text style={styles.text}>{t.paymentFlow.processingPayment}</Text>
     </View>
   );
 }

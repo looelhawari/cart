@@ -28,9 +28,6 @@ import Svg, {
   Rect,
   Circle,
   G,
-  Defs,
-  ClipPath,
-  Polygon,
 } from "react-native-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -108,20 +105,16 @@ export default function PaymentMethodsScreen() {
    */
   const handleSetDefault = async (method: PaymentMethod) => {
     if (method.is_expired) {
-      Alert.alert(
-        t.common.error,
-        "This card has expired and cannot be set as default.",
-        [{ text: t.common.ok }],
-      );
+      Alert.alert(t.common.error, t.ui.cardExpiredCannotDefault, [
+        { text: t.common.ok },
+      ]);
       return;
     }
 
     if (!method.is_verified) {
-      Alert.alert(
-        t.common.error,
-        "This card is not verified yet. Use it for a payment first.",
-        [{ text: t.common.ok }],
-      );
+      Alert.alert(t.common.error, t.ui.cardNotVerified, [
+        { text: t.common.ok },
+      ]);
       return;
     }
 
@@ -325,7 +318,7 @@ export default function PaymentMethodsScreen() {
         {item.is_default && (
           <View style={styles.defaultBadge}>
             <CheckCircle size={11} color={Colors.primary900} />
-            <Text style={styles.defaultBadgeText}>Default</Text>
+            <Text style={styles.defaultBadgeText}>{t.ui.default}</Text>
           </View>
         )}
 
@@ -354,7 +347,7 @@ export default function PaymentMethodsScreen() {
                       item.is_expired && styles.textDanger,
                     ]}
                   >
-                    {item.is_expired ? "Expired" : `Exp: ${item.expires_at}`}
+                    {item.is_expired ? t.ui.expired : `Exp: ${item.expires_at}`}
                   </Text>
                 </>
               )}
@@ -365,19 +358,19 @@ export default function PaymentMethodsScreen() {
               {item.is_expired && (
                 <View style={[styles.badge, styles.badgeExpired]}>
                   <Clock size={10} color={Colors.neutralWhite} />
-                  <Text style={styles.badgeText}>EXPIRED</Text>
+                  <Text style={styles.badgeText}>{t.ui.expiredBadge}</Text>
                 </View>
               )}
               {!item.is_verified && (
                 <View style={[styles.badge, styles.badgeWarning]}>
                   <AlertCircle size={10} color={Colors.neutralWhite} />
-                  <Text style={styles.badgeText}>UNVERIFIED</Text>
+                  <Text style={styles.badgeText}>{t.ui.unverifiedBadge}</Text>
                 </View>
               )}
               {item.is_verified && !item.is_expired && (
                 <View style={[styles.badge, styles.badgeVerified]}>
                   <CheckCircle size={10} color={Colors.neutralWhite} />
-                  <Text style={styles.badgeText}>VERIFIED</Text>
+                  <Text style={styles.badgeText}>{t.ui.verifiedBadge}</Text>
                 </View>
               )}
             </View>
@@ -400,7 +393,7 @@ export default function PaymentMethodsScreen() {
                   activeOpacity={0.7}
                 >
                   <CheckCircle size={16} color={Colors.primary900} />
-                  <Text style={styles.setDefaultText}>Set as Default</Text>
+                  <Text style={styles.setDefaultText}>{t.ui.setAsDefault}</Text>
                 </TouchableOpacity>
               )}
 
@@ -411,7 +404,7 @@ export default function PaymentMethodsScreen() {
                 activeOpacity={0.7}
               >
                 <Trash size={16} color={Colors.accentRed} />
-                <Text style={styles.deleteText}>Delete</Text>
+                <Text style={styles.deleteText}>{t.ui.delete}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -491,35 +484,28 @@ export default function PaymentMethodsScreen() {
           <View style={styles.emptyIconCircle}>
             <CreditCard size={40} color={Colors.primary900} />
           </View>
-          <Text style={styles.emptyTitle}>No Saved Cards</Text>
-          <Text style={styles.emptySubtext}>
-            When you save a card during checkout, it will appear here for quick
-            access.
-          </Text>
+          <Text style={styles.emptyTitle}>{t.ui.noSavedCards}</Text>
+          <Text style={styles.emptySubtext}>{t.ui.whenSaveCard}</Text>
 
           <View style={styles.emptySteps}>
             <View style={styles.emptyStepRow}>
               <View style={styles.emptyStepNumber}>
                 <Text style={styles.emptyStepNumberText}>1</Text>
               </View>
-              <Text style={styles.emptyStepText}>
-                Choose Card payment at checkout
-              </Text>
+              <Text style={styles.emptyStepText}>{t.ui.chooseCardStep}</Text>
             </View>
             <View style={styles.emptyStepRow}>
               <View style={styles.emptyStepNumber}>
                 <Text style={styles.emptyStepNumberText}>2</Text>
               </View>
-              <Text style={styles.emptyStepText}>
-                {'Check "Save this card for future purchases"'}
-              </Text>
+              <Text style={styles.emptyStepText}>{t.ui.checkSaveCard}</Text>
             </View>
             <View style={styles.emptyStepRow}>
               <View style={styles.emptyStepNumber}>
                 <Text style={styles.emptyStepNumberText}>3</Text>
               </View>
               <Text style={styles.emptyStepText}>
-                Complete payment — card is saved automatically
+                {t.ui.completePaymentStep}
               </Text>
             </View>
           </View>
@@ -527,7 +513,7 @@ export default function PaymentMethodsScreen() {
           <View style={styles.emptySecurityNote}>
             <ShieldCheck size={16} color={Colors.primary900} />
             <Text style={styles.emptySecurityText}>
-              Your cards are stored securely encrypted
+              {t.ui.cardsStoredSecurely}
             </Text>
           </View>
         </View>
@@ -549,8 +535,8 @@ export default function PaymentMethodsScreen() {
           ListHeaderComponent={
             <View style={styles.listHeader}>
               <Text style={styles.cardCount}>
-                {paymentMethods.length} saved card
-                {paymentMethods.length !== 1 ? "s" : ""}
+                {paymentMethods.length}{" "}
+                {paymentMethods.length !== 1 ? t.ui.savedCards : t.ui.savedCard}
               </Text>
             </View>
           }
@@ -559,13 +545,13 @@ export default function PaymentMethodsScreen() {
               <View style={styles.footerInfo}>
                 <Info size={14} color={Colors.neutralMedium} />
                 <Text style={styles.footerText}>
-                  Expired or unverified cards cannot be set as default
+                  {t.ui.expiredOrUnverified}
                 </Text>
               </View>
               <View style={styles.footerSecurity}>
                 <ShieldCheck size={14} color={Colors.primary900} />
                 <Text style={styles.footerSecurityText}>
-                  All cards are stored securely encrypted
+                  {t.ui.allCardsSecure}
                 </Text>
               </View>
             </View>

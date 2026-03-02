@@ -20,11 +20,13 @@ import React, { useState, useRef, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator, Alert, Text } from "react-native";
 import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "@/i18n";
 import { Colors } from "@/constants/Colors";
 import { pollPaymentStatus } from "@/services/paymentMethodsApi";
 import PaymentResultModal from "@/components/PaymentResultModal";
 
 export default function PaymentWebViewScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{
     iframeUrl: string;
@@ -99,19 +101,17 @@ export default function PaymentWebViewScreen() {
         // Still PENDING after 30s — webhook might be delayed
         console.warn("[PaymentWebView] ⏱️ Payment verification timeout");
         Alert.alert(
-          "Payment Verification",
-          "We are still processing your payment. You will receive a notification when it's confirmed. Please check your orders.",
-          [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
+          t.paymentFlow.paymentVerification,
+          t.paymentFlow.paymentProcessingMessage,
+          [{ text: t.common.ok, onPress: () => router.replace("/(tabs)") }],
         );
       }
     } catch (error) {
       if (!isMounted.current) return;
       console.error("[PaymentWebView] Polling error:", error);
-      Alert.alert(
-        "Error",
-        "Failed to verify payment status. Please check your orders.",
-        [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
-      );
+      Alert.alert(t.common.error, t.paymentFlow.failedToVerify, [
+        { text: t.common.ok, onPress: () => router.replace("/(tabs)") },
+      ]);
     } finally {
       if (isMounted.current) setIsVerifying(false);
     }
@@ -178,19 +178,15 @@ export default function PaymentWebViewScreen() {
     // If we're already verifying (redirect happened), ignore WebView errors
     if (isVerifying) return;
 
-    Alert.alert(
-      "Error",
-      "Failed to load payment page. Please check your internet connection and try again.",
-      [
-        { text: "Retry", onPress: () => setLoading(true) },
-        { text: "Cancel", onPress: () => router.back(), style: "cancel" },
-      ],
-    );
+    Alert.alert(t.common.error, t.paymentFlow.failedToLoadPage, [
+      { text: t.common.retry, onPress: () => setLoading(true) },
+      { text: t.common.cancel, onPress: () => router.back(), style: "cancel" },
+    ]);
   };
 
   if (!params.iframeUrl) {
-    Alert.alert("Error", "Payment URL not provided", [
-      { text: "OK", onPress: () => router.back() },
+    Alert.alert(t.common.error, t.paymentFlow.paymentUrlNotProvided, [
+      { text: t.common.ok, onPress: () => router.back() },
     ]);
     return null;
   }
@@ -226,7 +222,7 @@ export default function PaymentWebViewScreen() {
       {loading && !isVerifying && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading payment...</Text>
+          <Text style={styles.loadingText}>{t.paymentFlow.loadingPayment}</Text>
         </View>
       )}
 
@@ -234,9 +230,11 @@ export default function PaymentWebViewScreen() {
       {isVerifying && (
         <View style={styles.verifyingContainer}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.verifyingTitle}>Verifying Payment</Text>
+          <Text style={styles.verifyingTitle}>
+            {t.paymentFlow.verifyingPayment}
+          </Text>
           <Text style={styles.verifyingText}>
-            Please wait while we confirm your payment...
+            {t.paymentFlow.pleaseWaitConfirm}
           </Text>
         </View>
       )}

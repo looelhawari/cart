@@ -108,7 +108,7 @@
         </div>
 
         <div class="footer">
-            <p>Thank you for shopping with <strong>CART Hypermarket</strong></p>
+            <p>Thank you for shopping with <strong>CART</strong></p>
             <p>If you have questions, contact our support team.</p>
             <p style="margin-top:12px;">© {{ date('Y') }} CART. All rights reserved.</p>
         </div>

@@ -29,6 +29,7 @@ import type { Offer } from "@/services/api/types";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
+import { useTranslation } from "@/i18n";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width - 32;
@@ -40,6 +41,7 @@ type SlideItem =
   | { kind: "offer"; data: Offer };
 
 export const HeroBanner: React.FC = () => {
+  const { t } = useTranslation();
   const [slides, setSlides] = useState<SlideItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -55,42 +57,44 @@ export const HeroBanner: React.FC = () => {
       setLoading(true);
       const allSlides: SlideItem[] = [];
 
-      // 1. Load promotions (featured first, then fallback to all active)
+      // 1. Load ALL active promotions (featured first, then remaining)
       try {
+        const seenIds = new Set<number>();
+
+        // Add featured promotions first
         const featuredResponse = await getFeaturedPromotion();
         if (featuredResponse.success && featuredResponse.data?.promotions) {
-          const validPromotions = featuredResponse.data.promotions.filter(
-            (promo: Promotion) => promo && promo.image_url,
-          );
-          validPromotions.forEach((p: Promotion) =>
-            allSlides.push({ kind: "promotion", data: p }),
-          );
+          featuredResponse.data.promotions
+            .filter((promo: Promotion) => promo)
+            .forEach((p: Promotion) => {
+              seenIds.add(p.id);
+              allSlides.push({ kind: "promotion", data: p });
+            });
         }
 
-        if (allSlides.length === 0) {
-          const response = await getPromotions();
-          if (response.success) {
-            response.data.promotions
-              .filter((promo: Promotion | null) => promo && promo.image_url)
-              .slice(0, 5)
-              .forEach((p: Promotion) =>
-                allSlides.push({ kind: "promotion", data: p }),
-              );
-          }
+        // Then add remaining promotions (avoid duplicates)
+        const response = await getPromotions();
+        if (response.success) {
+          response.data.promotions
+            .filter(
+              (promo: Promotion | null) => promo && !seenIds.has(promo!.id),
+            )
+            .forEach((p: Promotion) =>
+              allSlides.push({ kind: "promotion", data: p }),
+            );
         }
       } catch (err) {
         console.error("Failed to load promotions:", err);
       }
 
-      // 2. Load promo code offers (active ones)
+      // 2. Load ALL active offers (not just promo code ones)
       try {
         const offersResponse = await getOffers({ status: "active" });
         if (offersResponse.success && offersResponse.data?.offers) {
-          // Take top promo codes that aren't already represented
-          const promoOffers = offersResponse.data.offers
-            .filter((o) => o.is_active && o.code)
-            .slice(0, 4);
-          promoOffers.forEach((o) =>
+          const activeOffers = offersResponse.data.offers.filter(
+            (o) => o.is_active,
+          );
+          activeOffers.forEach((o) =>
             allSlides.push({ kind: "offer", data: o }),
           );
         }
@@ -139,25 +143,25 @@ export const HeroBanner: React.FC = () => {
 
   const getDiscountText = (promotion: Promotion) => {
     if (promotion.discount_type === "percentage") {
-      return `${promotion.discount_value}% OFF`;
+      return `${promotion.discount_value}% ${t.products.off}`;
     } else if (promotion.discount_type === "fixed") {
-      return `${promotion.discount_value} EGP OFF`;
+      return `${promotion.discount_value} ${t.ui.egpOff}`;
     }
-    return "Special Offer";
+    return t.ui.specialOfferBanner;
   };
 
   const getOfferDiscountText = (offer: Offer) => {
     switch (offer.type) {
       case "percentage":
-        return `${offer.value}% OFF`;
+        return `${offer.value}% ${t.products.off}`;
       case "fixed_amount":
-        return `${offer.value} EGP OFF`;
+        return `${offer.value} ${t.ui.egpOff}`;
       case "free_delivery":
-        return "FREE DELIVERY";
+        return t.ui.freeDeliveryUpper;
       case "bogo":
-        return "BUY 1 GET 1";
+        return t.ui.buyOneGetOneBadge;
       default:
-        return "Special Offer";
+        return t.ui.specialOfferBanner;
     }
   };
 
@@ -192,6 +196,76 @@ export const HeroBanner: React.FC = () => {
   const renderSlide = (slide: SlideItem, index: number) => {
     if (slide.kind === "promotion") {
       const promotion = slide.data;
+
+      // Promotion without image — render gradient card like offers
+      if (!promotion.image_url) {
+        const promoGradient: readonly [string, string] =
+          promotion.discount_type === "percentage"
+            ? (["#7C3AED", "#4C1D95"] as const)
+            : (["#F97316", "#C2410C"] as const);
+
+        return (
+          <TouchableOpacity
+            key={`promo-${promotion.id}`}
+            style={styles.slide}
+            onPress={() => router.push(`/promotions/${promotion.id}` as any)}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={promoGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.offerSlideGradient}
+            >
+              <View style={styles.offerSlideContent}>
+                <View style={styles.offerSlideLeft}>
+                  <View style={styles.offerCodeBadge}>
+                    <Sparkles size={12} color={Colors.neutralWhite} />
+                    <Text style={styles.offerCodeText}>
+                      {getDiscountText(promotion)}
+                    </Text>
+                  </View>
+                  <Text style={styles.offerSlideTitle} numberOfLines={2}>
+                    {promotion.title}
+                  </Text>
+                  <Text style={styles.offerSlideSubtitle} numberOfLines={1}>
+                    {promotion.description}
+                  </Text>
+                  {promotion.end_date && (
+                    <View style={styles.timerRow}>
+                      <Clock size={12} color={Colors.neutralWhite} />
+                      <Text style={styles.timerText}>
+                        {t.ui.limitedTimeOnly}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.offerSlideRight}>
+                  <Sparkles
+                    size={40}
+                    color={Colors.neutralWhite}
+                    strokeWidth={1.5}
+                  />
+                  <View style={styles.offerDiscountCircle}>
+                    <Text style={styles.offerDiscountValue}>
+                      {promotion.discount_type === "percentage"
+                        ? `${promotion.discount_value}%`
+                        : `${promotion.discount_value}`}
+                    </Text>
+                    {promotion.discount_type === "fixed" && (
+                      <Text style={styles.offerDiscountUnit}>
+                        {t.common.currency}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        );
+      }
+
+      // Promotion with image — original render
       return (
         <TouchableOpacity
           key={`promo-${promotion.id}`}
@@ -223,7 +297,7 @@ export const HeroBanner: React.FC = () => {
             {promotion.end_date && (
               <View style={styles.timerRow}>
                 <Clock size={12} color={Colors.neutralWhite} />
-                <Text style={styles.timerText}>Limited Time Only</Text>
+                <Text style={styles.timerText}>{t.ui.limitedTimeOnly}</Text>
               </View>
             )}
           </LinearGradient>
@@ -248,23 +322,35 @@ export const HeroBanner: React.FC = () => {
         >
           <View style={styles.offerSlideContent}>
             <View style={styles.offerSlideLeft}>
-              <View style={styles.offerCodeBadge}>
-                <Tag size={12} color={Colors.neutralWhite} />
-                <Text style={styles.offerCodeText}>{offer.code}</Text>
-              </View>
+              {offer.code ? (
+                <View style={styles.offerCodeBadge}>
+                  <Tag size={12} color={Colors.neutralWhite} />
+                  <Text style={styles.offerCodeText}>{offer.code}</Text>
+                </View>
+              ) : (
+                <View style={styles.offerCodeBadge}>
+                  <Sparkles size={12} color={Colors.neutralWhite} />
+                  <Text style={styles.offerCodeText}>
+                    {getOfferDiscountText(offer)}
+                  </Text>
+                </View>
+              )}
               <Text style={styles.offerSlideTitle} numberOfLines={2}>
                 {offer.title || getOfferDiscountText(offer)}
               </Text>
               <Text style={styles.offerSlideSubtitle} numberOfLines={1}>
                 {offer.subtitle ||
                   (offer.minimum_order > 0
-                    ? `Min. order ${offer.minimum_order} EGP`
-                    : "No minimum order")}
+                    ? t.ui.minOrderAmount.replace(
+                        "{amount}",
+                        String(offer.minimum_order),
+                      )
+                    : t.ui.noMinimumOrder)}
               </Text>
               {offer.ending_soon && (
                 <View style={styles.timerRow}>
                   <Clock size={12} color={Colors.neutralWhite} />
-                  <Text style={styles.timerText}>Ending Soon!</Text>
+                  <Text style={styles.timerText}>{t.ui.endingSoon}</Text>
                 </View>
               )}
             </View>
@@ -281,7 +367,9 @@ export const HeroBanner: React.FC = () => {
                         : "B1G1"}
                 </Text>
                 {offer.type === "fixed_amount" && (
-                  <Text style={styles.offerDiscountUnit}>EGP</Text>
+                  <Text style={styles.offerDiscountUnit}>
+                    {t.common.currency}
+                  </Text>
                 )}
               </View>
             </View>
@@ -294,12 +382,12 @@ export const HeroBanner: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Hot Deals 🔥</Text>
+        <Text style={styles.sectionTitle}>{t.ui.hotDeals}</Text>
         <TouchableOpacity
           style={styles.viewAllButton}
           onPress={() => router.push("/(tabs)/offers")}
         >
-          <Text style={styles.viewAllText}>View All</Text>
+          <Text style={styles.viewAllText}>{t.ui.viewAll}</Text>
           <ChevronRight size={16} color={Colors.primary900} />
         </TouchableOpacity>
       </View>
@@ -329,10 +417,10 @@ export const HeroBanner: React.FC = () => {
                 strokeWidth={1.5}
               />
               <Text style={styles.placeholderTitle}>
-                Exciting Deals Coming Soon! 🎉
+                {t.ui.excitingDealsComingSoon}
               </Text>
               <Text style={styles.placeholderSubtitle}>
-                Stay tuned for amazing offers and exclusive promotions
+                {t.ui.stayTunedDeals}
               </Text>
             </LinearGradient>
           </View>

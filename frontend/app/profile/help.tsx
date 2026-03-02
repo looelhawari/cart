@@ -14,12 +14,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "@/i18n";
+import Colors from "@/constants/Colors";
 
 // Support Contact Info
 const SUPPORT_INFO = {
-  phone: "+20 100 123 4567",
-  email: "support@elbaraka.com",
-  whatsapp: "+201001234567",
+  phone: "+20 1144689191",
+  email: "kareemhesham105@gmail.com",
+  whatsapp: "+20 1144689191",
   workingHours: "Saturday - Thursday: 9 AM - 10 PM",
   responseTime: "Within 24 hours",
 };
@@ -66,6 +67,7 @@ const FAQItem: React.FC<FAQItemProps> = ({
   isExpanded,
   onToggle,
 }) => {
+  const { t } = useTranslation();
   const [animation] = useState(new Animated.Value(isExpanded ? 1 : 0));
   const [helpful, setHelpful] = useState<boolean | null>(null);
 
@@ -100,7 +102,7 @@ const FAQItem: React.FC<FAQItemProps> = ({
           <Text style={styles.faqAnswerText}>{answer}</Text>
 
           <View style={styles.helpfulContainer}>
-            <Text style={styles.helpfulText}>Was this helpful?</Text>
+            <Text style={styles.helpfulText}>{t.help.wasHelpful}</Text>
             <View style={styles.helpfulButtons}>
               <TouchableOpacity
                 style={[
@@ -112,7 +114,7 @@ const FAQItem: React.FC<FAQItemProps> = ({
                 <Ionicons
                   name="thumbs-up"
                   size={16}
-                  color={helpful === true ? "#fff" : "#4CAF50"}
+                  color={helpful === true ? "#fff" : Colors.primary900}
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -173,7 +175,7 @@ export default function HelpScreen() {
 
   const handleEmail = () => {
     Linking.openURL(
-      `mailto:${SUPPORT_INFO.email}?subject=Support Request&body=Hi CART Support,\n\n`,
+      `mailto:${SUPPORT_INFO.email}?subject=${t.ui.supportRequest}&body=Hi CART Support,\n\n`,
     );
   };
 
@@ -183,7 +185,7 @@ export default function HelpScreen() {
   };
 
   const handleTrackOrder = () => {
-    router.push("/profile/orders" as any);
+    router.push("/orders" as any);
   };
 
   const handleMyMessages = () => {
@@ -194,7 +196,7 @@ export default function HelpScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header with Gradient */}
       <LinearGradient
-        colors={["#4CAF50", "#45a049", "#388E3C"]}
+        colors={[Colors.primary900, Colors.primary800, "#064e3b"]}
         style={styles.header}
       >
         <View style={styles.headerContent}>
@@ -258,12 +260,12 @@ export default function HelpScreen() {
               >
                 <Ionicons name="location-outline" size={24} color="#2196F3" />
               </View>
-              <Text style={styles.quickActionText}>Track Order</Text>
+              <Text style={styles.quickActionText}>{t.help.trackOrder}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.quickActionCard}
-              onPress={() => router.push("/profile/orders" as any)}
+              onPress={() => router.push("/complaints" as any)}
             >
               <View
                 style={[styles.quickActionIcon, { backgroundColor: "#FFF3E0" }]}
@@ -274,7 +276,7 @@ export default function HelpScreen() {
                   color="#FF9800"
                 />
               </View>
-              <Text style={styles.quickActionText}>Report Issue</Text>
+              <Text style={styles.quickActionText}>{t.help.reportIssue}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -284,9 +286,13 @@ export default function HelpScreen() {
               <View
                 style={[styles.quickActionIcon, { backgroundColor: "#E8F5E9" }]}
               >
-                <Ionicons name="call-outline" size={24} color="#4CAF50" />
+                <Ionicons
+                  name="call-outline"
+                  size={24}
+                  color={Colors.primary900}
+                />
               </View>
-              <Text style={styles.quickActionText}>Call Us</Text>
+              <Text style={styles.quickActionText}>{t.help.callUs}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -298,7 +304,7 @@ export default function HelpScreen() {
               >
                 <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
               </View>
-              <Text style={styles.quickActionText}>WhatsApp</Text>
+              <Text style={styles.quickActionText}>{t.help.whatsapp}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -308,14 +314,14 @@ export default function HelpScreen() {
           <View style={styles.infoCardsRow}>
             <View style={[styles.infoCard, { backgroundColor: "#E3F2FD" }]}>
               <Ionicons name="time-outline" size={24} color="#2196F3" />
-              <Text style={styles.infoCardTitle}>Working Hours</Text>
+              <Text style={styles.infoCardTitle}>{t.help.workingHours}</Text>
               <Text style={styles.infoCardText}>
                 {SUPPORT_INFO.workingHours}
               </Text>
             </View>
             <View style={[styles.infoCard, { backgroundColor: "#FFF3E0" }]}>
               <Ionicons name="flash-outline" size={24} color="#FF9800" />
-              <Text style={styles.infoCardTitle}>Response Time</Text>
+              <Text style={styles.infoCardTitle}>{t.help.responseTime}</Text>
               <Text style={styles.infoCardText}>
                 {SUPPORT_INFO.responseTime}
               </Text>
@@ -325,7 +331,7 @@ export default function HelpScreen() {
 
         {/* FAQ Categories */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+          <Text style={styles.sectionTitle}>{t.help.faq}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -377,9 +383,9 @@ export default function HelpScreen() {
           ) : (
             <View style={styles.noResults}>
               <Ionicons name="search-outline" size={48} color="#ccc" />
-              <Text style={styles.noResultsText}>No results found</Text>
+              <Text style={styles.noResultsText}>{t.help.noResults}</Text>
               <Text style={styles.noResultsSubtext}>
-                Try different keywords or browse categories
+                {t.help.tryDifferentKeywords}
               </Text>
             </View>
           )}
@@ -387,11 +393,11 @@ export default function HelpScreen() {
 
         {/* Contact Support Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Contact Support</Text>
+          <Text style={styles.sectionTitle}>{t.help.contactSupport}</Text>
           <View style={styles.contactCard}>
-            <Text style={styles.contactCardTitle}>Still need help?</Text>
+            <Text style={styles.contactCardTitle}>{t.help.stillNeedHelp}</Text>
             <Text style={styles.contactCardSubtitle}>
-              Our support team is ready to assist you
+              {t.help.supportTeamReady}
             </Text>
 
             <View style={styles.contactOptions}>
@@ -405,10 +411,10 @@ export default function HelpScreen() {
                     { backgroundColor: "#E8F5E9" },
                   ]}
                 >
-                  <Ionicons name="call" size={24} color="#4CAF50" />
+                  <Ionicons name="call" size={24} color={Colors.primary900} />
                 </View>
                 <View style={styles.contactOptionInfo}>
-                  <Text style={styles.contactOptionTitle}>Call Us</Text>
+                  <Text style={styles.contactOptionTitle}>{t.help.callUs}</Text>
                   <Text style={styles.contactOptionValue}>
                     {SUPPORT_INFO.phone}
                   </Text>
@@ -429,7 +435,9 @@ export default function HelpScreen() {
                   <Ionicons name="mail" size={24} color="#2196F3" />
                 </View>
                 <View style={styles.contactOptionInfo}>
-                  <Text style={styles.contactOptionTitle}>Email Us</Text>
+                  <Text style={styles.contactOptionTitle}>
+                    {t.help.emailUs}
+                  </Text>
                   <Text style={styles.contactOptionValue}>
                     {SUPPORT_INFO.email}
                   </Text>
@@ -450,8 +458,12 @@ export default function HelpScreen() {
                   <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
                 </View>
                 <View style={styles.contactOptionInfo}>
-                  <Text style={styles.contactOptionTitle}>WhatsApp</Text>
-                  <Text style={styles.contactOptionValue}>Chat with us</Text>
+                  <Text style={styles.contactOptionTitle}>
+                    {t.help.whatsapp}
+                  </Text>
+                  <Text style={styles.contactOptionValue}>
+                    {t.help.chatWithUs}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#ccc" />
               </TouchableOpacity>
@@ -461,14 +473,14 @@ export default function HelpScreen() {
 
         {/* Useful Links */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Useful Links</Text>
+          <Text style={styles.sectionTitle}>{t.help.usefulLinks}</Text>
           <View style={styles.linksCard}>
             <TouchableOpacity
               style={styles.linkItem}
               onPress={() => router.push("/about/terms")}
             >
               <Ionicons name="document-text-outline" size={20} color="#666" />
-              <Text style={styles.linkText}>Terms & Conditions</Text>
+              <Text style={styles.linkText}>{t.help.termsAndConditions}</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
             <View style={styles.linkDivider} />
@@ -481,7 +493,7 @@ export default function HelpScreen() {
                 size={20}
                 color="#666"
               />
-              <Text style={styles.linkText}>Privacy Policy</Text>
+              <Text style={styles.linkText}>{t.help.privacyPolicy}</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
             <View style={styles.linkDivider} />
@@ -490,7 +502,7 @@ export default function HelpScreen() {
               onPress={() => router.push("/about/about")}
             >
               <Ionicons name="location-outline" size={20} color="#666" />
-              <Text style={styles.linkText}>Store Locations</Text>
+              <Text style={styles.linkText}>{t.ui.storeLocations}</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
             <View style={styles.linkDivider} />
@@ -503,7 +515,7 @@ export default function HelpScreen() {
                 size={20}
                 color="#666"
               />
-              <Text style={styles.linkText}>About CART</Text>
+              <Text style={styles.linkText}>{t.ui.aboutCart}</Text>
               <Ionicons name="chevron-forward" size={18} color="#ccc" />
             </TouchableOpacity>
           </View>
@@ -511,10 +523,8 @@ export default function HelpScreen() {
 
         {/* App Version */}
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>CART App v1.0.0</Text>
-          <Text style={styles.copyrightText}>
-            © 2026 CART Hypermarket. All rights reserved.
-          </Text>
+          <Text style={styles.versionText}>{t.ui.appVersion}</Text>
+          <Text style={styles.copyrightText}>{t.ui.copyright}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -672,8 +682,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   categoryChipActive: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
+    backgroundColor: Colors.primary900,
+    borderColor: Colors.primary900,
   },
   categoryChipText: {
     fontSize: 14,
@@ -750,7 +760,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   helpfulButtonActive: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: Colors.primary900,
   },
   helpfulButtonActiveNegative: {
     backgroundColor: "#F44336",

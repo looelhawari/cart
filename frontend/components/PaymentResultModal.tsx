@@ -4,6 +4,7 @@ import { CheckCircle, XCircle } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
+import { useTranslation } from "@/i18n";
 
 interface PaymentResultModalProps {
   visible: boolean;
@@ -18,6 +19,7 @@ export default function PaymentResultModal({
   onComplete,
   duration = 2000,
 }: PaymentResultModalProps) {
+  const { t } = useTranslation();
   const scaleAnim = new Animated.Value(0);
   const fadeAnim = new Animated.Value(0);
 
@@ -94,13 +96,11 @@ export default function PaymentResultModal({
           </View>
 
           <Text style={styles.title}>
-            {success ? "Payment Successful!" : "Payment Failed"}
+            {success ? t.ui.paymentSuccessful : t.ui.paymentFailed}
           </Text>
 
           <Text style={styles.message}>
-            {success
-              ? "Your order has been confirmed"
-              : "Your payment was not successful"}
+            {success ? t.ui.orderConfirmed : t.ui.paymentNotSuccessful}
           </Text>
 
           {success && (

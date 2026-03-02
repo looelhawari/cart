@@ -38,7 +38,7 @@ class CheckoutController extends Controller
             \Log::error('Failed to retrieve delivery slots', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve delivery slots',
+                'message' => __('checkout.failed_delivery_slots'),
             ], 500);
         }
     }
@@ -55,7 +55,7 @@ class CheckoutController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('checkout.auth_required'),
                 ], 401);
             }
 
@@ -69,7 +69,7 @@ class CheckoutController extends Controller
             \Log::error('Failed to retrieve addresses', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve addresses',
+                'message' => __('checkout.failed_addresses'),
             ], 500);
         }
     }
@@ -86,7 +86,7 @@ class CheckoutController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('checkout.auth_required'),
                 ], 401);
             }
 
@@ -100,7 +100,7 @@ class CheckoutController extends Controller
             \Log::error('Failed to retrieve payment methods', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve payment methods',
+                'message' => __('checkout.failed_payment_methods'),
             ], 500);
         }
     }
@@ -133,7 +133,7 @@ class CheckoutController extends Controller
             \Log::error('Failed to calculate summary', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to calculate summary',
+                'message' => __('checkout.failed_calculate_summary'),
             ], 500);
         }
     }
@@ -160,7 +160,7 @@ class CheckoutController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('checkout.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -171,7 +171,7 @@ class CheckoutController extends Controller
             if (!$storeStatus['is_open']) {
                 $lang = $request->header('Accept-Language', 'en');
                 $message = $lang === 'ar' ? $storeStatus['message_ar'] : $storeStatus['message_en'];
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => $message,
@@ -186,7 +186,7 @@ class CheckoutController extends Controller
             if ($order->user_id !== $request->user()->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized access to order',
+                    'message' => __('checkout.unauthorized_order'),
                 ], 403);
             }
 
@@ -194,7 +194,7 @@ class CheckoutController extends Controller
             if ($order->payment_status === 'completed') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Order already paid',
+                    'message' => __('checkout.already_paid'),
                 ], 400);
             }
 
@@ -202,7 +202,7 @@ class CheckoutController extends Controller
             if (in_array($order->status, ['cancelled', 'failed', 'delivered'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot process payment for a ' . $order->status . ' order.',
+                    'message' => __('checkout.cannot_pay_status', ['status' => $order->status]),
                 ], 400);
             }
 
@@ -238,7 +238,7 @@ class CheckoutController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Payment processing failed. Please try again.',
+                'message' => __('checkout.payment_failed'),
             ], 500);
         }
     }
@@ -255,7 +255,7 @@ class CheckoutController extends Controller
             if ($order->user_id !== $request->user()->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized',
+                    'message' => __('checkout.unauthorized'),
                 ], 403);
             }
 
@@ -264,18 +264,18 @@ class CheckoutController extends Controller
             $methods = [
                 'cash_on_delivery' => [
                     'available' => true,
-                    'name' => 'Cash on Delivery',
-                    'description' => 'Pay when you receive your order',
+                    'name' => __('checkout.method_cod_name'),
+                    'description' => __('checkout.method_cod_desc'),
                 ],
                 'card' => [
                     'available' => true,
-                    'name' => 'Credit/Debit Card',
-                    'description' => 'Pay securely with your card',
+                    'name' => __('checkout.method_card_name'),
+                    'description' => __('checkout.method_card_desc'),
                 ],
                 'wallet' => [
                     'available' => $wallet->hasSufficientBalance($order->total),
-                    'name' => 'Wallet',
-                    'description' => 'Pay with your wallet balance',
+                    'name' => __('checkout.method_wallet_name'),
+                    'description' => __('checkout.method_wallet_desc'),
                     'balance' => $wallet->balance,
                     'required' => $order->total,
                     'sufficient' => $wallet->hasSufficientBalance($order->total),
@@ -286,8 +286,8 @@ class CheckoutController extends Controller
             if ($wallet->balance > 0 && $wallet->balance < $order->total) {
                 $methods['wallet_partial'] = [
                     'available' => true,
-                    'name' => 'Wallet + Card',
-                    'description' => "Pay {$wallet->balance} EGP with wallet, remainder with card",
+                    'name' => __('checkout.method_wallet_card_name'),
+                    'description' => __('checkout.method_wallet_card_desc', ['amount' => $wallet->balance]),
                     'wallet_amount' => $wallet->balance,
                     'card_amount' => $order->total - $wallet->balance,
                 ];
@@ -309,7 +309,7 @@ class CheckoutController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve payment options',
+                'message' => __('checkout.failed_payment_options'),
             ], 500);
         }
     }
@@ -328,7 +328,7 @@ class CheckoutController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('checkout.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -338,7 +338,7 @@ class CheckoutController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authentication required',
+                    'message' => __('checkout.auth_required'),
                 ], 401);
             }
 
@@ -397,7 +397,7 @@ class CheckoutController extends Controller
                 ],
                 'message' => $promoEvaluation['validation_state'] === 'pending'
                     ? $this->cartService->promoReasonMessage($promoEvaluation['invalid_reason'])
-                    : 'Promo code applied successfully',
+                    : __('checkout.promo_applied'),
             ]);
 
         } catch (\Exception $e) {

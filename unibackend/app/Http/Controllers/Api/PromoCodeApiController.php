@@ -86,11 +86,11 @@ class PromoCodeApiController extends Controller
         ]);
 
         $userId = $request->user()?->id;
-        
+
         if (!$userId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Authentication required for recommendations',
+                'message' => __('promo.auth_required'),
             ], 401);
         }
 
@@ -131,9 +131,9 @@ class PromoCodeApiController extends Controller
                 'data' => $generalCodes->map(fn($code) => [
                     'code' => $code->code,
                     'display' => $code->discount_display,
-                    'reason' => $code->first_order_only 
-                        ? 'Welcome offer for new customers!' 
-                        : 'Special offer',
+                    'reason' => $code->first_order_only
+                        ? __('promo.welcome_offer')
+                        : __('promo.special_offer'),
                 ]),
             ]);
         }
@@ -162,14 +162,14 @@ class PromoCodeApiController extends Controller
             return response()->json([
                 'success' => false,
                 'valid' => false,
-                'message' => 'Promo code not found',
+                'message' => __('promo.not_found'),
                 'error_code' => 'NOT_FOUND',
             ], 404);
         }
 
         $userId = $request->user()?->id;
         $subtotal = $request->subtotal ?? 0;
-        
+
         $isFirstOrder = false;
         if ($userId) {
             $isFirstOrder = Order::where('user_id', $userId)
@@ -238,7 +238,7 @@ class PromoCodeApiController extends Controller
         if (!$promoCode) {
             return response()->json([
                 'success' => false,
-                'message' => 'Promo code not found',
+                'message' => __('promo.not_found'),
             ], 404);
         }
 
@@ -263,7 +263,7 @@ class PromoCodeApiController extends Controller
                 'remaining_uses' => $userId ? $promoCode->getRemainingUsesForUser($userId) : null,
                 'products' => $promoCode->applies_to === 'product' ? $promoCode->products : null,
                 'categories' => $promoCode->applies_to === 'category' ? $promoCode->categories : null,
-                'bogo_rules' => $promoCode->type === 'bogo' 
+                'bogo_rules' => $promoCode->type === 'bogo'
                     ? $promoCode->activeBogoRules->map(fn($r) => [
                         'description' => $r->description,
                         'buy_qty' => $r->buy_qty,
@@ -305,40 +305,41 @@ class PromoCodeApiController extends Controller
      */
     protected function getPromoDescription(PromoCode $promoCode): string
     {
+        $currency = config('app.currency', 'EGP');
         $description = "";
 
         switch ($promoCode->type) {
             case 'percentage':
-                $description = "Get {$promoCode->value}% off";
+                $description = __('promo.get_percent_off', ['value' => $promoCode->value]);
                 if ($promoCode->maximum_discount) {
-                    $description .= " (up to EGP {$promoCode->maximum_discount})";
+                    $description .= ' ' . __('promo.up_to_max', ['currency' => $currency, 'max' => $promoCode->maximum_discount]);
                 }
                 break;
 
             case 'fixed_amount':
-                $description = "Get EGP {$promoCode->value} off";
+                $description = __('promo.get_fixed_off', ['currency' => $currency, 'value' => $promoCode->value]);
                 break;
 
             case 'free_delivery':
-                $description = "Free delivery on your order";
+                $description = __('promo.free_delivery');
                 break;
 
             case 'bogo':
                 $rule = $promoCode->activeBogoRules->first();
-                $description = $rule ? $rule->description : "Special BOGO offer";
+                $description = $rule ? $rule->description : __('promo.bogo_offer');
                 break;
         }
 
         if ($promoCode->minimum_order) {
-            $description .= " on orders over EGP {$promoCode->minimum_order}";
+            $description .= ' ' . __('promo.on_orders_over', ['currency' => $currency, 'min' => $promoCode->minimum_order]);
         }
 
         if ($promoCode->first_order_only) {
-            $description .= " (First order only)";
+            $description .= ' ' . __('promo.first_order_only');
         }
 
         if ($promoCode->applies_to === 'product') {
-            $description .= " on selected products";
+            $description .= ' ' . __('promo.on_selected_products');
         } elseif ($promoCode->applies_to === 'category') {
             $categories = $promoCode->categories->pluck('name')->join(', ');
             if ($categories) {

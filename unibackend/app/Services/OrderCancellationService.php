@@ -106,7 +106,7 @@ class OrderCancellationService
         $rateLimitKey = "cancel_order:{$orderId}:{$userId}";
         if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
             $retryAfter = RateLimiter::availableIn($rateLimitKey);
-            throw new Exception("Please wait {$retryAfter} seconds before trying to cancel again.");
+            throw new Exception(__('order.wait_before_cancel', ['seconds' => $retryAfter]));
         }
         RateLimiter::hit($rateLimitKey, 30);
 
@@ -118,11 +118,11 @@ class OrderCancellationService
                 ->firstOrFail();
 
             if ($order->status === 'cancelling') {
-                throw new Exception('This order is already being cancelled. Please wait.');
+                throw new Exception(__('order.already_cancelling'));
             }
 
             if (in_array($order->status, ['cancelled', 'failed'])) {
-                throw new Exception('This order has already been cancelled or failed.');
+                throw new Exception(__('order.already_cancelled_or_failed'));
             }
 
             // Capture the real status BEFORE setting cancelling
@@ -169,15 +169,15 @@ class OrderCancellationService
                 ->firstOrFail();
 
             if ($order->status === 'delivered') {
-                throw new Exception('Cannot cancel a delivered order. Use the return/refund process instead.');
+                throw new Exception(__('order.cannot_cancel_delivered'));
             }
 
             if ($order->status === 'cancelling') {
-                throw new Exception('This order is already being cancelled.');
+                throw new Exception(__('order.already_cancelling'));
             }
 
             if (in_array($order->status, ['cancelled', 'failed'])) {
-                throw new Exception('This order has already been cancelled or failed.');
+                throw new Exception(__('order.already_cancelled_or_failed'));
             }
 
             $previousStatus = $order->status;
@@ -226,22 +226,22 @@ class OrderCancellationService
                 // Customer can only partial-refund confirmed/preparing/delivered orders
                 if ($initiatedBy === 'customer') {
                     if (!in_array($order->status, ['confirmed', 'preparing', 'delivered'])) {
-                        throw new Exception('You can only request a partial refund for confirmed, preparing, or delivered orders.');
+                        throw new Exception(__('order.partial_refund_status_error'));
                     }
                 }
 
                 if ($order->payment_method === 'cash_on_delivery') {
-                    throw new Exception('Partial refunds are only available for card-paid orders.');
+                    throw new Exception(__('order.partial_refund_card_only'));
                 }
 
                 $payment = $order->successfulPayment();
                 if (!$payment || !$payment->isPaid()) {
-                    throw new Exception('No successful payment found for this order.');
+                    throw new Exception(__('order.no_payment_found'));
                 }
 
                 $items = $order->items()->whereIn('id', $itemIds)->where('refunded', false)->get();
                 if ($items->isEmpty()) {
-                    throw new Exception('No valid items found to refund. Items may already be refunded.');
+                    throw new Exception(__('order.no_valid_items'));
                 }
 
                 $itemRefundAmount = $items->sum('subtotal');
@@ -283,7 +283,7 @@ class OrderCancellationService
             ]);
             return [
                 'success' => true,
-                'message' => 'This refund has already been processed.',
+                'message' => __('order.refund_already_processed'),
                 'refund' => [
                     'id' => $existingRefund->id,
                     'type' => $existingRefund->type,
@@ -358,7 +358,7 @@ class OrderCancellationService
 
         return [
             'success' => true,
-            'message' => "Partial refund of {$itemRefundAmount} EGP processed successfully.",
+            'message' => __('order.partial_refund_success', ['amount' => $itemRefundAmount, 'currency' => $order->currency ?? 'EGP']),
             'refund' => [
                 'id' => $refund->id,
                 'type' => 'partial',
@@ -504,7 +504,7 @@ class OrderCancellationService
 
         return [
             'success' => true,
-            'message' => "Items cancelled successfully. {$itemCancelAmount} EGP removed from your order.",
+            'message' => __('order.items_cancelled_success', ['amount' => $itemCancelAmount, 'currency' => $order->currency ?? 'EGP']),
             'refund' => [
                 'id' => $refund->id,
                 'type' => 'partial',
@@ -531,7 +531,7 @@ class OrderCancellationService
         if (in_array($order->status, ['cancelled', 'failed'])) {
             return [
                 'can_cancel' => false,
-                'reason' => 'This order has already been cancelled.',
+                'reason' => __('order.eligibility_already_cancelled'),
                 'refund_type' => null,
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
@@ -542,7 +542,7 @@ class OrderCancellationService
         if ($order->status === 'cancelling') {
             return [
                 'can_cancel' => false,
-                'reason' => 'This order is currently being cancelled.',
+                'reason' => __('order.eligibility_currently_cancelling'),
                 'refund_type' => null,
                 'refund_percent' => 0,
                 'penalty_percent' => 0,
@@ -562,7 +562,7 @@ class OrderCancellationService
             return [
                 'can_cancel' => $canCancel,
                 'reason' => $canCancel
-                    ? 'Order will be cancelled and items restocked.'
+                    ? __('order.eligibility_cod_can_cancel')
                     : $this->getBlockedMessage($order->status, true),
                 'refund_type' => 'none',
                 'refund_percent' => 0,
@@ -582,9 +582,10 @@ class OrderCancellationService
                 : (float) $order->total;
             $estimatedRefund = max(0, $maxPayable - $alreadyRefunded);
 
+            $estimatedDays = __('order.estimated_days');
             $reason = $alreadyRefunded > 0
-                ? "Full refund of the remaining amount ({$estimatedRefund} EGP) will be processed to your card. Previously refunded: {$alreadyRefunded} EGP. Refunds typically take 5-14 business days."
-                : 'Full refund will be processed to your card. Refunds typically take 5-14 business days.';
+                ? __('order.eligibility_full_refund_with_previous', ['estimated' => $estimatedRefund, 'already' => $alreadyRefunded, 'days' => $estimatedDays])
+                : __('order.eligibility_full_refund', ['days' => $estimatedDays]);
 
             return [
                 'can_cancel' => true,
@@ -609,9 +610,10 @@ class OrderCancellationService
             $penaltyAmount = round($remainingAmount * ($penalty / 100), 2);
             $refundAmount = round($remainingAmount - $penaltyAmount, 2);
 
+            $estimatedDays = __('order.estimated_days');
             $reason = $alreadyRefunded > 0
-                ? "A {$penalty}% preparation fee will be deducted from the remaining amount. You will receive {$refundAmount} EGP ({$refundPercent}% of {$remainingAmount} EGP remaining) back to your card within 5-14 business days."
-                : "A {$penalty}% preparation fee will be deducted. You will receive {$refundAmount} EGP ({$refundPercent}% of the order total) back to your card within 5-14 business days.";
+                ? __('order.eligibility_penalty_refund_with_previous', ['penalty' => $penalty, 'refund' => $refundAmount, 'percent' => $refundPercent, 'remaining' => $remainingAmount, 'days' => $estimatedDays])
+                : __('order.eligibility_penalty_refund', ['penalty' => $penalty, 'refund' => $refundAmount, 'percent' => $refundPercent, 'days' => $estimatedDays]);
 
             return [
                 'can_cancel' => true,
@@ -676,7 +678,7 @@ class OrderCancellationService
             $this->rollbackPromo($order);
             return [
                 'success' => true,
-                'message' => 'Order cancelled. No payment was completed, so no refund is needed.',
+                'message' => __('order.no_payment_no_refund'),
                 'refund' => null,
                 'order' => $order->fresh(['items.product', 'refunds']),
             ];
@@ -754,7 +756,7 @@ class OrderCancellationService
 
             return [
                 'success' => true,
-                'message' => 'Order cancelled. No payment was completed, so no refund is needed.',
+                'message' => __('order.no_payment_no_refund'),
                 'refund' => null,
                 'order' => $order->fresh(['items.product', 'refunds']),
             ];
@@ -782,7 +784,7 @@ class OrderCancellationService
             ]);
             return [
                 'success' => true,
-                'message' => 'Order cancelled. A refund was already processed for this order.',
+                'message' => __('order.refund_already_done'),
                 'refund' => null,
                 'order' => $order->fresh(['items.product', 'refunds']),
             ];
@@ -826,7 +828,7 @@ class OrderCancellationService
 
             return [
                 'success' => true,
-                'message' => 'Order cancelled. The refund was already processed.',
+                'message' => __('order.refund_already_processed_cancel'),
                 'refund' => [
                     'id' => $existingRefund->id,
                     'type' => $existingRefund->type,
@@ -835,7 +837,7 @@ class OrderCancellationService
                     'penalty_amount' => $existingRefund->penalty_amount,
                     'refund_amount' => $existingRefund->refund_amount,
                     'status' => $existingRefund->status,
-                    'estimated_days' => '5-14 business days',
+                    'estimated_days' => __('order.estimated_days'),
                 ],
                 'order' => $order->fresh(['items.product', 'refunds']),
             ];
@@ -941,8 +943,8 @@ class OrderCancellationService
         ]);
 
         $message = $refundType === 'full'
-            ? "Order cancelled. Full refund of {$refundAmount} EGP will appear on your card within 5-14 business days."
-            : "Order cancelled. A {$penaltyPercent}% preparation fee was deducted. {$refundAmount} EGP will appear on your card within 5-14 business days.";
+            ? __('order.full_refund_success', ['amount' => $refundAmount, 'currency' => $order->currency ?? 'EGP'])
+            : __('order.penalty_refund_success', ['amount' => $refundAmount, 'currency' => $order->currency ?? 'EGP', 'penalty' => $penaltyPercent]);
 
         return [
             'success' => true,
@@ -955,7 +957,7 @@ class OrderCancellationService
                 'penalty_amount' => $penaltyAmount,
                 'refund_amount' => $refundAmount,
                 'status' => 'completed',
-                'estimated_days' => '5-14 business days',
+                'estimated_days' => __('order.estimated_days'),
             ],
             'order' => $order->fresh(['items.product', 'refunds']),
         ];
@@ -1002,7 +1004,7 @@ class OrderCancellationService
 
             return [
                 'success' => true,
-                'message' => 'Order cancelled successfully. No refund is needed for cash on delivery orders.',
+                'message' => __('order.cod_cancelled_no_refund'),
                 'refund' => null,
                 'order' => $order->fresh(['items.product']),
             ];
@@ -1195,11 +1197,11 @@ class OrderCancellationService
     private function getBlockedMessage(string $status, bool $isCod): string
     {
         return match ($status) {
-            'out_for_delivery' => 'Your order is already out for delivery and cannot be cancelled. Please refuse the delivery or contact our support team.',
-            'delivered' => 'This order has been delivered and cannot be cancelled. Please contact support for returns.',
-            'cancelled' => 'This order has already been cancelled.',
-            'failed' => 'This order has already failed.',
-            default => 'This order cannot be cancelled in its current status.',
+            'out_for_delivery' => __('order.blocked_out_for_delivery'),
+            'delivered' => __('order.blocked_delivered'),
+            'cancelled' => __('order.blocked_already_cancelled'),
+            'failed' => __('order.blocked_already_failed'),
+            default => __('order.blocked_default'),
         };
     }
 

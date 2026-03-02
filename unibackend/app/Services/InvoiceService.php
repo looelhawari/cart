@@ -13,7 +13,7 @@ class InvoiceService
      */
     private const STORE = [
         'name'        => 'CART',
-        'legal_name'  => 'CART Hypermarket',
+        'legal_name'  => 'CART',
         'address'     => 'Cairo, Egypt',
         'phone'       => '+20 123 456 7890',
         'email'       => 'support@elbaraka.com',

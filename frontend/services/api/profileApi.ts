@@ -92,4 +92,12 @@ export const profileApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // ─── Delete Account (irreversible) ────────────────────────────
+  async deleteAccount(password: string) {
+    return apiRequest("/profile/delete-account", {
+      method: "DELETE",
+      body: JSON.stringify({ password }),
+    });
+  },
 };

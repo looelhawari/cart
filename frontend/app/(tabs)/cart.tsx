@@ -25,7 +25,6 @@ import { GuestModal } from "@/components/GuestModal";
 import { Toast } from "@/components/Toast";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { getMaxPerOrder } from "@/utils/quantityLimits";
-import { getDeliverySettings } from "@/services/api/storeApi";
 
 const { width } = Dimensions.get("window");
 
@@ -53,18 +52,6 @@ export default function CartScreen() {
   // Animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const lastFetchRef = useRef<number>(0);
-
-  // Free delivery threshold from store settings
-  const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(0);
-
-  useEffect(() => {
-    getDeliverySettings()
-      .then((res) => {
-        const threshold = res?.data?.free_delivery_threshold;
-        if (threshold && threshold > 0) setFreeDeliveryThreshold(threshold);
-      })
-      .catch(() => { });
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -102,13 +89,11 @@ export default function CartScreen() {
       await applyPromoCodeToCart(promoCode.trim());
       setPromoCode("");
       setToastType("success");
-      setToastMessage("Promo code applied successfully!");
+      setToastMessage(t.ui.promoApplied);
       setShowToast(true);
     } catch (error: any) {
       setToastType("error");
-      setToastMessage(
-        error.message || "This promo code is not valid or has expired.",
-      );
+      setToastMessage(error.message || t.ui.promoInvalid);
       setShowToast(true);
     } finally {
       setIsApplyingPromo(false);
@@ -118,7 +103,7 @@ export default function CartScreen() {
   const handleRemovePromo = async () => {
     try {
       await removePromoCodeFromCart();
-    } catch (_) { }
+    } catch (_) {}
   };
 
   const handleCheckout = () => {
@@ -224,7 +209,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await clearCart();
-                } catch (_) { }
+                } catch (_) {}
               }}
               style={styles.clearButton}
             >
@@ -294,7 +279,7 @@ export default function CartScreen() {
                       } else {
                         await removeFromCart(item.id);
                       }
-                    } catch (_) { }
+                    } catch (_) {}
                   }}
                 >
                   {item.quantity === 1 ? (
@@ -329,7 +314,7 @@ export default function CartScreen() {
                     }
                     try {
                       await updateQuantity(item.id, item.quantity + 1);
-                    } catch (_) { }
+                    } catch (_) {}
                   }}
                   disabled={(() => {
                     const m = getMaxPerOrder(item.product?.barcode);
@@ -354,7 +339,7 @@ export default function CartScreen() {
               onPress={async () => {
                 try {
                   await removeFromCart(item.id);
-                } catch (_) { }
+                } catch (_) {}
               }}
             >
               <X size={18} color={Colors.neutralMedium} />
@@ -392,7 +377,7 @@ export default function CartScreen() {
                   <View style={styles.appliedPromoText}>
                     <Text style={styles.appliedPromoCode}>{appliedPromo}</Text>
                     <Text style={styles.appliedPromoSaved}>
-                      You saved{" "}
+                      {t.ui.youSaved}{" "}
                       {parseFloat(discount?.toString() || "0").toFixed(2)}{" "}
                       {t.common?.currency || "EGP"}!
                     </Text>
@@ -421,7 +406,7 @@ export default function CartScreen() {
                 style={[
                   styles.applyButton,
                   (!promoCode.trim() || isApplyingPromo) &&
-                  styles.applyButtonDisabled,
+                    styles.applyButtonDisabled,
                 ]}
                 onPress={handleApplyPromo}
                 disabled={!promoCode.trim() || isApplyingPromo}
@@ -440,52 +425,10 @@ export default function CartScreen() {
         </View>
 
         {/* ═══════════════════════════════════════════════════════════════════════════
-            FREE DELIVERY PROGRESS BANNER
-        ═══════════════════════════════════════════════════════════════════════════ */}
-        {freeDeliveryThreshold > 0 && cartItems.length > 0 && (
-          <View style={styles.freeDeliveryBanner}>
-            {subtotal >= freeDeliveryThreshold ? (
-              <>
-                <View style={styles.freeDeliveryIconRow}>
-                  <Ionicons name="gift" size={20} color="#16a34a" />
-                  <Text style={styles.freeDeliveryUnlocked}>
-                    {t.cart?.freeDeliveryUnlocked || "🎉 You've unlocked FREE delivery!"}
-                  </Text>
-                </View>
-                <View style={[styles.freeDeliveryProgressBar, { backgroundColor: "#bbf7d0" }]}>
-                  <View style={[styles.freeDeliveryProgressFill, { width: "100%" }]} />
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.freeDeliveryIconRow}>
-                  <Ionicons name="bicycle" size={20} color={Colors.primary900} />
-                  <Text style={styles.freeDeliveryHint}>
-                    {t.cart?.addMoreForFreeDelivery
-                      ? t.cart.addMoreForFreeDelivery
-                        .replace("{amount}", (freeDeliveryThreshold - subtotal).toFixed(2))
-                        .replace("{currency}", t.common?.currency || "EGP")
-                      : `Add ${(freeDeliveryThreshold - subtotal).toFixed(2)} ${t.common?.currency || "EGP"} more for FREE delivery!`}
-                  </Text>
-                </View>
-                <View style={styles.freeDeliveryProgressBar}>
-                  <View
-                    style={[
-                      styles.freeDeliveryProgressFill,
-                      { width: `${Math.min(100, (subtotal / freeDeliveryThreshold) * 100)}%` },
-                    ]}
-                  />
-                </View>
-              </>
-            )}
-          </View>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════════════════
             ORDER SUMMARY
         ═══════════════════════════════════════════════════════════════════════════ */}
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Order Summary</Text>
+          <Text style={styles.summaryTitle}>{t.ui.orderSummary}</Text>
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>
@@ -901,48 +844,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-  },
-  freeDelivery: {
-    color: Colors.primary900,
-    fontFamily: "Poppins-Bold",
-  },
-  freeDeliveryBanner: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: "#f0fdf4",
-    borderWidth: 1,
-    borderColor: "#bbf7d0",
-  },
-  freeDeliveryIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  freeDeliveryHint: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Poppins-SemiBold",
-    color: Colors.primary900,
-  },
-  freeDeliveryUnlocked: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Poppins-Bold",
-    color: "#16a34a",
-  },
-  freeDeliveryProgressBar: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#e2e8f0",
-    overflow: "hidden",
-  },
-  freeDeliveryProgressFill: {
-    height: "100%",
-    borderRadius: 3,
-    backgroundColor: "#16a34a",
   },
   totalDivider: {
     height: 1,

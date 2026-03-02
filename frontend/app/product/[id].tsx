@@ -118,6 +118,21 @@ export default function ProductDetailScreen() {
   const [toastType, setToastType] = useState<"success" | "error" | "info">(
     "success",
   );
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [addedToCartSuccess, setAddedToCartSuccess] = useState(false);
+  const addedToCartTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [relatedAdding, setRelatedAdding] = useState<Record<number, boolean>>(
+    {},
+  );
+  const [relatedAdded, setRelatedAdded] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    return () => {
+      if (addedToCartTimer.current) clearTimeout(addedToCartTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -168,14 +183,14 @@ export default function ProductDetailScreen() {
                   setRelatedProducts(filtered);
                 }
               })
-              .catch(() => { })
+              .catch(() => {}),
           );
         }
 
         promises.push(
           fetchActiveOffersCached()
             .then((offers) => setActiveOffers(offers))
-            .catch(() => setActiveOffers([]))
+            .catch(() => setActiveOffers([])),
         );
 
         await Promise.all(promises);
@@ -270,7 +285,7 @@ export default function ProductDetailScreen() {
           comment: reviewComment.trim(),
         };
         await updateReview(existingReview.id, payload);
-        setToastMessage("Review updated successfully!");
+        setToastMessage(t.ui.reviewUpdatedSuccess);
       } else {
         // Create new review
         if (!selectedOrderId) return;
@@ -281,7 +296,7 @@ export default function ProductDetailScreen() {
           comment: reviewComment.trim(),
         };
         await createReview(payload);
-        setToastMessage("Review submitted successfully!");
+        setToastMessage(t.ui.reviewSubmittedSuccess);
       }
 
       setShowReviewModal(false);
@@ -297,7 +312,7 @@ export default function ProductDetailScreen() {
     } catch (error: any) {
       console.error("Failed to submit review:", error);
       setToastType("error");
-      setToastMessage(error.message || "Failed to submit review");
+      setToastMessage(error.message || t.ui.failedToSubmitReview);
       setShowToast(true);
     } finally {
       setSubmittingReview(false);
@@ -307,7 +322,7 @@ export default function ProductDetailScreen() {
   const handleMarkHelpful = async (reviewId: number) => {
     try {
       await markReviewHelpful(reviewId);
-      setToastMessage("Marked as helpful!");
+      setToastMessage(t.ui.markedAsHelpful);
       setShowToast(true);
       loadReviews();
     } catch (error) {
@@ -399,21 +414,27 @@ export default function ProductDetailScreen() {
       }
     }
 
+    if (isAddingToCart) return;
+    setIsAddingToCart(true);
+    setAddedToCartSuccess(false);
     try {
       if (cartItem) {
         await updateQuantity(cartItem.id, cartItem.quantity + quantity);
       } else {
         await addToCart(product.barcode, quantity);
       }
-      setToastType("success");
-      setToastMessage(`${quantity} ${t.cart.itemAdded}`);
-      setShowToast(true);
+      setAddedToCartSuccess(true);
+      addedToCartTimer.current = setTimeout(() => {
+        setAddedToCartSuccess(false);
+      }, 1000);
     } catch (error) {
       const err: any = error;
       const msg = err?.message || err?.error || t.products.failedToAddToCart;
       setToastType("error");
       setToastMessage(msg);
       setShowToast(true);
+    } finally {
+      setIsAddingToCart(false);
     }
   };
 
@@ -471,16 +492,16 @@ export default function ProductDetailScreen() {
                 const promoDiscount = Math.round(
                   ((offerPricing.originalPrice - offerPricing.discountedPrice) /
                     offerPricing.originalPrice) *
-                  100,
+                    100,
                 );
-                shareMessage += `🔥 ${promoDiscount}% OFF! Now ${offerPricing.discountedPrice.toFixed(2)} EGP (was ${offerPricing.originalPrice.toFixed(2)} EGP)\n`;
+                shareMessage += `🔥 ${promoDiscount}% ${t.ui.off}! ${offerPricing.discountedPrice.toFixed(2)} ${t.common.currency} (${offerPricing.originalPrice.toFixed(2)} ${t.common.currency})\n`;
               } else if (discount > 0) {
-                shareMessage += `💰 ${discount}% OFF! Now ${basePrice.toFixed(2)} EGP (was ${price.toFixed(2)} EGP)\n`;
+                shareMessage += `💰 ${discount}% ${t.ui.off}! ${basePrice.toFixed(2)} ${t.common.currency} (${price.toFixed(2)} ${t.common.currency})\n`;
               } else {
-                shareMessage += `💰 ${basePrice.toFixed(2)} EGP\n`;
+                shareMessage += `💰 ${basePrice.toFixed(2)} ${t.common.currency}\n`;
               }
 
-              shareMessage += `\n🛍️ Shop on CART!\n${productUrl}`;
+              shareMessage += `\n🛍️ ${t.ui.shopOnCart}\n${productUrl}`;
 
               await Share.share({
                 message: shareMessage,
@@ -529,7 +550,7 @@ export default function ProductDetailScreen() {
             { top: 60, backgroundColor: Colors.accentOrange },
           ]}
         >
-          <Text style={styles.discountText}>🎁 PROMO</Text>
+          <Text style={styles.discountText}>{t.ui.promo}</Text>
         </View>
       )}
       {product.is_featured && (
@@ -539,7 +560,7 @@ export default function ProductDetailScreen() {
             {
               top:
                 discount > 0 ||
-                  (offerPricing && offerPricing.discountedPrice < basePrice)
+                (offerPricing && offerPricing.discountedPrice < basePrice)
                   ? 100
                   : 60,
               backgroundColor: Colors.accentYellow,
@@ -550,7 +571,7 @@ export default function ProductDetailScreen() {
           <Text
             style={[styles.discountText, { color: Colors.neutralCharcoal }]}
           >
-            ⭐ FEATURED
+            {t.ui.featuredBadge}
           </Text>
         </View>
       )}
@@ -821,53 +842,53 @@ export default function ProductDetailScreen() {
 
     return renderExpandableSection(
       "nutrition",
-      "Nutrition Facts",
+      t.products.nutritionFacts,
       <View style={styles.nutritionTable}>
         {facts.servingSize && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Serving Size</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.servingSize}</Text>
             <Text style={styles.nutritionValue}>{facts.servingSize}</Text>
           </View>
         )}
         {facts.calories && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Calories</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.calories}</Text>
             <Text style={styles.nutritionValue}>{facts.calories}</Text>
           </View>
         )}
         {facts.totalFat && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Total Fat</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.totalFat}</Text>
             <Text style={styles.nutritionValue}>{facts.totalFat}</Text>
           </View>
         )}
         {facts.saturatedFat && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Saturated Fat</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.saturatedFat}</Text>
             <Text style={styles.nutritionValue}>{facts.saturatedFat}</Text>
           </View>
         )}
         {facts.cholesterol && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Cholesterol</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.cholesterol}</Text>
             <Text style={styles.nutritionValue}>{facts.cholesterol}</Text>
           </View>
         )}
         {facts.sodium && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Sodium</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.sodium}</Text>
             <Text style={styles.nutritionValue}>{facts.sodium}</Text>
           </View>
         )}
         {facts.totalCarbohydrate && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Total Carbohydrate</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.totalCarbohydrate}</Text>
             <Text style={styles.nutritionValue}>{facts.totalCarbohydrate}</Text>
           </View>
         )}
         {facts.protein && (
           <View style={styles.nutritionRow}>
-            <Text style={styles.nutritionLabel}>Protein</Text>
+            <Text style={styles.nutritionLabel}>{t.ui.protein}</Text>
             <Text style={styles.nutritionValue}>{facts.protein}</Text>
           </View>
         )}
@@ -879,7 +900,7 @@ export default function ProductDetailScreen() {
     if (!product.ingredients) return null;
     return renderExpandableSection(
       "ingredients",
-      "Ingredients",
+      t.ui.ingredients,
       <Text style={styles.descriptionText}>{product.ingredients}</Text>,
     );
   };
@@ -887,17 +908,17 @@ export default function ProductDetailScreen() {
   const renderSpecs = () =>
     renderExpandableSection(
       "specs",
-      "Product Details & Specifications",
+      t.products.specifications,
       <View style={styles.specsTable}>
         {product.packaging && (
           <View style={styles.specRow}>
-            <Text style={styles.specLabel}>Packaging</Text>
+            <Text style={styles.specLabel}>{t.ui.packaging}</Text>
             <Text style={styles.specValue}>{product.packaging}</Text>
           </View>
         )}
         {product.weight && (
           <View style={styles.specRow}>
-            <Text style={styles.specLabel}>Package Weight</Text>
+            <Text style={styles.specLabel}>{t.ui.packageWeight}</Text>
             <Text style={styles.specValue}>{product.weight}g</Text>
           </View>
         )}
@@ -908,7 +929,7 @@ export default function ProductDetailScreen() {
     if (!product.allergens || product.allergens.length === 0) return null;
     return (
       <View style={styles.allergensSection}>
-        <Text style={styles.allergensTitle}>⚠️ Allergen Information</Text>
+        <Text style={styles.allergensTitle}>{t.ui.allergenInfo}</Text>
         <View style={styles.allergenTags}>
           {product.allergens.map((allergen, index) => (
             <View key={index} style={styles.allergenTag}>
@@ -940,7 +961,9 @@ export default function ProductDetailScreen() {
         <View style={styles.reviewsHeader}>
           <View style={styles.reviewsTitleRow}>
             <MessageCircle size={22} color={Colors.primary900} />
-            <Text style={styles.reviewsSectionTitle}>Customer Reviews</Text>
+            <Text style={styles.reviewsSectionTitle}>
+              {t.ui.customerReviews}
+            </Text>
           </View>
           {canReview?.can_review && (
             <TouchableOpacity
@@ -980,7 +1003,7 @@ export default function ProductDetailScreen() {
               ))}
             </View>
             <Text style={styles.totalReviews}>
-              Based on {reviewCount} review{reviewCount !== 1 ? "s" : ""}
+              {t.ui.basedOnReviews.replace("{{count}}", String(reviewCount))}
             </Text>
           </View>
 
@@ -1023,11 +1046,10 @@ export default function ProductDetailScreen() {
               </View>
               <View style={styles.purchaseNoticeText}>
                 <Text style={styles.purchaseNoticeTitle}>
-                  Purchase to Review
+                  {t.ui.purchaseToReview}
                 </Text>
                 <Text style={styles.purchaseNoticeDesc}>
-                  Only customers who have purchased this product can leave a
-                  review
+                  {t.ui.purchaseToReviewDesc}
                 </Text>
               </View>
             </View>
@@ -1051,17 +1073,17 @@ export default function ProductDetailScreen() {
             </View>
             <View style={[styles.purchaseNoticeText, { flex: 1 }]}>
               <Text style={styles.purchaseNoticeTitle}>
-                You&apos;ve Already Reviewed
+                {t.ui.alreadyReviewed}
               </Text>
               <Text style={styles.purchaseNoticeDesc}>
-                Thank you for sharing your feedback!
+                {t.ui.alreadyReviewedDesc}
               </Text>
             </View>
             <TouchableOpacity
               style={styles.editReviewButton}
               onPress={handleEditReview}
             >
-              <Text style={styles.editReviewButtonText}>Edit</Text>
+              <Text style={styles.editReviewButtonText}>{t.ui.edit}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1070,7 +1092,7 @@ export default function ProductDetailScreen() {
         {reviewsLoading ? (
           <View style={styles.reviewsLoading}>
             <ActivityIndicator size="small" color={Colors.primary900} />
-            <Text style={styles.loadingText}>Loading reviews...</Text>
+            <Text style={styles.loadingText}>{t.ui.loadingReviews}</Text>
           </View>
         ) : reviews.length > 0 ? (
           <View style={styles.reviewsList}>
@@ -1092,13 +1114,13 @@ export default function ProductDetailScreen() {
                       <Text style={styles.reviewerName}>
                         {review.user?.full_name ||
                           review.user?.first_name ||
-                          "Customer"}
+                          t.ui.customer}
                       </Text>
                       <View style={styles.reviewMeta}>
                         <View style={styles.verifiedBadge}>
                           <Check size={10} color={Colors.primary700} />
                           <Text style={styles.verifiedText}>
-                            Verified Purchase
+                            {t.ui.verifiedPurchase}
                           </Text>
                         </View>
                       </View>
@@ -1140,7 +1162,7 @@ export default function ProductDetailScreen() {
                   >
                     <ThumbsUp size={14} color={Colors.neutralMedium} />
                     <Text style={styles.helpfulText}>
-                      Helpful{" "}
+                      {t.ui.helpful}{" "}
                       {review.helpful_count ? `(${review.helpful_count})` : ""}
                     </Text>
                   </TouchableOpacity>
@@ -1156,7 +1178,10 @@ export default function ProductDetailScreen() {
                 }
               >
                 <Text style={styles.viewAllReviewsText}>
-                  View All {reviews.length} Reviews
+                  {t.ui.viewAllReviews.replace(
+                    "{{count}}",
+                    String(reviews.length),
+                  )}
                 </Text>
                 <ChevronDown
                   size={18}
@@ -1169,10 +1194,8 @@ export default function ProductDetailScreen() {
         ) : (
           <View style={styles.noReviews}>
             <MessageCircle size={48} color={Colors.neutralLight} />
-            <Text style={styles.noReviewsTitle}>No Reviews Yet</Text>
-            <Text style={styles.noReviewsText}>
-              Be the first to share your experience with this product
-            </Text>
+            <Text style={styles.noReviewsTitle}>{t.ui.noReviewsYet}</Text>
+            <Text style={styles.noReviewsText}>{t.ui.beFirstToReview}</Text>
           </View>
         )}
       </View>
@@ -1200,7 +1223,7 @@ export default function ProductDetailScreen() {
             <X size={24} color={Colors.neutralCharcoal} />
           </TouchableOpacity>
           <Text style={styles.modalTitle}>
-            {isEditingReview ? "Edit Your Review" : "Write a Review"}
+            {isEditingReview ? t.ui.editYourReview : t.ui.writeAReview}
           </Text>
           <View style={{ width: 24 }} />
         </View>
@@ -1225,14 +1248,16 @@ export default function ProductDetailScreen() {
             canReview?.eligible_orders &&
             canReview.eligible_orders.length > 1 && (
               <View style={styles.orderSelection}>
-                <Text style={styles.orderSelectionLabel}>Select Order</Text>
+                <Text style={styles.orderSelectionLabel}>
+                  {t.ui.selectOrder}
+                </Text>
                 {canReview.eligible_orders.map((order) => (
                   <TouchableOpacity
                     key={order.order_id}
                     style={[
                       styles.orderOption,
                       selectedOrderId === order.order_id &&
-                      styles.orderOptionSelected,
+                        styles.orderOptionSelected,
                     ]}
                     onPress={() => setSelectedOrderId(order.order_id)}
                   >
@@ -1243,10 +1268,13 @@ export default function ProductDetailScreen() {
                     </View>
                     <View>
                       <Text style={styles.orderOptionNumber}>
-                        Order #{order.order_number}
+                        {t.orders.orderNumber.replace(
+                          "{{number}}",
+                          order.order_number,
+                        )}
                       </Text>
                       <Text style={styles.orderOptionDate}>
-                        Delivered{" "}
+                        {t.ui.delivered}{" "}
                         {new Date(order.delivered_at).toLocaleDateString()}
                       </Text>
                     </View>
@@ -1257,7 +1285,7 @@ export default function ProductDetailScreen() {
 
           {/* Rating Selection */}
           <View style={styles.ratingSelection}>
-            <Text style={styles.ratingLabel}>Your Rating</Text>
+            <Text style={styles.ratingLabel}>{t.ui.yourRating}</Text>
             <View style={styles.ratingStars}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity
@@ -1283,23 +1311,23 @@ export default function ProductDetailScreen() {
             </View>
             <Text style={styles.ratingDescription}>
               {reviewRating === 5
-                ? "Excellent!"
+                ? t.ui.ratingLabels.excellent
                 : reviewRating === 4
-                  ? "Very Good"
+                  ? t.ui.ratingLabels.veryGood
                   : reviewRating === 3
-                    ? "Good"
+                    ? t.ui.ratingLabels.good
                     : reviewRating === 2
-                      ? "Fair"
-                      : "Poor"}
+                      ? t.ui.ratingLabels.fair
+                      : t.ui.ratingLabels.poor}
             </Text>
           </View>
 
           {/* Comment Input */}
           <View style={styles.commentSection}>
-            <Text style={styles.commentLabel}>Your Review</Text>
+            <Text style={styles.commentLabel}>{t.ui.yourReview}</Text>
             <TextInput
               style={styles.commentInput}
-              placeholder="Share your experience with this product..."
+              placeholder={t.ui.shareThoughtsProduct}
               placeholderTextColor={Colors.neutralMedium}
               multiline
               numberOfLines={5}
@@ -1308,7 +1336,7 @@ export default function ProductDetailScreen() {
               onChangeText={setReviewComment}
             />
             <Text style={styles.commentHint}>
-              Min. 10 characters ({reviewComment.length}/500)
+              {t.ui.minCharacters} ({reviewComment.length}/500)
             </Text>
           </View>
         </ScrollView>
@@ -1319,7 +1347,7 @@ export default function ProductDetailScreen() {
             style={[
               styles.submitReviewButton,
               (!reviewComment.trim() || reviewComment.length < 10) &&
-              styles.submitReviewDisabled,
+                styles.submitReviewDisabled,
             ]}
             onPress={handleSubmitReview}
             disabled={
@@ -1334,7 +1362,7 @@ export default function ProductDetailScreen() {
               <>
                 <Send size={20} color={Colors.neutralWhite} />
                 <Text style={styles.submitReviewText}>
-                  {isEditingReview ? "Update Review" : "Submit Review"}
+                  {isEditingReview ? t.ui.updateReview : t.ui.submitReview}
                 </Text>
               </>
             )}
@@ -1410,20 +1438,39 @@ export default function ProductDetailScreen() {
                     style={[
                       styles.relatedAddToCartBtn,
                       itemOutOfStock && styles.relatedAddToCartBtnDisabled,
+                      relatedAdded[item.barcode] && {
+                        backgroundColor: "#16a34a",
+                      },
                     ]}
                     onPress={async (e) => {
                       e.stopPropagation();
+                      if (itemOutOfStock || relatedAdding[item.barcode]) return;
                       if (itemOutOfStock) {
                         setToastType("error");
                         setToastMessage(t.products.outOfStock);
                         setShowToast(true);
                         return;
                       }
+                      setRelatedAdding((prev) => ({
+                        ...prev,
+                        [item.barcode]: true,
+                      }));
+                      setRelatedAdded((prev) => ({
+                        ...prev,
+                        [item.barcode]: false,
+                      }));
                       try {
                         await addToCart(item.barcode, 1);
-                        setToastType("success");
-                        setToastMessage(t.cart.itemAdded);
-                        setShowToast(true);
+                        setRelatedAdded((prev) => ({
+                          ...prev,
+                          [item.barcode]: true,
+                        }));
+                        setTimeout(() => {
+                          setRelatedAdded((prev) => ({
+                            ...prev,
+                            [item.barcode]: false,
+                          }));
+                        }, 1500);
                       } catch (err: any) {
                         const msg =
                           err?.message ||
@@ -1432,18 +1479,32 @@ export default function ProductDetailScreen() {
                         setToastType("error");
                         setToastMessage(msg);
                         setShowToast(true);
+                      } finally {
+                        setRelatedAdding((prev) => ({
+                          ...prev,
+                          [item.barcode]: false,
+                        }));
                       }
                     }}
-                    disabled={itemOutOfStock}
+                    disabled={itemOutOfStock || relatedAdding[item.barcode]}
                   >
-                    <ShoppingCart
-                      size={18}
-                      color={
-                        itemOutOfStock
-                          ? Colors.neutralMedium
-                          : Colors.neutralWhite
-                      }
-                    />
+                    {relatedAdding[item.barcode] ? (
+                      <ActivityIndicator
+                        size={16}
+                        color={Colors.neutralWhite}
+                      />
+                    ) : relatedAdded[item.barcode] ? (
+                      <Check size={18} color={Colors.neutralWhite} />
+                    ) : (
+                      <ShoppingCart
+                        size={18}
+                        color={
+                          itemOutOfStock
+                            ? Colors.neutralMedium
+                            : Colors.neutralWhite
+                        }
+                      />
+                    )}
                     <Text
                       style={[
                         styles.relatedAddToCartText,
@@ -1452,7 +1513,9 @@ export default function ProductDetailScreen() {
                     >
                       {itemOutOfStock
                         ? t.products.outOfStock
-                        : t.cart.addToCart}
+                        : relatedAdded[item.barcode]
+                          ? t.cart.itemAdded
+                          : t.cart.addToCart}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1464,38 +1527,71 @@ export default function ProductDetailScreen() {
     );
   };
 
-  const renderBottomBar = () => (
-    <View style={styles.bottomBar}>
-      <View style={styles.bottomPriceSection}>
-        <Text style={styles.bottomLabel}>Total Price</Text>
-        <Text style={styles.bottomPrice}>
-          EGP {((product.salePrice || product.price) * quantity).toFixed(2)}
-        </Text>
+  const renderBottomBar = () => {
+    // Use the best available price: offer price > sale price > regular price
+    const effectivePrice = promoPrice !== null ? promoPrice : basePrice;
+    return (
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomPriceSection}>
+          <Text style={styles.bottomLabel}>{t.ui.totalPrice}</Text>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.bottomPrice}>
+              {t.common.currency} {(effectivePrice * quantity).toFixed(2)}
+            </Text>
+            {(promoPrice !== null || (salePrice > 0 && salePrice < price)) && (
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: Colors.neutralMedium,
+                  textDecorationLine: "line-through",
+                }}
+              >
+                {t.common.currency} {(price * quantity).toFixed(2)}
+              </Text>
+            )}
+          </View>
+        </View>
+        <View style={styles.bottomActions}>
+          <TouchableOpacity
+            style={[
+              styles.addToCartButton,
+              !product.inStock && styles.buttonDisabled,
+              addedToCartSuccess && styles.addToCartButtonSuccess,
+            ]}
+            onPress={handleAddToCart}
+            disabled={(product.stock_quantity || 0) <= 0 || isAddingToCart}
+          >
+            {isAddingToCart ? (
+              <ActivityIndicator size="small" color={Colors.primary900} />
+            ) : addedToCartSuccess ? (
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              >
+                <Check size={18} color={Colors.neutralWhite} />
+                <Text
+                  style={[styles.addToCartText, { color: Colors.neutralWhite }]}
+                >
+                  {t.cart.itemAdded}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.addToCartText}>{t.products.addToCart}</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.buyNowButton,
+              (product.stock_quantity || 0) <= 0 && styles.buttonDisabled,
+            ]}
+            onPress={handleBuyNow}
+            disabled={(product.stock_quantity || 0) <= 0}
+          >
+            <Text style={styles.buyNowText}>{t.ui.buyNow}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={[
-            styles.addToCartButton,
-            !product.inStock && styles.buttonDisabled,
-          ]}
-          onPress={handleAddToCart}
-          disabled={(product.stock_quantity || 0) <= 0}
-        >
-          <Text style={styles.addToCartText}>Add to Cart</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.buyNowButton,
-            (product.stock_quantity || 0) <= 0 && styles.buttonDisabled,
-          ]}
-          onPress={handleBuyNow}
-          disabled={(product.stock_quantity || 0) <= 0}
-        >
-          <Text style={styles.buyNowText}>Buy Now</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -2083,6 +2179,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  addToCartButtonSuccess: {
+    backgroundColor: "#16a34a",
   },
   addToCartText: {
     fontSize: Typography.bodyLarge,

@@ -30,6 +30,7 @@ import type { Review } from "@/types";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { useStore } from "@/store";
 import { Toast } from "@/components/Toast";
+import { useTranslation } from "@/i18n";
 
 interface Review {
   id: string;
@@ -87,6 +88,7 @@ export default function ProductReviewsScreen() {
   const product = products.find((p) => p.id === id);
   const { user } = useStore();
   const isOnline = useIsOnline();
+  const { t } = useTranslation();
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,13 +120,13 @@ export default function ProductReviewsScreen() {
       setReviews(cachedReviews);
 
       if (!isOnline && cachedReviews.length === 0) {
-        setToastMessage("No cached reviews available offline");
+        setToastMessage(t.ui.noCachedReviews);
         setToastType("error");
         setShowToast(true);
       }
     } catch (error) {
       console.error("Failed to load reviews:", error);
-      setToastMessage("Failed to load reviews");
+      setToastMessage(t.ui.failedToLoadReviews);
       setToastType("error");
       setShowToast(true);
     } finally {
@@ -134,7 +136,7 @@ export default function ProductReviewsScreen() {
 
   const handleRefresh = async () => {
     if (!isOnline) {
-      setToastMessage("Cannot refresh while offline");
+      setToastMessage(t.ui.cannotRefreshOffline);
       setToastType("error");
       setShowToast(true);
       return;
@@ -147,21 +149,21 @@ export default function ProductReviewsScreen() {
 
   const handleSubmitReview = async () => {
     if (!isOnline) {
-      setToastMessage("Cannot submit review while offline");
+      setToastMessage(t.ui.cannotSubmitOffline);
       setToastType("error");
       setShowToast(true);
       return;
     }
 
     if (!user) {
-      setToastMessage("Please login to submit a review");
+      setToastMessage(t.ui.pleaseLoginReview);
       setToastType("error");
       setShowToast(true);
       return;
     }
 
     if (!newRating || !newComment) {
-      setToastMessage("Please provide rating and comment");
+      setToastMessage(t.ui.pleaseProvideRating);
       setToastType("error");
       setShowToast(true);
       return;
@@ -177,7 +179,7 @@ export default function ProductReviewsScreen() {
         comment: newComment,
       });
 
-      setToastMessage("Review submitted successfully!");
+      setToastMessage(t.ui.reviewSubmittedSuccess);
       setToastType("success");
       setShowToast(true);
       setShowWriteReview(false);
@@ -186,7 +188,7 @@ export default function ProductReviewsScreen() {
       loadReviews(); // Reload reviews
     } catch (error: any) {
       setToastMessage(
-        error.response?.data?.message || "Failed to submit review",
+        error.response?.data?.message || t.ui.failedToSubmitReview,
       );
       setToastType("error");
       setShowToast(true);
@@ -197,14 +199,14 @@ export default function ProductReviewsScreen() {
 
   const handleMarkHelpful = async (reviewId: string) => {
     if (!isOnline) {
-      setToastMessage("Cannot mark as helpful while offline");
+      setToastMessage(t.ui.cannotMarkHelpfulOffline);
       setToastType("error");
       setShowToast(true);
       return;
     }
 
     if (!user) {
-      setToastMessage("Please login to mark as helpful");
+      setToastMessage(t.ui.pleaseLoginHelpful);
       setToastType("error");
       setShowToast(true);
       return;
@@ -212,7 +214,7 @@ export default function ProductReviewsScreen() {
 
     try {
       await markReviewHelpful(reviewId);
-      setToastMessage("Marked as helpful");
+      setToastMessage(t.ui.markedHelpfulToast);
       setToastType("success");
       setShowToast(true);
       // TODO: Update review helpful count in state
@@ -225,7 +227,7 @@ export default function ProductReviewsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <Text style={{ textAlign: "center", marginTop: 50 }}>
-          Product not found
+          {t.ui.productNotFound}
         </Text>
       </SafeAreaView>
     );
@@ -301,14 +303,14 @@ export default function ProductReviewsScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Reviews</Text>
+        <Text style={styles.headerTitle}>{t.ui.reviews}</Text>
 
         <TouchableOpacity
           style={styles.writeButton}
           onPress={() => setShowWriteReview(true)}
           activeOpacity={0.7}
         >
-          <Text style={styles.writeButtonText}>Write</Text>
+          <Text style={styles.writeButtonText}>{t.ui.write}</Text>
         </TouchableOpacity>
       </View>
 
@@ -328,7 +330,9 @@ export default function ProductReviewsScreen() {
           <View style={styles.summaryLeft}>
             <Text style={styles.averageRating}>{averageRating.toFixed(1)}</Text>
             {renderStars(Math.round(averageRating), 20)}
-            <Text style={styles.totalReviews}>{totalReviews} reviews</Text>
+            <Text style={styles.totalReviews}>
+              {totalReviews} {t.ui.reviews}
+            </Text>
           </View>
 
           <View style={styles.summaryRight}>
@@ -375,7 +379,7 @@ export default function ProductReviewsScreen() {
                   sortBy === "recent" && styles.filterTextActive,
                 ]}
               >
-                Most Recent
+                {t.ui.mostRecent}
               </Text>
             </TouchableOpacity>
 
@@ -393,7 +397,7 @@ export default function ProductReviewsScreen() {
                   sortBy === "highest" && styles.filterTextActive,
                 ]}
               >
-                Highest Rated
+                {t.ui.highestRated}
               </Text>
             </TouchableOpacity>
 
@@ -411,7 +415,7 @@ export default function ProductReviewsScreen() {
                   sortBy === "helpful" && styles.filterTextActive,
                 ]}
               >
-                Most Helpful
+                {t.ui.mostHelpful}
               </Text>
             </TouchableOpacity>
 
@@ -435,7 +439,7 @@ export default function ProductReviewsScreen() {
                   filterWithPhotos && styles.filterTextActive,
                 ]}
               >
-                With Photos
+                {t.ui.withPhotos}
               </Text>
             </TouchableOpacity>
 
@@ -453,7 +457,7 @@ export default function ProductReviewsScreen() {
                   filterVerified && styles.filterTextActive,
                 ]}
               >
-                Verified
+                {t.ui.verified}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -473,7 +477,9 @@ export default function ProductReviewsScreen() {
                     <Text style={styles.reviewName}>{review.userName}</Text>
                     {review.verified && (
                       <View style={styles.verifiedBadge}>
-                        <Text style={styles.verifiedText}>✓ Verified</Text>
+                        <Text style={styles.verifiedText}>
+                          {t.ui.verifiedCheck}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -509,7 +515,7 @@ export default function ProductReviewsScreen() {
               >
                 <ThumbsUp size={16} color={Colors.neutralMedium} />
                 <Text style={styles.helpfulText}>
-                  Helpful ({review.helpful})
+                  {`${t.ui.helpfulCount} (${review.helpful})`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -527,7 +533,7 @@ export default function ProductReviewsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Write a Review</Text>
+              <Text style={styles.modalTitle}>{t.ui.writeAReview}</Text>
               <TouchableOpacity
                 onPress={() => setShowWriteReview(false)}
                 style={styles.modalClose}
@@ -537,7 +543,7 @@ export default function ProductReviewsScreen() {
             </View>
 
             <View style={styles.ratingSelector}>
-              <Text style={styles.ratingSelectorLabel}>Your Rating</Text>
+              <Text style={styles.ratingSelectorLabel}>{t.ui.yourRating}</Text>
               <View style={styles.ratingStars}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
@@ -560,10 +566,10 @@ export default function ProductReviewsScreen() {
             </View>
 
             <View style={styles.commentInput}>
-              <Text style={styles.commentLabel}>Your Review</Text>
+              <Text style={styles.commentLabel}>{t.ui.yourReview}</Text>
               <TextInput
                 style={styles.commentTextArea}
-                placeholder="Share your thoughts about this product..."
+                placeholder={t.ui.shareThoughtsProduct}
                 placeholderTextColor={Colors.neutralMedium}
                 multiline
                 numberOfLines={5}
@@ -586,7 +592,7 @@ export default function ProductReviewsScreen() {
               {submitting ? (
                 <ActivityIndicator color={Colors.neutralWhite} />
               ) : (
-                <Text style={styles.submitButtonText}>Submit Review</Text>
+                <Text style={styles.submitButtonText}>{t.ui.submitReview}</Text>
               )}
             </TouchableOpacity>
           </View>

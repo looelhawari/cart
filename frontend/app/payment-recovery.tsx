@@ -21,6 +21,7 @@ import {
 import { getPaymentStatus } from "@/services/paymentMethodsApi";
 import { useStore } from "@/store";
 import { mapPaymentError } from "@/services/payment/paymentMessages";
+import { useTranslation } from "@/i18n";
 
 /**
  * Payment Recovery Screen
@@ -33,6 +34,7 @@ import { mapPaymentError } from "@/services/payment/paymentMessages";
  * This is CRITICAL for enterprise checkout flow
  */
 export default function PaymentRecoveryScreen() {
+  const { t } = useTranslation();
   const [checking, setChecking] = useState(true);
   const [status, setStatus] = useState<
     "checking" | "success" | "failed" | "pending"
@@ -71,7 +73,7 @@ export default function PaymentRecoveryScreen() {
     } catch (error: any) {
       console.error("Payment recovery error:", error);
       setStatus("failed");
-      setErrorMessage(error.message || "Unable to verify payment status");
+      setErrorMessage(error.message || t.paymentFlow.unableToVerify);
     } finally {
       setChecking(false);
     }
@@ -111,7 +113,7 @@ export default function PaymentRecoveryScreen() {
         if (paymentStatus === "FAILED") {
           // Payment failed - use a generic failure message for mapPaymentError
           // (checkStatus does not return the Paymob error detail)
-          const errorMsg = mapPaymentError("Payment failed");
+          const errorMsg = mapPaymentError("Payment failed", t.paymentErrors);
           setStatus("failed");
           setErrorMessage(errorMsg.message);
           await clearPendingPayment();
@@ -130,7 +132,7 @@ export default function PaymentRecoveryScreen() {
         // Max attempts reached - show pending state
         setStatus("pending");
       } else {
-        throw new Error("Unable to check payment status");
+        throw new Error(t.paymentFlow.unableToVerify);
       }
     } catch (error: any) {
       if (attempts < MAX_ATTEMPTS) {
@@ -140,7 +142,7 @@ export default function PaymentRecoveryScreen() {
         }, 2000);
       } else {
         setStatus("failed");
-        setErrorMessage("Unable to verify payment. Please contact support.");
+        setErrorMessage(t.paymentFlow.unableToVerify);
       }
     }
   };
@@ -184,8 +186,8 @@ export default function PaymentRecoveryScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.title}>Checking Payment Status...</Text>
-          <Text style={styles.subtitle}>Please wait</Text>
+          <Text style={styles.title}>{t.paymentFlow.checkingStatus}</Text>
+          <Text style={styles.subtitle}>{t.paymentFlow.pleaseWait}</Text>
         </View>
       </SafeAreaView>
     );
@@ -196,11 +198,11 @@ export default function PaymentRecoveryScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.centerContent}>
           <CheckCircle size={80} color={Colors.primary900} />
-          <Text style={styles.title}>Payment Successful!</Text>
+          <Text style={styles.title}>{t.paymentFlow.paymentSuccessful}</Text>
           <Text style={styles.subtitle}>
-            Your order #{orderNumber} has been confirmed
+            {t.paymentFlow.orderConfirmed} #{orderNumber}
           </Text>
-          <Text style={styles.infoText}>Redirecting...</Text>
+          <Text style={styles.infoText}>{t.paymentFlow.redirecting}</Text>
         </View>
       </SafeAreaView>
     );
@@ -211,10 +213,10 @@ export default function PaymentRecoveryScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.centerContent}>
           <XCircle size={80} color={Colors.accentRed} />
-          <Text style={styles.title}>Payment Failed</Text>
+          <Text style={styles.title}>{t.paymentFlow.paymentFailed}</Text>
           <Text style={styles.errorText}>{errorMessage}</Text>
           <Text style={styles.reassurance}>
-            Don't worry - no money was deducted from your account.
+            {t.paymentFlow.noMoneyDeducted}
           </Text>
 
           <View style={styles.actions}>
@@ -223,18 +225,22 @@ export default function PaymentRecoveryScreen() {
               onPress={handleRetryPayment}
             >
               <RefreshCw size={20} color={Colors.neutralWhite} />
-              <Text style={styles.primaryButtonText}>Retry Payment</Text>
+              <Text style={styles.primaryButtonText}>
+                {t.paymentFlow.retryPayment}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleViewOrder}
             >
-              <Text style={styles.secondaryButtonText}>View Order</Text>
+              <Text style={styles.secondaryButtonText}>
+                {t.paymentFlow.viewOrder}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleGoHome}>
-              <Text style={styles.linkText}>Go to Home</Text>
+              <Text style={styles.linkText}>{t.paymentFlow.goToHome}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -247,13 +253,11 @@ export default function PaymentRecoveryScreen() {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={Colors.primary900} />
-          <Text style={styles.title}>Payment Pending</Text>
+          <Text style={styles.title}>{t.paymentFlow.paymentPending}</Text>
           <Text style={styles.subtitle}>
-            Your payment is still being processed
+            {t.paymentFlow.paymentBeingProcessed}
           </Text>
-          <Text style={styles.infoText}>
-            This can take a few minutes. You can check your order status later.
-          </Text>
+          <Text style={styles.infoText}>{t.paymentFlow.canTakeFewMinutes}</Text>
 
           <View style={styles.actions}>
             <TouchableOpacity
@@ -261,14 +265,18 @@ export default function PaymentRecoveryScreen() {
               onPress={checkPendingPayment}
             >
               <RefreshCw size={20} color={Colors.neutralWhite} />
-              <Text style={styles.primaryButtonText}>Check Again</Text>
+              <Text style={styles.primaryButtonText}>
+                {t.paymentFlow.checkAgain}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={handleViewOrder}
             >
-              <Text style={styles.secondaryButtonText}>View Order</Text>
+              <Text style={styles.secondaryButtonText}>
+                {t.paymentFlow.viewOrder}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

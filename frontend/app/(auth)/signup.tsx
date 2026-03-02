@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  I18nManager,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useStore } from "@/store";
@@ -36,6 +37,7 @@ import {
 } from "lucide-react-native";
 import { useTranslation } from "@/i18n";
 import { API_CONFIG } from "@/config/app.config";
+import { getCommonHeaders } from "@/services/api/base";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -61,7 +63,7 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpTimer, setOtpTimer] = useState(60);
+  const [otpTimer, setOtpTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [emailError, setEmailError] = useState("");
@@ -80,13 +82,48 @@ export default function SignupScreen() {
   const [resendToast, setResendToast] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
-  // Start OTP timer if coming from login with step=3
+  // Track the email/phone that were used in a successful register() call
+  // so we can skip "already taken" checks for our own unverified record
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
+
+  // Start OTP timer and auto-send OTP if coming from login with step=3
+  // or from forgot-password with autoVerify=true
   useEffect(() => {
+    if (params.autoVerify === "true" && params.verifyEmail) {
+      // Coming from forgot-password — go directly to OTP step
+      setEmail(params.verifyEmail as string);
+      setStep(3);
+      startOtpTimer();
+      return;
+    }
     if (params.step === "3") {
       startOtpTimer();
+      // Auto-send OTP for unverified users redirected from login
+      if (params.email) {
+        (async () => {
+          try {
+            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+              method: "POST",
+              headers: getCommonHeaders(),
+              body: JSON.stringify({ email: params.email }),
+            });
+          } catch (error) {
+            console.warn("Auto-send OTP error:", error);
+          }
+        })();
+      }
     }
   }, []);
   const checkEmailAvailability = async (emailToCheck: string) => {
+    // Skip check if this email belongs to our own pending registration
+    if (
+      registeredEmail &&
+      emailToCheck.trim().toLowerCase() === registeredEmail.toLowerCase()
+    ) {
+      setEmailError("");
+      return;
+    }
     try {
       setIsCheckingEmail(true);
       setEmailError("");
@@ -115,6 +152,11 @@ export default function SignupScreen() {
   };
 
   const checkPhoneAvailability = async (phoneToCheck: string) => {
+    // Skip check if this phone belongs to our own pending registration
+    if (registeredPhone && phoneToCheck.trim() === registeredPhone.trim()) {
+      setPhoneError("");
+      return;
+    }
     try {
       setIsCheckingPhone(true);
       setPhoneError("");
@@ -179,6 +221,18 @@ export default function SignupScreen() {
       Alert.alert(t.common.error, t.signup.passwordMinLength);
       return false;
     }
+    if (!/[A-Z]/.test(password)) {
+      Alert.alert(t.common.error, t.signup.passwordNeedsUppercase);
+      return false;
+    }
+    if (!/[0-9]/.test(password)) {
+      Alert.alert(t.common.error, t.signup.passwordNeedsNumber);
+      return false;
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      Alert.alert(t.common.error, t.signup.passwordNeedsSpecialChar);
+      return false;
+    }
     if (password !== confirmPassword) {
       Alert.alert(t.common.error, t.signup.passwordsNotMatch);
       return false;
@@ -187,24 +241,105 @@ export default function SignupScreen() {
   };
 
   const handleNext = async () => {
-    if (step === 1 && validateStep1()) {
-      setStep(2);
-    } else if (step === 2 && validateStep2()) {
-      // Navigate to OTP step instantly — register in background
-      setStep(3);
-      startOtpTimer();
+    if (step === 1) {
+      if (!validateStep1()) return;
 
-      // Fire registration in background (non-blocking)
-      register({
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone,
-        password,
-        password_confirmation: confirmPassword,
-        language,
-      }).catch((error: any) => {
-        // Registration failed — pull user back
+      // Actively verify email & phone are not already registered
+      setLoading(true);
+      try {
+        let hasError = false;
+        const headers = {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "CART-Mobile-App",
+        };
+
+        // Skip check for email/phone that belong to our own unverified record
+        const skipEmailCheck =
+          registeredEmail &&
+          email.trim().toLowerCase() === registeredEmail.toLowerCase();
+        const skipPhoneCheck =
+          registeredPhone && phone.trim() === registeredPhone.trim();
+
+        if (!skipEmailCheck) {
+          const emailRes = await fetch(
+            `${API_CONFIG.BASE_URL}/auth/check-email`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ email: email.trim() }),
+            },
+          );
+          const emailData = await emailRes.json();
+          if (!emailRes.ok && emailData.errors?.email) {
+            setEmailError(emailData.errors.email[0]);
+            hasError = true;
+          }
+        }
+
+        if (!skipPhoneCheck) {
+          const phoneRes = await fetch(
+            `${API_CONFIG.BASE_URL}/auth/check-phone`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ phone: phone.trim() }),
+            },
+          );
+          const phoneData = await phoneRes.json();
+          if (!phoneRes.ok && phoneData.errors?.phone) {
+            setPhoneError(phoneData.errors.phone[0]);
+            hasError = true;
+          }
+        }
+
+        if (hasError) {
+          Alert.alert(t.signup.validationError, t.signup.checkInputData);
+          return;
+        }
+
+        setStep(2);
+      } catch (error) {
+        Alert.alert(t.common.error, t.alerts.networkError);
+      } finally {
+        setLoading(false);
+      }
+    } else if (step === 2) {
+      if (!validateStep2()) return;
+
+      // Wait for registration to succeed before navigating to OTP
+      setLoading(true);
+      try {
+        const result = await register({
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+          password,
+          password_confirmation: confirmPassword,
+          language,
+        });
+        // Track what we registered so we can skip checks if user edits and comes back
+        setRegisteredEmail(email.trim());
+        setRegisteredPhone(phone.trim());
+        setStep(3);
+        startOtpTimer();
+
+        // If the initial OTP email wasn't sent, auto-trigger a resend
+        if (result?.emailSent === false) {
+          console.warn("[Signup] Initial OTP email failed, auto-resending...");
+          try {
+            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+              method: "POST",
+              headers: getCommonHeaders(),
+              body: JSON.stringify({ email }),
+            });
+          } catch (retryError) {
+            console.warn("[Signup] Auto-resend also failed:", retryError);
+          }
+        }
+      } catch (error: any) {
         if (error.errors) {
           if (error.errors.email) {
             setEmailError(error.errors.email[0]);
@@ -218,13 +353,14 @@ export default function SignupScreen() {
             error.message || t.signup.checkInputData,
           );
         } else {
-          setStep(2);
           Alert.alert(
             t.common.error,
             error.message || t.signup.registrationFailed,
           );
         }
-      });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -270,7 +406,7 @@ export default function SignupScreen() {
   }, [step, otpTimer]);
 
   const startOtpTimer = () => {
-    setOtpTimer(60);
+    setOtpTimer(30);
     setCanResend(false);
   };
 
@@ -330,29 +466,30 @@ export default function SignupScreen() {
   const handleResendOtp = async () => {
     if (!canResend || isResending) return;
 
-    // Optimistic: immediately reset timer and show toast
     setIsResending(true);
     startOtpTimer();
-    showResendToast();
 
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "CART-Mobile-App",
-        },
+        headers: getCommonHeaders(),
         body: JSON.stringify({ email }),
       });
 
-      if (!response.ok) {
-        // Silently log — user already saw success toast, backend will retry
-        console.warn("Resend OTP server error:", response.status);
+      if (response.ok) {
+        showResendToast();
+      } else {
+        const data = await response.json().catch(() => null);
+        Alert.alert(
+          t.common.error,
+          data?.message || t.signup.failedToResendOtp,
+        );
       }
     } catch (error: any) {
-      console.warn("Resend OTP network error:", error.message);
+      Alert.alert(
+        t.common.error,
+        t.alerts.networkError || "Network error. Please check your connection.",
+      );
     } finally {
       setIsResending(false);
     }
@@ -384,6 +521,7 @@ export default function SignupScreen() {
     try {
       setLoading(true);
       await verifyEmail({ email, otp: otpDigits.join("") });
+
       setStep(4);
 
       setTimeout(() => {
@@ -802,7 +940,7 @@ export default function SignupScreen() {
         {t.signup.accountCreatedSuccess}
       </Text>
       <View style={styles.successDivider} />
-      <Text style={styles.successRedirecting}>Redirecting to home...</Text>
+      <Text style={styles.successRedirecting}>{t.ui.redirectingToHome}</Text>
       <ActivityIndicator
         size="small"
         color={Colors.primary900}
@@ -973,12 +1111,14 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   passwordInput: {
-    paddingRight: Spacing.xxl,
+    paddingRight: I18nManager.isRTL ? undefined : Spacing.xxl,
+    paddingLeft: I18nManager.isRTL ? Spacing.xxl : undefined,
   },
   eyeIcon: {
     padding: Spacing.xs,
     position: "absolute",
-    right: Spacing.sm,
+    right: I18nManager.isRTL ? undefined : Spacing.sm,
+    left: I18nManager.isRTL ? Spacing.sm : undefined,
   },
   requirementsContainer: {
     backgroundColor: Colors.neutralCloud,

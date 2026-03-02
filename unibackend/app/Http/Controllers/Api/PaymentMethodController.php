@@ -93,7 +93,7 @@ class PaymentMethodController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve payment methods',
+                'message' => __('payment.methods_fetch_failed'),
             ], 500);
         }
     }
@@ -131,7 +131,7 @@ class PaymentMethodController extends Controller
             if (!$paymentMethod) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Payment method not found',
+                    'message' => __('payment.method_not_found'),
                 ], 404);
             }
 
@@ -145,7 +145,7 @@ class PaymentMethodController extends Controller
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized action',
+                    'message' => __('payment.unauthorized_action'),
                 ], 403);
             }
 
@@ -153,7 +153,7 @@ class PaymentMethodController extends Controller
             if ($paymentMethod->isExpired()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot set expired card as default',
+                    'message' => __('payment.cannot_set_expired_default'),
                 ], 422);
             }
 
@@ -163,7 +163,7 @@ class PaymentMethodController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Default payment method updated successfully',
+                'message' => __('payment.default_updated'),
                 'data' => [
                     'payment_method' => [
                         'id' => $paymentMethod->id,
@@ -184,7 +184,7 @@ class PaymentMethodController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update default payment method',
+                'message' => __('payment.default_update_failed'),
             ], 500);
         }
     }
@@ -227,7 +227,7 @@ class PaymentMethodController extends Controller
                 if (!$paymentMethod) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Payment method not found',
+                        'message' => __('payment.method_not_found'),
                     ], 404);
                 }
 
@@ -241,7 +241,7 @@ class PaymentMethodController extends Controller
 
                     return response()->json([
                         'success' => false,
-                        'message' => 'Unauthorized action',
+                        'message' => __('payment.unauthorized_action'),
                     ], 403);
                 }
 
@@ -290,7 +290,7 @@ class PaymentMethodController extends Controller
 
                         return response()->json([
                             'success' => true,
-                            'message' => 'Payment method deleted successfully',
+                            'message' => __('payment.method_deleted_success'),
                             'data' => [
                                 'new_default' => [
                                     'id' => $nextDefault->id,
@@ -310,7 +310,7 @@ class PaymentMethodController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Payment method deleted successfully',
+                    'message' => __('payment.method_deleted_success'),
                     'data' => [
                         'new_default' => null, // No new default selected
                     ],
@@ -327,7 +327,7 @@ class PaymentMethodController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete payment method',
+                'message' => __('payment.method_delete_failed'),
             ], 500);
         }
     }

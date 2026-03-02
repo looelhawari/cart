@@ -76,7 +76,7 @@ class DriverController extends Controller
             'data' => [
                 'is_available' => $driver->is_available,
             ],
-            'message' => $driver->is_available ? 'You are now online' : 'You are now offline',
+            'message' => $driver->is_available ? __('driver.now_online') : __('driver.now_offline'),
         ]);
     }
 
@@ -105,7 +105,7 @@ class DriverController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Location updated',
+            'message' => __('driver.location_updated'),
         ]);
     }
 
@@ -166,7 +166,7 @@ class DriverController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Order accepted',
+            'message' => __('driver.order_accepted'),
             'data' => $order->fresh(),
         ]);
     }
@@ -190,7 +190,7 @@ class DriverController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Order picked up',
+            'message' => __('driver.order_picked_up'),
             'data' => $order->fresh(),
         ]);
     }
@@ -224,7 +224,7 @@ class DriverController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Order delivered successfully',
+            'message' => __('driver.order_delivered'),
             'data' => $order->fresh(),
         ]);
     }
@@ -292,7 +292,7 @@ class DriverController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Order rejected',
+            'message' => __('driver.order_rejected'),
             'data' => [
                 'reassigned' => $newDriver !== null,
                 'new_driver_name' => $newDriver ? trim($newDriver->first_name . ' ' . $newDriver->last_name) : null,

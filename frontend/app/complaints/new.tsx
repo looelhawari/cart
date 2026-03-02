@@ -32,6 +32,7 @@ import * as DocumentPicker from "expo-document-picker";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
+import { useTranslation } from "@/i18n";
 import Spacing from "@/constants/Spacing";
 import { createComplaint } from "@/services/api/complaintsApi";
 import { BottomSheet } from "@/components/BottomSheet";
@@ -41,40 +42,41 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const categories = [
   {
-    label: "Order Issue",
+    labelKey: "orderIssue",
     value: "order_issue",
     icon: "📦",
     color: Colors.accentOrange,
   },
   {
-    label: "Product Quality",
+    labelKey: "productQuality",
     value: "product_quality",
     icon: "⭐",
     color: Colors.accentYellow,
   },
   {
-    label: "Delivery",
+    labelKey: "delivery",
     value: "delivery_problem",
     icon: "🚚",
     color: "#3b82f6",
   },
-  { label: "Payment", value: "payment_issue", icon: "💳", color: "#8b5cf6" },
+  { labelKey: "payment", value: "payment_issue", icon: "💳", color: "#8b5cf6" },
   {
-    label: "Technical",
+    labelKey: "technical",
     value: "technical_issue",
     icon: "🔧",
     color: Colors.neutralMedium,
   },
   {
-    label: "Suggestion",
+    labelKey: "suggestion",
     value: "suggestion",
     icon: "💡",
     color: Colors.primary900,
   },
-  { label: "Other", value: "other", icon: "❓", color: Colors.accentRed },
+  { labelKey: "other", value: "other", icon: "❓", color: Colors.accentRed },
 ];
 
 export default function NewComplaintScreen() {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     subject: "",
     category: "",
@@ -150,7 +152,7 @@ export default function NewComplaintScreen() {
 
   const handleSubmit = async () => {
     if (!formData.subject || !formData.category || !formData.description) {
-      setError("Please fill in all required fields");
+      setError(t.complaints.fillAllFields);
       return;
     }
 
@@ -197,7 +199,7 @@ export default function NewComplaintScreen() {
         >
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Request</Text>
+        <Text style={styles.headerTitle}>{t.complaints.newRequest}</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -222,7 +224,7 @@ export default function NewComplaintScreen() {
               <View style={styles.labelRow}>
                 <Ionicons name="grid" size={16} color={Colors.primary900} />
                 <Text style={styles.label}>
-                  Category <Text style={styles.required}>*</Text>
+                  {t.complaints.category} <Text style={styles.required}>*</Text>
                 </Text>
               </View>
               <View style={styles.categoryGrid}>
@@ -258,7 +260,7 @@ export default function NewComplaintScreen() {
                           isSelected && styles.categoryLabelActive,
                         ]}
                       >
-                        {cat.label}
+                        {(t.complaints as any)[cat.labelKey]}
                       </Text>
                       {isSelected && (
                         <View style={styles.checkIcon}>
@@ -282,13 +284,13 @@ export default function NewComplaintScreen() {
               <View style={styles.labelRow}>
                 <Ionicons name="text" size={16} color={Colors.primary900} />
                 <Text style={styles.label}>
-                  Subject <Text style={styles.required}>*</Text>
+                  {t.complaints.subject} <Text style={styles.required}>*</Text>
                 </Text>
               </View>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Briefly describe the issue"
+                  placeholder={t.complaints.brieflyDescribe}
                   placeholderTextColor={Colors.neutralMedium}
                   value={formData.subject}
                   onChangeText={(text) =>
@@ -311,13 +313,14 @@ export default function NewComplaintScreen() {
                   color={Colors.primary900}
                 />
                 <Text style={styles.label}>
-                  Description <Text style={styles.required}>*</Text>
+                  {t.complaints.description}{" "}
+                  <Text style={styles.required}>*</Text>
                 </Text>
               </View>
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={[styles.input, styles.textArea]}
-                  placeholder="Provide more details about your issue..."
+                  placeholder={t.complaints.provideMoreDetails}
                   placeholderTextColor={Colors.neutralMedium}
                   value={formData.description}
                   onChangeText={(text) =>
@@ -338,7 +341,8 @@ export default function NewComplaintScreen() {
               <View style={styles.labelRow}>
                 <Package size={16} color={Colors.primary900} />
                 <Text style={styles.label}>
-                  Related Order <Text style={styles.optional}>(Optional)</Text>
+                  {t.complaints.relatedOrder}{" "}
+                  <Text style={styles.optional}>{t.complaints.optional}</Text>
                 </Text>
               </View>
               <TouchableOpacity
@@ -374,7 +378,7 @@ export default function NewComplaintScreen() {
                 >
                   {selectedOrder
                     ? `Order #${selectedOrder.order_number}`
-                    : "Select an order"}
+                    : t.complaints.selectAnOrder}
                 </Text>
                 <ChevronDown size={18} color={Colors.neutralMedium} />
               </TouchableOpacity>
@@ -385,7 +389,9 @@ export default function NewComplaintScreen() {
                   activeOpacity={0.7}
                 >
                   <X size={12} color={Colors.accentRed} />
-                  <Text style={styles.clearText}>Clear selection</Text>
+                  <Text style={styles.clearText}>
+                    {t.complaints.clearSelection}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -397,7 +403,8 @@ export default function NewComplaintScreen() {
               <View style={styles.labelRow}>
                 <Paperclip size={16} color={Colors.primary900} />
                 <Text style={styles.label}>
-                  Attachments <Text style={styles.optional}>(Optional)</Text>
+                  {t.complaints.attachments}{" "}
+                  <Text style={styles.optional}>{t.complaints.optional}</Text>
                 </Text>
               </View>
 
@@ -444,8 +451,10 @@ export default function NewComplaintScreen() {
                 <View style={styles.uploadIconBg}>
                   <Paperclip size={16} color={Colors.primary900} />
                 </View>
-                <Text style={styles.uploadText}>Add files</Text>
-                <Text style={styles.uploadHint}>PDF or images</Text>
+                <Text style={styles.uploadText}>{t.complaints.addFiles}</Text>
+                <Text style={styles.uploadHint}>
+                  {t.complaints.pdfOrImages}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -486,7 +495,9 @@ export default function NewComplaintScreen() {
                 style={styles.submitGradient}
               >
                 <Send size={18} color={Colors.neutralWhite} />
-                <Text style={styles.submitText}>Submit Request</Text>
+                <Text style={styles.submitText}>
+                  {t.complaints.submitRequest}
+                </Text>
               </LinearGradient>
             )}
           </TouchableOpacity>
@@ -499,7 +510,7 @@ export default function NewComplaintScreen() {
       <BottomSheet
         visible={showOrdersSheet}
         onClose={() => setShowOrdersSheet(false)}
-        title="Select Order"
+        title={t.complaints.selectOrder}
         snapPoints={[0.5]}
       >
         <ScrollView contentContainerStyle={styles.sheetContent}>
@@ -513,7 +524,9 @@ export default function NewComplaintScreen() {
               <View style={styles.emptyOrdersIconBg}>
                 <Package size={28} color={Colors.neutralGray} />
               </View>
-              <Text style={styles.emptyOrdersText}>No recent orders</Text>
+              <Text style={styles.emptyOrdersText}>
+                {t.complaints.noRecentOrders}
+              </Text>
             </View>
           ) : (
             orders.map((order) => {

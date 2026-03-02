@@ -22,12 +22,14 @@ import { CountdownTimer } from "@/components/CountdownTimer";
 import { ProductCard } from "@/components/ProductCard";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import { useTranslation } from "@/i18n";
 
 const { width } = Dimensions.get("window");
 
 export default function PromotionDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { t } = useTranslation();
   const [promotion, setPromotion] = useState<Promotion | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,9 +101,9 @@ export default function PromotionDetailsScreen() {
     } else if (promotion.discount_type === "fixed") {
       return `$${promotion.discount_value} OFF`;
     } else if (promotion.discount_type === "buy_x_get_y") {
-      return `Buy X Get Y Free`;
+      return t.ui.buyXGetYFreePromo;
     }
-    return "Special Offer";
+    return t.ui.specialOffer;
   };
 
   if (loading) {
@@ -116,7 +118,7 @@ export default function PromotionDetailsScreen() {
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Promotion Details</Text>
+          <Text style={styles.headerTitle}>{t.ui.promotionDetails}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -156,12 +158,12 @@ export default function PromotionDetailsScreen() {
   if (!promotion) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Promotion not found</Text>
+        <Text style={styles.errorText}>{t.ui.promotionNotFound}</Text>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>{t.ui.goBack}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -174,7 +176,7 @@ export default function PromotionDetailsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Promotion Details</Text>
+        <Text style={styles.headerTitle}>{t.ui.promotionDetails}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -190,7 +192,7 @@ export default function PromotionDetailsScreen() {
           {/* Featured Badge */}
           {promotion.is_featured && (
             <View style={styles.featuredBadge}>
-              <Text style={styles.featuredText}>⭐ Featured Promotion</Text>
+              <Text style={styles.featuredText}>{t.ui.featuredPromotion}</Text>
             </View>
           )}
 
@@ -214,20 +216,20 @@ export default function PromotionDetailsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Ionicons name="pricetag" size={20} color="#FF3B30" />
-              <Text style={styles.infoLabel}>Promotion Type:</Text>
+              <Text style={styles.infoLabel}>{t.ui.promotionType}</Text>
               <Text style={styles.infoValue}>
                 {promotion.applies_to === "all"
-                  ? "Sitewide"
+                  ? t.ui.sitewide
                   : promotion.applies_to === "category"
-                    ? "Category Sale"
-                    : "Product Deal"}
+                    ? t.ui.categorySale
+                    : t.ui.productDeal}
               </Text>
             </View>
 
             {promotion.min_purchase && (
               <View style={styles.infoRow}>
                 <Ionicons name="cash" size={20} color="#FF3B30" />
-                <Text style={styles.infoLabel}>Min. Purchase:</Text>
+                <Text style={styles.infoLabel}>{t.ui.minPurchase}</Text>
                 <Text style={styles.infoValue}>${promotion.min_purchase}</Text>
               </View>
             )}
@@ -235,7 +237,7 @@ export default function PromotionDetailsScreen() {
             {promotion.max_discount && (
               <View style={styles.infoRow}>
                 <Ionicons name="shield-checkmark" size={20} color="#FF3B30" />
-                <Text style={styles.infoLabel}>Max. Discount:</Text>
+                <Text style={styles.infoLabel}>{t.ui.maxDiscountPromo}</Text>
                 <Text style={styles.infoValue}>${promotion.max_discount}</Text>
               </View>
             )}
@@ -248,14 +250,16 @@ export default function PromotionDetailsScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="grid-outline" size={22} color="#fff" />
-            <Text style={styles.viewItemsButtonText}>View Discounted Items</Text>
+            <Text style={styles.viewItemsButtonText}>
+              {t.ui.viewDiscountedItems}
+            </Text>
             <Ionicons name="chevron-forward" size={20} color="#fff" />
           </TouchableOpacity>
 
           {/* Terms & Conditions */}
           {promotion.terms_conditions && (
             <View style={styles.termsSection}>
-              <Text style={styles.termsTitle}>Terms & Conditions</Text>
+              <Text style={styles.termsTitle}>{t.ui.termsAndConditions}</Text>
               <Text style={styles.termsText}>{promotion.terms_conditions}</Text>
             </View>
           )}
@@ -263,7 +267,7 @@ export default function PromotionDetailsScreen() {
           {/* Products List (if product promotion) */}
           {promotion.applies_to === "products" && products.length > 0 && (
             <View style={styles.productsSection}>
-              <Text style={styles.sectionTitle}>Products on Sale</Text>
+              <Text style={styles.sectionTitle}>{t.ui.productsOnSale}</Text>
               <FlatList
                 data={products}
                 renderItem={({ item }) => (

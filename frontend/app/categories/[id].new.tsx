@@ -24,8 +24,11 @@ import { ProductCard } from "@/components/ProductCard";
 import { getCategoryProducts } from "@/services/api/categoryApi";
 import type { Product, Category } from "@/types";
 import { useStore } from "@/store";
+import { useTranslation, useLocalizedValue } from "@/i18n";
 
 export default function CategoryProductsScreen() {
+  const { t } = useTranslation();
+  const { getName } = useLocalizedValue();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState<Category | null>(null);
@@ -80,7 +83,7 @@ export default function CategoryProductsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorState}>
-          <Text style={styles.errorTitle}>Category not found</Text>
+          <Text style={styles.errorTitle}>{t.ui.categoryNotFound}</Text>
         </View>
       </SafeAreaView>
     );
@@ -101,7 +104,7 @@ export default function CategoryProductsScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {category.name_en}
+          {getName(category)}
         </Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -127,7 +130,7 @@ export default function CategoryProductsScreen() {
       {/* Subcategories Section */}
       {hasSubcategories && (
         <View style={styles.subcategoriesSection}>
-          <Text style={styles.sectionTitle}>Subcategories</Text>
+          <Text style={styles.sectionTitle}>{t.ui.subcategories}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -141,12 +144,12 @@ export default function CategoryProductsScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.subcategoryContent}>
-                  <Text style={styles.subcategoryName}>{sub.name_en}</Text>
+                  <Text style={styles.subcategoryName}>{getName(sub)}</Text>
                   <ChevronRight size={16} color={Colors.primary900} />
                 </View>
                 {sub.products_count > 0 && (
                   <Text style={styles.subcategoryCount}>
-                    {sub.products_count} products
+                    {sub.products_count} {t.ui.productPlural}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -159,10 +162,11 @@ export default function CategoryProductsScreen() {
       {products.length > 0 && (
         <View style={styles.productsSection}>
           <Text style={styles.sectionTitle}>
-            Products in {category.name_en}
+            {t.ui.productsIn.replace("{name}", getName(category))}
           </Text>
           <Text style={styles.productsCount}>
-            {products.length} {products.length === 1 ? "product" : "products"}
+            {products.length}{" "}
+            {products.length === 1 ? t.ui.productSingular : t.ui.productPlural}
           </Text>
         </View>
       )}
@@ -170,11 +174,9 @@ export default function CategoryProductsScreen() {
       {/* Products Grid */}
       {products.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No products found</Text>
+          <Text style={styles.emptyTitle}>{t.ui.noProductsFound}</Text>
           <Text style={styles.emptyText}>
-            {hasSubcategories
-              ? "Check subcategories for available products"
-              : "This category has no products yet"}
+            {hasSubcategories ? t.ui.checkSubcategories : t.ui.noProductsYet}
           </Text>
         </View>
       ) : (

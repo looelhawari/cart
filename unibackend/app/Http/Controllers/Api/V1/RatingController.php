@@ -43,7 +43,7 @@ class RatingController extends Controller
         if (!$order) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found.',
+                'message' => __('review.order_not_found'),
             ], 404);
         }
 
@@ -51,7 +51,7 @@ class RatingController extends Controller
         if ($order->status !== 'delivered') {
             return response()->json([
                 'success' => false,
-                'message' => 'You can only rate the driver after delivery.',
+                'message' => __('review.rate_after_delivery'),
             ], 403);
         }
 
@@ -59,7 +59,7 @@ class RatingController extends Controller
         if (!$order->driver_id) {
             return response()->json([
                 'success' => false,
-                'message' => 'This order has no assigned driver.',
+                'message' => __('review.no_assigned_driver'),
             ], 422);
         }
 
@@ -72,7 +72,7 @@ class RatingController extends Controller
         if ($existing) {
             return response()->json([
                 'success' => false,
-                'message' => 'You have already rated the driver for this order.',
+                'message' => __('review.already_rated_driver'),
             ], 409);
         }
 
@@ -101,7 +101,7 @@ class RatingController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Thank you for rating the driver!',
+                'message' => __('review.driver_rated'),
                 'data' => [
                     'review_id' => $review->id,
                     'rating' => $review->rating,
@@ -112,7 +112,7 @@ class RatingController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to submit rating.',
+                'message' => __('review.rating_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -146,7 +146,7 @@ class RatingController extends Controller
         if (!$order) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found or not assigned to you.',
+                'message' => __('review.order_not_found_or_unassigned'),
             ], 404);
         }
 
@@ -154,7 +154,7 @@ class RatingController extends Controller
         if ($order->status !== 'delivered') {
             return response()->json([
                 'success' => false,
-                'message' => 'You can only rate the customer after delivery.',
+                'message' => __('review.rate_customer_after_delivery'),
             ], 403);
         }
 
@@ -167,7 +167,7 @@ class RatingController extends Controller
         if ($existing) {
             return response()->json([
                 'success' => false,
-                'message' => 'You have already rated the customer for this order.',
+                'message' => __('review.already_rated_customer'),
             ], 409);
         }
 
@@ -192,7 +192,7 @@ class RatingController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Thank you for rating the customer!',
+                'message' => __('review.customer_rated'),
                 'data' => [
                     'review_id' => $review->id,
                     'rating' => $review->rating,
@@ -203,7 +203,7 @@ class RatingController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to submit rating.',
+                'message' => __('review.rating_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -300,7 +300,7 @@ class RatingController extends Controller
         if (!$order) {
             return response()->json([
                 'success' => false,
-                'message' => 'Order not found.',
+                'message' => __('review.order_not_found'),
             ], 404);
         }
 

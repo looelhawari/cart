@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,33 +7,35 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X } from 'lucide-react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
+import { ArrowLeft, X } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { orders } from '@/data/orders';
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { orders } from "@/data/orders";
+import { useTranslation } from "@/i18n";
 
 export default function RateOrderScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const order = orders.find((o) => o.id === id);
 
   const [overallRating, setOverallRating] = useState(0);
   const [productQuality, setProductQuality] = useState(0);
   const [deliveryExperience, setDeliveryExperience] = useState(0);
-  const [review, setReview] = useState('');
+  const [review, setReview] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
 
   if (!order) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Order not found</Text>
+        <Text>{t.orderRating.orderNotFound}</Text>
       </SafeAreaView>
     );
   }
@@ -58,26 +60,25 @@ export default function RateOrderScreen() {
 
   const handleSubmit = () => {
     if (overallRating === 0) {
-      Alert.alert('Rating Required', 'Please provide an overall rating');
+      Alert.alert(
+        t.orderRating.ratingRequired,
+        t.orderRating.pleaseProvideRating,
+      );
       return;
     }
 
-    Alert.alert(
-      'Thank You!',
-      'Your review has been submitted successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    Alert.alert(t.orderRating.thankYou, t.orderRating.reviewSubmitted, [
+      {
+        text: t.common.ok,
+        onPress: () => router.back(),
+      },
+    ]);
   };
 
   const renderStars = (
     rating: number,
     setRating: (value: number) => void,
-    size: number = 32
+    size: number = 32,
   ) => {
     return (
       <View style={styles.starsContainer}>
@@ -100,7 +101,7 @@ export default function RateOrderScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -110,7 +111,7 @@ export default function RateOrderScreen() {
           <ArrowLeft size={24} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Rate Your Order</Text>
+        <Text style={styles.headerTitle}>{t.orderRating.rateYourOrder}</Text>
 
         <View style={{ width: 40 }} />
       </View>
@@ -118,49 +119,53 @@ export default function RateOrderScreen() {
       <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
         {/* Title */}
         <View style={styles.titleSection}>
-          <Text style={styles.title}>How was your experience?</Text>
-          <Text style={styles.subtitle}>
-            Your feedback helps us improve our service
-          </Text>
+          <Text style={styles.title}>{t.orderRating.howWasExperience}</Text>
+          <Text style={styles.subtitle}>{t.orderRating.feedbackHelps}</Text>
         </View>
 
         {/* Overall Rating */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overall Rating</Text>
+          <Text style={styles.sectionTitle}>{t.orderRating.overallRating}</Text>
           {renderStars(overallRating, setOverallRating, 40)}
           {overallRating > 0 && (
             <Text style={styles.ratingLabel}>
               {overallRating === 5
-                ? 'Excellent!'
+                ? t.orderRating.excellent
                 : overallRating === 4
-                  ? 'Very Good'
+                  ? t.orderRating.veryGood
                   : overallRating === 3
-                    ? 'Good'
+                    ? t.orderRating.good
                     : overallRating === 2
-                      ? 'Fair'
-                      : 'Poor'}
+                      ? t.orderRating.fair
+                      : t.orderRating.poor}
             </Text>
           )}
         </View>
 
         {/* Product Quality */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Product Quality</Text>
+          <Text style={styles.sectionTitle}>
+            {t.orderRating.productQuality}
+          </Text>
           {renderStars(productQuality, setProductQuality)}
         </View>
 
         {/* Delivery Experience */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Delivery Experience</Text>
+          <Text style={styles.sectionTitle}>
+            {t.orderRating.deliveryExperience}
+          </Text>
           {renderStars(deliveryExperience, setDeliveryExperience)}
         </View>
 
         {/* Review Text */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Share Your Thoughts</Text>
+          <Text style={styles.sectionTitle}>
+            {t.orderRating.shareYourThoughts}
+          </Text>
           <TextInput
             style={styles.textArea}
-            placeholder="Tell us about your experience..."
+            placeholder={t.orderRating.tellUsAboutExperience}
             placeholderTextColor={Colors.neutralMedium}
             multiline
             numberOfLines={6}
@@ -174,9 +179,11 @@ export default function RateOrderScreen() {
 
         {/* Photo Upload */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Add Photos (Optional)</Text>
+          <Text style={styles.sectionTitle}>
+            {t.orderRating.addPhotosOptional}
+          </Text>
           <Text style={styles.photoSubtitle}>
-            Help others by showing your order
+            {t.orderRating.helpOthersByShowing}
           </Text>
 
           <View style={styles.photosContainer}>
@@ -199,15 +206,19 @@ export default function RateOrderScreen() {
                 onPress={pickImage}
                 activeOpacity={0.7}
               >
-                <Ionicons name="camera-outline" size={28} color={Colors.neutralMedium} />
-                <Text style={styles.addPhotoText}>Add Photo</Text>
+                <Ionicons
+                  name="camera-outline"
+                  size={28}
+                  color={Colors.neutralMedium}
+                />
+                <Text style={styles.addPhotoText}>
+                  {t.orderRating.addPhoto}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
 
-          <Text style={styles.photoLimit}>
-            {photos.length}/5 photos
-          </Text>
+          <Text style={styles.photoLimit}>{photos.length}/5 photos</Text>
         </View>
       </ScrollView>
 
@@ -222,7 +233,9 @@ export default function RateOrderScreen() {
           disabled={overallRating === 0}
           activeOpacity={0.9}
         >
-          <Text style={styles.submitButtonText}>Submit Review</Text>
+          <Text style={styles.submitButtonText}>
+            {t.orderRating.submitReview}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -235,9 +248,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralCloud,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.neutralWhite,
@@ -247,8 +260,8 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: Typography.h3,
@@ -261,19 +274,19 @@ const styles = StyleSheet.create({
   titleSection: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xl,
-    alignItems: 'center',
+    alignItems: "center",
   },
   title: {
     fontSize: Typography.h2,
     fontWeight: Typography.bold,
     color: Colors.neutralCharcoal,
     marginBottom: Spacing.sm,
-    textAlign: 'center',
+    textAlign: "center",
   },
   subtitle: {
     fontSize: Typography.bodyBase,
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
   },
   section: {
     marginHorizontal: Spacing.lg,
@@ -289,15 +302,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   starsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   ratingLabel: {
     fontSize: Typography.bodyLarge,
     fontWeight: Typography.semibold,
     color: Colors.primary900,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: Spacing.md,
   },
   textArea: {
@@ -311,7 +324,7 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: Typography.bodySmall,
     color: Colors.neutralMedium,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: Spacing.xs,
   },
   photoSubtitle: {
@@ -320,12 +333,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   photosContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   photoWrapper: {
-    position: 'relative',
+    position: "relative",
   },
   photo: {
     width: 80,
@@ -333,15 +346,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   removePhotoButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 4,
     right: 4,
     width: 24,
     height: 24,
     borderRadius: 12,
     backgroundColor: Colors.accentRed,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   addPhotoButton: {
     width: 80,
@@ -349,9 +362,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: Colors.neutralGray,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Colors.neutralLight,
   },
   addPhotoText: {
@@ -374,7 +387,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   submitButtonDisabled: {
     backgroundColor: Colors.neutralGray,

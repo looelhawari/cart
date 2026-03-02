@@ -85,65 +85,65 @@ type FilterSection = {
   }[];
 };
 
-const FILTER_SECTIONS: FilterSection[] = [
+const getFilterSections = (t: any): FilterSection[] => [
   {
-    title: "Deal Type",
-    subtitle: "Choose what kind of deals to show",
+    title: t.ui.dealType,
+    subtitle: t.ui.chooseDealKind,
     filters: [
       {
         key: "all",
-        label: "All Deals",
+        label: t.ui.allDeals,
         icon: "apps",
         color: Colors.primary900,
-        description: "Show everything",
+        description: t.ui.showEverything,
       },
       {
         key: "promotions",
-        label: "Auto Discounts",
+        label: t.ui.autoDiscounts,
         icon: "flash",
         color: Colors.primary900,
-        description: "Applied automatically at checkout",
+        description: t.ui.appliedAtCheckout,
       },
       {
         key: "coupons",
-        label: "Promo Codes",
+        label: t.ui.promoCodes,
         icon: "ticket",
         color: "#D97706",
-        description: "Enter a code to redeem",
+        description: t.ui.enterCodeToRedeem,
       },
     ],
   },
   {
-    title: "Promo Code Type",
-    subtitle: "Filter by discount type",
+    title: t.ui.promoCodeType,
+    subtitle: t.ui.filterByDiscount,
     filters: [
       {
         key: "percentage",
-        label: "Percentage Off",
+        label: t.ui.percentageOff,
         icon: "pricetag",
         color: "#7C3AED",
-        description: "Get X% off your order",
+        description: t.ui.getPercentOff,
       },
       {
         key: "fixed_amount",
-        label: "Fixed Amount Off",
+        label: t.ui.fixedAmountOff,
         icon: "cash",
         color: "#0284C7",
-        description: "Get EGP X off your order",
+        description: t.ui.getEgpOff,
       },
       {
         key: "free_delivery",
-        label: "Free Delivery",
+        label: t.ui.freeDelivery,
         icon: "car",
         color: Colors.primary900,
-        description: "No delivery charges",
+        description: t.ui.noDeliveryCharges,
       },
       {
         key: "bogo",
-        label: "Buy One Get One",
+        label: t.ui.buyOneGetOne,
         icon: "gift",
         color: "#DB2777",
-        description: "Buy X and get Y free",
+        description: t.ui.buyXGetYFree,
       },
     ],
   },
@@ -152,7 +152,9 @@ const FILTER_SECTIONS: FilterSection[] = [
 // ═══════════════════════════════════════════════════════════
 // COLOR MAP PER OFFER TYPE
 // ═══════════════════════════════════════════════════════════
-const TYPE_THEME: Record<
+const getTypeTheme = (
+  t: any,
+): Record<
   string,
   {
     accent: string;
@@ -161,36 +163,36 @@ const TYPE_THEME: Record<
     label: string;
     gradient: [string, string];
   }
-> = {
+> => ({
   percentage: {
     accent: "#7C3AED",
     bg: "#F5F3FF",
     icon: "pricetag",
-    label: "% Discount",
+    label: t.ui.percentDiscount,
     gradient: ["#7C3AED", "#5B21B6"],
   },
   fixed_amount: {
     accent: "#0284C7",
     bg: "#F0F9FF",
     icon: "cash",
-    label: "Fixed Discount",
+    label: t.ui.fixedDiscount,
     gradient: ["#0284C7", "#0369A1"],
   },
   free_delivery: {
     accent: Colors.primary900,
     bg: Colors.primary100 || "#F0FDF4",
     icon: "car",
-    label: "Free Delivery",
+    label: t.ui.freeDelivery,
     gradient: [Colors.primary900, Colors.primary800 || "#15803d"],
   },
   bogo: {
     accent: "#DB2777",
     bg: "#FDF2F8",
     icon: "gift",
-    label: "Buy 1 Get 1",
+    label: t.ui.buyOneGetOneBadge,
     gradient: ["#DB2777", "#BE185D"],
   },
-};
+});
 
 // ═══════════════════════════════════════════════════════════
 // HELPERS
@@ -200,18 +202,19 @@ const TYPE_THEME: Record<
 const buildScopeDescription = (
   offer: Offer,
   getName: (item: any) => string,
+  t: any,
 ): string => {
   const valueStr =
     offer.type === "percentage"
-      ? `${offer.value}% OFF`
+      ? `${offer.value}% ${t.ui.off}`
       : offer.type === "fixed_amount"
-        ? `${offer.value} EGP OFF`
+        ? `${offer.value} ${t.ui.egpOff}`
         : offer.type === "free_delivery"
-          ? "FREE DELIVERY"
-          : "BUY 1 GET 1 FREE";
+          ? t.ui.freeDeliveryUpper
+          : t.ui.buyOneGetOneFree;
 
   if (offer.applies_to === "order") {
-    return `${valueStr} on Your Entire Order`;
+    return `${valueStr} ${t.ui.onEntireOrder}`;
   }
   if (
     offer.applies_to === "category" &&
@@ -221,13 +224,13 @@ const buildScopeDescription = (
     if (names.length <= 2) {
       return `${valueStr} on ${names.join(" & ")}`;
     }
-    return `${valueStr} on ${names.length} Selected Categories`;
+    return `${valueStr} on ${names.length} ${t.ui.selectedCategories}`;
   }
   if (offer.applies_to === "product" && offer.targets?.products?.length > 0) {
     if (offer.targets.products.length === 1) {
       return `${valueStr} on ${getName(offer.targets.products[0])}`;
     }
-    return `${valueStr} on ${offer.targets.products.length} Selected Items`;
+    return `${valueStr} on ${offer.targets.products.length} ${t.ui.selectedItems}`;
   }
   return valueStr;
 };
@@ -236,37 +239,38 @@ const buildScopeDescription = (
 const buildPromoScope = (
   promo: Promotion,
   getName: (item: any) => string,
+  t: any,
 ): string => {
   const valueStr =
     promo.discount_type === "percentage"
-      ? `${promo.discount_value}% OFF`
+      ? `${promo.discount_value}% ${t.ui.off}`
       : promo.discount_type === "fixed"
-        ? `${promo.discount_value} EGP OFF`
-        : "BUY X GET Y";
+        ? `${promo.discount_value} ${t.ui.egpOff}`
+        : t.ui.bxgy;
 
-  if (promo.applies_to === "all") return `${valueStr} on All Products`;
+  if (promo.applies_to === "all") return `${valueStr} ${t.ui.onAllProducts}`;
   if (promo.applies_to === "category" && promo.categories?.length) {
     if (promo.categories.length <= 2) {
       return `${valueStr} on ${promo.categories.map((c: any) => getName(c) || c.name || c).join(" & ")}`;
     }
-    return `${valueStr} on ${promo.categories.length} Categories`;
+    return `${valueStr} on ${promo.categories.length} ${t.ui.categories}`;
   }
   if (promo.applies_to === "products") {
-    return `${valueStr} on ${promo.products_count || "Selected"} Products`;
+    return `${valueStr} on ${promo.products_count || "Selected"} ${t.ui.products}`;
   }
   return valueStr;
 };
 
 /** Format remaining time as "Xd Xh" or "Xh Xm" */
-const formatTimeRemaining = (dateStr: string): string | null => {
+const formatTimeRemaining = (dateStr: string, t: any): string | null => {
   const diff = new Date(dateStr).getTime() - Date.now();
   if (diff <= 0) return null;
   const days = Math.floor(diff / 86400000);
   const hours = Math.floor((diff % 86400000) / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h ${mins}m left`;
-  return `${mins}m left`;
+  if (days > 0) return `${days}d ${hours}h ${t.ui.left}`;
+  if (hours > 0) return `${hours}h ${mins}m ${t.ui.left}`;
+  return `${mins}m ${t.ui.left}`;
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -276,6 +280,8 @@ export default function OffersScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { getName } = useLocalizedValue();
+  const FILTER_SECTIONS = useMemo(() => getFilterSections(t), [t]);
+  const TYPE_THEME = useMemo(() => getTypeTheme(t), [t]);
 
   // ── State ──
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -354,11 +360,11 @@ export default function OffersScreen() {
       }
 
       if (!promoRes.success && !offersRes.success) {
-        setError("Unable to load offers at the moment");
+        setError(t.ui.unableToLoadOffers);
       }
     } catch (err: any) {
       console.error("Failed to load offers:", err);
-      setError(err.message || "Unable to load offers. Please try again.");
+      setError(err.message || t.ui.unableToLoadOffersTryAgain);
     } finally {
       setLoading(false);
     }
@@ -577,7 +583,7 @@ export default function OffersScreen() {
       if (found) return found.label;
     }
     return FILTER_SECTIONS[0].filters[0].label;
-  }, [activeFilter]);
+  }, [activeFilter, FILTER_SECTIONS]);
 
   // ═══════════════════════════════════════════════════════════
   // SUB-COMPONENTS
@@ -631,7 +637,7 @@ export default function OffersScreen() {
 
   // ━━━━━ FEATURED PROMOTION HERO ━━━━━
   const FeaturedHeroCard = ({ promo }: { promo: Promotion }) => {
-    const scope = buildPromoScope(promo, getName);
+    const scope = buildPromoScope(promo, getName, t);
 
     return (
       <TouchableOpacity
@@ -658,7 +664,7 @@ export default function OffersScreen() {
           <View style={styles.heroBadgeRow}>
             <View style={styles.heroBadge}>
               <Ionicons name="sparkles" size={11} color={Colors.accentYellow} />
-              <Text style={styles.heroBadgeText}>Featured</Text>
+              <Text style={styles.heroBadgeText}>{t.ui.featured}</Text>
             </View>
           </View>
           <Text style={styles.heroScope}>{scope}</Text>
@@ -671,7 +677,7 @@ export default function OffersScreen() {
             </View>
           )}
           <View style={styles.heroCTA}>
-            <Text style={styles.heroCTAText}>View Products</Text>
+            <Text style={styles.heroCTAText}>{t.ui.viewProducts}</Text>
             <Ionicons
               name="arrow-forward"
               size={14}
@@ -685,18 +691,18 @@ export default function OffersScreen() {
 
   // ━━━━━ AUTOMATIC PROMOTION CARD ━━━━━
   const AutoPromoCard = ({ promo }: { promo: Promotion }) => {
-    const scope = buildPromoScope(promo, getName);
+    const scope = buildPromoScope(promo, getName, t);
     const badgeText =
       promo.discount_type === "percentage"
         ? `${promo.discount_value}%`
         : promo.discount_type === "fixed"
           ? `${promo.discount_value}`
-          : "BXGY";
+          : t.ui.bxgy;
     const badgeUnit =
       promo.discount_type === "percentage"
-        ? "OFF"
+        ? t.ui.off
         : promo.discount_type === "fixed"
-          ? "EGP OFF"
+          ? t.ui.egpOff
           : "";
 
     return (
@@ -737,7 +743,7 @@ export default function OffersScreen() {
                   color={Colors.neutralMedium}
                 />
                 <Text style={styles.metaChipText}>
-                  Min. {promo.min_purchase} EGP
+                  {t.ui.minEgp.replace("{amount}", String(promo.min_purchase))}
                 </Text>
               </View>
             ) : null}
@@ -751,7 +757,7 @@ export default function OffersScreen() {
                 <Text
                   style={[styles.metaChipText, { color: Colors.accentOrange }]}
                 >
-                  {formatTimeRemaining(promo.end_date) || "Ending soon"}
+                  {formatTimeRemaining(promo.end_date, t) || t.ui.endingSoon}
                 </Text>
               </View>
             )}
@@ -759,7 +765,7 @@ export default function OffersScreen() {
 
           {/* CTA */}
           <View style={styles.autoPromoCTA}>
-            <Text style={styles.autoPromoCTAText}>View Products</Text>
+            <Text style={styles.autoPromoCTAText}>{t.ui.viewProducts}</Text>
             <Ionicons
               name="arrow-forward"
               size={12}
@@ -775,21 +781,21 @@ export default function OffersScreen() {
   const CouponCard = ({ offer }: { offer: Offer }) => {
     const theme = TYPE_THEME[offer.type] || TYPE_THEME.percentage;
     const isCopied = copiedCode === offer.code;
-    const scope = buildScopeDescription(offer, getName);
+    const scope = buildScopeDescription(offer, getName, t);
 
     // Value display
     const valueDisplay = (): { main: string; unit: string } => {
       switch (offer.type) {
         case "percentage":
-          return { main: `${offer.value}%`, unit: "OFF" };
+          return { main: `${offer.value}%`, unit: t.ui.off };
         case "fixed_amount":
-          return { main: `${offer.value}`, unit: "EGP OFF" };
+          return { main: `${offer.value}`, unit: t.ui.egpOff };
         case "free_delivery":
-          return { main: "FREE", unit: "DELIVERY" };
+          return { main: t.ui.free, unit: t.ui.delivery || "DELIVERY" };
         case "bogo":
-          return { main: "B1G1", unit: "FREE" };
+          return { main: "B1G1", unit: t.ui.free };
         default:
-          return { main: `${offer.value}`, unit: "OFF" };
+          return { main: `${offer.value}`, unit: t.ui.off };
       }
     };
     const { main: valMain, unit: valUnit } = valueDisplay();
@@ -797,12 +803,12 @@ export default function OffersScreen() {
     // Scope badge label
     const scopeLabel =
       offer.applies_to === "order"
-        ? "Entire Order"
+        ? t.ui.entireOrder
         : offer.applies_to === "category"
-          ? `${offer.targets?.categories?.length || 0} ${(offer.targets?.categories?.length || 0) === 1 ? "Category" : "Categories"}`
+          ? `${offer.targets?.categories?.length || 0} ${(offer.targets?.categories?.length || 0) === 1 ? t.ui.category : t.ui.categories}`
           : offer.applies_to === "product"
-            ? `${offer.targets?.products?.length || 0} ${(offer.targets?.products?.length || 0) === 1 ? "Product" : "Products"}`
-            : "All Items";
+            ? `${offer.targets?.products?.length || 0} ${(offer.targets?.products?.length || 0) === 1 ? t.ui.product : t.ui.products}`
+            : t.ui.allItems;
 
     const scopeIcon =
       offer.applies_to === "order"
@@ -816,11 +822,15 @@ export default function OffersScreen() {
     // Restrictions
     const restrictions: string[] = [];
     if (offer.minimum_order > 0)
-      restrictions.push(`Min. ${offer.minimum_order} EGP`);
+      restrictions.push(
+        t.ui.minEgp.replace("{amount}", String(offer.minimum_order)),
+      );
     if (offer.maximum_discount)
-      restrictions.push(`Max. ${offer.maximum_discount} EGP off`);
-    if (offer.first_order_only) restrictions.push("First order only");
-    if (offer.usage_per_user === 1) restrictions.push("One-time use");
+      restrictions.push(
+        t.ui.maxEgpOff.replace("{amount}", String(offer.maximum_discount)),
+      );
+    if (offer.first_order_only) restrictions.push(t.ui.firstOrderOnly);
+    if (offer.usage_per_user === 1) restrictions.push(t.ui.oneTimeUse);
 
     // BOGO rules
     const bogoRules: OfferBogoRule[] = offer.targets?.bogo_rules || [];
@@ -891,7 +901,7 @@ export default function OffersScreen() {
               <View style={styles.bogoBox}>
                 {bogoRules.slice(0, 2).map((rule, idx) => (
                   <View key={idx} style={styles.bogoRuleRow}>
-                    <Text style={styles.bogoLabel}>BUY</Text>
+                    <Text style={styles.bogoLabel}>{t.ui.buy}</Text>
                     <Text style={styles.bogoQty}>
                       {rule.buy_qty}× {rule.buy_label || "Any"}
                     </Text>
@@ -901,12 +911,12 @@ export default function OffersScreen() {
                       color={Colors.neutralMedium}
                     />
                     <Text style={[styles.bogoLabel, { color: "#DB2777" }]}>
-                      GET
+                      {t.ui.get}
                     </Text>
                     <Text style={[styles.bogoQty, { color: "#DB2777" }]}>
                       {rule.get_qty}×{" "}
                       {rule.get_discount_type === "free"
-                        ? "FREE"
+                        ? t.ui.free
                         : `${rule.get_discount_value}% off`}
                     </Text>
                   </View>
@@ -945,7 +955,7 @@ export default function OffersScreen() {
                       },
                     ]}
                   >
-                    {formatTimeRemaining(offer.valid_until) ||
+                    {formatTimeRemaining(offer.valid_until, t) ||
                       `Exp. ${new Date(offer.valid_until).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
                   </Text>
                 </View>
@@ -957,7 +967,7 @@ export default function OffersScreen() {
               <View
                 style={[styles.codeBox, { borderColor: theme.accent + "40" }]}
               >
-                <Text style={styles.codeLabel}>CODE</Text>
+                <Text style={styles.codeLabel}>{t.ui.code}</Text>
                 <Text style={[styles.codeValue, { color: theme.accent }]}>
                   {offer.code}
                 </Text>
@@ -986,7 +996,7 @@ export default function OffersScreen() {
                     isCopied && { color: Colors.neutralWhite },
                   ]}
                 >
-                  {isCopied ? "Copied!" : "Copy"}
+                  {isCopied ? t.ui.copied : t.ui.copy}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -997,8 +1007,11 @@ export default function OffersScreen() {
                 <Ionicons name="car" size={13} color={Colors.primary900} />
                 <Text style={styles.freeDeliveryText}>
                   {offer.minimum_order > 0
-                    ? `Free delivery on orders above ${offer.minimum_order} EGP.`
-                    : "Free delivery on any order."}
+                    ? t.ui.freeDeliveryAbove.replace(
+                        "{amount}",
+                        String(offer.minimum_order),
+                      )
+                    : t.ui.freeDeliveryAny}
                 </Text>
               </View>
             )}
@@ -1013,7 +1026,7 @@ export default function OffersScreen() {
                 <Text
                   style={[styles.viewDetailBtnText, { color: theme.accent }]}
                 >
-                  View Details
+                  {t.ui.viewDetails}
                 </Text>
                 <Ionicons name="arrow-forward" size={12} color={theme.accent} />
               </TouchableOpacity>
@@ -1063,7 +1076,7 @@ export default function OffersScreen() {
         <View style={styles.filterSheetHeader}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Ionicons name="options" size={20} color={Colors.primary900} />
-            <Text style={styles.filterSheetTitle}>Filter Deals</Text>
+            <Text style={styles.filterSheetTitle}>{t.ui.filterDeals}</Text>
           </View>
           {activeFilter !== "all" && (
             <TouchableOpacity
@@ -1079,7 +1092,7 @@ export default function OffersScreen() {
                   color: Colors.accentRed,
                 }}
               >
-                Reset
+                {t.ui.reset}
               </Text>
             </TouchableOpacity>
           )}
@@ -1094,7 +1107,7 @@ export default function OffersScreen() {
               color={Colors.primary900}
             />
             <Text style={styles.filterActivePillText}>
-              Active: {activeFilterLabel}
+              {t.ui.active}: {activeFilterLabel}
             </Text>
           </View>
         )}
@@ -1204,7 +1217,7 @@ export default function OffersScreen() {
           <View style={styles.errorIconBg}>
             <AlertCircle size={48} color={Colors.accentRed} />
           </View>
-          <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
+          <Text style={styles.errorTitle}>{t.ui.oopsSomethingWrong}</Text>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -1216,7 +1229,7 @@ export default function OffersScreen() {
               style={styles.retryGradient}
             >
               <Ionicons name="refresh" size={18} color={Colors.neutralWhite} />
-              <Text style={styles.retryText}>Try Again</Text>
+              <Text style={styles.retryText}>{t.ui.tryAgain}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -1316,16 +1329,14 @@ export default function OffersScreen() {
           <Text style={styles.headerTitle}>
             {t.offers?.specialOffers || "Special Offers"}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            Discover promotions, coupons & exclusive deals
-          </Text>
+          <Text style={styles.headerSubtitle}>{t.ui.discoverPromotions}</Text>
 
           {/* Search + Filter Pill */}
           <View style={styles.searchBar}>
             <Ionicons name="search" size={18} color={Colors.neutralMedium} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search offers, codes..."
+              placeholder={t.ui.searchOffersCodes}
               placeholderTextColor={Colors.neutralMedium}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -1402,7 +1413,7 @@ export default function OffersScreen() {
                 />
               </View>
               <Text style={styles.statValue}>{totalDealsCount}</Text>
-              <Text style={styles.statLabel}>Active</Text>
+              <Text style={styles.statLabel}>{t.ui.active}</Text>
             </View>
             <View style={styles.statCard}>
               <View
@@ -1411,7 +1422,7 @@ export default function OffersScreen() {
                 <Ionicons name="ticket" size={14} color="#D97706" />
               </View>
               <Text style={styles.statValue}>{offers.length}</Text>
-              <Text style={styles.statLabel}>Coupons</Text>
+              <Text style={styles.statLabel}>{t.ui.coupons}</Text>
             </View>
             <View style={styles.statCard}>
               <View
@@ -1422,7 +1433,7 @@ export default function OffersScreen() {
               <Text style={styles.statValue}>
                 {summary?.ending_soon_count ?? 0}
               </Text>
-              <Text style={styles.statLabel}>Ending</Text>
+              <Text style={styles.statLabel}>{t.ui.ending}</Text>
             </View>
             {summary?.max_percentage ? (
               <View style={styles.statCard}>
@@ -1432,7 +1443,7 @@ export default function OffersScreen() {
                   <Ionicons name="trending-down" size={14} color="#7C3AED" />
                 </View>
                 <Text style={styles.statValue}>{summary.max_percentage}%</Text>
-                <Text style={styles.statLabel}>Max Off</Text>
+                <Text style={styles.statLabel}>{t.ui.maxOff}</Text>
               </View>
             ) : null}
           </View>
@@ -1443,7 +1454,7 @@ export default function OffersScreen() {
               <GroupHeader
                 icon="sparkles"
                 iconColor={Colors.accentOrange}
-                title="Featured"
+                title={t.ui.featured}
                 count={1}
                 sectionKey="featured"
               />
@@ -1461,7 +1472,7 @@ export default function OffersScreen() {
               <GroupHeader
                 icon="flash"
                 iconColor={Colors.primary900}
-                title="Automatic Discounts"
+                title={t.ui.automaticDiscounts}
                 count={automaticPromotions.length}
                 sectionKey="automatic"
               />
@@ -1481,7 +1492,7 @@ export default function OffersScreen() {
               <GroupHeader
                 icon="pricetag"
                 iconColor="#7C3AED"
-                title="Promo Codes — % Discount"
+                title={t.ui.promoCodesPercent}
                 count={groupedOffers.percentage.length}
                 sectionKey="percentage"
               />
@@ -1501,7 +1512,7 @@ export default function OffersScreen() {
               <GroupHeader
                 icon="cash"
                 iconColor="#0284C7"
-                title="Fixed Discount Codes"
+                title={t.ui.fixedDiscountCodes}
                 count={groupedOffers.fixed_amount.length}
                 sectionKey="fixed_amount"
               />
@@ -1521,7 +1532,7 @@ export default function OffersScreen() {
               <GroupHeader
                 icon="car"
                 iconColor={Colors.primary900}
-                title="Free Delivery"
+                title={t.ui.freeDelivery}
                 count={groupedOffers.free_delivery.length}
                 sectionKey="free_delivery"
               />
@@ -1541,7 +1552,7 @@ export default function OffersScreen() {
               <GroupHeader
                 icon="gift"
                 iconColor="#DB2777"
-                title="Buy 1 Get 1"
+                title={t.ui.buyOneGetOne}
                 count={groupedOffers.bogo.length}
                 sectionKey="bogo"
               />
@@ -1563,17 +1574,17 @@ export default function OffersScreen() {
               </View>
               <Text style={styles.emptyTitle}>
                 {q
-                  ? "No offers found"
+                  ? t.ui.noOffersFound
                   : activeFilter !== "all"
-                    ? "No offers in this category"
+                    ? t.ui.noOffersInCategory
                     : t.offers?.noOffers || "No Offers Available"}
               </Text>
               <Text style={styles.emptyText}>
                 {q
                   ? `No offers match "${searchQuery}"`
                   : activeFilter !== "all"
-                    ? "Try selecting a different filter"
-                    : "Check back soon for amazing deals!"}
+                    ? t.ui.tryDifferentFilter
+                    : t.ui.checkBackForDeals}
               </Text>
               {activeFilter !== "all" && (
                 <TouchableOpacity
@@ -1590,7 +1601,7 @@ export default function OffersScreen() {
                       size={18}
                       color={Colors.neutralWhite}
                     />
-                    <Text style={styles.retryText}>Show All Deals</Text>
+                    <Text style={styles.retryText}>{t.ui.showAllDeals}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
@@ -1609,7 +1620,7 @@ export default function OffersScreen() {
                       size={18}
                       color={Colors.neutralWhite}
                     />
-                    <Text style={styles.retryText}>Refresh</Text>
+                    <Text style={styles.retryText}>{t.ui.refresh}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}

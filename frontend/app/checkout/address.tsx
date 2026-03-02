@@ -10,9 +10,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, MapPin, Plus, Check, AlertTriangle } from "lucide-react-native";
+import {
+  ArrowLeft,
+  MapPin,
+  Plus,
+  Check,
+  AlertTriangle,
+} from "lucide-react-native";
 import { getAddresses, CheckoutAddress } from "@/services/api/checkoutApi";
-import { deliveryZoneApi, type CoverageResult } from "@/services/api/deliveryZoneApi";
+import {
+  deliveryZoneApi,
+  type CoverageResult,
+} from "@/services/api/deliveryZoneApi";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
@@ -103,7 +112,8 @@ export default function CheckoutAddressScreen() {
     if (zoneValidation.result && !zoneValidation.result.covered) {
       Alert.alert(
         t.checkout?.outsideZoneTitle || "Outside Delivery Area",
-        t.checkout?.outsideZoneMessage || "This address may be outside our delivery area. Delivery may not be available.",
+        t.checkout?.outsideZoneMessage ||
+          "This address may be outside our delivery area. Delivery may not be available.",
         [
           { text: t.common?.cancel || "Cancel", style: "cancel" },
           {
@@ -205,7 +215,7 @@ export default function CheckoutAddressScreen() {
                 style={[
                   styles.addressCard,
                   selectedAddressId === address.id &&
-                  styles.addressCardSelected,
+                    styles.addressCardSelected,
                 ]}
                 onPress={() => handleSelectAddress(address.id)}
               >
@@ -249,37 +259,53 @@ export default function CheckoutAddressScreen() {
                 )}
 
                 {/* Zone validation status */}
-                {selectedAddressId === address.id && zoneValidation.checking && (
-                  <View style={styles.zoneStatusRow}>
-                    <ActivityIndicator size="small" color={Colors.primary900} />
-                    <Text style={styles.zoneCheckingText}>
-                      {t.checkout?.checkingDeliveryZone || "Checking delivery zone..."}
-                    </Text>
-                  </View>
-                )}
-                {selectedAddressId === address.id && !zoneValidation.checking && zoneValidation.result && (
-                  <View style={[
-                    styles.zoneStatusRow,
-                    zoneValidation.result.covered ? styles.zoneOkBg : styles.zoneNotOkBg,
-                  ]}>
-                    {zoneValidation.result.covered ? (
-                      <>
-                        <Check size={14} color="#16a34a" />
-                        <Text style={styles.zoneOkText}>
-                          {zoneValidation.result.zone?.name || "In zone"} — EGP {zoneValidation.result.delivery_fee} delivery
-                          {zoneValidation.result.zone?.estimated_delivery_time && ` • ${zoneValidation.result.zone.estimated_delivery_time}`}
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle size={14} color="#dc2626" />
-                        <Text style={styles.zoneNotOkText}>
-                          {t.checkout?.outsideDeliveryArea || "Outside delivery area"}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                )}
+                {selectedAddressId === address.id &&
+                  zoneValidation.checking && (
+                    <View style={styles.zoneStatusRow}>
+                      <ActivityIndicator
+                        size="small"
+                        color={Colors.primary900}
+                      />
+                      <Text style={styles.zoneCheckingText}>
+                        {t.checkout?.checkingDeliveryZone ||
+                          "Checking delivery zone..."}
+                      </Text>
+                    </View>
+                  )}
+                {selectedAddressId === address.id &&
+                  !zoneValidation.checking &&
+                  zoneValidation.result && (
+                    <View
+                      style={[
+                        styles.zoneStatusRow,
+                        zoneValidation.result.covered
+                          ? styles.zoneOkBg
+                          : styles.zoneNotOkBg,
+                      ]}
+                    >
+                      {zoneValidation.result.covered ? (
+                        <>
+                          <Check size={14} color="#16a34a" />
+                          <Text style={styles.zoneOkText}>
+                            {zoneValidation.result.zone?.name || "In zone"} —{" "}
+                            {t.common.currency}{" "}
+                            {zoneValidation.result.delivery_fee} {t.ui.delivery}
+                            {zoneValidation.result.zone
+                              ?.estimated_delivery_time &&
+                              ` • ${zoneValidation.result.zone.estimated_delivery_time}`}
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle size={14} color="#dc2626" />
+                          <Text style={styles.zoneNotOkText}>
+                            {t.checkout?.outsideDeliveryArea ||
+                              "Outside delivery area"}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  )}
               </TouchableOpacity>
             ))}
 

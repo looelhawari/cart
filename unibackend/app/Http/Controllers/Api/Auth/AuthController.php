@@ -21,6 +21,7 @@ use App\Services\EnterpriseNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -55,6 +56,9 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): JsonResponse
     {
+        // NOTE: Cleanup of stale unverified records is handled in
+        // RegisterRequest::prepareForValidation() — before unique validation runs.
+
         $user = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
@@ -75,11 +79,15 @@ class AuthController extends Controller
 
         // Generate and send OTP for email verification
         $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+        if (!$sent) {
+            Log::error("Failed to send registration OTP email to {$user->email}");
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Registration successful. Please verify your email address.',
+            'message' => __('auth.registration_successful'),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -90,6 +98,7 @@ class AuthController extends Controller
                     'language' => $user->language,
                     'is_verified' => $user->is_verified,
                 ],
+                'email_sent' => $sent,
             ],
         ], 201);
     }
@@ -108,7 +117,7 @@ class AuthController extends Controller
         if (!$otpRecord) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired OTP.',
+                'message' => __('auth.invalid_or_expired_otp'),
             ], 400);
         }
 
@@ -117,7 +126,7 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'User not found.',
+                'message' => __('auth.user_not_found'),
             ], 404);
         }
 
@@ -137,7 +146,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Email verified successfully.',
+            'message' => __('auth.email_verified_successfully'),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -175,25 +184,29 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid credentials.',
+                'message' => __('auth.invalid_credentials'),
             ], 401);
         }
 
         if (!$user->is_active) {
             return response()->json([
                 'success' => false,
-                'message' => 'Your account has been deactivated.',
+                'message' => __('auth.account_deactivated'),
             ], 403);
         }
 
         if (!$user->is_verified) {
             // Resend OTP
             $otp = $this->otpService->createEmailVerificationOtp($user->email);
-            $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+            $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+            if (!$sent) {
+                Log::error("Failed to send login verification OTP to {$user->email}");
+            }
 
             return response()->json([
                 'success' => false,
-                'message' => 'Please verify your email address. A new OTP has been sent.',
+                'message' => __('auth.verify_email_otp_sent'),
                 'requires_verification' => true,
             ], 403);
         }
@@ -278,7 +291,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Login successful.',
+            'message' => __('auth.login_successful'),
             'data' => [
                 'user' => $userData,
                 'access_token' => $accessToken,
@@ -300,7 +313,7 @@ class AuthController extends Controller
         if (count($tokenParts) !== 2) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid token format.',
+                'message' => __('auth.invalid_token_format'),
             ], 401);
         }
 
@@ -310,7 +323,7 @@ class AuthController extends Controller
         if (!$token || !$token->can('refresh') || $token->expires_at < Carbon::now()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired refresh token.',
+                'message' => __('auth.invalid_or_expired_refresh_token'),
             ], 401);
         }
 
@@ -331,7 +344,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Token refreshed successfully.',
+            'message' => __('auth.token_refreshed_successfully'),
             'data' => [
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
@@ -418,7 +431,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Logged out successfully.',
+            'message' => __('auth.logged_out_successfully'),
         ]);
     }
 
@@ -429,12 +442,34 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->email)->first();
 
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.no_account_found'),
+            ], 404);
+        }
+
+        // Check if user's email is verified — don't redirect, just error
+        if (!$user->email_verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.email_not_verified_reset'),
+            ], 403);
+        }
+
         $otp = $this->otpService->createPasswordResetOtp($user->email);
-        $this->otpService->sendEmail($user->email, $otp->otp, 'Password Reset');
+        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Password Reset');
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_email_failed'),
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset OTP sent to your email.',
+            'message' => __('auth.password_reset_otp_sent'),
         ]);
     }
 
@@ -451,7 +486,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -465,13 +500,13 @@ class AuthController extends Controller
         if (!$otpRecord) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired OTP.',
+                'message' => __('auth.invalid_or_expired_otp'),
             ], 400);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'OTP verified successfully.',
+            'message' => __('auth.otp_verified_successfully'),
         ]);
     }
 
@@ -489,7 +524,7 @@ class AuthController extends Controller
         if (!$otpRecord) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired OTP.',
+                'message' => __('auth.invalid_or_expired_otp'),
             ], 400);
         }
 
@@ -508,7 +543,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password reset successfully.',
+            'message' => __('auth.password_reset_successfully'),
         ]);
     }
 
@@ -528,7 +563,7 @@ class AuthController extends Controller
         if (isset($data['email']) && strtolower($data['email']) !== strtolower($user->email)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email cannot be changed through profile update. Use the dedicated email change flow.',
+                'message' => __('auth.email_change_not_allowed'),
                 'error_code' => 'EMAIL_CHANGE_NOT_ALLOWED',
             ], 403);
         }
@@ -548,7 +583,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Profile updated successfully',
+            'message' => __('auth.profile_updated_successfully'),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -601,7 +636,7 @@ class AuthController extends Controller
         if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to upload avatar',
+                'message' => __('auth.failed_upload_avatar'),
             ], 500);
         }
 
@@ -611,7 +646,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Avatar uploaded successfully',
+            'message' => __('auth.avatar_uploaded_successfully'),
             'data' => [
                 'avatar_url' => $result['url'],
             ],
@@ -640,7 +675,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Avatar deleted successfully',
+            'message' => __('auth.avatar_deleted_successfully'),
         ]);
     }
 
@@ -672,7 +707,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password changed successfully',
+            'message' => __('auth.password_changed_successfully'),
         ]);
     }
 
@@ -688,7 +723,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -698,7 +733,7 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'User not found.',
+                'message' => __('auth.user_not_found'),
             ], 404);
         }
 
@@ -706,17 +741,24 @@ class AuthController extends Controller
         if ($user->is_verified) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email is already verified.',
+                'message' => __('auth.email_already_verified'),
             ], 400);
         }
 
         // Generate and send new OTP
         $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_email_failed_resend'),
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'OTP has been resent to your email.',
+            'message' => __('auth.otp_resent'),
         ]);
     }
 
@@ -732,7 +774,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -743,7 +785,7 @@ class AuthController extends Controller
         if ($user && $user->is_verified) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email already exists',
+                'message' => __('auth.email_already_exists'),
                 'errors' => [
                     'email' => ['The email has already been taken.'],
                 ],
@@ -753,7 +795,7 @@ class AuthController extends Controller
         // If user exists but not verified, it's okay (they can re-register)
         return response()->json([
             'success' => true,
-            'message' => 'Email is available',
+            'message' => __('auth.email_available'),
         ]);
     }
 
@@ -769,7 +811,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -780,7 +822,7 @@ class AuthController extends Controller
         if ($user && $user->is_verified) {
             return response()->json([
                 'success' => false,
-                'message' => 'Phone number already exists',
+                'message' => __('auth.phone_already_exists'),
                 'errors' => [
                     'phone' => ['The phone number has already been taken.'],
                 ],
@@ -790,7 +832,7 @@ class AuthController extends Controller
         // If user exists but not verified, it's okay (they can re-register)
         return response()->json([
             'success' => true,
-            'message' => 'Phone number is available',
+            'message' => __('auth.phone_available'),
         ]);
     }
 
@@ -807,7 +849,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -817,7 +859,7 @@ class AuthController extends Controller
         if (!Hash::check($request->password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Incorrect password',
+                'message' => __('auth.incorrect_password'),
                 'errors' => [
                     'password' => ['The provided password is incorrect.'],
                 ],
@@ -829,7 +871,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Password confirmed successfully',
+            'message' => __('auth.password_confirmed_successfully'),
             'data' => [
                 'confirmed_at' => now()->toISOString(),
                 'valid_for_minutes' => 30,
@@ -856,7 +898,7 @@ class AuthController extends Controller
         if ($user->is_social_only) {
             return response()->json([
                 'success' => false,
-                'message' => 'Social-only accounts cannot change their email address.',
+                'message' => __('auth.social_only_email_locked'),
                 'error_code' => 'SOCIAL_ONLY_EMAIL_LOCKED',
             ], 403);
         }
@@ -882,7 +924,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -891,7 +933,7 @@ class AuthController extends Controller
         if (!Hash::check($request->current_password, $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Incorrect password.',
+                'message' => __('auth.incorrect_password_try_again'),
                 'errors' => ['current_password' => ['The provided password is incorrect.']],
             ], 401);
         }
@@ -905,7 +947,7 @@ class AuthController extends Controller
         if ($recentOtps >= 3) {
             return response()->json([
                 'success' => false,
-                'message' => 'Too many email change requests. Please try again later.',
+                'message' => __('auth.email_change_rate_limited'),
                 'error_code' => 'EMAIL_CHANGE_RATE_LIMITED',
             ], 429);
         }
@@ -913,13 +955,20 @@ class AuthController extends Controller
         // ── Send OTP to the new email ──────────────────────────────────
         $newEmail = strtolower(trim($request->new_email));
         $otp = $this->otpService->createEmailChangeOtp($newEmail);
-        $this->otpService->sendEmail($newEmail, $otp->otp, 'Email Change Verification');
+        $sent = $this->otpService->sendEmail($newEmail, $otp->otp, 'Email Change Verification');
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_email_failed'),
+            ], 500);
+        }
 
         ActivityLog::log('email_change_requested', $user->id, 'User', $user->id);
 
         return response()->json([
             'success' => true,
-            'message' => 'Verification code sent to your new email address.',
+            'message' => __('auth.verification_code_sent_new_email'),
             'data' => [
                 'new_email' => $newEmail,
                 'expires_in_minutes' => 10,
@@ -940,7 +989,7 @@ class AuthController extends Controller
         if ($user->is_social_only) {
             return response()->json([
                 'success' => false,
-                'message' => 'Social-only accounts cannot change their email address.',
+                'message' => __('auth.social_only_email_locked'),
                 'error_code' => 'SOCIAL_ONLY_EMAIL_LOCKED',
             ], 403);
         }
@@ -953,7 +1002,7 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('auth.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -966,7 +1015,7 @@ class AuthController extends Controller
         if (!$otpRecord) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired verification code.',
+                'message' => __('auth.invalid_or_expired_verification_code'),
                 'error_code' => 'INVALID_OTP',
             ], 400);
         }
@@ -979,7 +1028,7 @@ class AuthController extends Controller
         if ($emailTaken) {
             return response()->json([
                 'success' => false,
-                'message' => 'This email address is already in use.',
+                'message' => __('auth.email_already_in_use'),
                 'error_code' => 'EMAIL_ALREADY_TAKEN',
             ], 409);
         }
@@ -1002,7 +1051,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Email changed successfully.',
+            'message' => __('auth.email_changed_successfully'),
             'data' => [
                 'user' => [
                     'id' => $user->id,
@@ -1023,5 +1072,236 @@ class AuthController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Delete user account permanently (API — authenticated user).
+     */
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Password confirmation required for non-social-only accounts
+        if (!$user->is_social_only) {
+            $validator = Validator::make($request->all(), [
+                'password' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('auth.password_required_delete'),
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('auth.incorrect_password_try_again'),
+                    'error_code' => 'INVALID_PASSWORD',
+                ], 401);
+            }
+        }
+
+        // Check for active orders (not delivered/cancelled)
+        $activeOrders = $user->orders()
+            ->whereNotIn('status', ['delivered', 'cancelled', 'refunded'])
+            ->count();
+
+        if ($activeOrders > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.active_orders_exist'),
+                'error_code' => 'ACTIVE_ORDERS_EXIST',
+                'data' => ['active_orders_count' => $activeOrders],
+            ], 409);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $userId = $user->id;
+            $userEmail = $user->email;
+
+            // Revoke all API tokens
+            $user->tokens()->delete();
+
+            // Delete personal data and related records
+            // 1. Addresses
+            $user->addresses()->delete();
+
+            // 2. Favorites / Wishlist
+            $user->favorites()->delete();
+
+            // 3. Notification preferences & notifications
+            $user->notificationPreferences()->delete();
+            $user->notifications()->delete();
+
+            // 4. Complaints and complaint messages
+            $user->complaintMessages()->delete();
+            $user->complaints()->delete();
+
+            // 5. Cart items
+            DB::table('carts')->where('user_id', $userId)->delete();
+            DB::table('cart_reminders')->where('user_id', $userId)->delete();
+
+            // 6. Login history
+            UserLoginHistory::where('user_id', $userId)->delete();
+
+            // 7. Wallet (delete balance)
+            $user->wallet()->delete();
+
+            // 8. Customer notes
+            $user->notes()->delete();
+
+            // 9. Activity logs referencing this user
+            ActivityLog::where('user_id', $userId)->delete();
+
+            // 10. Reviews — anonymize instead of deleting (retain for product integrity)
+            DB::table('reviews')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+
+            // 11. Orders — anonymize but retain for financial/tax compliance
+            DB::table('orders')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+
+            // 12. Delete the user record permanently
+            $user->forceDelete();
+
+            DB::commit();
+
+            // Log the deletion (without PII)
+            Log::info("Account deleted: user #{$userId}, email hash: " . hash('sha256', $userEmail));
+
+            return response()->json([
+                'success' => true,
+                'message' => __('auth.account_deleted_successfully'),
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Account deletion failed for user #{$user->id}: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.account_deletion_failed'),
+                'error_code' => 'DELETION_FAILED',
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete user account via web form (unauthenticated — email + password verification).
+     */
+    public function deleteAccountWeb(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required|string',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.provide_valid_email_password'),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = User::where('email', strtolower(trim($request->email)))
+            ->where('role', 'customer')
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.no_account_found'),
+                'error_code' => 'USER_NOT_FOUND',
+            ], 404);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.incorrect_password_try_again'),
+                'error_code' => 'INVALID_PASSWORD',
+            ], 401);
+        }
+
+        // Check for active orders
+        $activeOrders = $user->orders()
+            ->whereNotIn('status', ['delivered', 'cancelled', 'refunded'])
+            ->count();
+
+        if ($activeOrders > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.active_orders_exist_web'),
+                'error_code' => 'ACTIVE_ORDERS_EXIST',
+            ], 409);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $userId = $user->id;
+            $userEmail = $user->email;
+            $reason = $request->reason;
+
+            // Revoke all API tokens
+            $user->tokens()->delete();
+
+            // Delete personal data (same as API method)
+            $user->addresses()->delete();
+            $user->favorites()->delete();
+            $user->notificationPreferences()->delete();
+            $user->notifications()->delete();
+            $user->complaintMessages()->delete();
+            $user->complaints()->delete();
+            DB::table('carts')->where('user_id', $userId)->delete();
+            DB::table('cart_reminders')->where('user_id', $userId)->delete();
+            UserLoginHistory::where('user_id', $userId)->delete();
+            $user->wallet()->delete();
+            $user->notes()->delete();
+            ActivityLog::where('user_id', $userId)->delete();
+
+            // Anonymize reviews and orders
+            DB::table('reviews')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+            DB::table('orders')->where('user_id', $userId)->update([
+                'user_id' => null,
+                'updated_at' => now(),
+            ]);
+
+            // Delete user permanently
+            $user->forceDelete();
+
+            DB::commit();
+
+            Log::info("Web account deletion: user #{$userId}, email hash: " . hash('sha256', $userEmail) . ", reason: " . ($reason ?? 'none'));
+
+            return response()->json([
+                'success' => true,
+                'message' => __('auth.account_deleted_successfully'),
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Web account deletion failed: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.account_deletion_failed_web'),
+                'error_code' => 'DELETION_FAILED',
+            ], 500);
+        }
     }
 }

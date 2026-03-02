@@ -49,6 +49,9 @@ export default function OrderSuccessScreen() {
     code: string;
     discount: string;
   } | null>(null);
+  const [fetchedOrderNumber, setFetchedOrderNumber] = useState<string | null>(
+    null,
+  );
 
   /**
    * Refetch cart on mount to ensure it's cleared
@@ -68,11 +71,18 @@ export default function OrderSuccessScreen() {
 
   useEffect(() => {
     const fetchPromoFromOrder = async () => {
-      if (!orderId || promoCode) return;
+      if (!orderId) return;
 
       try {
         const response = await getOrder(parseInt(orderId));
         const order = response.data?.order;
+
+        // Extract order_number if not passed as route param
+        if (!orderNumber && order?.order_number) {
+          setFetchedOrderNumber(order.order_number);
+        }
+
+        if (promoCode) return; // Already have promo from route params
         const snapshot = order?.promo_code_snapshot;
         if (snapshot?.promo_code && snapshot?.discount_amount !== undefined) {
           setPromoInfo({
@@ -81,7 +91,7 @@ export default function OrderSuccessScreen() {
           });
         }
       } catch (error) {
-        console.error("[OrderSuccess] Failed to fetch order promo:", error);
+        console.error("[OrderSuccess] Failed to fetch order details:", error);
       }
     };
 
@@ -202,7 +212,9 @@ export default function OrderSuccessScreen() {
 
         <View style={styles.orderCard}>
           <Text style={styles.orderLabel}>{t.orderSuccess.orderNumber}</Text>
-          <Text style={styles.orderNumber}>{orderNumber || "N/A"}</Text>
+          <Text style={styles.orderNumber}>
+            {orderNumber || fetchedOrderNumber || "N/A"}
+          </Text>
 
           {(promoCode && promoDiscount) || promoInfo ? (
             <>
@@ -211,7 +223,7 @@ export default function OrderSuccessScreen() {
               </Text>
               <Text style={styles.promoValue}>
                 {promoCode || promoInfo?.code} (-
-                {promoDiscount || promoInfo?.discount} EGP)
+                {promoDiscount || promoInfo?.discount} {t.common.currency})
               </Text>
             </>
           ) : null}

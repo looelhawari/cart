@@ -14,6 +14,7 @@ import {
 } from "@/services/api";
 import { TOKEN_CONFIG } from "@/config/app.config";
 import * as favoritesApi from "@/services/api/favoritesApi";
+import { profileApi } from "@/services/api/profileApi";
 import {
   getCart as getCartApi,
   addToCart as addToCartApi,
@@ -57,9 +58,14 @@ interface StoreState {
   pendingUser: { phone: string; email: string } | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   register: (
     data: RegisterData,
-  ) => Promise<{ requiresVerification: boolean; email: string }>;
+  ) => Promise<{
+    requiresVerification: boolean;
+    email: string;
+    emailSent: boolean;
+  }>;
   verifyEmail: (data: VerifyEmailData) => Promise<void>;
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;
   resetPassword: (data: ResetPasswordData) => Promise<void>;
@@ -196,6 +202,21 @@ export const useStore = create<StoreState>()(
         }
       },
 
+      deleteAccount: async (password: string) => {
+        await profileApi.deleteAccount(password);
+        // Clear all local state after successful deletion
+        set({
+          isAuthenticated: false,
+          user: null,
+          pendingUser: null,
+          cart: [],
+          favorites: [],
+          selectedAddress: null,
+          selectedPaymentMethod: null,
+          promoCode: null,
+        });
+      },
+
       register: async (data: RegisterData) => {
         const response = await authApi.register(data);
 
@@ -210,6 +231,7 @@ export const useStore = create<StoreState>()(
         return {
           requiresVerification: true,
           email: response.data.user.email,
+          emailSent: response.data.email_sent ?? true,
         };
       },
 

@@ -46,14 +46,16 @@ class ProductController extends Controller
                     });
                 }
 
-                // Search by name (use FULLTEXT for performance, fallback to LIKE)
+                // Search by name/description (use FULLTEXT for performance, fallback to LIKE)
                 if ($request->has('search')) {
                     $search = $request->search;
                     $query->where(function ($q) use ($search) {
                         // Use FULLTEXT MATCH...AGAINST for indexed search
                         $q->whereRaw('MATCH(name_en, name_ar) AGAINST(? IN BOOLEAN MODE)', ['+' . $search . '*'])
                           ->orWhere('name_en', 'like', "%{$search}%")
-                          ->orWhere('name_ar', 'like', "%{$search}%");
+                          ->orWhere('name_ar', 'like', "%{$search}%")
+                          ->orWhere('description_en', 'like', "%{$search}%")
+                          ->orWhere('description_ar', 'like', "%{$search}%");
                     });
                 }
 
@@ -127,7 +129,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve products',
+                'message' => __('product.fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -153,7 +155,7 @@ class ProductController extends Controller
             if (!$product) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Product not found',
+                    'message' => __('product.not_found'),
                 ], 404);
             }
 
@@ -164,7 +166,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Product not found',
+                'message' => __('product.not_found'),
             ], 404);
         }
     }
@@ -194,7 +196,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve featured products',
+                'message' => __('product.featured_fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -225,7 +227,7 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to retrieve flash deals',
+                'message' => __('product.flash_deals_fetch_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }

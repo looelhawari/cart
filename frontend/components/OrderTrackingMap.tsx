@@ -2,7 +2,11 @@ import React, { useRef, useEffect, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, Text } from "react-native";
 import { WebView } from "react-native-webview";
 import Colors from "@/constants/Colors";
-import type { TrackingDriver, TrackingDelivery } from "@/services/api/trackingApi";
+import { useTranslation } from "@/i18n";
+import type {
+  TrackingDriver,
+  TrackingDelivery,
+} from "@/services/api/trackingApi";
 
 interface OrderTrackingMapProps {
   driver: TrackingDriver | null;
@@ -11,7 +15,12 @@ interface OrderTrackingMapProps {
   compact?: boolean;
 }
 
-export default function OrderTrackingMap({ driver, delivery, compact }: OrderTrackingMapProps) {
+export default function OrderTrackingMap({
+  driver,
+  delivery,
+  compact,
+}: OrderTrackingMapProps) {
+  const { t } = useTranslation();
   const webRef = useRef<WebView>(null);
   const [mapReady, setMapReady] = useState(false);
 
@@ -23,11 +32,11 @@ export default function OrderTrackingMap({ driver, delivery, compact }: OrderTra
       type: "UPDATE_MARKERS",
       driver: driver
         ? {
-          lat: driver.location.lat,
-          lng: driver.location.lng,
-          heading: driver.location.heading,
-          name: driver.name,
-        }
+            lat: driver.location.lat,
+            lng: driver.location.lng,
+            heading: driver.location.heading,
+            name: driver.name,
+          }
         : null,
       delivery: {
         lat: delivery.lat,
@@ -90,7 +99,7 @@ export default function OrderTrackingMap({ driver, delivery, compact }: OrderTra
         if (!deliveryMarker) {
           deliveryMarker = L.marker([data.delivery.lat, data.delivery.lng], { icon: deliveryIcon })
             .addTo(map)
-            .bindPopup('Delivery Location');
+            .bindPopup('${t.ui.deliveryLocation}');
         } else {
           deliveryMarker.setLatLng([data.delivery.lat, data.delivery.lng]);
         }
@@ -101,7 +110,7 @@ export default function OrderTrackingMap({ driver, delivery, compact }: OrderTra
         if (!driverMarker) {
           driverMarker = L.marker([data.driver.lat, data.driver.lng], { icon: driverIcon })
             .addTo(map)
-            .bindPopup(data.driver.name || 'Driver');
+            .bindPopup(data.driver.name || '${t.ui.driverLabel}');
         } else {
           driverMarker.setLatLng([data.driver.lat, data.driver.lng]);
         }
@@ -190,13 +199,13 @@ export default function OrderTrackingMap({ driver, delivery, compact }: OrderTra
             if (data.type === "MAP_READY") {
               setMapReady(true);
             }
-          } catch { }
+          } catch {}
         }}
       />
       {!mapReady && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color={Colors.primary900} />
-          <Text style={styles.loadingText}>Loading map...</Text>
+          <Text style={styles.loadingText}>{t.ui.loadingMap}</Text>
         </View>
       )}
     </View>

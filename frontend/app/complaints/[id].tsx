@@ -44,6 +44,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
+import { useTranslation } from "@/i18n";
 import Spacing from "@/constants/Spacing";
 import {
   getComplaint,
@@ -67,13 +68,13 @@ const formatTime = (date: string) => {
   });
 };
 
-const formatDate = (date: string) => {
+const formatDate = (date: string, t: any) => {
   const now = new Date();
   const then = new Date(date);
   const diffDays = Math.floor((now.getTime() - then.getTime()) / 86400000);
 
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
+  if (diffDays === 0) return t.complaints.today;
+  if (diffDays === 1) return t.complaints.yesterday;
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
@@ -177,10 +178,12 @@ const RatingModal = ({
   visible,
   onClose,
   onSubmit,
+  t,
 }: {
   visible: boolean;
   onClose: () => void;
   onSubmit: (rating: number, feedback: string) => void;
+  t: any;
 }) => {
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
@@ -191,7 +194,14 @@ const RatingModal = ({
     }
   };
 
-  const ratingLabels = ["", "Poor", "Fair", "Good", "Great", "Excellent"];
+  const ratingLabels = [
+    "",
+    t.complaints.ratingPoor,
+    t.complaints.ratingFair,
+    t.complaints.ratingGood,
+    t.complaints.ratingGreat,
+    t.complaints.ratingExcellent,
+  ];
 
   return (
     <Modal
@@ -212,10 +222,10 @@ const RatingModal = ({
             >
               <Sparkles size={28} color={Colors.accentYellow} />
             </LinearGradient>
-            <Text style={styles.ratingTitle}>Rate Your Experience</Text>
-            <Text style={styles.ratingSubtitle}>
-              How was your chat with our assistant?
+            <Text style={styles.ratingTitle}>
+              {t.complaints.rateExperience}
             </Text>
+            <Text style={styles.ratingSubtitle}>{t.complaints.howWasChat}</Text>
           </View>
 
           <View style={styles.starsContainer}>
@@ -252,7 +262,7 @@ const RatingModal = ({
           <View style={styles.feedbackWrapper}>
             <TextInput
               style={styles.feedbackInput}
-              placeholder="Any feedback? (optional)"
+              placeholder={t.complaints.feedbackOptional}
               placeholderTextColor={Colors.neutralMedium}
               value={feedback}
               onChangeText={setFeedback}
@@ -268,7 +278,9 @@ const RatingModal = ({
               onPress={onClose}
               activeOpacity={0.7}
             >
-              <Text style={styles.ratingBtnSecondaryText}>Skip</Text>
+              <Text style={styles.ratingBtnSecondaryText}>
+                {t.complaints.skip}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -289,7 +301,9 @@ const RatingModal = ({
                 end={{ x: 1, y: 0 }}
                 style={styles.ratingBtnGradient}
               >
-                <Text style={styles.ratingBtnPrimaryText}>Submit</Text>
+                <Text style={styles.ratingBtnPrimaryText}>
+                  {t.complaints.submit}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -304,9 +318,11 @@ const RatingModal = ({
 const MessageBubble = ({
   message,
   isLast,
+  t,
 }: {
   message: ComplaintMessage;
   isLast: boolean;
+  t: any;
 }) => {
   const isFromUser = !message.is_admin_reply && !message.is_bot_reply;
   const isBot = message.is_bot_reply;
@@ -354,7 +370,7 @@ const MessageBubble = ({
               ]}
             />
             <Text style={styles.senderLabel}>
-              {isBot ? "CART Assistant" : "Support Agent"}
+              {isBot ? t.complaints.cartAssistant : t.complaints.supportAgent}
             </Text>
           </View>
         )}
@@ -382,6 +398,7 @@ const MessageBubble = ({
 // ─── Main Screen ────────────────────────────────────────────────────────────
 
 export default function ComplaintChatScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const [complaint, setComplaint] = useState<ComplaintDetail | null>(null);
   const [message, setMessage] = useState("");
@@ -400,7 +417,7 @@ export default function ComplaintChatScreen() {
     try {
       const response = await getComplaint(Number(id));
       if (!response.success || !response.data?.complaint) {
-        throw new Error("Failed to load complaint");
+        throw new Error(t.ui.failedToLoadComplaint);
       }
       setComplaint(response.data.complaint);
     } catch (err: any) {
@@ -591,35 +608,35 @@ export default function ComplaintChatScreen() {
         return {
           color: Colors.accentOrange,
           bg: "#fff7ed",
-          label: "Open",
+          label: t.complaints.open,
           icon: "alert-circle-outline" as const,
         };
       case "in_progress":
         return {
           color: "#3b82f6",
           bg: "#eff6ff",
-          label: "In Progress",
+          label: t.complaints.inProgress,
           icon: "time-outline" as const,
         };
       case "awaiting_response":
         return {
           color: "#8b5cf6",
           bg: "#f5f3ff",
-          label: "Awaiting Response",
+          label: t.complaints.awaitingResponse,
           icon: "hourglass-outline" as const,
         };
       case "resolved":
         return {
           color: Colors.primary900,
           bg: Colors.primary100,
-          label: "Resolved",
+          label: t.complaints.resolved,
           icon: "checkmark-circle-outline" as const,
         };
       case "closed":
         return {
           color: Colors.neutralMedium,
           bg: Colors.neutralLight,
-          label: "Closed",
+          label: t.complaints.closed,
           icon: "lock-closed-outline" as const,
         };
       default:
@@ -678,7 +695,7 @@ export default function ComplaintChatScreen() {
               <View style={styles.ticketMetaItem}>
                 <Clock size={12} color={Colors.neutralMedium} />
                 <Text style={styles.ticketMetaText}>
-                  {formatDate(complaint.created_at)}
+                  {formatDate(complaint.created_at, t)}
                 </Text>
               </View>
               {isBotHandling && (
@@ -690,7 +707,7 @@ export default function ComplaintChatScreen() {
                 >
                   <Bot size={12} color="#8b5cf6" />
                   <Text style={[styles.handlerBadgeText, { color: "#8b5cf6" }]}>
-                    Smart Assistant
+                    {t.complaints.smartAssistant}
                   </Text>
                 </View>
               )}
@@ -703,7 +720,7 @@ export default function ComplaintChatScreen() {
                 >
                   <User size={12} color="#3b82f6" />
                   <Text style={[styles.handlerBadgeText, { color: "#3b82f6" }]}>
-                    Live Agent
+                    {t.complaints.liveAgent}
                   </Text>
                 </View>
               )}
@@ -718,14 +735,14 @@ export default function ComplaintChatScreen() {
             <View style={styles.quickActions}>
               <QuickAction
                 icon={Phone}
-                label="Talk to Agent"
+                label={t.complaints.talkToAgent}
                 onPress={handleEscalate}
                 color="#8b5cf6"
                 bgColor={"#8b5cf6" + "12"}
               />
               <QuickAction
                 icon={CheckCircle}
-                label="Issue Resolved"
+                label={t.complaints.issueResolved}
                 onPress={handleClose}
                 color={Colors.primary900}
                 bgColor={Colors.primary100}
@@ -739,7 +756,9 @@ export default function ComplaintChatScreen() {
           <View style={styles.dividerCenter}>
             <MessageCircle size={12} color={Colors.neutralMedium} />
             <Text style={styles.dividerText}>
-              {isBotHandling ? "Chat with Assistant" : "Chat with Support"}
+              {isBotHandling
+                ? t.complaints.chatWithAssistant
+                : t.complaints.chatWithSupport}
             </Text>
           </View>
           <View style={styles.dividerLine} />
@@ -758,6 +777,7 @@ export default function ComplaintChatScreen() {
     <MessageBubble
       message={item}
       isLast={index === (complaint?.messages?.length || 0) - 1}
+      t={t}
     />
   );
 
@@ -781,7 +801,9 @@ export default function ComplaintChatScreen() {
           <View style={styles.loadingIconBg}>
             <ActivityIndicator size="large" color={Colors.primary900} />
           </View>
-          <Text style={styles.loadingText}>Loading conversation...</Text>
+          <Text style={styles.loadingText}>
+            {t.complaints.loadingConversation}
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -794,9 +816,9 @@ export default function ComplaintChatScreen() {
           <View style={styles.errorIconBg}>
             <AlertCircle size={48} color={Colors.neutralGray} />
           </View>
-          <Text style={styles.errorTitle}>Ticket Not Found</Text>
+          <Text style={styles.errorTitle}>{t.complaints.ticketNotFound}</Text>
           <Text style={styles.errorSubtitle}>
-            This support ticket doesn&apos;t exist or was deleted.
+            {t.complaints.ticketNotFoundDesc}
           </Text>
           <TouchableOpacity
             style={styles.errorButton}
@@ -810,7 +832,7 @@ export default function ComplaintChatScreen() {
               style={styles.errorButtonGradient}
             >
               <ArrowLeft size={18} color={Colors.neutralWhite} />
-              <Text style={styles.errorButtonText}>Go Back</Text>
+              <Text style={styles.errorButtonText}>{t.complaints.goBack}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -854,11 +876,15 @@ export default function ComplaintChatScreen() {
             </View>
             <View>
               <Text style={styles.headerName}>
-                {isBotHandling ? "CART Assistant" : "Support Agent"}
+                {isBotHandling
+                  ? t.complaints.cartAssistant
+                  : t.complaints.supportAgent}
               </Text>
               <View style={styles.headerStatusRow}>
                 <View style={styles.connectionDot} />
-                <Text style={styles.headerStatusText}>Online</Text>
+                <Text style={styles.headerStatusText}>
+                  {t.complaints.online}
+                </Text>
               </View>
             </View>
           </View>
@@ -892,7 +918,7 @@ export default function ComplaintChatScreen() {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.textInput}
-                placeholder="Type your message..."
+                placeholder={t.complaints.typeYourMessage}
                 placeholderTextColor={Colors.neutralMedium}
                 value={message}
                 onChangeText={handleTyping}
@@ -936,7 +962,8 @@ export default function ComplaintChatScreen() {
                 />
               </View>
               <Text style={styles.closedBannerText}>
-                This ticket has been {complaint.status}
+                {t.complaints.ticketHasBeen}
+                {complaint.status}
               </Text>
             </View>
             {!complaint.bot_satisfaction_rating && complaint.bot_handled && (
@@ -946,7 +973,9 @@ export default function ComplaintChatScreen() {
                 activeOpacity={0.7}
               >
                 <Star size={14} color={Colors.accentYellow} />
-                <Text style={styles.rateBannerButtonText}>Rate</Text>
+                <Text style={styles.rateBannerButtonText}>
+                  {t.complaints.rate}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -957,6 +986,7 @@ export default function ComplaintChatScreen() {
         visible={showRating}
         onClose={() => setShowRating(false)}
         onSubmit={handleRateBot}
+        t={t}
       />
     </SafeAreaView>
   );

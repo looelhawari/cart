@@ -99,7 +99,7 @@ class NotificationController extends Controller
             Log::error('Failed to fetch notifications: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch notifications',
+                'message' => __('notification.fetch_failed'),
             ], 500);
         }
     }
@@ -142,7 +142,7 @@ class NotificationController extends Controller
             Log::error('Failed to get unread count: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get unread count',
+                'message' => __('notification.unread_count_failed'),
             ], 500);
         }
     }
@@ -167,7 +167,7 @@ class NotificationController extends Controller
                 if ($notification->user_id !== $user->id) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Notification not found',
+                        'message' => __('notification.not_found'),
                     ], 404);
                 }
 
@@ -179,14 +179,14 @@ class NotificationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Notification marked as read',
+                'message' => __('notification.marked_as_read'),
             ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to mark notification as read: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to mark notification as read',
+                'message' => __('notification.mark_read_failed'),
             ], 500);
         }
     }
@@ -235,14 +235,14 @@ class NotificationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'All notifications marked as read',
+                'message' => __('notification.all_marked_as_read'),
             ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to mark all notifications as read: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to mark all notifications as read',
+                'message' => __('notification.mark_all_read_failed'),
             ], 500);
         }
     }
@@ -332,7 +332,7 @@ class NotificationController extends Controller
             Log::error('Failed to get notification preferences: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get notification preferences',
+                'message' => __('notification.preferences_fetch_failed'),
             ], 500);
         }
     }
@@ -385,7 +385,7 @@ class NotificationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Notification preferences updated successfully',
+                'message' => __('notification.preferences_updated'),
                 'data' => [
                     // Global settings
                     'push_enabled' => $preferences->push_enabled,
@@ -424,7 +424,7 @@ class NotificationController extends Controller
             Log::error('Failed to update notification preferences: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update notification preferences',
+                'message' => __('notification.preferences_update_failed'),
             ], 500);
         }
     }
@@ -442,14 +442,14 @@ class NotificationController extends Controller
             if ($notification->is_broadcast) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot delete broadcast notifications',
+                    'message' => __('notification.cannot_delete_broadcast'),
                 ], 403);
             }
 
             if ($notification->user_id !== $user->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Notification not found',
+                    'message' => __('notification.not_found'),
                 ], 404);
             }
 
@@ -457,14 +457,14 @@ class NotificationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Notification deleted successfully',
+                'message' => __('notification.deleted'),
             ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to delete notification: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete notification',
+                'message' => __('notification.delete_failed'),
             ], 500);
         }
     }
@@ -487,7 +487,7 @@ class NotificationController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User not authenticated',
+                    'message' => __('notification.unauthenticated'),
                 ], 401);
             }
 
@@ -517,14 +517,14 @@ class NotificationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Push notification token saved successfully',
+                'message' => __('notification.token_saved'),
             ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to save push token: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to save notification token',
+                'message' => __('notification.token_save_failed'),
             ], 500);
         }
     }
@@ -547,7 +547,7 @@ class NotificationController extends Controller
             if (!$user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User not authenticated',
+                    'message' => __('notification.unauthenticated'),
                 ], 401);
             }
 
@@ -566,14 +566,14 @@ class NotificationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Push notification token removed successfully',
+                'message' => __('notification.token_removed'),
             ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to remove push token: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to remove notification token',
+                'message' => __('notification.token_remove_failed'),
             ], 500);
         }
     }

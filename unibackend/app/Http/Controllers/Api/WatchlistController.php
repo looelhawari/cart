@@ -66,7 +66,7 @@ class WatchlistController extends Controller
         if ($existing) {
             return response()->json([
                 'success' => false,
-                'message' => 'Product is already in your watchlist',
+                'message' => __('watchlist.already_in_watchlist'),
             ], 409);
         }
 
@@ -80,7 +80,7 @@ class WatchlistController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Product added to watchlist',
+            'message' => __('watchlist.added'),
             'data' => $watchlistItem,
         ], 201);
     }
@@ -105,7 +105,7 @@ class WatchlistController extends Controller
         if (!$watchlistItem) {
             return response()->json([
                 'success' => false,
-                'message' => 'Watchlist item not found',
+                'message' => __('watchlist.not_found'),
             ], 404);
         }
 
@@ -125,7 +125,7 @@ class WatchlistController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Watchlist item updated',
+            'message' => __('watchlist.updated'),
             'data' => $watchlistItem->fresh(),
         ]);
     }
@@ -144,7 +144,7 @@ class WatchlistController extends Controller
         if (!$watchlistItem) {
             return response()->json([
                 'success' => false,
-                'message' => 'Watchlist item not found',
+                'message' => __('watchlist.not_found'),
             ], 404);
         }
 
@@ -152,7 +152,7 @@ class WatchlistController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Product removed from watchlist',
+            'message' => __('watchlist.removed'),
         ]);
     }
 

@@ -17,7 +17,7 @@ class AdminStoreSettingsController extends Controller
     public function index()
     {
         $settings = StoreSetting::getAllGrouped();
-        
+
         // Also get flat list for easier frontend handling
         $flatSettings = StoreSetting::all()->map(function ($setting) {
             return [
@@ -37,7 +37,7 @@ class AdminStoreSettingsController extends Controller
             'data' => [
                 'grouped' => $settings,
                 'settings' => $flatSettings,
-                'store_name' => config('app.name', 'CART Hypermarket'),
+                'store_name' => config('app.name', 'CART'),
                 'currency' => 'EGP',
                 'timezone' => 'Africa/Cairo',
             ]
@@ -50,7 +50,7 @@ class AdminStoreSettingsController extends Controller
     public function getStoreStatus()
     {
         $status = StoreSetting::isStoreOpen();
-        
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -82,7 +82,7 @@ class AdminStoreSettingsController extends Controller
 
         StoreSetting::setValue('store_open_time', $validated['open_time']);
         StoreSetting::setValue('store_close_time', $validated['close_time']);
-        
+
         if (isset($validated['accept_orders_outside_hours'])) {
             StoreSetting::setValue('accept_orders_outside_hours', $validated['accept_orders_outside_hours']);
         }
@@ -110,7 +110,7 @@ class AdminStoreSettingsController extends Controller
         ]);
 
         StoreSetting::setValue('is_store_temporarily_closed', $validated['is_closed']);
-        
+
         if (isset($validated['reason_en'])) {
             StoreSetting::setValue('temporary_closure_reason_en', $validated['reason_en']);
         }
@@ -144,7 +144,7 @@ class AdminStoreSettingsController extends Controller
         ]);
 
         $setting = StoreSetting::where('key', $validated['key'])->first();
-        
+
         if (!$setting) {
             return response()->json([
                 'success' => false,
@@ -186,7 +186,7 @@ class AdminStoreSettingsController extends Controller
         ]);
 
         $updated = [];
-        
+
         DB::beginTransaction();
         try {
             foreach ($validated['settings'] as $item) {
@@ -198,12 +198,12 @@ class AdminStoreSettingsController extends Controller
                     } elseif ($setting->type === 'json') {
                         $value = is_array($value) ? json_encode($value) : $value;
                     }
-                    
+
                     $setting->update(['value' => (string) $value]);
                     $updated[] = $item['key'];
                 }
             }
-            
+
             DB::commit();
             StoreSetting::clearCache();
             \App\Http\Controllers\Api\StoreSettingsController::clearCache();
@@ -269,7 +269,7 @@ class AdminStoreSettingsController extends Controller
     public function deleteSetting($key)
     {
         $setting = StoreSetting::where('key', $key)->first();
-        
+
         if (!$setting) {
             return response()->json([
                 'success' => false,

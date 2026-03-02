@@ -11,7 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Image,
+  I18nManager,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useStore } from "@/store";
@@ -39,13 +39,16 @@ import {
   isBiometricLoginEnabled,
   getBiometricTypeName,
   BiometricType,
+  BiometricTypeNames,
 } from "@/services/biometricAuth";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, isRTL } = useTranslation();
   const { login, socialLogin } = useStore();
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
+
+  const biometricNames: BiometricTypeNames = t.login.biometricTypes;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -85,10 +88,7 @@ export default function LoginScreen() {
       const idToken = await signInWithGoogle();
 
       if (!idToken) {
-        Alert.alert(
-          t.common.error,
-          "Failed to get credentials from Google. Please try again.",
-        );
+        Alert.alert(t.common.error, t.ui.failedGoogleCredentials);
         return;
       }
 
@@ -106,15 +106,12 @@ export default function LoginScreen() {
       const message = error?.message || t.login.googleSignInFailed;
       // Handle specific backend error codes
       if (error?.error_code === "ACCOUNT_DEACTIVATED") {
-        Alert.alert(
-          t.common.error,
-          "Your account has been deactivated. Please contact support.",
-        );
+        Alert.alert(t.common.error, t.ui.accountDeactivated);
       } else if (error?.error_code === "SOCIAL_CONFLICT") {
         Alert.alert(t.common.error, message);
       } else if (error?.error_code === "TOKEN_EXPIRED") {
         // Token was cleared by a concurrent refresh — user needs to retry
-        Alert.alert(t.common.error, "Please try signing in again.");
+        Alert.alert(t.common.error, t.ui.trySignInAgain);
       } else {
         Alert.alert(t.common.error, message);
       }
@@ -136,7 +133,7 @@ export default function LoginScreen() {
       });
 
       if (!credential.identityToken) {
-        Alert.alert(t.common.error, "No identity token received from Apple");
+        Alert.alert(t.common.error, t.ui.noAppleIdentityToken);
         return;
       }
 
@@ -188,11 +185,11 @@ export default function LoginScreen() {
         Alert.alert(
           t.login.enableBiometric.replace(
             "{type}",
-            getBiometricTypeName(biometricSupport.type),
+            getBiometricTypeName(biometricSupport.type, biometricNames),
           ),
           t.login.wouldYouLikeBiometric.replace(
             "{type}",
-            getBiometricTypeName(biometricSupport.type),
+            getBiometricTypeName(biometricSupport.type, biometricNames),
           ),
           [
             {
@@ -205,7 +202,10 @@ export default function LoginScreen() {
                     t.common.success,
                     t.login.biometricEnabled.replace(
                       "{type}",
-                      getBiometricTypeName(biometricSupport.type),
+                      getBiometricTypeName(
+                        biometricSupport.type,
+                        biometricNames,
+                      ),
                     ),
                   );
                 } catch (error: any) {
@@ -328,12 +328,14 @@ export default function LoginScreen() {
       color: Colors.neutralCharcoal,
     },
     passwordInput: {
-      paddingRight: Spacing.xxl,
+      paddingRight: isRTL ? undefined : Spacing.xxl,
+      paddingLeft: isRTL ? Spacing.xxl : undefined,
     },
     eyeIcon: {
       padding: Spacing.xs,
-      position: "absolute",
-      right: Spacing.sm,
+      position: "absolute" as const,
+      right: isRTL ? undefined : Spacing.sm,
+      left: isRTL ? Spacing.sm : undefined,
     },
     optionsRow: {
       flexDirection: "row",
@@ -607,7 +609,7 @@ export default function LoginScreen() {
                 <Text style={styles.biometricButtonText}>
                   {t.login.loginWithBiometric.replace(
                     "{type}",
-                    getBiometricTypeName(biometricSupport.type),
+                    getBiometricTypeName(biometricSupport.type, biometricNames),
                   )}
                 </Text>
               </TouchableOpacity>
@@ -742,12 +744,14 @@ const styles = StyleSheet.create({
     color: Colors.neutralCharcoal,
   },
   passwordInput: {
-    paddingRight: Spacing.xxl,
+    paddingRight: I18nManager.isRTL ? undefined : Spacing.xxl,
+    paddingLeft: I18nManager.isRTL ? Spacing.xxl : undefined,
   },
   eyeIcon: {
     padding: Spacing.xs,
     position: "absolute",
-    right: Spacing.sm,
+    right: I18nManager.isRTL ? undefined : Spacing.sm,
+    left: I18nManager.isRTL ? Spacing.sm : undefined,
   },
   optionsRow: {
     flexDirection: "row",

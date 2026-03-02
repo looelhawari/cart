@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Modal,
   View,
@@ -6,12 +6,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import Colors from '@/constants/Colors';
-import Typography from '@/constants/Typography';
-import Spacing from '@/constants/Spacing';
-import { X, ShoppingBag, Heart, Package } from 'lucide-react-native';
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useTranslation } from "@/i18n";
+import Colors from "@/constants/Colors";
+import Typography from "@/constants/Typography";
+import Spacing from "@/constants/Spacing";
+import { X, ShoppingBag, Heart, Package } from "lucide-react-native";
 
 interface GuestModalProps {
   visible: boolean;
@@ -19,17 +20,18 @@ interface GuestModalProps {
   message?: string;
 }
 
-export function GuestModal({ visible, onClose, message = 'Sign in to continue' }: GuestModalProps) {
+export function GuestModal({ visible, onClose, message }: GuestModalProps) {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const handleSignIn = () => {
     onClose();
-    router.push('/(auth)/login');
+    router.push("/(auth)/login");
   };
 
   const handleSignUp = () => {
     onClose();
-    router.push('/(auth)/signup');
+    router.push("/(auth)/signup");
   };
 
   return (
@@ -51,23 +53,23 @@ export function GuestModal({ visible, onClose, message = 'Sign in to continue' }
             </View>
           </View>
 
-          <Text style={styles.title}>{message}</Text>
+          <Text style={styles.title}>{message || t.ui.signInRequired}</Text>
           <Text style={styles.description}>
-            Create an account or sign in to enjoy these benefits:
+            {t.guest.signInBenefitsDescription}
           </Text>
 
           <View style={styles.benefits}>
             <View style={styles.benefitRow}>
               <Heart size={20} color={Colors.primary900} />
-              <Text style={styles.benefitText}>Save your favorites</Text>
+              <Text style={styles.benefitText}>{t.guest.saveFavorites}</Text>
             </View>
             <View style={styles.benefitRow}>
               <Package size={20} color={Colors.primary900} />
-              <Text style={styles.benefitText}>Track your orders</Text>
+              <Text style={styles.benefitText}>{t.guest.trackOrders}</Text>
             </View>
             <View style={styles.benefitRow}>
               <ShoppingBag size={20} color={Colors.primary900} />
-              <Text style={styles.benefitText}>Faster checkout</Text>
+              <Text style={styles.benefitText}>{t.guest.fasterCheckout}</Text>
             </View>
           </View>
 
@@ -76,7 +78,7 @@ export function GuestModal({ visible, onClose, message = 'Sign in to continue' }
             onPress={handleSignIn}
             activeOpacity={0.8}
           >
-            <Text style={styles.signInButtonText}>Sign In</Text>
+            <Text style={styles.signInButtonText}>{t.guest.signIn}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -84,11 +86,11 @@ export function GuestModal({ visible, onClose, message = 'Sign in to continue' }
             onPress={handleSignUp}
             activeOpacity={0.8}
           >
-            <Text style={styles.signUpButtonText}>Create Account</Text>
+            <Text style={styles.signUpButtonText}>{t.guest.createAccount}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>Continue as Guest</Text>
+            <Text style={styles.cancelText}>{t.guest.continueAsGuest}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -99,32 +101,32 @@ export function GuestModal({ visible, onClose, message = 'Sign in to continue' }
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: Spacing.lg,
   },
   content: {
     backgroundColor: Colors.neutralWhite,
     borderRadius: 24,
     padding: Spacing.lg,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: Spacing.md,
     right: Spacing.md,
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.neutralCloud,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 1,
   },
   iconContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.lg,
     marginTop: Spacing.md,
   },
@@ -133,21 +135,21 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: `${Colors.primary900}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: Typography.h3,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
     color: Colors.neutralCharcoal,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.sm,
   },
   description: {
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
     color: Colors.neutralMedium,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: Spacing.lg,
     lineHeight: 22,
   },
@@ -156,36 +158,36 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   benefitText: {
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
     color: Colors.neutralCharcoal,
   },
   signInButton: {
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 52,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginBottom: Spacing.sm,
   },
   signInButtonText: {
     color: Colors.neutralWhite,
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
   },
   signUpButton: {
     backgroundColor: Colors.neutralWhite,
     paddingVertical: Spacing.md,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 52,
-    justifyContent: 'center',
+    justifyContent: "center",
     borderWidth: 2,
     borderColor: Colors.neutralGray,
     marginBottom: Spacing.md,
@@ -193,15 +195,15 @@ const styles = StyleSheet.create({
   signUpButtonText: {
     color: Colors.neutralCharcoal,
     fontSize: Typography.bodyBase,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: "Poppins_600SemiBold",
   },
   cancelButton: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: Spacing.sm,
   },
   cancelText: {
     fontSize: Typography.bodyMedium,
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: "Poppins_500Medium",
     color: Colors.neutralMedium,
   },
 });

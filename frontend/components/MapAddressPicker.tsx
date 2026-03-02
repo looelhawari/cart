@@ -1,37 +1,40 @@
 ﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ActivityIndicator,
-    Alert,
-    Platform,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 // @ts-ignore — lucide-react-native types not resolved under bundler moduleResolution
 import { MapPin, Navigation, X, Check } from "lucide-react-native";
 import Colors from "@/constants/Colors";
-import { deliveryZoneApi, type CoverageResult } from "@/services/api/deliveryZoneApi";
+import {
+  deliveryZoneApi,
+  type CoverageResult,
+} from "@/services/api/deliveryZoneApi";
 import { useTranslation } from "@/i18n";
 
 interface MapAddressPickerProps {
-    initialLatitude?: number;
-    initialLongitude?: number;
-    onLocationSelected: (location: {
-        latitude: number;
-        longitude: number;
-        formattedAddress: string;
-        placeId: string;
-        zone: CoverageResult["zone"] | null;
-        addressComponents?: {
-            street: string;
-            city: string;
-            area: string;
-        };
-    }) => void;
-    onClose: () => void;
+  initialLatitude?: number;
+  initialLongitude?: number;
+  onLocationSelected: (location: {
+    latitude: number;
+    longitude: number;
+    formattedAddress: string;
+    placeId: string;
+    zone: CoverageResult["zone"] | null;
+    addressComponents?: {
+      street: string;
+      city: string;
+      area: string;
+    };
+  }) => void;
+  onClose: () => void;
 }
 
 // Default center: Cairo
@@ -42,169 +45,171 @@ const DEFAULT_LNG = 31.2357;
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org";
 
 export default function MapAddressPicker({
-    initialLatitude,
-    initialLongitude,
-    onLocationSelected,
-    onClose,
+  initialLatitude,
+  initialLongitude,
+  onLocationSelected,
+  onClose,
 }: MapAddressPickerProps) {
-    const { t } = useTranslation();
-    const webViewRef = useRef<WebView>(null);
-    const [loading, setLoading] = useState(true);
-    const [gpsLoading, setGpsLoading] = useState(false);
-    const [checkingZone, setCheckingZone] = useState(false);
-    const [selectedLocation, setSelectedLocation] = useState<{
-        lat: number;
-        lng: number;
-    } | null>(
-        initialLatitude && initialLongitude
-            ? { lat: initialLatitude, lng: initialLongitude }
-            : null
-    );
-    const [address, setAddress] = useState<string>("");
-    const [placeId, setPlaceId] = useState<string>("");
-    const [addressComponents, setAddressComponents] = useState<any>(null);
-    const [zoneInfo, setZoneInfo] = useState<CoverageResult["zone"] | null>(null);
-    const [isInZone, setIsInZone] = useState<boolean | null>(null);
+  const { t } = useTranslation();
+  const webViewRef = useRef<WebView>(null);
+  const [loading, setLoading] = useState(true);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [checkingZone, setCheckingZone] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(
+    initialLatitude && initialLongitude
+      ? { lat: initialLatitude, lng: initialLongitude }
+      : null,
+  );
+  const [address, setAddress] = useState<string>("");
+  const [placeId, setPlaceId] = useState<string>("");
+  const [addressComponents, setAddressComponents] = useState<any>(null);
+  const [zoneInfo, setZoneInfo] = useState<CoverageResult["zone"] | null>(null);
+  const [isInZone, setIsInZone] = useState<boolean | null>(null);
 
-    // Counter to track zone check requests — ignore stale responses
-    const zoneRequestId = useRef(0);
+  // Counter to track zone check requests — ignore stale responses
+  const zoneRequestId = useRef(0);
 
-    // Get user's current location
-    const getCurrentLocation = useCallback(async () => {
-        try {
-            setGpsLoading(true);
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert(
-                    t?.common?.error || "Error",
-                    t?.addresses?.locationPermissionDenied || "Location permission denied. Please enable it in settings."
-                );
-                return;
-            }
+  // Get user's current location
+  const getCurrentLocation = useCallback(async () => {
+    try {
+      setGpsLoading(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          t?.common?.error || "Error",
+          t?.addresses?.locationPermissionDenied ||
+            "Location permission denied. Please enable it in settings.",
+        );
+        return;
+      }
 
-            const location = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.High,
-            });
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
 
-            const { latitude, longitude } = location.coords;
-            setSelectedLocation({ lat: latitude, lng: longitude });
+      const { latitude, longitude } = location.coords;
+      setSelectedLocation({ lat: latitude, lng: longitude });
 
-            // Move map to GPS location
-            webViewRef.current?.injectJavaScript(`
+      // Move map to GPS location
+      webViewRef.current?.injectJavaScript(`
         moveToLocation(${latitude}, ${longitude});
         true;
       `);
-        } catch (error) {
-            Alert.alert(
-                t?.common?.error || "Error",
-                "Failed to get current location"
-            );
-        } finally {
-            setGpsLoading(false);
-        }
-    }, []);
+    } catch (error) {
+      Alert.alert(
+        t?.common?.error || "Error",
+        t?.ui?.failedToGetLocation || "Failed to get current location",
+      );
+    } finally {
+      setGpsLoading(false);
+    }
+  }, []);
 
-    // Debounce timer for zone check
-    const zoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Debounce timer for zone check
+  const zoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Check zone coverage when location settles (debounced)
-    useEffect(() => {
-        if (!selectedLocation) return;
+  // Check zone coverage when location settles (debounced)
+  useEffect(() => {
+    if (!selectedLocation) return;
 
-        // Immediately clear stale zone status so user sees "checking" not old result
+    // Immediately clear stale zone status so user sees "checking" not old result
+    setZoneInfo(null);
+    setIsInZone(null);
+    setCheckingZone(true);
+
+    // Increment request ID — any older in-flight response will be ignored
+    const currentRequestId = ++zoneRequestId.current;
+
+    // Clear any pending zone check timer
+    if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
+
+    // Wait 800ms after last location change before checking zone
+    zoneCheckTimer.current = setTimeout(async () => {
+      try {
+        const response = await deliveryZoneApi.checkCoverage(
+          selectedLocation.lat,
+          selectedLocation.lng,
+        );
+
+        // Only apply result if this is still the latest request
+        if (currentRequestId !== zoneRequestId.current) return;
+
+        const data = response.data || response;
+        setZoneInfo(data.zone);
+        setIsInZone(data.is_covered ?? data.covered ?? false);
+      } catch (error) {
+        // Only apply if still the latest request
+        if (currentRequestId !== zoneRequestId.current) return;
         setZoneInfo(null);
         setIsInZone(null);
-        setCheckingZone(true);
-
-        // Increment request ID — any older in-flight response will be ignored
-        const currentRequestId = ++zoneRequestId.current;
-
-        // Clear any pending zone check timer
-        if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
-
-        // Wait 800ms after last location change before checking zone
-        zoneCheckTimer.current = setTimeout(async () => {
-            try {
-                const response = await deliveryZoneApi.checkCoverage(
-                    selectedLocation.lat,
-                    selectedLocation.lng
-                );
-
-                // Only apply result if this is still the latest request
-                if (currentRequestId !== zoneRequestId.current) return;
-
-                const data = response.data || response;
-                setZoneInfo(data.zone);
-                setIsInZone(data.is_covered ?? data.covered ?? false);
-            } catch (error) {
-                // Only apply if still the latest request
-                if (currentRequestId !== zoneRequestId.current) return;
-                setZoneInfo(null);
-                setIsInZone(null);
-            } finally {
-                if (currentRequestId === zoneRequestId.current) {
-                    setCheckingZone(false);
-                }
-            }
-        }, 800);
-
-        return () => {
-            if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
-        };
-    }, [selectedLocation]);
-
-    // Handle messages from WebView
-    const onWebViewMessage = useCallback((event: any) => {
-        try {
-            const data = JSON.parse(event.nativeEvent.data);
-
-            if (data.type === "mapReady") {
-                setLoading(false);
-            } else if (data.type === "locationSelected") {
-                setSelectedLocation({ lat: data.lat, lng: data.lng });
-                setAddress(data.address || "");
-                setPlaceId(data.placeId || "");
-                if (data.addressComponents) {
-                    setAddressComponents(data.addressComponents);
-                }
-            } else if (data.type === "markerDragged") {
-                setSelectedLocation({ lat: data.lat, lng: data.lng });
-                setAddress(data.address || "");
-                setPlaceId(data.placeId || "");
-                if (data.addressComponents) {
-                    setAddressComponents(data.addressComponents);
-                }
-            }
-        } catch (e) {
-            // Ignore malformed messages
+      } finally {
+        if (currentRequestId === zoneRequestId.current) {
+          setCheckingZone(false);
         }
-    }, []);
+      }
+    }, 800);
 
-    const handleConfirm = () => {
-        if (!selectedLocation) {
-            Alert.alert(
-                t?.common?.error || "Error",
-                t?.addresses?.pleaseSelectLocation || "Please select a location on the map"
-            );
-            return;
-        }
-
-        onLocationSelected({
-            latitude: selectedLocation.lat,
-            longitude: selectedLocation.lng,
-            formattedAddress: address,
-            placeId: placeId,
-            zone: zoneInfo,
-            addressComponents: addressComponents,
-        });
+    return () => {
+      if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
     };
+  }, [selectedLocation]);
 
-    const initLat = initialLatitude || DEFAULT_LAT;
-    const initLng = initialLongitude || DEFAULT_LNG;
-    const initZoom = initialLatitude ? 16 : 12;
+  // Handle messages from WebView
+  const onWebViewMessage = useCallback((event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
 
-    // ── Leaflet + OpenStreetMap + Nominatim WebView HTML ─────────────────
-    const mapHtml = `
+      if (data.type === "mapReady") {
+        setLoading(false);
+      } else if (data.type === "locationSelected") {
+        setSelectedLocation({ lat: data.lat, lng: data.lng });
+        setAddress(data.address || "");
+        setPlaceId(data.placeId || "");
+        if (data.addressComponents) {
+          setAddressComponents(data.addressComponents);
+        }
+      } else if (data.type === "markerDragged") {
+        setSelectedLocation({ lat: data.lat, lng: data.lng });
+        setAddress(data.address || "");
+        setPlaceId(data.placeId || "");
+        if (data.addressComponents) {
+          setAddressComponents(data.addressComponents);
+        }
+      }
+    } catch (e) {
+      // Ignore malformed messages
+    }
+  }, []);
+
+  const handleConfirm = () => {
+    if (!selectedLocation) {
+      Alert.alert(
+        t?.common?.error || "Error",
+        t?.addresses?.pleaseSelectLocation ||
+          "Please select a location on the map",
+      );
+      return;
+    }
+
+    onLocationSelected({
+      latitude: selectedLocation.lat,
+      longitude: selectedLocation.lng,
+      formattedAddress: address,
+      placeId: placeId,
+      zone: zoneInfo,
+      addressComponents: addressComponents,
+    });
+  };
+
+  const initLat = initialLatitude || DEFAULT_LAT;
+  const initLng = initialLongitude || DEFAULT_LNG;
+  const initZoom = initialLatitude ? 16 : 12;
+
+  // ── Leaflet + OpenStreetMap + Nominatim WebView HTML ─────────────────
+  const mapHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -249,7 +254,7 @@ export default function MapAddressPicker({
   <div id="map"></div>
   <div class="center-pin">📍</div>
   <div class="search-box">
-    <input id="searchInput" type="text" placeholder="Search address..." autocomplete="off" />
+    <input id="searchInput" type="text" placeholder="${t?.ui?.searchAddress || "Search address..."}" autocomplete="off" />
     <div id="searchResults" class="search-results"></div>
   </div>
 
@@ -340,7 +345,7 @@ export default function MapAddressPicker({
     // Signal ready
     map.whenReady(function() {
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady' }));
-      ${initialLatitude ? `reverseGeocode(${initLat}, ${initLng});` : ''}
+      ${initialLatitude ? `reverseGeocode(${initLat}, ${initLng});` : ""}
     });
 
     function moveToLocation(lat, lng) {
@@ -408,265 +413,277 @@ export default function MapAddressPicker({
 </html>
   `;
 
-    return (
-        <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={onClose} style={styles.headerButton}>
-                    <X size={20} color={Colors.neutralCharcoal} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>
-                    {t?.addresses?.pickLocation || "Pick Location"}
-                </Text>
-                <TouchableOpacity
-                    onPress={getCurrentLocation}
-                    style={styles.headerButton}
-                    disabled={gpsLoading}
-                >
-                    {gpsLoading ? (
-                        <ActivityIndicator size="small" color={Colors.primary900} />
-                    ) : (
-                        <Navigation size={20} color={Colors.primary900} />
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.headerButton}>
+          <X size={20} color={Colors.neutralCharcoal} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {t?.addresses?.pickLocation || "Pick Location"}
+        </Text>
+        <TouchableOpacity
+          onPress={getCurrentLocation}
+          style={styles.headerButton}
+          disabled={gpsLoading}
+        >
+          {gpsLoading ? (
+            <ActivityIndicator size="small" color={Colors.primary900} />
+          ) : (
+            <Navigation size={20} color={Colors.primary900} />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Map */}
+      <View style={styles.mapContainer}>
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={Colors.primary900} />
+            <Text style={styles.loadingText}>
+              {t?.ui?.loadingMap || "Loading map..."}
+            </Text>
+          </View>
+        )}
+        <WebView
+          ref={webViewRef}
+          source={{ html: mapHtml }}
+          style={styles.webView}
+          onMessage={onWebViewMessage}
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState={false}
+          originWhitelist={["*"]}
+          mixedContentMode="always"
+        />
+      </View>
+
+      {/* Bottom Panel */}
+      <View style={styles.bottomPanel}>
+        {/* Address Display */}
+        {address ? (
+          <View style={styles.addressRow}>
+            <MapPin size={16} color={Colors.primary900} />
+            <Text style={styles.addressText} numberOfLines={2}>
+              {address}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.addressRow}>
+            <MapPin size={16} color={Colors.neutralGray} />
+            <Text style={styles.addressPlaceholder}>
+              {t?.addresses?.moveMapToSelect ||
+                "Move the map to select a location"}
+            </Text>
+          </View>
+        )}
+
+        {/* Zone Status */}
+        {checkingZone ? (
+          <View style={styles.zoneRow}>
+            <ActivityIndicator size="small" color={Colors.primary900} />
+            <Text style={styles.zoneChecking}>
+              {t?.ui?.checkingDeliveryZone || "Checking delivery zone..."}
+            </Text>
+          </View>
+        ) : isInZone !== null ? (
+          <View style={isInZone ? styles.zoneOk : styles.zoneNotOk}>
+            {isInZone ? (
+              <>
+                <View style={styles.zoneRow}>
+                  <Check size={14} color="#16a34a" />
+                  <Text style={styles.zoneOkText}>
+                    {(zoneInfo as any)?.zone_name ||
+                      zoneInfo?.name ||
+                      t.ui.deliveryZone}{" "}
+                    {t.ui.deliveryFeeAmount.replace(
+                      "{amount}",
+                      String(zoneInfo?.delivery_fee || 0),
                     )}
-                </TouchableOpacity>
-            </View>
-
-            {/* Map */}
-            <View style={styles.mapContainer}>
-                {loading && (
-                    <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="large" color={Colors.primary900} />
-                        <Text style={styles.loadingText}>Loading map...</Text>
-                    </View>
+                  </Text>
+                </View>
+                {(zoneInfo?.estimated_delivery_time ||
+                  zoneInfo?.distance_from_center_km) && (
+                  <View style={styles.zoneDetailsRow}>
+                    {zoneInfo?.estimated_delivery_time && (
+                      <Text style={styles.zoneDetailText}>
+                        🕐 {zoneInfo.estimated_delivery_time}
+                      </Text>
+                    )}
+                    {zoneInfo?.distance_from_center_km && (
+                      <Text style={styles.zoneDetailText}>
+                        📍 {zoneInfo.distance_from_center_km.toFixed(1)} km away
+                      </Text>
+                    )}
+                  </View>
                 )}
-                <WebView
-                    ref={webViewRef}
-                    source={{ html: mapHtml }}
-                    style={styles.webView}
-                    onMessage={onWebViewMessage}
-                    javaScriptEnabled
-                    domStorageEnabled
-                    startInLoadingState={false}
-                    originWhitelist={["*"]}
-                    mixedContentMode="always"
-                />
-            </View>
+              </>
+            ) : (
+              <View style={styles.zoneRow}>
+                <X size={14} color="#dc2626" />
+                <Text style={styles.zoneNotOkText}>
+                  {t?.addresses?.outsideDeliveryZone || "Outside delivery area"}
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : null}
 
-            {/* Bottom Panel */}
-            <View style={styles.bottomPanel}>
-                {/* Address Display */}
-                {address ? (
-                    <View style={styles.addressRow}>
-                        <MapPin size={16} color={Colors.primary900} />
-                        <Text style={styles.addressText} numberOfLines={2}>
-                            {address}
-                        </Text>
-                    </View>
-                ) : (
-                    <View style={styles.addressRow}>
-                        <MapPin size={16} color={Colors.neutralGray} />
-                        <Text style={styles.addressPlaceholder}>
-                            {t?.addresses?.moveMapToSelect || "Move the map to select a location"}
-                        </Text>
-                    </View>
-                )}
-
-                {/* Zone Status */}
-                {checkingZone ? (
-                    <View style={styles.zoneRow}>
-                        <ActivityIndicator size="small" color={Colors.primary900} />
-                        <Text style={styles.zoneChecking}>Checking delivery zone...</Text>
-                    </View>
-                ) : isInZone !== null ? (
-                    <View style={isInZone ? styles.zoneOk : styles.zoneNotOk}>
-                        {isInZone ? (
-                            <>
-                                <View style={styles.zoneRow}>
-                                    <Check size={14} color="#16a34a" />
-                                    <Text style={styles.zoneOkText}>
-                                        {(zoneInfo as any)?.zone_name || zoneInfo?.name || "Delivery zone"} — EGP {zoneInfo?.delivery_fee || 0} delivery fee
-                                    </Text>
-                                </View>
-                                {(zoneInfo?.estimated_delivery_time || zoneInfo?.distance_from_center_km) && (
-                                    <View style={styles.zoneDetailsRow}>
-                                        {zoneInfo?.estimated_delivery_time && (
-                                            <Text style={styles.zoneDetailText}>
-                                                🕐 {zoneInfo.estimated_delivery_time}
-                                            </Text>
-                                        )}
-                                        {zoneInfo?.distance_from_center_km && (
-                                            <Text style={styles.zoneDetailText}>
-                                                📍 {zoneInfo.distance_from_center_km.toFixed(1)} km away
-                                            </Text>
-                                        )}
-                                    </View>
-                                )}
-                            </>
-                        ) : (
-                            <View style={styles.zoneRow}>
-                                <X size={14} color="#dc2626" />
-                                <Text style={styles.zoneNotOkText}>
-                                    {t?.addresses?.outsideDeliveryZone || "Outside delivery area"}
-                                </Text>
-                            </View>
-                        )}
-                    </View>
-                ) : null}
-
-                {/* Confirm Button */}
-                <TouchableOpacity
-                    style={[
-                        styles.confirmButton,
-                        (!selectedLocation) && styles.confirmButtonDisabled,
-                    ]}
-                    onPress={handleConfirm}
-                    disabled={!selectedLocation}
-                    activeOpacity={0.8}
-                >
-                    <Check size={18} color="#fff" />
-                    <Text style={styles.confirmButtonText}>
-                        {t?.addresses?.confirmLocation || "Confirm Location"}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
+        {/* Confirm Button */}
+        <TouchableOpacity
+          style={[
+            styles.confirmButton,
+            !selectedLocation && styles.confirmButtonDisabled,
+          ]}
+          onPress={handleConfirm}
+          disabled={!selectedLocation}
+          activeOpacity={0.8}
+        >
+          <Check size={18} color="#fff" />
+          <Text style={styles.confirmButtonText}>
+            {t?.addresses?.confirmLocation || "Confirm Location"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#fff",
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: "#eee",
-        backgroundColor: "#fff",
-    },
-    headerButton: {
-        width: 40,
-        height: 40,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 20,
-        backgroundColor: "#f5f5f5",
-    },
-    headerTitle: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: Colors.neutralCharcoal,
-    },
-    mapContainer: {
-        flex: 1,
-        position: "relative",
-    },
-    webView: {
-        flex: 1,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: "#f9f9f9",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10,
-    },
-    loadingText: {
-        marginTop: 8,
-        fontSize: 14,
-        color: Colors.neutralGray,
-    },
-    bottomPanel: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderTopWidth: 1,
-        borderTopColor: "#eee",
-        backgroundColor: "#fff",
-        gap: 8,
-    },
-    addressRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-    },
-    addressText: {
-        flex: 1,
-        fontSize: 13,
-        color: Colors.neutralCharcoal,
-        lineHeight: 18,
-    },
-    addressPlaceholder: {
-        flex: 1,
-        fontSize: 13,
-        color: Colors.neutralGray,
-        fontStyle: "italic",
-    },
-    zoneRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-        borderRadius: 6,
-    },
-    zoneChecking: {
-        fontSize: 12,
-        color: Colors.neutralGray,
-    },
-    zoneOk: {
-        backgroundColor: "#f0fdf4",
-        borderRadius: 6,
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-    },
-    zoneOkText: {
-        fontSize: 12,
-        color: "#16a34a",
-        fontWeight: "500",
-    },
-    zoneDetailsRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        paddingTop: 4,
-        marginLeft: 20,
-    },
-    zoneDetailText: {
-        fontSize: 11,
-        color: "#16a34a",
-        fontWeight: "400",
-    },
-    zoneNotOk: {
-        backgroundColor: "#fef2f2",
-        borderRadius: 6,
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-    },
-    zoneNotOkText: {
-        fontSize: 12,
-        color: "#dc2626",
-        fontWeight: "500",
-    },
-    confirmButton: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: Colors.primary900,
-        paddingVertical: 14,
-        borderRadius: 12,
-        marginTop: 4,
-    },
-    confirmButtonDisabled: {
-        opacity: 0.5,
-    },
-    confirmButtonText: {
-        color: "#fff",
-        fontSize: 15,
-        fontWeight: "600",
-    },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#fff",
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "#f5f5f5",
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Colors.neutralCharcoal,
+  },
+  mapContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  webView: {
+    flex: 1,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#f9f9f9",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.neutralGray,
+  },
+  bottomPanel: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    backgroundColor: "#fff",
+    gap: 8,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.neutralCharcoal,
+    lineHeight: 18,
+  },
+  addressPlaceholder: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.neutralGray,
+    fontStyle: "italic",
+  },
+  zoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  zoneChecking: {
+    fontSize: 12,
+    color: Colors.neutralGray,
+  },
+  zoneOk: {
+    backgroundColor: "#f0fdf4",
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  zoneOkText: {
+    fontSize: 12,
+    color: "#16a34a",
+    fontWeight: "500",
+  },
+  zoneDetailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 4,
+    marginLeft: 20,
+  },
+  zoneDetailText: {
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: "400",
+  },
+  zoneNotOk: {
+    backgroundColor: "#fef2f2",
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  zoneNotOkText: {
+    fontSize: 12,
+    color: "#dc2626",
+    fontWeight: "500",
+  },
+  confirmButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.primary900,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.5,
+  },
+  confirmButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });

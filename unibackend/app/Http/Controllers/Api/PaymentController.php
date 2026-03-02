@@ -62,7 +62,7 @@ class PaymentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('payment.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -131,7 +131,7 @@ class PaymentController extends Controller
                     'currency' => 'EGP',
                     'expires_at' => now()->addMinutes(30)->toIso8601String(),
                 ],
-                'message' => 'Payment pre-check successful. Proceed to order summary.',
+                'message' => __('payment.pre_check_successful'),
             ]);
 
         } catch (Exception $e) {
@@ -143,7 +143,7 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Payment service temporarily unavailable. Please try again or choose Cash on Delivery.',
+                'message' => __('payment.service_unavailable'),
                 'error' => config('app.debug') ? $e->getMessage() : null,
             ], 503);
         }
@@ -180,7 +180,7 @@ class PaymentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('payment.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -195,7 +195,7 @@ class PaymentController extends Controller
             if ($order->user_id !== auth()->id()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized: Order does not belong to you',
+                    'message' => __('payment.unauthorized_order'),
                 ], 403);
             }
 
@@ -207,7 +207,7 @@ class PaymentController extends Controller
             if ($existingPayment) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Order already paid',
+                    'message' => __('payment.already_paid'),
                 ], 400);
             }
 
@@ -357,7 +357,7 @@ class PaymentController extends Controller
                         'payment_id' => $result['payment_id'],
                         'flow' => 'moto',
                         'status' => 'processing',
-                        'message' => 'Payment processing with saved card',
+                        'message' => __('payment.processing_saved_card'),
                         'amount' => $order->total,
                         'currency' => 'EGP',
                     ],
@@ -374,7 +374,7 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to initiate payment. Please try again.',
+                'message' => __('payment.initiate_failed'),
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -784,7 +784,7 @@ class PaymentController extends Controller
         // Just return status for frontend to display
         return response()->json([
             'success' => $success,
-            'message' => $success ? 'Payment successful' : 'Payment failed',
+            'message' => $success ? __('payment.successful') : __('payment.failed'),
             'order_id' => $orderId,
         ]);
     }
@@ -806,7 +806,7 @@ class PaymentController extends Controller
             if (!$payment) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No payment found for this order',
+                    'message' => __('payment.not_found_for_order'),
                 ], 404);
             }
 
@@ -835,7 +835,7 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get payment status',
+                'message' => __('payment.status_fetch_failed'),
             ], 500);
         }
     }
@@ -867,7 +867,7 @@ class PaymentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('payment.validation_failed'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -881,7 +881,7 @@ class PaymentController extends Controller
             if ($order->user_id !== auth()->id()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized access to order',
+                    'message' => __('payment.unauthorized_access'),
                 ], 403);
             }
 
@@ -893,7 +893,7 @@ class PaymentController extends Controller
             if ($existingPayment) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Order already paid',
+                    'message' => __('payment.already_paid'),
                 ], 400);
             }
 
@@ -904,7 +904,7 @@ class PaymentController extends Controller
             if ($paymentMethod->user_id !== auth()->id()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized access to payment method',
+                    'message' => __('payment.unauthorized_payment_method'),
                 ], 403);
             }
 
@@ -912,21 +912,21 @@ class PaymentController extends Controller
             if ($paymentMethod->trashed()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Payment method has been deleted',
+                    'message' => __('payment.method_deleted'),
                 ], 400);
             }
 
             if (!$paymentMethod->hasValidToken()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Payment method token is invalid',
+                    'message' => __('payment.method_token_invalid'),
                 ], 400);
             }
 
             if ($paymentMethod->isExpired()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Card has expired',
+                    'message' => __('payment.card_expired'),
                 ], 400);
             }
 
@@ -1069,7 +1069,7 @@ class PaymentController extends Controller
                     'card_last_four' => $paymentMethod->card_last_four,
                     'card_brand' => $paymentMethod->card_brand,
                 ],
-                'message' => 'Payment processing with saved card',
+                'message' => __('payment.processing_saved_card'),
             ]);
         });
     }
@@ -1094,7 +1094,7 @@ class PaymentController extends Controller
             if ($ownerId && $ownerId !== auth()->id()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized access to payment status',
+                    'message' => __('payment.unauthorized_payment_status'),
                 ], 403);
             }
 
@@ -1147,7 +1147,7 @@ class PaymentController extends Controller
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Payment not found',
+                'message' => __('payment.not_found'),
             ], 404);
         } catch (Exception $e) {
             Log::error('Payment status check failed', [

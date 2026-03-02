@@ -27,6 +27,7 @@ import {
 } from "lucide-react-native";
 import { PaymentMethod } from "@/types";
 import Colors from "@/constants/Colors";
+import { useTranslation } from "@/i18n";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
 
@@ -59,6 +60,7 @@ export default function SavedCardsList({
   onSelectCard,
   disabled = false,
 }: SavedCardsListProps) {
+  const { t } = useTranslation();
   /**
    * Render individual card item
    */
@@ -109,7 +111,7 @@ export default function SavedCardsList({
             {item.is_default && (
               <View style={styles.defaultBadge}>
                 <Star size={9} color={Colors.primary900} />
-                <Text style={styles.defaultBadgeText}>DEFAULT</Text>
+                <Text style={styles.defaultBadgeText}>{t.ui.default}</Text>
               </View>
             )}
           </View>
@@ -118,13 +120,13 @@ export default function SavedCardsList({
           {item.is_expired && (
             <View style={styles.statusRow}>
               <Clock size={11} color={Colors.accentRed} />
-              <Text style={styles.statusExpired}>Expired</Text>
+              <Text style={styles.statusExpired}>{t.ui.expired}</Text>
             </View>
           )}
           {!item.is_verified && (
             <View style={styles.statusRow}>
               <AlertCircle size={11} color={Colors.accentOrange} />
-              <Text style={styles.statusUnverified}>Unverified</Text>
+              <Text style={styles.statusUnverified}>{t.ui.unverified}</Text>
             </View>
           )}
         </View>
@@ -145,8 +147,8 @@ export default function SavedCardsList({
     return (
       <View style={styles.emptyContainer}>
         <CreditCard size={36} color={Colors.neutralMedium} />
-        <Text style={styles.emptyText}>No eligible cards</Text>
-        <Text style={styles.emptySubtext}>Add a new card during checkout</Text>
+        <Text style={styles.emptyText}>{t.ui.noEligibleCards}</Text>
+        <Text style={styles.emptySubtext}>{t.ui.addNewCardCheckout}</Text>
       </View>
     );
   }

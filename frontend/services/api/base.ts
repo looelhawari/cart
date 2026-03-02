@@ -4,12 +4,27 @@ import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 // API Configuration
 export const API_BASE_URL = API_CONFIG.BASE_URL;
 
+// Language cache for Accept-Language header
+let _cachedLanguage: string = "en";
+const LANGUAGE_STORAGE_KEY = "app_language";
+
+// Initialize language from storage (called once at import time)
+AsyncStorage.getItem(LANGUAGE_STORAGE_KEY).then((lang) => {
+  if (lang === "en" || lang === "ar") _cachedLanguage = lang;
+});
+
+// Allow external updates (called by i18n when language changes)
+export const setApiLanguage = (lang: string) => {
+  _cachedLanguage = lang;
+};
+
 // Helper: Get common headers for all requests (including ngrok support)
 export const getCommonHeaders = (
   includeContentType: boolean = true,
 ): HeadersInit => {
   const headers: HeadersInit = {
     Accept: "application/json",
+    "Accept-Language": _cachedLanguage,
     "ngrok-skip-browser-warning": "true",
     "User-Agent": "CART-Mobile-App",
   };
@@ -149,7 +164,7 @@ export const apiRequest = async <T>(
   if (__DEV__) {
     console.log(`[API] ${options.method || "GET"} ${API_BASE_URL}${endpoint}`);
     if (!token) {
-      console.warn('[API] ⚠️ No auth token available for request');
+      console.warn("[API] ⚠️ No auth token available for request");
     }
   }
 
@@ -163,8 +178,8 @@ export const apiRequest = async <T>(
 
     // Log authentication errors
     if (__DEV__ && response.status === 401) {
-      console.error('[API] 401 Unauthenticated:', endpoint);
-      console.error('[API] Token present:', token ? 'YES' : 'NO');
+      console.error("[API] 401 Unauthenticated:", endpoint);
+      console.error("[API] Token present:", token ? "YES" : "NO");
     }
 
     throw error;

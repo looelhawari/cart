@@ -4,12 +4,14 @@ import { WifiOff } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
 import { useIsOnline } from "@/services/cache/networkDetector";
+import { useTranslation } from "@/i18n";
 
 /**
  * Offline Indicator Component
  * Displays a banner when the device is offline
  */
 function OfflineIndicatorInner() {
+  const { t } = useTranslation();
   const isOnline = useIsOnline();
 
   if (isOnline) return null;
@@ -17,7 +19,7 @@ function OfflineIndicatorInner() {
   return (
     <View style={styles.container}>
       <WifiOff size={16} color={Colors.neutralWhite} />
-      <Text style={styles.text}>No Internet Connection</Text>
+      <Text style={styles.text}>{t.ui.noInternetConnection}</Text>
     </View>
   );
 }
