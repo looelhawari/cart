@@ -319,7 +319,7 @@ export default function LoginScreen() {
       paddingHorizontal: Spacing.md,
     },
     inputIcon: {
-      marginRight: Spacing.sm,
+      marginEnd: Spacing.sm,
     },
     input: {
       flex: 1,
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   inputIcon: {
-    marginRight: Spacing.sm,
+    marginEnd: Spacing.sm,
   },
   input: {
     flex: 1,

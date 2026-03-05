@@ -21,6 +21,12 @@ return [
 
     // Item cancellation (COD)
     'items_cancelled_success' => 'تم إلغاء العناصر بنجاح. تم خصم :amount :currency من طلبك.',
+    'cod_only_method' => 'هذه العملية متاحة فقط لطلبات الدفع عند الاستلام.',
+    'cod_cancel_status_error' => 'يمكنك إلغاء العناصر فقط من الطلبات المعلقة أو المؤكدة أو قيد التحضير.',
+    'no_valid_items_cancel' => 'لم يتم العثور على عناصر صالحة للإلغاء. قد تكون العناصر قد ألغيت بالفعل.',
+    'cannot_cancel_all_items' => 'لا يمكن إلغاء جميع العناصر. استخدم إلغاء الطلب الكامل بدلاً من ذلك.',
+    'unexpected_status_cancel' => 'الطلب في حالة غير متوقعة ولا يمكن إلغاؤه.',
+    'refund_processing_failed' => 'تعذرت معالجة الاسترداد. يرجى المحاولة مرة أخرى لاحقاً أو الاتصال بالدعم.',
 
     // Full order cancellation
     'no_payment_no_refund' => 'تم إلغاء الطلب. لم يتم إكمال أي دفعة، لذا لا حاجة للاسترداد.',
@@ -97,6 +103,18 @@ return [
     'blocked_already_cancelled' => 'تم إلغاء هذا الطلب بالفعل.',
     'blocked_already_failed' => 'فشل هذا الطلب بالفعل.',
     'blocked_default' => 'لا يمكن إلغاء هذا الطلب في حالته الحالية.',
+
+    // Checkout & Payment messages
+    'insufficient_wallet_balance' => 'رصيد المحفظة غير كافٍ. يرجى استخدام الدفع بالبطاقة.',
+    'invalid_payment_method' => 'طريقة دفع غير صالحة.',
+    'payment_completed_wallet' => 'تم الدفع بنجاح من المحفظة.',
+    'partial_wallet_card' => 'تم دفع :wallet ج.م من المحفظة، :card ج.م في انتظار الدفع بالبطاقة.',
+    'payment_gateway_refunded' => 'خطأ في بوابة الدفع. تم استرداد رصيد محفظتك. يرجى المحاولة مرة أخرى.',
+    'cod_confirmed' => 'تم تأكيد الطلب. الدفع عند الاستلام.',
+
+    // Refund messages
+    'refund_exceeds_max' => 'مبلغ الاسترداد (:amount ج.م) يتجاوز الحد الأقصى للاسترداد (:max ج.م).',
+    'refund_processing_failed' => 'تعذرت معالجة الاسترداد. يرجى المحاولة مرة أخرى أو التواصل مع الدعم.',
 
     // Timeline labels
     'timeline_placed' => 'تم تقديم الطلب',

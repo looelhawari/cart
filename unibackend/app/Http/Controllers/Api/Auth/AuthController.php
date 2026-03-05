@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use App\Services\CloudinaryService;
 use Carbon\Carbon;
@@ -440,6 +441,18 @@ class AuthController extends Controller
      */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
+        // Server-side rate limiting: 1 reset OTP per 60 seconds per email
+        $rateLimitKey = 'forgot-password:' . $request->email;
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+            $retryAfter = RateLimiter::availableIn($rateLimitKey);
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_rate_limited', ['seconds' => $retryAfter]),
+                'retry_after' => $retryAfter,
+            ], 429);
+        }
+        RateLimiter::hit($rateLimitKey, 60);
+
         $user = User::where('email', $request->email)->first();
 
         if (!$user) {
@@ -727,6 +740,18 @@ class AuthController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
+
+        // Server-side rate limiting: 1 OTP per 60 seconds per email
+        $rateLimitKey = 'resend-otp:' . $request->email;
+        if (RateLimiter::tooManyAttempts($rateLimitKey, 1)) {
+            $retryAfter = RateLimiter::availableIn($rateLimitKey);
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.otp_rate_limited', ['seconds' => $retryAfter]),
+                'retry_after' => $retryAfter,
+            ], 429);
+        }
+        RateLimiter::hit($rateLimitKey, 60);
 
         $user = User::where('email', $request->email)->first();
 

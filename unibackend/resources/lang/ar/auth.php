@@ -11,6 +11,7 @@ return [
     'otp_verified_successfully' => 'تم التحقق من الرمز بنجاح.',
     'email_already_verified' => 'البريد الإلكتروني محقق بالفعل.',
     'otp_resent' => 'تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني.',
+    'otp_rate_limited' => 'يرجى الانتظار :seconds ثانية قبل طلب رمز تحقق جديد.',
 
     // Login
     'invalid_credentials' => 'بيانات الدخول غير صحيحة.',

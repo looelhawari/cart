@@ -103,7 +103,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert(
           t.forgotPassword.emailNotFound || "Email Not Found",
           t.forgotPassword.emailNotFoundMessage ||
-            "No account found with this email address. Please check your email or create a new account.",
+          "No account found with this email address. Please check your email or create a new account.",
         );
         return;
       }
@@ -113,7 +113,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert(
           t.forgotPassword.emailNotVerified || "Email Not Verified",
           t.forgotPassword.emailNotVerifiedMessage ||
-            "Your email address has not been verified yet. Please verify your email first.",
+          "Your email address has not been verified yet. Please verify your email first.",
           [
             { text: t.common.cancel, style: "cancel" },
             {
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   inputIcon: {
-    marginRight: Spacing.sm,
+    marginEnd: Spacing.sm,
   },
   input: {
     flex: 1,

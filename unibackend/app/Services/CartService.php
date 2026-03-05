@@ -948,19 +948,19 @@ class CartService
     public function promoReasonMessage(?string $reason): string
     {
         return match ($reason) {
-            'INVALID_CODE' => 'Invalid promo code',
-            'PROMO_INACTIVE' => 'Promo code is inactive',
-            'NOT_STARTED' => 'Promo code is not yet valid',
-            'EXPIRED' => 'Promo code has expired',
-            'USAGE_LIMIT_REACHED' => 'Promo code usage limit reached',
-            'USER_LIMIT_REACHED' => 'You have already used this promo code the maximum number of times',
-            'FIRST_ORDER_ONLY' => 'Promo code is only valid for your first paid order',
-            'MINIMUM_NOT_MET' => 'Minimum order amount not met',
-            'NOT_APPLICABLE_TO_CART' => 'Promo code does not apply to items in your cart',
-            'PROMO_MISCONFIGURED' => 'Promo code is not configured correctly',
-            'BOGO_ADD_ELIGIBLE_ITEM' => 'Promo eligible — add your free item to cart to claim',
-            'BOGO_ADD_MORE_GET_ITEMS' => 'Promo eligible — add more eligible items to claim full discount',
-            default => 'Promo code is not valid',
+            'INVALID_CODE' => __('cart.promo_invalid'),
+            'PROMO_INACTIVE' => __('cart.promo_inactive'),
+            'NOT_STARTED' => __('cart.promo_not_started'),
+            'EXPIRED' => __('cart.promo_expired'),
+            'USAGE_LIMIT_REACHED' => __('cart.promo_usage_limit'),
+            'USER_LIMIT_REACHED' => __('cart.promo_user_limit'),
+            'FIRST_ORDER_ONLY' => __('cart.promo_first_order_only'),
+            'MINIMUM_NOT_MET' => __('cart.promo_minimum_not_met'),
+            'NOT_APPLICABLE_TO_CART' => __('cart.promo_not_applicable'),
+            'PROMO_MISCONFIGURED' => __('cart.promo_misconfigured'),
+            'BOGO_ADD_ELIGIBLE_ITEM' => __('cart.promo_bogo_add_item'),
+            'BOGO_ADD_MORE_GET_ITEMS' => __('cart.promo_bogo_add_more'),
+            default => __('cart.promo_not_valid'),
         };
     }
 

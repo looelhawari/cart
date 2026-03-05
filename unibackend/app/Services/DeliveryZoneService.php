@@ -242,6 +242,7 @@ class DeliveryZoneService
             'delivery_lng'              => $address->longitude,
             'zone_name'                 => $zone?->name,
             'estimated_delivery_minutes' => $zone?->max_delivery_time_minutes,
+            'delivery_fee'              => $zone?->delivery_fee ?? $order->delivery_fee,
         ]);
     }
 

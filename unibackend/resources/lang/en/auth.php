@@ -11,6 +11,7 @@ return [
     'otp_verified_successfully' => 'OTP verified successfully.',
     'email_already_verified' => 'Email is already verified.',
     'otp_resent' => 'OTP has been resent to your email.',
+    'otp_rate_limited' => 'Please wait :seconds seconds before requesting another OTP.',
 
     // Login
     'invalid_credentials' => 'Invalid credentials.',

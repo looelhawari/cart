@@ -79,6 +79,33 @@ class OrderService
             $total = $cartTotals['total'];
             $promoSnapshot = $cartTotals['promo_summary'] ?? null;
 
+            // ZONE FEE OVERRIDE: Use zone-specific delivery fee when available
+            try {
+                $address = Address::find($deliveryAddressId);
+                if ($address && $address->latitude && $address->longitude) {
+                    $zoneService = app(DeliveryZoneService::class);
+                    $zoneFeeResult = $zoneService->calculateDeliveryFee(
+                        $address->latitude,
+                        $address->longitude,
+                        $cartTotals['subtotal']
+                    );
+                    if ($zoneFeeResult['is_deliverable'] && isset($zoneFeeResult['delivery_fee'])) {
+                        $oldFee = $deliveryFee;
+                        $deliveryFee = $zoneFeeResult['delivery_fee'];
+                        $total = $cartTotals['subtotal'] + $deliveryFee - $discount + $tax;
+                        Log::info('🗺️ Zone delivery fee applied', [
+                            'zone_id' => $zoneFeeResult['zone_id'],
+                            'zone_name' => $zoneFeeResult['zone_name'],
+                            'flat_fee' => $oldFee,
+                            'zone_fee' => $deliveryFee,
+                            'new_total' => $total,
+                        ]);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Zone fee lookup failed, using flat fee', ['error' => $e->getMessage()]);
+            }
+
             Log::info('🔒 [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [
                 'subtotal' => $cartTotals['subtotal'],
                 'delivery_fee' => $deliveryFee,

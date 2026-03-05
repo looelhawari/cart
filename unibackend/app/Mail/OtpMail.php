@@ -30,8 +30,14 @@ class OtpMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $subject = match ($this->purpose) {
+            'Password Reset' => 'CART — Password Reset Code',
+            'Email Change Verification' => 'CART — Email Change Code',
+            default => 'CART — Verification Code',
+        };
+
         return new Envelope(
-            subject: 'Your CART Verification Code',
+            subject: $subject,
         );
     }
 

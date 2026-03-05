@@ -10,10 +10,10 @@
 // Backend API Configuration
 export const API_CONFIG = {
   // Production URL
-  BASE_URL: "https://cartshop.site/api/v1",
+  //BASE_URL: "https://cartshop.site/api/v1",
 
   // Development URL - Uncomment for local testing
-  // BASE_URL: "http://192.168.1.10:8000/api/v1",
+  BASE_URL: "http://192.168.1.7:8000/api/v1",
 
   TIMEOUT: 15000, // 15 seconds
 };

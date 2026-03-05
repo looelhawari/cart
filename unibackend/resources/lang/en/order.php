@@ -21,6 +21,12 @@ return [
 
     // Item cancellation (COD)
     'items_cancelled_success' => 'Items cancelled successfully. :amount :currency removed from your order.',
+    'cod_only_method' => 'This method is only for COD orders.',
+    'cod_cancel_status_error' => 'You can only cancel items from pending, confirmed, or preparing orders.',
+    'no_valid_items_cancel' => 'No valid items found to cancel. Items may already be cancelled.',
+    'cannot_cancel_all_items' => 'Cannot cancel all items. Use full order cancellation instead.',
+    'unexpected_status_cancel' => 'Order is in an unexpected status and cannot be cancelled.',
+    'refund_processing_failed' => 'Refund could not be processed. Please try again later or contact support.',
 
     // Full order cancellation
     'no_payment_no_refund' => 'Order cancelled. No payment was completed, so no refund is needed.',
@@ -97,6 +103,18 @@ return [
     'blocked_already_cancelled' => 'This order has already been cancelled.',
     'blocked_already_failed' => 'This order has already failed.',
     'blocked_default' => 'This order cannot be cancelled in its current status.',
+
+    // Checkout & Payment messages
+    'insufficient_wallet_balance' => 'Insufficient wallet balance. Please use card payment.',
+    'invalid_payment_method' => 'Invalid payment method.',
+    'payment_completed_wallet' => 'Payment completed successfully with wallet.',
+    'partial_wallet_card' => 'Paid :wallet EGP with wallet, :card EGP pending card payment.',
+    'payment_gateway_refunded' => 'Payment gateway error. Your wallet has been refunded. Please try again.',
+    'cod_confirmed' => 'Order confirmed. Pay on delivery.',
+
+    // Refund messages
+    'refund_exceeds_max' => 'Refund amount (:amount EGP) exceeds maximum refundable (:max EGP).',
+    'refund_processing_failed' => 'Refund could not be processed. Please try again later or contact support.',
 
     // Timeline labels
     'timeline_placed' => 'Order Placed',

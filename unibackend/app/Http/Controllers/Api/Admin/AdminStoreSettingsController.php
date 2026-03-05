@@ -80,8 +80,15 @@ class AdminStoreSettingsController extends Controller
             'accept_orders_outside_hours' => 'boolean',
         ]);
 
-        StoreSetting::setValue('store_open_time', $validated['open_time']);
-        StoreSetting::setValue('store_close_time', $validated['close_time']);
+        $openResult = StoreSetting::setValue('store_open_time', $validated['open_time']);
+        $closeResult = StoreSetting::setValue('store_close_time', $validated['close_time']);
+
+        if ($openResult === false || $closeResult === false) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update working hours. Settings not found in database.',
+            ], 500);
+        }
 
         if (isset($validated['accept_orders_outside_hours'])) {
             StoreSetting::setValue('accept_orders_outside_hours', $validated['accept_orders_outside_hours']);
@@ -91,8 +98,8 @@ class AdminStoreSettingsController extends Controller
             'success' => true,
             'message' => 'Working hours updated successfully',
             'data' => [
-                'open_time' => $validated['open_time'],
-                'close_time' => $validated['close_time'],
+                'open_time' => StoreSetting::getValue('store_open_time'),
+                'close_time' => StoreSetting::getValue('store_close_time'),
                 'accept_orders_outside_hours' => StoreSetting::getValue('accept_orders_outside_hours', false),
             ]
         ]);

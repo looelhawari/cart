@@ -34,10 +34,14 @@ class RegisterRequest extends FormRequest
         // This handles the case where a user started signup, went back from OTP,
         // changed email/phone, and is re-registering. Must run BEFORE validation
         // so the unique checks don't collide with our own stale record.
+        //
+        // SAFETY: Only delete records older than 15 minutes to avoid nuking a user
+        // who is actively typing their OTP (OTP expires in 10 min).
         $email = strtolower(trim($this->email ?? ''));
         $phone = $this->sanitizePhone($this->phone ?? '');
 
         User::where('is_verified', false)
+            ->where('created_at', '<', now()->subMinutes(15))
             ->where(function ($query) use ($email, $phone) {
                 $query->where('email', $email)
                       ->orWhere('phone', $phone);

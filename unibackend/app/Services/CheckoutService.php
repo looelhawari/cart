@@ -61,10 +61,10 @@ class CheckoutService
         }
 
         if ($paymentMethod === 'wallet' && !$wallet->hasSufficientBalance($order->total)) {
-            throw new Exception('Insufficient wallet balance. Please use card payment.');
+            throw new Exception(__('order.insufficient_wallet_balance'));
         }
 
-        throw new Exception('Invalid payment method');
+        throw new Exception(__('order.invalid_payment_method'));
     }
 
     /**
@@ -103,7 +103,7 @@ class CheckoutService
             'success' => true,
             'payment_method' => 'wallet',
             'status' => 'completed',
-            'message' => 'Payment completed successfully with wallet',
+            'message' => __('order.payment_completed_wallet'),
             'order_id' => $order->id,
         ];
     }
@@ -187,7 +187,7 @@ class CheckoutService
                 'card_amount' => $cardAmount,
                 'iframe_url' => $iframeUrl,
                 'payment_token' => $paymentToken,
-                'message' => "Paid {$walletAmount} EGP with wallet, {$cardAmount} EGP pending card payment",
+                'message' => __('order.partial_wallet_card', ['wallet' => $walletAmount, 'card' => $cardAmount]),
             ];
         } catch (\Exception $e) {
             // Paymob failed — roll back wallet debit to prevent money loss
@@ -212,7 +212,7 @@ class CheckoutService
                 ]);
             });
 
-            throw new Exception('Payment gateway error. Your wallet has been refunded. Please try again.');
+            throw new Exception(__('order.payment_gateway_refunded'));
         }
     }
 
@@ -307,7 +307,7 @@ class CheckoutService
             'success' => true,
             'payment_method' => 'cash_on_delivery',
             'status' => 'pending',
-            'message' => 'Order confirmed. Pay on delivery.',
+            'message' => __('order.cod_confirmed'),
             'order_id' => $order->id,
         ];
     }

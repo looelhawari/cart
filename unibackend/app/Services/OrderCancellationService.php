@@ -255,7 +255,10 @@ class OrderCancellationService
 
                 if ($itemRefundAmount > $maxRefundable) {
                     throw new Exception(
-                        "Refund amount ({$itemRefundAmount} EGP) exceeds maximum refundable ({$maxRefundable} EGP)."
+                        __('order.refund_exceeds_max', [
+                            'amount' => $itemRefundAmount,
+                            'max' => $maxRefundable,
+                        ])
                     );
                 }
 
@@ -319,7 +322,7 @@ class OrderCancellationService
 
         if (!$paymobResult['success']) {
             throw new Exception(
-                'Refund could not be processed. Please try again later or contact support.'
+                __('order.refund_processing_failed')
             );
         }
 
@@ -391,7 +394,7 @@ class OrderCancellationService
         $rateLimitKey = "partial_cancel:{$orderId}:{$userId}";
         if (RateLimiter::tooManyAttempts($rateLimitKey, 2)) {
             $retryAfter = RateLimiter::availableIn($rateLimitKey);
-            throw new Exception("Please wait {$retryAfter} seconds before trying again.");
+            throw new Exception(__('order.wait_before_cancel', ['seconds' => $retryAfter]));
         }
         RateLimiter::hit($rateLimitKey, 30);
 
@@ -425,24 +428,24 @@ class OrderCancellationService
                     ->firstOrFail();
 
                 if ($order->payment_method !== 'cash_on_delivery') {
-                    throw new Exception('This method is only for COD orders.');
+                    throw new Exception(__('order.cod_only_method'));
                 }
 
                 if ($initiatedBy === 'customer') {
                     if (!in_array($order->status, ['pending', 'confirmed', 'preparing'])) {
-                        throw new Exception('You can only cancel items from pending, confirmed, or preparing orders.');
+                        throw new Exception(__('order.cod_cancel_status_error'));
                     }
                 }
 
                 $items = $order->items()->whereIn('id', $itemIds)->where('refunded', false)->get();
                 if ($items->isEmpty()) {
-                    throw new Exception('No valid items found to cancel. Items may already be cancelled.');
+                    throw new Exception(__('order.no_valid_items_cancel'));
                 }
 
                 // Ensure at least one item remains active
                 $activeItems = $order->items()->where('refunded', false)->count();
                 if ($items->count() >= $activeItems) {
-                    throw new Exception('Cannot cancel all items. Use full order cancellation instead.');
+                    throw new Exception(__('order.cannot_cancel_all_items'));
                 }
 
                 $itemCancelAmount = $items->sum('subtotal');
@@ -726,7 +729,7 @@ class OrderCancellationService
             );
         }
 
-        throw new Exception('Order is in an unexpected status and cannot be cancelled.');
+        throw new Exception(__('order.unexpected_status_cancel'));
     }
 
     /**
@@ -876,7 +879,7 @@ class OrderCancellationService
             ]);
 
             throw new Exception(
-                'Refund could not be processed. Please try again later or contact support.'
+                __('order.refund_processing_failed')
             );
         }
 
@@ -1015,7 +1018,7 @@ class OrderCancellationService
             throw new Exception($this->getBlockedMessage($status, true));
         }
 
-        throw new Exception('Order is in an unexpected status and cannot be cancelled.');
+        throw new Exception(__('order.unexpected_status_cancel'));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1169,14 +1172,6 @@ class OrderCancellationService
         float $penaltyPercent = 0
     ): void {
         try {
-            $message = match ($type) {
-                'full' => "Your order #{$order->order_number} has been cancelled. A full refund of {$refundAmount} EGP will be processed to your card within 5-14 business days.",
-                'penalty' => "Your order #{$order->order_number} has been cancelled. After a {$penaltyPercent}% preparation fee, {$refundAmount} EGP will be refunded to your card within 5-14 business days.",
-                'partial' => "A partial refund of {$refundAmount} EGP for order #{$order->order_number} has been processed to your card.",
-                'cod_cancel' => "Your order #{$order->order_number} has been cancelled successfully.",
-                default => "Your order #{$order->order_number} has been cancelled.",
-            };
-
             $this->pushNotificationService->sendRefundNotification(
                 $order->user_id,
                 $order->order_number,

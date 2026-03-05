@@ -830,7 +830,7 @@ export default function SignupScreen() {
               style={[
                 styles.requirementText,
                 /[!@#$%^&*(),.?":{}|<>]/.test(password) &&
-                  styles.requirementMet,
+                styles.requirementMet,
               ]}
             >
               {t.signup.oneSpecialChar}
@@ -1102,7 +1102,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   inputIcon: {
-    marginRight: Spacing.sm,
+    marginEnd: Spacing.sm,
   },
   input: {
     flex: 1,
