@@ -137,7 +137,8 @@
                     <div class="info-box">
                         <div class="info-box-title">Customer</div>
                         <div class="info-box-value">
-                            {{ $customer['name'] }}<br>
+                            @if($customer['first_name']) {{ $customer['first_name'] }} @endif
+                            @if($customer['last_name']) {{ $customer['last_name'] }} @endif
                             @if($customer['phone']) {{ $customer['phone'] }}<br> @endif
                             @if($customer['email']) {{ $customer['email'] }} @endif
                         </div>
@@ -151,9 +152,9 @@
                                 {{ $delivery_address['label'] }}<br>
                                 {{ $delivery_address['street'] }}<br>
                                 @if($delivery_address['building'] || $delivery_address['floor'] || $delivery_address['apartment'])
-                                    @if($delivery_address['building']) Bldg {{ $delivery_address['building'] }} @endif
+                                    @if($delivery_address['building']) Building {{ $delivery_address['building'] }} @endif
+                                    @if($delivery_address['apartment']) Apartment {{ $delivery_address['apartment'] }} @endif
                                     @if($delivery_address['floor']) Floor {{ $delivery_address['floor'] }} @endif
-                                    @if($delivery_address['apartment']) Apt {{ $delivery_address['apartment'] }} @endif
                                     <br>
                                 @endif
                                 {{ $delivery_address['city'] }}{{ $delivery_address['area'] ? ', '.$delivery_address['area'] : '' }}
@@ -238,10 +239,6 @@
             <tr class="summary-row">
                 <td class="label-col">Delivery Fee</td>
                 <td class="value-col">{{ $delivery_fee == '0.00' ? 'FREE' : $delivery_fee . ' EGP' }}</td>
-            </tr>
-            <tr class="summary-row">
-                <td class="label-col">Tax ({{ $tax_rate }}% VAT)</td>
-                <td class="value-col">{{ $tax }} EGP</td>
             </tr>
             @if((float)$discount > 0)
                 <tr class="summary-row summary-row-discount">

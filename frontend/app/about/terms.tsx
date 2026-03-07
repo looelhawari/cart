@@ -48,7 +48,7 @@ const FALLBACK_CONTENT = `
 <h2>5. Products and Pricing</h2>
 <ul>
 <li>All products are subject to availability. We reserve the right to discontinue any product at any time.</li>
-<li>Prices are displayed in Egyptian Pounds (EGP) and include applicable taxes unless otherwise stated.</li>
+<li>Prices are displayed in Egyptian Pounds.</li>
 <li>We make every effort to display accurate pricing. In the event of a pricing error, we reserve the right to cancel orders placed at incorrect prices.</li>
 <li>Promotional offers, discounts, and coupon codes are subject to specific terms, expiration dates, and usage limits as indicated at the time of the offer.</li>
 <li>Product images are for illustration purposes. Actual products may vary slightly in appearance.</li>

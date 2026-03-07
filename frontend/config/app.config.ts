@@ -13,7 +13,8 @@ export const API_CONFIG = {
   //BASE_URL: "https://cartshop.site/api/v1",
 
   // Development URL - Uncomment for local testing
-  BASE_URL: "http://192.168.1.7:8000/api/v1",
+  // Android Emulator: 10.0.2.2 | iOS Simulator: localhost | Physical device: your PC's LAN IP
+  BASE_URL: "http://192.168.100.7:8000/api/v1",
 
   TIMEOUT: 15000, // 15 seconds
 };
