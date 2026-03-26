@@ -1,6 +1,6 @@
-import React, { useState, useEffect, memo, useRef } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { Heart, Check } from "lucide-react-native";
+import { Heart } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
@@ -30,12 +30,12 @@ export const ProductCard = memo(function ProductCard({
   onAddToCart,
   offerPricing,
 }: ProductCardProps) {
-  const { favorites, toggleFavorite, addToCart } = useStore();
+  const { favorites, toggleFavorite, addToCart, cart, updateQuantity, removeFromCart } = useStore();
   const [cachedImageUri, setCachedImageUri] = useState<string | undefined>();
   const productId = product.barcode || Number(product.id) || 0;
   const isFavorite = favorites.includes(productId.toString());
   const { getName } = useLocalizedValue();
-  const { t, isRTL } = useTranslation();
+  const { t } = useTranslation();
 
   // Convert string prices to numbers (database returns DECIMAL as string)
   const displayPrice = parseFloat(product.price?.toString() || "0");
@@ -51,21 +51,14 @@ export const ProductCard = memo(function ProductCard({
     product.is_in_stock === false || (product.stock_quantity || 0) <= 0;
   const isLowStock = !isOutOfStock && (product.stock_quantity || 0) <= 3;
 
-  const [addedSuccess, setAddedSuccess] = useState(false);
-  const successTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Find this product in cart
+  const cartItem = cart?.items?.find((item: any) => item.product_id === productId);
+  const cartQuantity = cartItem?.quantity || 0;
+  const inCart = cartQuantity > 0;
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "error" | "info">(
-    "info",
-  );
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (successTimeout.current) clearTimeout(successTimeout.current);
-    };
-  }, []);
+  const [toastType, setToastType] = useState<"success" | "error" | "info">("info");
 
   // Cache product image
   useEffect(() => {
@@ -77,6 +70,51 @@ export const ProductCard = memo(function ProductCard({
       });
     }
   }, [product.image]);
+
+  const handleAddToCart = (e: any) => {
+    e.stopPropagation();
+    if (isOutOfStock) {
+      if (onAddToCart) {
+        onAddToCart({ success: false, message: t.products.outOfStock, type: "error" });
+      } else {
+        setToastType("error");
+        setToastMessage(t.products.outOfStock);
+        setShowToast(true);
+      }
+      return;
+    }
+
+    addToCart(productId, 1).catch((error: any) => {
+      const msg =
+        error?.message ||
+        error?.error ||
+        (typeof error === "string" ? error : null) ||
+        t.products.failedToAddToCart;
+      if (onAddToCart) {
+        onAddToCart({ success: false, message: msg, type: "error" });
+      } else {
+        setToastType("error");
+        setToastMessage(msg);
+        setShowToast(true);
+      }
+    });
+  };
+
+  const handleDecrease = (e: any) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    if (cartQuantity === 1) {
+      removeFromCart(cartItem.id).catch(() => {});
+    } else {
+      updateQuantity(cartItem.id, cartQuantity - 1).catch(() => {});
+    }
+  };
+
+  const handleIncrease = (e: any) => {
+    e.stopPropagation();
+    if (!cartItem) return;
+    updateQuantity(cartItem.id, cartQuantity + 1).catch(() => {});
+  };
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
@@ -172,69 +210,33 @@ export const ProductCard = memo(function ProductCard({
           )}
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.addButton,
-            isOutOfStock && styles.addButtonDisabled,
-            addedSuccess && styles.addButtonSuccess,
-          ]}
-          onPress={(e) => {
-            e.stopPropagation();
-            if (isOutOfStock) {
-              if (onAddToCart) {
-                onAddToCart({
-                  success: false,
-                  message: t.products.outOfStock,
-                  type: "error",
-                });
-              } else {
-                setToastType("error");
-                setToastMessage(t.products.outOfStock);
-                setShowToast(true);
-              }
-              return;
-            }
-            if (addedSuccess) return;
-
-            // Show success immediately (optimistic) — store already updates cart optimistically
-            setAddedSuccess(true);
-            if (successTimeout.current) clearTimeout(successTimeout.current);
-            successTimeout.current = setTimeout(() => {
-              setAddedSuccess(false);
-            }, 1500);
-
-            // Fire API call in background — no await
-            addToCart(productId, 1).catch((error: any) => {
-              // Revert success state on error
-              setAddedSuccess(false);
-              if (successTimeout.current) clearTimeout(successTimeout.current);
-
-              console.error("Failed to add to cart:", error);
-              const msg =
-                error?.message ||
-                error?.error ||
-                (typeof error === "string" ? error : null) ||
-                t.products.failedToAddToCart;
-              if (onAddToCart) {
-                onAddToCart({ success: false, message: msg, type: "error" });
-              } else {
-                setToastType("error");
-                setToastMessage(msg);
-                setShowToast(true);
-              }
-            });
-          }}
-          disabled={isOutOfStock}
-        >
-          {addedSuccess ? (
-            <View style={styles.addedRow}>
-              <Check size={16} color={Colors.neutralWhite} />
-              <Text style={styles.addButtonText}>{t.cart.itemAdded}</Text>
-            </View>
-          ) : (
+        {inCart ? (
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity
+              style={styles.quantityBtn}
+              onPress={handleDecrease}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quantityBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.quantityText}>{cartQuantity}</Text>
+            <TouchableOpacity
+              style={styles.quantityBtn}
+              onPress={handleIncrease}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quantityBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.addButton, isOutOfStock && styles.addButtonDisabled]}
+            onPress={handleAddToCart}
+            disabled={isOutOfStock}
+          >
             <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -337,7 +339,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     marginTop: -2,
   },
-
   addButton: {
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.sm,
@@ -349,22 +350,38 @@ const styles = StyleSheet.create({
   addButtonDisabled: {
     backgroundColor: Colors.neutralGray,
   },
-  addButtonSuccess: {
-    backgroundColor: "#16a34a",
-  },
-  addedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: Spacing.xs,
-  },
   addButtonText: {
     color: Colors.neutralWhite,
     fontSize: Typography.bodyMedium,
     fontWeight: Typography.semibold,
   },
-
+  quantityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary900,
+    borderRadius: 12,
+    overflow: "hidden",
+    height: 40,
+  },
+  quantityBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quantityText: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: Typography.bodyMedium,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
+  },
+  quantityBtnText: {
+    fontSize: 20,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
+    lineHeight: 22,
+  },
   stockBadgeOut: {
     position: "absolute",
     bottom: Spacing.sm,

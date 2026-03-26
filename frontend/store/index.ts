@@ -376,8 +376,26 @@ export const useStore = create<StoreState>()(
         set({ cartLoading: true, cartError: null });
         try {
           const response = await getCartApi();
-          set({ cart: response.data.cart, cartLoading: false });
+          const freshCart = response.data.cart;
+
+          // Safety guard: never overwrite a non-empty local cart with an empty
+          // API response. This protects against the backend "newest cart wins"
+          // race condition where a stale guest cart can replace the user cart.
+          const currentCart = get().cart;
+          const localHasItems = (currentCart?.items?.length ?? 0) > 0;
+          const apiHasItems = (freshCart?.items?.length ?? 0) > 0;
+
+          if (localHasItems && !apiHasItems) {
+            // Suspicious: API returned empty but we had items locally.
+            // Keep the local state and silently ignore — a subsequent fetch
+            // after the backend race resolves will restore correctness.
+            set({ cartLoading: false });
+            return;
+          }
+
+          set({ cart: freshCart, cartLoading: false });
         } catch (error: any) {
+          // On fetch failure, preserve existing cart state (don't clear items).
           set({
             cartError: error.message || "Failed to load cart",
             cartLoading: false,
@@ -389,22 +407,42 @@ export const useStore = create<StoreState>()(
       addToCart: async (productId: number, quantity: number = 1) => {
         set({ cartError: null });
 
-        // Optimistic update: immediately add to local cart for instant UI feedback
+        // Optimistic update: immediately reflect change in UI before API responds.
+        // Cart items use product.id (barcode) as the identifier, NOT product_id.
         const currentCart = get().cart;
         let optimisticCart = currentCart ? { ...currentCart } : null;
 
         if (optimisticCart) {
           const existingItem = optimisticCart.items?.find(
-            (item: any) => item.product_id === productId,
+            (item: any) =>
+              String(item.product?.id) === String(productId) ||
+              String(item.product_id) === String(productId),
           );
 
           if (existingItem) {
-            // Update existing item quantity
-            optimisticCart.items = optimisticCart.items?.map((item: any) =>
-              item.product_id === productId
-                ? { ...item, quantity: item.quantity + quantity }
-                : item,
-            );
+            // Increase quantity of existing cart item
+            optimisticCart.items = optimisticCart.items?.map((item: any) => {
+              const matches =
+                String(item.product?.id) === String(productId) ||
+                String(item.product_id) === String(productId);
+              return matches ? { ...item, quantity: item.quantity + quantity } : item;
+            });
+          } else {
+            // New item: add a placeholder until the API responds with real data
+            optimisticCart = {
+              ...optimisticCart,
+              items: [
+                ...(optimisticCart.items || []),
+                {
+                  id: -Date.now(), // temporary negative ID so UI can render it
+                  product_id: productId,
+                  product: { id: productId, barcode: productId },
+                  quantity,
+                  price: 0,
+                  subtotal: 0,
+                },
+              ],
+            };
           }
 
           set({ cart: optimisticCart });
@@ -412,6 +450,7 @@ export const useStore = create<StoreState>()(
 
         try {
           const response = await addToCartApi(productId, quantity);
+          // Replace optimistic state with authoritative server response
           set({ cart: response.data.cart });
         } catch (error: any) {
           // Revert optimistic update on error
@@ -420,9 +459,7 @@ export const useStore = create<StoreState>()(
             error?.message ||
             error?.error ||
             (typeof error === "string" ? error : "Failed to add item to cart");
-          set({
-            cartError: message,
-          });
+          set({ cartError: message });
           throw new Error(message);
         }
       },

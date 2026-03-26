@@ -81,20 +81,26 @@ class CartService
 
                     if ($guestCart) {
                         if ($cart) {
-                            // BOTH CARTS EXIST - NEWEST WINS (under lock)
-                            if ($guestCart->updated_at->gt($cart->updated_at)) {
-                                $cart->items()->delete();
-                                $cart->delete();
-
-                                $guestCart->update([
-                                    'user_id' => $userId,
-                                    'session_id' => null,
-                                ]);
-                                $cart = $guestCart;
-                            } else {
-                                $guestCart->items()->delete();
-                                $guestCart->delete();
+                            // USER CART ALWAYS WINS — never replace a user cart with a guest cart.
+                            // If the guest cart has items (e.g. browsed while logged out),
+                            // merge them additively into the user cart. An empty guest cart
+                            // (the common case from token-expiry races) is simply discarded.
+                            $guestCart->load('items');
+                            if ($guestCart->items->count() > 0) {
+                                foreach ($guestCart->items as $guestItem) {
+                                    $existingItem = $cart->items()
+                                        ->where('product_id', $guestItem->product_id)
+                                        ->first();
+                                    if ($existingItem) {
+                                        // Already in user cart — keep user cart quantity (don't add)
+                                    } else {
+                                        // New item not in user cart — move it over
+                                        $guestItem->update(['cart_id' => $cart->id]);
+                                    }
+                                }
                             }
+                            $guestCart->items()->delete();
+                            $guestCart->delete();
                         } else {
                             // No user cart - convert guest cart to user cart
                             $guestCart->update([
@@ -1009,8 +1015,10 @@ class CartService
         $items = $cart->items->map(function ($item) {
             return [
                 'id' => $item->id,
+                'product_id' => $item->product->barcode, // barcode = the product identifier used throughout the app
                 'product' => [
                     'id' => $item->product->barcode,
+                    'barcode' => $item->product->barcode,
                     'name_en' => $item->product->name_en,
                     'name_ar' => $item->product->name_ar,
                     'image' => $item->product->image,

@@ -9,6 +9,7 @@ import {
 } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import { View, Text, Animated, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/Colors";
 import { useTranslation } from "@/i18n";
@@ -88,6 +89,7 @@ const cartStyles = StyleSheet.create({
 export default function TabLayout() {
   const { t } = useTranslation();
   const { cart } = useStore();
+  const insets = useSafeAreaInsets();
 
   // Calculate cart items count
   const cartItemsCount = cart?.items?.reduce(
@@ -102,8 +104,8 @@ export default function TabLayout() {
         tabBarInactiveTintColor: Colors.neutralMedium,
         headerShown: false,
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom + 8,
           paddingTop: 8,
           backgroundColor: Colors.neutralWhite,
           borderTopWidth: 1,
