@@ -7,9 +7,13 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// ── Google Play Console Compliance Pages ──────────────────────────
+// ── App Store & Google Play Compliance / Marketing Pages ──────────
 Route::get('/privacy-policy', function () {
     return view('privacy-policy');
+});
+
+Route::get('/support', function () {
+    return view('support');
 });
 
 Route::get('/delete-account', function () {

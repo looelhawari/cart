@@ -107,11 +107,7 @@
     "extra": {
       "router": {
         "origin": "https://rork.com/"
-      },
-      "eas": {
-        "projectId": "715776f2-baec-4bf9-a749-29e831ca4fd1"
       }
-    },
-    "owner": "loxlo"
+    }
   }
 }

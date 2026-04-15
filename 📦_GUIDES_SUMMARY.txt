@@ -1,0 +1,347 @@
+
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║         📦 PRODUCTION APK DEPLOYMENT GUIDES                    ║
+║         For: CART Hypermarket Android App                     ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+✅ ALL GUIDES CREATED SUCCESSFULLY!
+
+
+📚 DOCUMENTATION OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  START_HERE_APK_GUIDE.md
+    ┗━► Quick start & overview
+    ┗━► READ THIS FIRST!
+    ┗━► 5 minutes to understand everything
+
+
+2️⃣  DEPLOYMENT_STEPS.md ⭐ MAIN GUIDE
+    ┗━► 30-step checklist from start to finish
+    ┗━► Follow this IN ORDER
+    ┗━► Estimated time: ~3 hours
+
+
+3️⃣  PRODUCTION_APK_COMPLETE_GUIDE.md
+    ┗━► Detailed explanations of every concept
+    ┗━► Troubleshooting section
+    ┗━► Reference guide
+
+
+4️⃣  GOOGLE_SIGNIN_CHECKLIST.md
+    ┗━► Quick OAuth setup checklist
+    ┗━► What you need, where to find it
+    ┗━► Verification checklist
+
+
+5️⃣  GOOGLE_SIGNIN_ARCHITECTURE.md
+    ┗━► Visual diagrams of OAuth flow
+    ┗━► Why you need 3 OAuth clients
+    ┗━► Common mistakes & fixes
+
+
+6️⃣  build-production-apk.bat
+    ┗━► Automated build script
+    ┗━► Double-click to start
+    ┗━► Guides you through the process
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🎯 YOUR LEARNING PATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ┌─────────────────────────────────────────────┐
+    │  1. START_HERE_APK_GUIDE.md                │
+    │     Get the big picture                     │
+    │     Time: 5 minutes                         │
+    └─────────────────────────────────────────────┘
+                      │
+                      ▼
+    ┌─────────────────────────────────────────────┐
+    │  2. DEPLOYMENT_STEPS.md                    │
+    │     Follow 30 steps IN ORDER                │
+    │     Time: ~3 hours                          │
+    └─────────────────────────────────────────────┘
+                      │
+                      ├──────── Need OAuth help? ────────┐
+                      │                                   │
+                      ▼                                   ▼
+    ┌─────────────────────────────┐    ┌────────────────────────────┐
+    │  Continue with deployment   │    │  GOOGLE_SIGNIN_CHECKLIST  │
+    │  steps...                   │    │  Quick verification        │
+    └─────────────────────────────┘    └────────────────────────────┘
+                      │
+                      ├──────── Need details? ───────────┐
+                      │                                   │
+                      ▼                                   ▼
+    ┌─────────────────────────────┐    ┌────────────────────────────┐
+    │  Continue with deployment   │    │  PRODUCTION_APK_COMPLETE   │
+    │  steps...                   │    │  Full explanations         │
+    └─────────────────────────────┘    └────────────────────────────┘
+                      │
+                      ├──────── Confused about OAuth? ───┐
+                      │                                   │
+                      ▼                                   ▼
+    ┌─────────────────────────────┐    ┌────────────────────────────┐
+    │  Complete deployment!       │    │  GOOGLE_SIGNIN_ARCHITECT   │
+    │  Wait for Google review     │    │  Visual diagrams           │
+    └─────────────────────────────┘    └────────────────────────────┘
+                      │
+                      ▼
+    ┌─────────────────────────────────────────────┐
+    │  🎉 YOUR APP IS LIVE ON PLAY STORE!        │
+    └─────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+⚡ QUICK START (30 SECONDS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Want to jump right in? Run this:
+
+    1. Double-click: build-production-apk.bat
+    2. Follow the prompts
+    3. Read DEPLOYMENT_STEPS.md while it builds
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🔑 CRITICAL INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your App Details:
+┌────────────────────────────────────────────────────────────────┐
+│  App Name:       CART Hypermarket                              │
+│  Package:        com.cart.hypermarket                          │
+│  Version:        1.0.1                                         │
+│  Version Code:   1                                             │
+│  EAS Owner:      loxlo                                         │
+│  Project ID:     715776f2-baec-4bf9-a749-29e831ca4fd1         │
+└────────────────────────────────────────────────────────────────┘
+
+Google Sign-In Setup:
+┌────────────────────────────────────────────────────────────────┐
+│  YOU NEED 3 OAUTH CLIENTS:                                     │
+│                                                                 │
+│  ✅ 1. Web Client                                              │
+│      → For backend verification                                │
+│      → ID goes in socialAuth.ts                                │
+│                                                                 │
+│  ✅ 2. Android Client #1 (Upload Key)                         │
+│      → For development & testing                               │
+│      → SHA-1 from: eas credentials                             │
+│                                                                 │
+│  ✅ 3. Android Client #2 (Play Store Key)                     │
+│      → For production (Play Store downloads)                   │
+│      → SHA-1 from: Play Console > App signing                  │
+│      → ⚠️  CREATE THIS AFTER UPLOADING!                        │
+└────────────────────────────────────────────────────────────────┘
+
+Current Web Client ID (in your code):
+┌────────────────────────────────────────────────────────────────┐
+│  113273912716-ho3k23v05dodf7gq7tpq5u782chrar3t...             │
+│  Location: frontend/services/socialAuth.ts (line 28)           │
+└────────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+📋 PRE-FLIGHT CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before you start, make sure you have:
+
+    ☐ Google Play Developer account ($25 one-time fee)
+    ☐ Google Cloud Console project
+    ☐ EAS CLI installed (npm install -g eas-cli)
+    ☐ Expo account (you have: loxlo)
+    ☐ Production backend URL ready
+    ☐ Privacy policy URL
+    ☐ App screenshots (min 2)
+    ☐ Feature graphic (1024x500px)
+    ☐ High-res icon (512x512px)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+⏱️  TIMELINE ESTIMATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Phase 1: Preparation           →  30 minutes
+    Phase 2: Build APK             →  20 minutes
+    Phase 3: Google Cloud Setup    →  15 minutes
+    Phase 4: Play Console Setup    →  1-2 hours
+    Phase 5: Upload & Publish      →  30 minutes
+    ─────────────────────────────────────────────
+    Total work time:                  ~3 hours
+
+    Phase 6: Google Review         →  3-7 days ⏳
+    Phase 7: Post-launch verify    →  15 minutes
+    ─────────────────────────────────────────────
+    Total time to live:               3-7 days
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🎓 WHAT YOU'LL LEARN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ✓ How to build production APK with EAS
+    ✓ How Google Sign-In OAuth works
+    ✓ Why you need 3 different OAuth clients
+    ✓ How to configure Google Cloud Console
+    ✓ How to set up Google Play Console
+    ✓ How to handle SHA-1 certificates
+    ✓ How to publish to Google Play Store
+    ✓ How to troubleshoot common issues
+    ✓ How to push future updates
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🚀 WHAT SUCCESS LOOKS LIKE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After completing all steps:
+
+    ✅ Production APK/AAB built successfully
+    ✅ 3 OAuth clients configured in Google Cloud
+    ✅ OAuth Consent Screen published
+    ✅ All Play Console sections complete
+    ✅ App uploaded and submitted for review
+    ✅ Google Sign-In working perfectly
+    ✅ App live on Google Play Store
+    ✅ Users can download and use your app
+    ✅ You're officially published! 🎉
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+💡 PRO TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    1. Test EVERYTHING before submitting
+       → Rejection delays launch by days
+
+    2. OAuth Consent Screen MUST be Published
+       → Most common mistake!
+
+    3. Create Android Client #2 AFTER uploading
+       → You need Play Store's SHA-1
+
+    4. Be patient with Google's review
+       → First apps take 3-7 days
+
+    5. Save your SHA-1 certificates
+       → You'll need them for troubleshooting
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🆘 GETTING HELP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Issue                          → Check This Guide
+    ─────────────────────────────────────────────────────────
+    General confusion              → START_HERE_APK_GUIDE.md
+    Step-by-step instructions      → DEPLOYMENT_STEPS.md
+    Google Sign-In not working     → GOOGLE_SIGNIN_CHECKLIST.md
+    Don't understand OAuth         → GOOGLE_SIGNIN_ARCHITECTURE.md
+    Need more details              → PRODUCTION_APK_COMPLETE_GUIDE.md
+
+    External Resources:
+    ─────────────────────────────────────────────────────────
+    Expo community                 → https://chat.expo.dev/
+    Stack Overflow                 → Tag: expo, google-signin
+    Play Console help              → https://support.google.com/...
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🔗 IMPORTANT LINKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    Google Cloud Console:
+    https://console.cloud.google.com/
+
+    Google Play Console:
+    https://play.google.com/console/
+
+    EAS Dashboard:
+    https://expo.dev/accounts/loxlo/projects/CART-hypermarket-app
+
+    OAuth Credentials:
+    https://console.cloud.google.com/apis/credentials
+
+    OAuth Consent Screen:
+    https://console.cloud.google.com/apis/credentials/consent
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+✅ FINAL CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before clicking "Start rollout":
+
+    ☐ Production API URL in .env
+    ☐ Web Client ID in socialAuth.ts
+    ☐ 3 OAuth clients created
+    ☐ OAuth Consent Screen is Published
+    ☐ All Play Console sections complete (green checkmarks)
+    ☐ Screenshots uploaded
+    ☐ Privacy policy added
+    ☐ Data safety completed
+    ☐ Content rating received
+    ☐ Tested APK manually on device
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+🎯 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    1. Open START_HERE_APK_GUIDE.md (get overview)
+    2. Open DEPLOYMENT_STEPS.md (main guide)
+    3. Follow steps 1-30 in order
+    4. Reference other guides as needed
+    5. Launch your app! 🚀
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║              🎉 GOOD LUCK WITH YOUR LAUNCH! 🍀                 ║
+║                                                                ║
+║         You have everything you need to succeed.               ║
+║         Take your time, follow the steps, and you'll           ║
+║         have your app live on Google Play Store!               ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Created for: CART Hypermarket
+Date: 2026
+Status: Ready for Production Deployment ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
