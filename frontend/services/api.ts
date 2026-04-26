@@ -1,4 +1,4 @@
-﻿// src/api/api.ts
+// src/api/api.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 import {
@@ -275,8 +275,23 @@ export const authApi = {
       body: JSON.stringify(data),
     });
 
-    // Registration doesn't return tokens - user must verify email first
-    // No tokens to save at this stage
+    // OTP BYPASS: Backend now returns tokens immediately on registration (OTP commented out)
+    // Previously: Registration didn't return tokens - user had to verify email first
+    if (response.data?.access_token && response.data?.refresh_token) {
+      await saveTokens(response.data.access_token, response.data.refresh_token);
+
+      await AsyncStorage.setItem(
+        TOKEN_CONFIG.USER_CACHE_KEY,
+        JSON.stringify({
+          id: response.data.user.id,
+          first_name: response.data.user.first_name,
+          last_name: response.data.user.last_name,
+          email: response.data.user.email,
+          phone: response.data.user.phone,
+          language: response.data.user.language,
+        }),
+      );
+    }
 
     return response;
   },

@@ -220,31 +220,31 @@ export default function LoginScreen() {
 
       router.replace("/(tabs)");
     } catch (error: any) {
-      // Check if user needs email verification
-      if (error.requires_verification) {
-        Alert.alert(
-          t.login.emailVerificationRequired,
-          error.message || t.login.pleaseVerifyEmail,
-          [
-            {
-              text: t.login.verifyNow,
-              onPress: () => {
-                // Navigate to signup with email pre-filled and go directly to OTP step
-                router.push({
-                  pathname: "/(auth)/signup",
-                  params: { email: email, step: "3" },
-                });
-              },
-            },
-            { text: t.common.cancel, style: "cancel" },
-          ],
-        );
-      } else {
-        Alert.alert(
-          t.common.error,
-          error.message || t.login.invalidCredentials,
-        );
-      }
+      // ---- OTP VERIFICATION FLOW (commented out) ----
+      // Email verification dialog removed: all users are auto-verified (is_verified=1)
+      // if (error.requires_verification) {
+      //   Alert.alert(
+      //     t.login.emailVerificationRequired,
+      //     error.message || t.login.pleaseVerifyEmail,
+      //     [
+      //       {
+      //         text: t.login.verifyNow,
+      //         onPress: () => {
+      //           router.push({
+      //             pathname: "/(auth)/signup",
+      //             params: { email: email, step: "3" },
+      //           });
+      //         },
+      //       },
+      //       { text: t.common.cancel, style: "cancel" },
+      //     ],
+      //   );
+      // } else {
+      // ---- END OTP VERIFICATION FLOW ----
+      Alert.alert(
+        t.common.error,
+        error.message || t.login.invalidCredentials,
+      );
     } finally {
       setLoading(false);
     }

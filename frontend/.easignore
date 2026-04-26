@@ -1,0 +1,88 @@
+# EAS Build ignore file
+# Unlike .gitignore, this DOES NOT ignore package-lock.json or .env
+# so that EAS can do proper npm ci and read environment config.
+
+# dependencies (EAS will install fresh)
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native build outputs
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.apk
+*.aab
+*.ipa
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.expo-shared/
+
+# macOS
+.DS_Store
+*.pem
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# typescript
+*.tsbuildinfo
+.vercel
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# Logs
+*.log
+logs/
+
+# Build files
+*.map
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+*_DOCUMENTATION.md
+
+firebase-service-account.json
+*.json.key
+
+# Exclude parent project directories (monorepo - only frontend is needed)
+../unibackend/
+../AdminDashboard/
+../driver-app/
+../k6-tests/
+../k6-results/
+../*.sql
+../*.md
+../*.bat
+../*.txt
+../*.rdb

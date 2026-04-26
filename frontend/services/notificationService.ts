@@ -2,6 +2,7 @@ import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { api } from "./api";
+import { getAuthToken } from "./api/base";
 
 // Type imports only (no runtime code)
 import type * as NotificationsType from "expo-notifications";
@@ -369,9 +370,20 @@ export async function getNotifications(
  */
 export async function getUnreadCount(): Promise<number> {
   try {
+    // Guard: skip API call if user is not authenticated (no token)
+    // This prevents TOKEN_EXPIRED errors when the app loads with stale/no tokens
+    const token = await getAuthToken();
+    if (!token) {
+      return 0;
+    }
+
     const response = await api.get("/notifications/unread-count");
     return response.data?.unread_count ?? 0;
-  } catch (error) {
+  } catch (error: any) {
+    // Silently handle auth errors — don't log TOKEN_EXPIRED as a scary error
+    if (error?.error_code === "TOKEN_EXPIRED" || error?.message?.includes("Unauthenticated")) {
+      return 0;
+    }
     console.error("Error fetching unread count:", error);
     return 0;
   }

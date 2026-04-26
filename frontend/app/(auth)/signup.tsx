@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -87,34 +87,31 @@ export default function SignupScreen() {
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
 
-  // Start OTP timer and auto-send OTP if coming from login with step=3
-  // or from forgot-password with autoVerify=true
-  useEffect(() => {
-    if (params.autoVerify === "true" && params.verifyEmail) {
-      // Coming from forgot-password — go directly to OTP step
-      setEmail(params.verifyEmail as string);
-      setStep(3);
-      startOtpTimer();
-      return;
-    }
-    if (params.step === "3") {
-      startOtpTimer();
-      // Auto-send OTP for unverified users redirected from login
-      if (params.email) {
-        (async () => {
-          try {
-            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-              method: "POST",
-              headers: getCommonHeaders(),
-              body: JSON.stringify({ email: params.email }),
-            });
-          } catch (error) {
-            console.warn("Auto-send OTP error:", error);
-          }
-        })();
-      }
-    }
-  }, []);
+  // OTP BYPASS: Auto-start OTP timer / resend logic (commented out)
+  // useEffect(() => {
+  //   if (params.autoVerify === "true" && params.verifyEmail) {
+  //     setEmail(params.verifyEmail as string);
+  //     setStep(3);
+  //     startOtpTimer();
+  //     return;
+  //   }
+  //   if (params.step === "3") {
+  //     startOtpTimer();
+  //     if (params.email) {
+  //       (async () => {
+  //         try {
+  //           await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+  //             method: "POST",
+  //             headers: getCommonHeaders(),
+  //             body: JSON.stringify({ email: params.email }),
+  //           });
+  //         } catch (error) {
+  //           console.warn("Auto-send OTP error:", error);
+  //         }
+  //       })();
+  //     }
+  //   }
+  // }, []);
   const checkEmailAvailability = async (emailToCheck: string) => {
     // Skip check if this email belongs to our own pending registration
     if (
@@ -308,10 +305,10 @@ export default function SignupScreen() {
     } else if (step === 2) {
       if (!validateStep2()) return;
 
-      // Wait for registration to succeed before navigating to OTP
+      // OTP BYPASS: Register user and redirect directly to home (skip OTP step 3)
       setLoading(true);
       try {
-        const result = await register({
+        await register({
           first_name: firstName,
           last_name: lastName,
           email,
@@ -323,22 +320,29 @@ export default function SignupScreen() {
         // Track what we registered so we can skip checks if user edits and comes back
         setRegisteredEmail(email.trim());
         setRegisteredPhone(phone.trim());
-        setStep(3);
-        startOtpTimer();
 
-        // If the initial OTP email wasn't sent, auto-trigger a resend
-        if (result?.emailSent === false) {
-          console.warn("[Signup] Initial OTP email failed, auto-resending...");
-          try {
-            await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-              method: "POST",
-              headers: getCommonHeaders(),
-              body: JSON.stringify({ email }),
-            });
-          } catch (retryError) {
-            console.warn("[Signup] Auto-resend also failed:", retryError);
-          }
-        }
+        // OTP BYPASS: Skip step 3 (OTP), go directly to step 4 (success) then home
+        setStep(4);
+        setTimeout(() => {
+          router.replace("/(tabs)");
+        }, 2000);
+
+        // ---- OTP VERIFICATION FLOW (commented out) ----
+        // setStep(3);
+        // startOtpTimer();
+        // if (result?.emailSent === false) {
+        //   console.warn("[Signup] Initial OTP email failed, auto-resending...");
+        //   try {
+        //     await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
+        //       method: "POST",
+        //       headers: getCommonHeaders(),
+        //       body: JSON.stringify({ email }),
+        //     });
+        //   } catch (retryError) {
+        //     console.warn("[Signup] Auto-resend also failed:", retryError);
+        //   }
+        // }
+        // ---- END OTP VERIFICATION FLOW ----
       } catch (error: any) {
         if (error.errors) {
           if (error.errors.email) {
@@ -364,9 +368,38 @@ export default function SignupScreen() {
     }
   };
 
-  const verifyEmail = useStore((state) => state.verifyEmail);
+  // ---- OTP VERIFICATION FLOW (commented out) ----
+  // const verifyEmail = useStore((state) => state.verifyEmail);
 
-  // Email validation effect
+  // OTP timer effect (commented out - OTP step bypassed)
+  // useEffect(() => {
+  //   let interval: NodeJS.Timeout | undefined;
+  //   if (step === 3 && otpTimer > 0) {
+  //     interval = setInterval(() => {
+  //       setOtpTimer((prev) => {
+  //         if (prev <= 1) {
+  //           setCanResend(true);
+  //           return 0;
+  //         }
+  //         return prev - 1;
+  //       });
+  //     }, 1000);
+  //   }
+  //   return () => {
+  //     if (interval) clearInterval(interval);
+  //   };
+  // }, [step, otpTimer]);
+
+  // const startOtpTimer = () => {
+  //   setOtpTimer(30);
+  //   setCanResend(false);
+  // };
+  // ---- END OTP VERIFICATION FLOW ----
+
+  // Placeholder so the rest of code that references startOtpTimer doesn't break
+  const startOtpTimer = () => {};
+
+  // Email validation effect (preserved - not OTP related)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (email && email.includes("@")) {
@@ -376,7 +409,7 @@ export default function SignupScreen() {
     return () => clearTimeout(timer);
   }, [email]);
 
-  // Phone validation effect
+  // Phone validation effect (preserved - not OTP related)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (phone && phone.length >= 10) {
@@ -385,30 +418,6 @@ export default function SignupScreen() {
     }, 800);
     return () => clearTimeout(timer);
   }, [phone]);
-
-  // OTP Timer Effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
-    if (step === 3 && otpTimer > 0) {
-      interval = setInterval(() => {
-        setOtpTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [step, otpTimer]);
-
-  const startOtpTimer = () => {
-    setOtpTimer(30);
-    setCanResend(false);
-  };
 
   const showResendToast = useCallback(() => {
     setResendToast(true);
@@ -511,28 +520,29 @@ export default function SignupScreen() {
     ]);
   };
 
-  const handleVerify = async () => {
-    const otpCode = otpDigits.join("");
-    if (!otpCode || otpCode.length !== 6) {
-      Alert.alert(t.common.error, t.signup.enterOtpCode);
-      return;
-    }
+  // ---- OTP VERIFICATION FLOW (commented out) ----
+  // const handleVerify = async () => {
+  //   const otpCode = otpDigits.join("");
+  //   if (!otpCode || otpCode.length !== 6) {
+  //     Alert.alert(t.common.error, t.signup.enterOtpCode);
+  //     return;
+  //   }
+  //   try {
+  //     setLoading(true);
+  //     await verifyEmail({ email, otp: otpDigits.join("") });
+  //     setStep(4);
+  //     setTimeout(() => {
+  //       router.replace("/(tabs)");
+  //     }, 2000);
+  //   } catch (error: any) {
+  //     Alert.alert(t.common.error, error.message || t.signup.verificationFailed);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+  // ---- END OTP VERIFICATION FLOW ----
+  const handleVerify = async () => {}; // OTP bypassed - placeholder to avoid reference errors
 
-    try {
-      setLoading(true);
-      await verifyEmail({ email, otp: otpDigits.join("") });
-
-      setStep(4);
-
-      setTimeout(() => {
-        router.replace("/(tabs)");
-      }, 2000);
-    } catch (error: any) {
-      Alert.alert(t.common.error, error.message || t.signup.verificationFailed);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const renderProgressBar = () => (
     <View style={styles.progressBar}>

@@ -36,7 +36,7 @@
         "backgroundColor": "#22C55E"
       },
       "package": "com.cart.hypermarket",
-      "versionCode": 1,
+      "versionCode": 3,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -49,7 +49,10 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": {
             "scheme": "com.googleusercontent.apps.113273912716-dcbh50mmcreap5m1ugee133st09s7bjd"
           }
@@ -57,7 +60,10 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": {
             "scheme": "https",
             "host": "cart.com",
@@ -85,7 +91,9 @@
           "photosPermission": "The app accesses your photos to let you share them with your friends."
         }
       ],
-      ["expo-apple-authentication"],
+      [
+        "expo-apple-authentication"
+      ],
       [
         "expo-notifications",
         {
@@ -107,7 +115,11 @@
     "extra": {
       "router": {
         "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "4df2e7c9-648d-4548-bd43-754fa99c3e58"
       }
-    }
+    },
+    "owner": "kareemh122"
   }
 }

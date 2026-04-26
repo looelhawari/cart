@@ -174,12 +174,13 @@ export const useStore = create<StoreState>()(
             pendingUser: null,
           });
         } catch (error: any) {
-          // If user needs verification, store pending user data
-          if (error.requires_verification) {
-            set({
-              pendingUser: { phone: error.phone || "", email },
-            });
-          }
+          // ---- OTP VERIFICATION FLOW (commented out) ----
+          // if (error.requires_verification) {
+          //   set({
+          //     pendingUser: { phone: error.phone || "", email },
+          //   });
+          // }
+          // ---- END OTP VERIFICATION FLOW ----
           throw error;
         }
       },
@@ -220,18 +221,32 @@ export const useStore = create<StoreState>()(
       register: async (data: RegisterData) => {
         const response = await authApi.register(data);
 
-        // Store pending user data for verification step
+        // ---- OTP VERIFICATION FLOW (commented out) ----
+        // Previously: store pending user for OTP verification step
+        // set({
+        //   pendingUser: {
+        //     phone: response.data.user.phone,
+        //     email: response.data.user.email,
+        //   },
+        // });
+        // return {
+        //   requiresVerification: true,
+        //   email: response.data.user.email,
+        //   emailSent: response.data.email_sent ?? true,
+        // };
+        // ---- END OTP VERIFICATION FLOW ----
+
+        // OTP BYPASS: Log user in immediately after registration
         set({
-          pendingUser: {
-            phone: response.data.user.phone,
-            email: response.data.user.email,
-          },
+          isAuthenticated: true,
+          user: response.data.user,
+          pendingUser: null,
         });
 
         return {
-          requiresVerification: true,
+          requiresVerification: false,
           email: response.data.user.email,
-          emailSent: response.data.email_sent ?? true,
+          emailSent: false,
         };
       },
 

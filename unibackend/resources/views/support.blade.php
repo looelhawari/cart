@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CART Support — Get help with your orders, account, payments, and delivery. Contact our support team.">
+    <title>Support — CART Grocery Shop</title>
+    <style>
+        :root {
+            --green: #22C55E;
+            --green-dark: #16a34a;
+            --green-deeper: #15803d;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --bg: #f8fafc;
+            --white: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        /* ── NAV ── */
+        nav {
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--green-dark);
+            text-decoration: none;
+        }
+
+        /* ── HEADER ── */
+        .header {
+            background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-deeper) 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 18px;
+            opacity: 0.85;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        /* ── LAYOUT ── */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 20px 80px;
+        }
+
+        /* ── CONTACT CARDS ── */
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px;
+            margin-bottom: 52px;
+        }
+
+        .contact-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .contact-card:hover {
+            border-color: #86efac;
+            box-shadow: 0 4px 20px rgba(22,163,74,0.1);
+        }
+
+        .contact-icon {
+            font-size: 36px;
+            margin-bottom: 14px;
+        }
+
+        .contact-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .contact-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .contact-btn {
+            display: inline-block;
+            background: var(--green-dark);
+            color: white;
+            padding: 10px 22px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.15s;
+        }
+
+        .contact-btn:hover { background: var(--green-deeper); }
+
+        .contact-btn-outline {
+            background: transparent;
+            color: var(--green-dark);
+            border: 1.5px solid var(--green-dark);
+        }
+
+        .contact-btn-outline:hover { background: #f0fdf4; }
+
+        /* ── FAQ ── */
+        .section-title {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 24px;
+            color: var(--text);
+        }
+
+        .faq-group {
+            margin-bottom: 40px;
+        }
+
+        .faq-group-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--green-dark);
+            background: #f0fdf4;
+            padding: 6px 14px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+
+        .faq-item {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .faq-question {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 18px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            transition: background 0.15s;
+        }
+
+        .faq-question:hover { background: #f8fafc; }
+
+        .faq-question .arrow {
+            font-size: 18px;
+            color: var(--green-dark);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .faq-answer {
+            display: none;
+            padding: 0 20px 18px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            border-top: 1px solid var(--border);
+        }
+
+        .faq-item.open .faq-answer { display: block; }
+        .faq-item.open .arrow { transform: rotate(180deg); }
+        .faq-item.open .faq-question { background: #f8fafc; }
+
+        /* ── HOURS ── */
+        .info-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+
+        .info-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+
+        .hours-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .hours-row:last-child { border-bottom: none; }
+        .hours-row span:first-child { color: var(--text-secondary); }
+        .hours-row span:last-child { font-weight: 600; }
+
+        .badge-free {
+            display: inline-block;
+            background: #dcfce7;
+            color: var(--green-dark);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 100px;
+        }
+
+        /* ── FOOTER ── */
+        .footer {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+
+        .footer a {
+            color: var(--green-dark);
+            text-decoration: none;
+        }
+
+        .footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .header h1 { font-size: 26px; }
+            .contact-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <a href="/" class="nav-logo">🛒 CART</a>
+    <a href="/" style="font-size: 14px; color: #64748b; text-decoration: none;">← Back to home</a>
+</nav>
+
+<!-- HEADER -->
+<div class="header">
+    <h1>Support Center</h1>
+    <p>We're here to help. Find answers or reach our team directly.</p>
+</div>
+
+<div class="container">
+
+    <!-- CONTACT OPTIONS -->
+    <div class="contact-grid">
+        <div class="contact-card">
+            <div class="contact-icon">📧</div>
+            <h3>Email Support</h3>
+            <p>Send us a message and we'll respond within 24 hours.</p>
+            <a href="mailto:kareemhesham105@gmail.com" class="contact-btn">Send Email</a>
+        </div>
+        <div class="contact-card">
+            <div class="contact-icon">📱</div>
+            <h3>In-App Support</h3>
+            <p>Open CART and go to Profile → Help &amp; Support for the fastest response.</p>
+            <a href="https://apps.apple.com/app/cart-grocery-shop/id6745918856" class="contact-btn contact-btn-outline">Open App</a>
+        </div>
+        <div class="contact-card">
+            <div class="contact-icon">🗑️</div>
+            <h3>Delete Account</h3>
+            <p>Request permanent deletion of your account and all associated data.</p>
+            <a href="/delete-account" class="contact-btn contact-btn-outline">Delete Account</a>
+        </div>
+    </div>
+
+    <!-- DELIVERY HOURS -->
+    <div class="info-card">
+        <h3>Delivery Hours & Fees</h3>
+        <div class="hours-row">
+            <span>Saturday – Thursday</span>
+            <span>9:00 AM – 10:00 PM</span>
+        </div>
+        <div class="hours-row">
+            <span>Friday</span>
+            <span>2:00 PM – 10:00 PM</span>
+        </div>
+        <div class="hours-row">
+            <span>Orders above 200 EGP</span>
+            <span><span class="badge-free">FREE Delivery</span></span>
+        </div>
+        <div class="hours-row">
+            <span>Orders below 200 EGP</span>
+            <span>25 EGP delivery fee</span>
+        </div>
+        <div class="hours-row">
+            <span>Coverage</span>
+            <span>Cairo &amp; Giza</span>
+        </div>
+    </div>
+
+    <!-- FAQ -->
+    <h2 class="section-title">Frequently Asked Questions</h2>
+
+    <!-- Orders -->
+    <div class="faq-group">
+        <div class="faq-group-title">Orders</div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                How do I track my order? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Go to <strong>My Orders</strong> in your profile. Each order shows real-time status updates: Order Confirmed → Being Prepared → Out for Delivery → Delivered. You'll also receive push notifications at every stage.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                Can I cancel my order? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Go to <strong>My Orders</strong>, select the order, and tap <strong>Cancel Order</strong>. Orders can only be cancelled before they are out for delivery. Refunds for prepaid orders are processed within 3–5 business days.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                What if an item is missing or wrong? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Go to <strong>Profile → Complaints</strong>, submit a complaint with your order number, and our team will resolve it within 24 hours. For urgent issues, email us directly at <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a>.
+            </div>
+        </div>
+    </div>
+
+    <!-- Delivery -->
+    <div class="faq-group">
+        <div class="faq-group-title">Delivery</div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                Which areas do you deliver to? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                We currently deliver to most areas in <strong>Cairo and Giza</strong> governorates. Enter your address during checkout to confirm delivery availability. We're constantly expanding our delivery zones.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                What are the delivery hours? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                We deliver from <strong>9 AM to 10 PM, Saturday through Thursday</strong>. Friday deliveries are available from <strong>2 PM to 10 PM</strong>. Choose your preferred time slot during checkout.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                How much does delivery cost? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Delivery is <strong>FREE for orders above 200 EGP</strong>. For orders below 200 EGP, a flat delivery fee of 25 EGP applies. During promotional periods, we may offer free delivery on all orders.
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment -->
+    <div class="faq-group">
+        <div class="faq-group-title">Payment</div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                What payment methods are accepted? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                We accept: <strong>Cash on Delivery (COD)</strong>, Credit/Debit Cards (Visa, Mastercard), Mobile Wallets (Vodafone Cash, Orange Money, Etisalat Cash), and the in-app <strong>CART Wallet</strong>. Online payments are powered by Paymob.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                Is online payment secure? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Yes. We use <strong>Paymob</strong>, Egypt's leading payment gateway, with bank-level TLS encryption. Your card details are never stored on our servers. All card transactions are protected by <strong>3D Secure authentication</strong>.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                How do refunds work? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Refunds are processed within <strong>3–5 business days</strong> after approval. For card payments, it may take an additional 5–7 days to reflect in your account depending on your bank.
+            </div>
+        </div>
+    </div>
+
+    <!-- Account -->
+    <div class="faq-group">
+        <div class="faq-group-title">Account</div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                How do I reset my password? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                On the login screen, tap <strong>Forgot Password?</strong>. Enter your registered email address and we'll send you a reset code. Follow the steps to create a new password.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                How do I delete my account? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                You can delete your account from <strong>Profile → Settings → Delete Account</strong> inside the app, or visit our <a href="/delete-account">account deletion page</a>. All personal data is permanently removed within 7 days.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggle(this)">
+                How do I enable Face ID or Fingerprint login? <span class="arrow">▾</span>
+            </button>
+            <div class="faq-answer">
+                Go to <strong>Profile → Settings → Biometric Login</strong> and toggle it on. You'll be prompted to enter your password once to authorize it. Biometric data never leaves your device.
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+    <p>
+        <a href="/">Home</a> &nbsp;·&nbsp;
+        <a href="/privacy-policy">Privacy Policy</a> &nbsp;·&nbsp;
+        <a href="/delete-account">Delete Account</a> &nbsp;·&nbsp;
+        <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a>
+    </p>
+    <p style="margin-top: 8px;">&copy; {{ date('Y') }} CART Grocery Shop. All rights reserved.</p>
+</div>
+
+<script>
+    function toggle(btn) {
+        const item = btn.closest('.faq-item');
+        item.classList.toggle('open');
+    }
+</script>
+</body>
+</html>

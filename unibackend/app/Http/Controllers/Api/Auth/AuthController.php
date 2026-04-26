@@ -69,7 +69,9 @@ class AuthController extends Controller
             'language' => $request->language,
             'role' => 'customer',
             'is_active' => true,
-            'is_verified' => false,
+            // OTP BYPASS: auto-verify user on registration (OTP flow commented out)
+            'is_verified' => true,
+            'email_verified_at' => Carbon::now(),
         ]);
 
         // Log registration activity
@@ -78,13 +80,18 @@ class AuthController extends Controller
             'phone' => $user->phone,
         ]);
 
-        // Generate and send OTP for email verification
-        $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        // ---- OTP VERIFICATION FLOW (commented out) ----
+        // $otp = $this->otpService->createEmailVerificationOtp($user->email);
+        // $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        // if (!$sent) {
+        //     Log::error("Failed to send registration OTP email to {$user->email}");
+        // }
+        // ---- END OTP VERIFICATION FLOW ----
 
-        if (!$sent) {
-            Log::error("Failed to send registration OTP email to {$user->email}");
-        }
+        // OTP BYPASS: Issue tokens immediately after registration
+        $this->pushNotificationService->sendWelcomeNotification($user->id, $user->first_name);
+        $accessToken = $user->createToken('access_token', ['*'], Carbon::now()->addHours(24))->plainTextToken;
+        $refreshToken = $user->createToken('refresh_token', ['refresh', 'standard'], Carbon::now()->addDays(30))->plainTextToken;
 
         return response()->json([
             'success' => true,
@@ -94,12 +101,19 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'first_name' => $user->first_name,
                     'last_name' => $user->last_name,
+                    'full_name' => $user->full_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'avatar' => $user->avatar,
                     'language' => $user->language,
+                    'role' => $user->role,
                     'is_verified' => $user->is_verified,
                 ],
-                'email_sent' => $sent,
+                'access_token' => $accessToken,
+                'refresh_token' => $refreshToken,
+                'token_type' => 'Bearer',
+                'expires_in' => 86400,
+                // 'email_sent' => $sent, // OTP bypassed
             ],
         ], 201);
     }
@@ -196,21 +210,21 @@ class AuthController extends Controller
             ], 403);
         }
 
-        if (!$user->is_verified) {
-            // Resend OTP
-            $otp = $this->otpService->createEmailVerificationOtp($user->email);
-            $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
-
-            if (!$sent) {
-                Log::error("Failed to send login verification OTP to {$user->email}");
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => __('auth.verify_email_otp_sent'),
-                'requires_verification' => true,
-            ], 403);
-        }
+        // ---- OTP VERIFICATION FLOW (commented out) ----
+        // if (!$user->is_verified) {
+        //     // Resend OTP
+        //     $otp = $this->otpService->createEmailVerificationOtp($user->email);
+        //     $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        //     if (!$sent) {
+        //         Log::error("Failed to send login verification OTP to {$user->email}");
+        //     }
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => __('auth.verify_email_otp_sent'),
+        //         'requires_verification' => true,
+        //     ], 403);
+        // }
+        // ---- END OTP VERIFICATION FLOW ----
 
         // Revoke all existing tokens
         $user->tokens()->delete();
