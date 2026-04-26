@@ -166,7 +166,7 @@ class OrderService
                 $product = $products->get((int) $productId);
 
                 if (!$product || !$product->is_active || !$product->is_in_stock) {
-                    throw new \Exception('One or more products in your cart are out of stock', 422);
+                    throw new \Exception('Out of stock [ERR1]: ' . $productId, 422);
                 }
 
                 if ($product->stock_quantity < $qty) {
@@ -178,7 +178,7 @@ class OrderService
                 $product = $products->get((int) $cartItem->product_id);
 
                 if (!$product || !$product->is_in_stock) {
-                    throw new \Exception('One or more products in your cart are out of stock', 422);
+                    throw new \Exception('Out of stock [ERR2]: ' . $cartItem->product_id, 422);
                 }
 
                 OrderItem::create([
