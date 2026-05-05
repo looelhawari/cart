@@ -86,4 +86,22 @@ class Product extends Model
     {
         return $this->sale_price ?? $this->price;
     }
+
+    /**
+     * Canonical "on sale" definition.
+     *
+     * Why: Different parts of the codebase historically used inconsistent
+     * predicates ("on_sale" boolean column that does NOT exist in the schema,
+     * vs. whereNotNull('sale_price'), vs. sale_price < price). This scope is
+     * the single source of truth — the same one the public products endpoint
+     * uses to expose discounted items to the mobile app. All admin metrics
+     * (products on sale, total discount given, etc.) MUST use it so app and
+     * dashboard cannot diverge.
+     */
+    public function scopeOnSale($query)
+    {
+        return $query
+            ->whereNotNull('sale_price')
+            ->whereColumn('sale_price', '<', 'price');
+    }
 }

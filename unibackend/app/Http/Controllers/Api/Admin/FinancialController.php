@@ -241,9 +241,21 @@ class FinancialController extends Controller
         try {
             $now = now();
 
-            // Check if columns exist to avoid errors
-            $hasPromoCodeId = \Schema::hasColumn('orders', 'promo_code_id');
-            $hasDiscountAmount = \Schema::hasColumn('orders', 'discount_amount');
+            // Canonical column names. Historically this method probed for
+            // `orders.promo_code_id` and `orders.discount_amount` — neither
+            // exists in the schema. Real columns are `promo_code_snapshot`
+            // (JSON) and `discount`. Probing the wrong names caused all
+            // discount totals on the dashboard to silently be zero while
+            // the mobile app correctly showed discounts on its side.
+            $totalDiscountGiven = (float) Order::withPromoCode()
+                ->where('payment_status', 'completed')
+                ->sum('discount');
+
+            $revenueWithPromo = (float) Order::withPromoCode()
+                ->where('payment_status', 'completed')
+                ->sum('total');
+
+            $ordersWithPromo = Order::withPromoCode()->count();
 
             $data = [
                 'total_codes' => PromoCode::count(),
@@ -254,19 +266,9 @@ class FinancialController extends Controller
                 'expired_codes' => PromoCode::where('valid_until', '<', $now)->count(),
                 'scheduled_codes' => PromoCode::where('valid_from', '>', $now)->count(),
                 'total_usage' => PromoCode::sum('used_count') ?? 0,
-                'total_discount_given' => $hasPromoCodeId && $hasDiscountAmount 
-                    ? (Order::whereNotNull('promo_code_id')
-                        ->where('payment_status', 'completed')
-                        ->sum('discount_amount') ?? 0)
-                    : 0,
-                'revenue_with_promo' => $hasPromoCodeId 
-                    ? (Order::whereNotNull('promo_code_id')
-                        ->where('payment_status', 'completed')
-                        ->sum('total') ?? 0)
-                    : 0,
-                'orders_with_promo' => $hasPromoCodeId 
-                    ? Order::whereNotNull('promo_code_id')->count() 
-                    : 0,
+                'total_discount_given' => round($totalDiscountGiven, 2),
+                'revenue_with_promo' => round($revenueWithPromo, 2),
+                'orders_with_promo' => $ordersWithPromo,
                 'most_used_codes' => PromoCode::orderBy('used_count', 'desc')
                     ->limit(5)
                     ->get(['id', 'code', 'type', 'value', 'used_count', 'usage_limit']),
@@ -277,6 +279,16 @@ class FinancialController extends Controller
                     ->groupBy('type')
                     ->get(),
             ];
+
+            // Drift alarm: promo-code usage is recorded but no order shows it.
+            // Most likely a regression in the column names or in the order-creation
+            // path that snapshots the promo code. Surface loudly.
+            if ((int) $data['total_usage'] > 0 && $ordersWithPromo === 0) {
+                \Log::warning('financial.promoCodesAnalytics: total_usage>0 but orders_with_promo=0', [
+                    'total_usage' => $data['total_usage'],
+                    'hint' => 'Check that orders.promo_code_snapshot is being populated at checkout.',
+                ]);
+            }
 
             return response()->json([
                 'success' => true,

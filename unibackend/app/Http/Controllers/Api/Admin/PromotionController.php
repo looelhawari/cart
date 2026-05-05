@@ -420,10 +420,27 @@ class PromotionController extends Controller
 
     /**
      * Get overall promotions summary analytics
+     *
+     * IMPORTANT: All "is this product on sale?" predicates MUST go through
+     * Product::onSale() so the admin dashboard and the public mobile-app
+     * endpoint cannot disagree about which products are discounted.
+     * (Historical bug: this method queried a non-existent `on_sale` column,
+     * which made the dashboard silently report zero discounts even though
+     * the app was happily showing them.)
      */
     public function summaryAnalytics()
     {
         try {
+            // Single source of truth: same predicate the public products endpoint uses.
+            $productsOnSaleCount = \App\Models\Product::onSale()->count();
+
+            // Sum potential customer savings across in-stock discounted units.
+            // COALESCE(original_price, price) handles legacy rows where the original
+            // price wasn't snapshotted before the discount was applied.
+            $totalDiscountGiven = (float) \App\Models\Product::onSale()
+                ->selectRaw('COALESCE(SUM((COALESCE(original_price, price) - sale_price) * stock_quantity), 0) as total')
+                ->value('total');
+
             $data = [
                 'total_promotions' => Promotion::count(),
                 'active_promotions' => Promotion::where('is_active', true)
@@ -433,11 +450,8 @@ class PromotionController extends Controller
                 'scheduled_promotions' => Promotion::where('start_date', '>', now())->count(),
                 'expired_promotions' => Promotion::where('end_date', '<', now())->count(),
                 'featured_promotion' => Promotion::where('is_featured', true)->first(),
-                'products_on_sale' => DB::table('products')->where('on_sale', true)->count(),
-                'total_discount_given' => DB::table('products')
-                    ->where('on_sale', true)
-                    ->selectRaw('SUM((original_price - sale_price) * stock_quantity) as total')
-                    ->value('total') ?? 0,
+                'products_on_sale' => $productsOnSaleCount,
+                'total_discount_given' => round($totalDiscountGiven, 2),
                 'promotions_by_type' => Promotion::select('discount_type', DB::raw('count(*) as count'))
                     ->groupBy('discount_type')
                     ->get(),
@@ -446,11 +460,22 @@ class PromotionController extends Controller
                     ->get(['id', 'title', 'discount_type', 'discount_value', 'start_date', 'end_date', 'is_active']),
             ];
 
+            // Drift alarm: an active promotion exists but no product looks on sale.
+            // This usually means the promotion was created/edited but never applied
+            // (sale_price wasn't backfilled). Surface it loudly so it's caught early.
+            if ($data['active_promotions'] > 0 && $productsOnSaleCount === 0) {
+                \Log::warning('promotions.summary: active promotions exist but products_on_sale=0', [
+                    'active_promotions' => $data['active_promotions'],
+                    'hint' => 'Run PromotionService::recalculateAllProductPrices() to backfill sale_price.',
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $data,
             ]);
         } catch (\Exception $e) {
+            \Log::error('promotions.summary failed', ['error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch summary analytics',

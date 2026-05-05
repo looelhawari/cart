@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -A 60 \"CREATE TABLE \\\\`products\\\\`\" \"D:\\\\CART\\\\cart\\\\elbaraka_unified.sql\")",
+      "Bash(ls \"D:\\\\CART\\\\cart\"\\\\*.sql 2>&1)",
+      "Read(//d/CART/**)",
+      "Bash(grep -A 80 \"CREATE TABLE \\\\`orders\\\\`\" \"D:\\\\CART\\\\cart\\\\elbaraka_schema.sql\")",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\Schema::\" \"D:\\\\CART\\\\cart\\\\unibackend\\\\app\\\\Http\\\\Controllers\\\\Api\\\\Admin\\\\FinancialController.php\")",
+      "Bash(php -l app/Http/Controllers/Api/Admin/FinancialController.php)",
+      "Bash(php -l app/Http/Controllers/Api/Admin/PromotionController.php)",
+      "Bash(php -l app/Models/Product.php)",
+      "Bash(php -l app/Models/Order.php)"
+    ]
+  }
+}

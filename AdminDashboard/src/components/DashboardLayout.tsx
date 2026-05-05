@@ -30,6 +30,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useNewOrderNotification } from "@/hooks/useNewOrderNotification";
+import NewOrderBanner from "@/components/NewOrderBanner";
+import { useNewOrderStore } from "@/store/new-order.store";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -74,6 +76,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const filteredNavItems = navItems.filter((item) => canNav(item.href));
 
   useNewOrderNotification();
+  const hasNewOrder = useNewOrderStore((s) => s.pending !== null);
 
   const handleLogout = async () => {
     await logout();
@@ -92,7 +95,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-elbaraka-bg">
+    <div className={cn("min-h-screen bg-elbaraka-bg", hasNewOrder && "pt-16")}>
+      <NewOrderBanner />
       {/* Sidebar */}
       <aside
         className={cn(

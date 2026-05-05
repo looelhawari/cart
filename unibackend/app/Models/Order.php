@@ -199,6 +199,30 @@ class Order extends Model
     }
 
     /**
+     * Canonical scope for orders that used a promo code.
+     *
+     * Why: There is NO `promo_code_id` column on `orders`. The promo code
+     * (if any) is captured inside the JSON column `promo_code_snapshot`.
+     * Several admin analytics endpoints historically queried a non-existent
+     * `promo_code_id` column, which made discount metrics silently report
+     * zero. This scope is the single source of truth.
+     */
+    public function scopeWithPromoCode($query)
+    {
+        return $query->whereNotNull('promo_code_snapshot');
+    }
+
+    /**
+     * Canonical scope for orders that received any discount (promo code OR
+     * promotion). Uses the actual `discount` column, not the misnamed
+     * `discount_amount` referenced by some legacy code paths.
+     */
+    public function scopeWithDiscount($query)
+    {
+        return $query->where('discount', '>', 0);
+    }
+
+    /**
      * Get the reviews for this order
      */
     public function reviews(): HasMany
