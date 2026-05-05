@@ -130,7 +130,7 @@ class OrderController extends Controller
         $order = Order::with([
             'user',
             'deliveryAddress',
-            'items',
+            'items.product',
         ])->findOrFail($id);
 
         return response()->json(['data' => $order]);

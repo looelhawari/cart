@@ -29,6 +29,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useNewOrderNotification } from "@/hooks/useNewOrderNotification";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -71,6 +72,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const isRTL = i18n.language === "ar";
 
   const filteredNavItems = navItems.filter((item) => canNav(item.href));
+
+  useNewOrderNotification();
 
   const handleLogout = async () => {
     await logout();

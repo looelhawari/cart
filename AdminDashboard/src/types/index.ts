@@ -324,6 +324,7 @@ export interface OrderItem {
     order_id: number
     product_barcode: string
     product_name: string
+    product_image?: string | null
     product_price: number
     quantity: number
     subtotal: number

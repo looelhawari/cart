@@ -111,8 +111,9 @@ export const orderService = {
             items: (orderData.items || []).map((item: any) => ({
                 id: item.id,
                 order_id: item.order_id,
-                product_barcode: item.product_sku || item.product_barcode,
+                product_barcode: item.product_sku || item.product_barcode || item.product?.barcode,
                 product_name: item.product_name,
+                product_image: item.product_image || item.product?.image || null,
                 product_price: parseFloat(item.price || item.product_price || 0),
                 quantity: parseInt(item.quantity || 0),
                 subtotal: parseFloat(item.subtotal || (item.price * item.quantity) || 0)

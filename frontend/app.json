@@ -2,7 +2,7 @@
   "expo": {
     "name": "CART",
     "slug": "CART-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cart",
@@ -36,7 +36,7 @@
         "backgroundColor": "#22C55E"
       },
       "package": "com.cart.hypermarket",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",

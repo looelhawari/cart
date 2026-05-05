@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { ArrowLeft, MapPin, User, Package, DollarSign, CheckCircle, Truck, Clock, XCircle, RefreshCw, Printer, UserCheck, Navigation } from 'lucide-react'
+import { ArrowLeft, MapPin, User, Package, DollarSign, CheckCircle, Truck, Clock, XCircle, RefreshCw, Printer, UserCheck, Navigation, Image as ImageIcon } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
 import { useState } from 'react'
@@ -345,6 +345,8 @@ export default function OrderDetailPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="border-b">
+                                <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.productImage')}</th>
+                                <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('products.barcode')}</th>
                                 <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.product')}</th>
                                 <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('orders.price')}</th>
                                 <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('orders.quantity')}</th>
@@ -354,6 +356,24 @@ export default function OrderDetailPage() {
                         <tbody>
                             {order.items?.map((item) => (
                                 <tr key={item.id} className="border-b">
+                                    <td className="p-3">
+                                        {item.product_image ? (
+                                            <img
+                                                src={item.product_image}
+                                                alt={item.product_name}
+                                                className="h-12 w-12 object-cover rounded border border-gray-200"
+                                                onError={(e) => {
+                                                    const target = e.target as HTMLImageElement
+                                                    target.style.display = 'none'
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="h-12 w-12 bg-gray-100 rounded flex items-center justify-center">
+                                                <ImageIcon className="h-6 w-6 text-gray-400" />
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="p-3 font-mono text-sm">{item.product_barcode || '—'}</td>
                                     <td className="p-3">{item.product_name}</td>
                                     <td className="p-3 text-right">{formatCurrency(item.product_price)}</td>
                                     <td className="p-3 text-right">{item.quantity}</td>
