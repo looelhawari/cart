@@ -139,14 +139,14 @@ class CheckoutController extends Controller
     }
 
     /**
-     * Process payment for an order with wallet-first strategy
+     * Process payment for an order.
      * POST /api/v1/checkout/process-payment
      */
     public function processPayment(Request $request): JsonResponse
     {
         $validator = \Validator::make($request->all(), [
             'order_id' => 'required|exists:orders,id',
-            'payment_method' => 'required|in:wallet,card,cash_on_delivery',
+            'payment_method' => 'required|in:card,cash_on_delivery',
             // Billing data only required for card payments
             'billing_data' => 'required_if:payment_method,card|array',
             'billing_data.first_name' => 'required_if:payment_method,card|string|max:255',
@@ -259,8 +259,7 @@ class CheckoutController extends Controller
                 ], 403);
             }
 
-            $wallet = \App\Models\UserWallet::firstOrCreate(['user_id' => $order->user_id]);
-
+            // Wallet feature removed — only card and COD remain.
             $methods = [
                 'cash_on_delivery' => [
                     'available' => true,
@@ -272,26 +271,7 @@ class CheckoutController extends Controller
                     'name' => __('checkout.method_card_name'),
                     'description' => __('checkout.method_card_desc'),
                 ],
-                'wallet' => [
-                    'available' => $wallet->hasSufficientBalance($order->total),
-                    'name' => __('checkout.method_wallet_name'),
-                    'description' => __('checkout.method_wallet_desc'),
-                    'balance' => $wallet->balance,
-                    'required' => $order->total,
-                    'sufficient' => $wallet->hasSufficientBalance($order->total),
-                ],
             ];
-
-            // Check if partial wallet payment is possible
-            if ($wallet->balance > 0 && $wallet->balance < $order->total) {
-                $methods['wallet_partial'] = [
-                    'available' => true,
-                    'name' => __('checkout.method_wallet_card_name'),
-                    'description' => __('checkout.method_wallet_card_desc', ['amount' => $wallet->balance]),
-                    'wallet_amount' => $wallet->balance,
-                    'card_amount' => $order->total - $wallet->balance,
-                ];
-            }
 
             return response()->json([
                 'success' => true,

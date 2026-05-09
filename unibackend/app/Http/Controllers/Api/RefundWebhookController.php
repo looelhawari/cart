@@ -57,9 +57,51 @@ class RefundWebhookController extends Controller
 
             $transactionId = (string) ($payload['id'] ?? '');
             $sourceTransactionId = (string) ($payload['source_data']['sub_type'] ?? '');
-            $isRefund = ($payload['is_refund'] ?? false) || ($payload['is_void'] ?? false);
+            // SECURITY (audit C6): is_void is NOT covered by Paymob's HMAC.
+            // We rely only on is_refund (which IS in the signed canonical
+            // string) so an attacker cannot flip a payment webhook into a
+            // refund-completion path.
+            $isRefund = (bool) ($payload['is_refund'] ?? false);
             $success = (bool) ($payload['success'] ?? false);
             $amountCents = (int) ($payload['amount_cents'] ?? 0);
+
+            // SECURITY (audit Chain A item 4 + C1): replay-protection.
+            // Reject payloads older than 10 minutes (Paymob sends within seconds).
+            $createdAt = $payload['created_at'] ?? null;
+            if ($createdAt) {
+                try {
+                    $age = now()->diffInMinutes(\Carbon\Carbon::parse($createdAt));
+                    if ($age > 10) {
+                        Log::warning('🔄 [REFUND WEBHOOK] Stale payload rejected', [
+                            'transaction_id' => $transactionId,
+                            'age_minutes' => $age,
+                        ]);
+                        return response()->json(['message' => 'Stale webhook'], 400);
+                    }
+                } catch (\Throwable $e) {
+                    // Bad timestamp format — reject conservatively.
+                    return response()->json(['message' => 'Invalid created_at'], 400);
+                }
+            }
+
+            // Nonce-store: insert event row keyed by transaction_id. Replay
+            // hits the unique constraint and is rejected idempotently.
+            if ($transactionId) {
+                try {
+                    \DB::table('paymob_webhook_events')->insert([
+                        'transaction_id' => $transactionId,
+                        'event_type' => 'refund',
+                        'ip' => $request->ip(),
+                        'received_at' => now(),
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::info('🔄 [REFUND WEBHOOK] Replay or duplicate suppressed', [
+                        'transaction_id' => $transactionId,
+                    ]);
+                    // Return 200 so Paymob considers it acknowledged.
+                    return response()->json(['message' => 'Already processed'], 200);
+                }
+            }
 
             // Only process refund/void webhooks
             if (!$isRefund && !$transactionId) {

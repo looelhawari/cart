@@ -284,19 +284,22 @@ class SocialAuthController extends Controller
                 throw new \Exception('Invalid token issuer');
             }
 
-            // Validate audience
-            $validAudiences = [
+            // SECURITY HARDENED (audit S6): hard-reject on audience mismatch.
+            // Previously the mismatch was logged-then-allowed ("flexibility
+            // during development"), accepting any Apple identityToken issued
+            // for any other app — full account-takeover surface.
+            $validAudiences = array_filter([
                 config('services.apple.client_id'),
                 'app.rork.elbaraka_hypermarket_app',
-            ];
+            ]);
 
             $tokenAud = $payload['aud'] ?? '';
-            if (!in_array($tokenAud, $validAudiences)) {
-                Log::warning('Apple token audience mismatch', [
+            if (empty($validAudiences) || $tokenAud === '' || !in_array($tokenAud, $validAudiences, true)) {
+                Log::warning('Apple token audience mismatch — rejected', [
                     'expected' => $validAudiences,
                     'received' => $tokenAud,
                 ]);
-                // Allow flexibility during development
+                return null;
             }
 
             // Validate expiration
@@ -430,23 +433,27 @@ class SocialAuthController extends Controller
                 // ── Case D: No existing user → create new account ──
                 $isNewUser = true;
 
+                // Privilege/verification/identity fields are no longer in
+                // $fillable (security hardening). Set them via forceFill().
                 $user = User::create([
                     'first_name' => $firstName,
                     'last_name' => $lastName,
                     'email' => $email,
                     'phone' => null,
                     'password' => Hash::make(Str::random(40)), // Cryptographically secure random, bcrypt-hashed
+                    'language' => 'en',
+                    'avatar' => $avatar,
+                ]);
+                $user->forceFill([
                     'email_verified_at' => $emailVerified ? now() : null,
                     'phone_verified_at' => null,
                     'is_social_only' => true,
-                    'is_verified' => $emailVerified, // Verified if provider confirms email
+                    'is_verified' => $emailVerified,
                     'is_active' => true,
-                    'language' => 'en',
                     'role' => 'customer',
-                    'avatar' => $avatar,
                     'registration_source' => $provider,
                     $providerIdColumn => $providerId,
-                ]);
+                ])->save();
 
                 Log::info("New social user created via {$provider}", [
                     'user_id' => $user->id,

@@ -36,7 +36,6 @@ use App\Http\Controllers\Api\PromoCodeApiController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\StaticPageController;
 use App\Http\Controllers\Api\StoreSettingsController;
-use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\DeliveryZoneController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\HealthController;
@@ -101,20 +100,20 @@ Route::prefix('v1')->group(function () {
         Route::delete('/remove-promo', [CartController::class, 'removePromo']);
     });
 
-    // Promo code routes (public and authenticated) - throttled to 60 requests per minute
-    Route::middleware('throttle:60,1')->prefix('promo-codes')->group(function () {
-        // Public routes
+    // Promo code routes — ALL endpoints require authentication.
+    //
+    // SECURITY (audit): /validate, /preview, /details and /suggestions used
+    // to be public, allowing anyone to brute-force-enumerate promo codes
+    // (60 req/min/IP × proxies = ~hundreds of thousands of probes/day).
+    // Moved into auth:sanctum group + tighter rate limit per-user.
+    Route::middleware(['auth:sanctum', 'throttle:30,1'])->prefix('promo-codes')->group(function () {
         Route::get('/available', [PromoCodeApiController::class, 'available']);
         Route::post('/validate', [PromoCodeApiController::class, 'validate']);
         Route::post('/preview', [PromoCodeApiController::class, 'preview']);
         Route::get('/details/{code}', [PromoCodeApiController::class, 'details']);
         Route::get('/suggestions', [PromoCodeApiController::class, 'suggestions']);
-
-        // Authenticated routes
-        Route::middleware('auth:sanctum')->group(function () {
-            Route::post('/recommendations', [PromoCodeApiController::class, 'recommendations']);
-            Route::get('/my-usage', [PromoCodeApiController::class, 'myUsage']);
-        });
+        Route::post('/recommendations', [PromoCodeApiController::class, 'recommendations']);
+        Route::get('/my-usage', [PromoCodeApiController::class, 'myUsage']);
     });
 
     // Product routes (public) - throttled to 60 requests per minute
@@ -186,87 +185,20 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('auth/confirm-password', [AuthController::class, 'confirmPassword']);
 
-        // Broadcasting auth (Universal for Admin & Customer)
+        // Broadcasting auth (Universal for Admin & Customer).
+        //
+        // SECURITY HARDENED (audit S4): the previous implementation contained
+        // a manual-fallback branch that signed an arbitrary `private-XXX`
+        // channel with the Pusher secret WITHOUT verifying the user owned the
+        // channel — only `complaints.*` channels were checked. An attacker
+        // could subscribe to anyone's `private-order.{id}.tracking` and watch
+        // their GPS feed in real time.
+        //
+        // We now delegate exclusively to Broadcast::auth(), which honors the
+        // ownership callbacks defined in routes/channels.php for every
+        // channel. No manual signing, no fallback.
         Route::post('/broadcasting/auth', function (Request $request) {
-            try {
-                $user = $request->user();
-                if (!$user) {
-                    \Log::warning('Broadcasting Auth: No authenticated user');
-                    return response()->json(['error' => 'Unauthenticated'], 401);
-                }
-
-                $channelName = $request->channel_name;
-                $socketId = $request->socket_id;
-
-                \Log::info('Broadcasting Auth Request:', [
-                    'user_id' => $user->id,
-                    'channel' => $channelName,
-                    'socket_id' => $socketId
-                ]);
-
-                // Try Laravel's built-in auth first
-                $response = Broadcast::auth($request);
-
-                // If Broadcast::auth returns a valid response, use it
-                if ($response && !is_null($response)) {
-                    \Log::info('Broadcasting Auth Success via Broadcast::auth');
-                    return $response;
-                }
-
-                // Manual Pusher auth as fallback
-                // Check if user is authorized for this channel
-                $channelWithoutPrefix = str_replace('private-', '', $channelName);
-
-                // For complaints channels, verify ownership
-                if (str_starts_with($channelWithoutPrefix, 'complaints.')) {
-                    $complaintId = (int) str_replace('complaints.', '', $channelWithoutPrefix);
-                    $complaint = \App\Models\Complaint::find($complaintId);
-
-                    if (!$complaint) {
-                        \Log::warning("Broadcasting Auth Failed: Complaint {$complaintId} not found");
-                        return response()->json(['error' => 'Channel not found'], 403);
-                    }
-
-                    $isOwner = (int) $user->id === (int) $complaint->user_id;
-                    $isAdmin = method_exists($user, 'isAdmin') ? $user->isAdmin() : false;
-
-                    if (!$isOwner && !$isAdmin) {
-                        \Log::warning("Broadcasting Auth Failed: User {$user->id} not authorized for complaint {$complaintId}");
-                        return response()->json(['error' => 'Unauthorized'], 403);
-                    }
-                }
-
-                // Generate Pusher signature manually
-                $pusherKey = config('broadcasting.connections.pusher.key');
-                $pusherSecret = config('broadcasting.connections.pusher.secret');
-
-                if (!$pusherKey || !$pusherSecret) {
-                    \Log::error('Broadcasting Auth Failed: Pusher credentials not configured');
-                    return response()->json(['error' => 'Pusher not configured'], 500);
-                }
-
-                $stringToSign = $socketId . ':' . $channelName;
-                $signature = hash_hmac('sha256', $stringToSign, $pusherSecret);
-
-                $authResponse = [
-                    'auth' => $pusherKey . ':' . $signature
-                ];
-
-                \Log::info('Broadcasting Auth Success (manual):', [
-                    'user_id' => $user->id,
-                    'channel' => $channelName
-                ]);
-
-                return response()->json($authResponse);
-            } catch (\Throwable $e) {
-                \Log::error('Broadcasting Auth Error:', [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                return response()->json(['error' => 'Broadcasting auth failed: ' . $e->getMessage()], 500);
-            }
+            return Broadcast::auth($request);
         });
 
         // User profile endpoints
@@ -389,12 +321,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/order/{orderId}/status', [PaymentController::class, 'getPaymentStatus']);
         });
 
-        // Wallet endpoints (protected)
-        Route::prefix('wallet')->group(function () {
-            Route::get('/', [WalletController::class, 'index']);
-            Route::get('/transactions', [WalletController::class, 'transactions']);
-            Route::post('/recharge', [WalletController::class, 'recharge']);
-        });
+        // Wallet feature removed from product — endpoints deleted.
 
         // Favorites endpoints
         Route::prefix('favorites')->group(function () {

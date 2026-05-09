@@ -12,6 +12,15 @@ class PaymentMethod extends Model
 {
     use SoftDeletes; // ✅ Audit trail for deleted cards
 
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY HARDENED: is_verified, status, and invalidated_* are NOT
+     * fillable — they must be flipped only by Paymob webhook handler via
+     * forceFill(). A customer was previously able to mark their own card as
+     * is_verified=true via any controller forwarding $request->validated()
+     * to PaymentMethod::create(), bypassing the gateway-verification gate.
+     */
     protected $fillable = [
         'user_id',
         'type',
@@ -22,12 +31,10 @@ class PaymentMethod extends Model
         'paymob_card_token', // NEW: Proper Paymob saved card token
         'token_fingerprint', // SHA-256 hash for duplicate detection
         'token_type',
-        'status',
-        'invalidated_reason',
-        'invalidated_at',
         'is_default',
-        'is_verified',
         'expires_at',
+        // NOT FILLABLE (gateway-only state):
+        //   is_verified, status, invalidated_reason, invalidated_at
     ];
 
     protected $casts = [

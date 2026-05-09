@@ -429,10 +429,30 @@ class PaymentController extends Controller
             // It's only used AFTER the transaction webhook passes HMAC
             // verification + success + capture checks.
             // ═══════════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════════
+            // SECURITY GATE: Verify HMAC FIRST, before any branching.
+            // ═══════════════════════════════════════════════════════════════
+            // Previously the token-only webhook (which doesn't include
+            // payload.order) was acknowledged BEFORE HMAC verification, letting
+            // an unauthenticated attacker poison the cache with arbitrary
+            // (order_id, token) and have the customer's saved-card record
+            // populated with the attacker's token on the next legitimate
+            // transaction webhook. — Audit S7
+            if (!$this->paymobService->verifyHmac($data)) {
+                Log::error('🚫 SECURITY: Invalid HMAC signature', [
+                    'order_id' => $payload['order']['id'] ?? $payload['order_id'] ?? null,
+                    'ip' => $request->ip(),
+                ]);
+                return response()->json(['message' => 'Invalid signature'], 403);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // Token-only webhook (HMAC verified above). Cache the token until
+            // the transaction webhook arrives.
+            // ═══════════════════════════════════════════════════════════════
             if (isset($payload['token']) && isset($payload['masked_pan']) && !isset($payload['order'])) {
                 $tokenOrderId = $payload['order_id'] ?? null;
                 if ($tokenOrderId && is_string($payload['token']) && !empty($payload['token'])) {
-                    // Cache token data for 30 minutes — enough for transaction webhook to arrive
                     $tokenData = [
                         'token' => $payload['token'],
                         'masked_pan' => $payload['masked_pan'] ?? null,
@@ -452,18 +472,6 @@ class PaymentController extends Controller
                     ]);
                 }
                 return response()->json(['message' => 'Token webhook acknowledged'], 200);
-            }
-
-            // ═══════════════════════════════════════════════════════════════
-            // REQUIREMENT 1: HMAC VERIFICATION (Security Gate for transaction webhooks)
-            // ═══════════════════════════════════════════════════════════════
-            if (!$this->paymobService->verifyHmac($data)) {
-                Log::error('🚫 SECURITY: Invalid HMAC signature', [
-                    'order_id' => $payload['order']['id'] ?? null,
-                    'ip' => $request->ip(),
-                    // NO sensitive data logged
-                ]);
-                return response()->json(['message' => 'Invalid signature'], 403);
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -613,30 +621,21 @@ class PaymentController extends Controller
                 $order      = $payment->order;
 
                 // ═══════════════════════════════════════════════════════
-                // PAYMOB UNIFIED CHECKOUT QUIRK:
-                // In the Intention API flow, the top-level `is_capture`
-                // can be `false` even when the payment is fully captured.
-                // The real capture status lives deeper in the payload:
-                //   - data.migs_order.status === "CAPTURED"
-                //   - data.captured_amount > 0
-                //   - order.payment_status === "PAID"
-                // We must check these before rejecting a successful payment.
+                // SECURITY HARDENED (audit C5):
+                // Previously this block overrode `$isCapture = true` based on
+                // `payload['data']['migs_order']['status']`, `captured_amount`,
+                // and `payload['order']['payment_status']`. Those nested fields
+                // are NOT covered by Paymob's HMAC concatenation string —
+                // an attacker who could craft a payload with a valid signature
+                // over the canonical fields could inject a fake migs_order.status
+                // and force order confirmation when Paymob actually said
+                // is_capture=false.
+                //
+                // We now trust ONLY the HMAC-signed top-level `is_capture`
+                // (and `success`) flags. If those don't agree, treat the
+                // payment as still pending and let the reconciliation job
+                // resolve the true status by re-querying the gateway.
                 // ═══════════════════════════════════════════════════════
-                if ($success && !$isCapture) {
-                    $migsStatus     = strtoupper(trim($payload['data']['migs_order']['status'] ?? ''));
-                    $capturedAmt    = (float) ($payload['data']['captured_amount'] ?? $payload['captured_amount'] ?? 0);
-                    $orderPayStatus = strtoupper(trim($payload['order']['payment_status'] ?? ''));
-
-                    if ($migsStatus === 'CAPTURED' || $capturedAmt > 0 || $orderPayStatus === 'PAID') {
-                        Log::info('🔧 Paymob quirk: is_capture=false but underlying data confirms capture', [
-                            'payment_id'       => $payment->id,
-                            'migs_status'      => $migsStatus,
-                            'captured_amount'  => $capturedAmt,
-                            'order_pay_status' => $orderPayStatus,
-                        ]);
-                        $isCapture = true; // Override — payment IS captured
-                    }
-                }
 
                 // ═══════════════════════════════════════════════════════
                 // FAILURE PATH: Payment Failed/Cancelled
@@ -793,13 +792,29 @@ class PaymentController extends Controller
     // with a dangerous polling→DB mutation pattern. Use checkStatus() instead.
 
     /**
-     * Get payment status by order ID (legacy compatibility)
+     * Get payment status by order ID (legacy compatibility).
      * Route: GET /api/v1/order/{orderId}/status
+     *
+     * SECURITY HARDENED (audit S5): added owner check. Previously this
+     * endpoint returned full payment status for ANY order ID — an authenticated
+     * customer could enumerate every other customer's orders.
      */
-    public function getPaymentStatus($orderId): JsonResponse
+    public function getPaymentStatus(Request $request, $orderId): JsonResponse
     {
         try {
-            $payment = PaymobPayment::where('order_id', $orderId)
+            // Verify the caller owns the order BEFORE returning any data.
+            $order = Order::where('id', $orderId)
+                ->where('user_id', $request->user()->id)
+                ->first();
+
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('payment.not_found_for_order'),
+                ], 404);
+            }
+
+            $payment = PaymobPayment::where('order_id', $order->id)
                 ->latest()
                 ->first();
 
@@ -809,9 +824,6 @@ class PaymentController extends Controller
                     'message' => __('payment.not_found_for_order'),
                 ], 404);
             }
-
-            // Also get order payment status for frontend terminal state detection
-            $order = Order::find($orderId);
 
             return response()->json([
                 'success' => true,

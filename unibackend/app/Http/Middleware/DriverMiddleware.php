@@ -9,21 +9,35 @@ use Symfony\Component\HttpFoundation\Response;
 class DriverMiddleware
 {
     /**
-     * Ensure the authenticated user has the driver role.
+     * Ensure the authenticated user has the driver role AND is_active.
+     *
+     * SECURITY HARDENED (audit Chain E): previously only role was checked,
+     * so a driver suspended via is_active=false retained access to
+     * location updates, order accept/pickup/deliver actions, and the
+     * dashboard. Now suspended drivers get 403.
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->user()) {
+        $user = $request->user();
+
+        if (!$user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized',
             ], 401);
         }
 
-        if ($request->user()->role !== 'driver') {
+        if ($user->role !== 'driver') {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Driver access required.',
+            ], 403);
+        }
+
+        if (!$user->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Driver account is suspended.',
             ], 403);
         }
 

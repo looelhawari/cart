@@ -39,9 +39,9 @@ class FinancialController extends Controller
             ->where('payment_status', 'completed')
             ->sum('total');
 
-        // Online Revenue (card and wallet payments)
+        // Online Revenue (card payments only — wallet feature removed)
         $onlineRevenue = Order::whereBetween('created_at', [$fromDate, $toDate])
-            ->whereIn('payment_method', ['card', 'wallet'])
+            ->where('payment_method', 'card')
             ->where('payment_status', 'completed')
             ->sum('total');
 

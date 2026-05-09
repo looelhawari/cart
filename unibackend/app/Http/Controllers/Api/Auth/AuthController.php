@@ -60,6 +60,8 @@ class AuthController extends Controller
         // NOTE: Cleanup of stale unverified records is handled in
         // RegisterRequest::prepareForValidation() — before unique validation runs.
 
+        // Privilege/verification fields are no longer in $fillable (security
+        // hardening). Use forceFill() to set them after creation.
         $user = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
@@ -67,12 +69,16 @@ class AuthController extends Controller
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
             'language' => $request->language,
+        ]);
+        $user->forceFill([
             'role' => 'customer',
             'is_active' => true,
-            // OTP BYPASS: auto-verify user on registration (OTP flow commented out)
+            // OTP BYPASS: auto-verify user on registration (OTP flow commented out).
+            // SECURITY TODO: re-enable OTP verification flow; this bypass lets
+            // anyone register with any email and immediately receive tokens.
             'is_verified' => true,
             'email_verified_at' => Carbon::now(),
-        ]);
+        ])->save();
 
         // Log registration activity
         ActivityLog::log('user_registered', $user->id, 'User', $user->id, [
@@ -82,7 +88,7 @@ class AuthController extends Controller
 
         // ---- OTP VERIFICATION FLOW (commented out) ----
         // $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        // $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        // $sent = $this->otpService->sendEmail($user->email, $otp->getAttribute('plaintext_otp'), 'Email Verification');
         // if (!$sent) {
         //     Log::error("Failed to send registration OTP email to {$user->email}");
         // }
@@ -214,7 +220,7 @@ class AuthController extends Controller
         // if (!$user->is_verified) {
         //     // Resend OTP
         //     $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        //     $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        //     $sent = $this->otpService->sendEmail($user->email, $otp->getAttribute('plaintext_otp'), 'Email Verification');
         //     if (!$sent) {
         //         Log::error("Failed to send login verification OTP to {$user->email}");
         //     }
@@ -226,8 +232,12 @@ class AuthController extends Controller
         // }
         // ---- END OTP VERIFICATION FLOW ----
 
-        // Revoke all existing tokens
-        $user->tokens()->delete();
+        // SECURITY (audit Chain A item 6): do NOT revoke other devices' tokens
+        // on login. Multi-device support requires that admin web login does
+        // not kick the user out of mobile, and vice versa. Stale tokens on the
+        // SAME device get rotated naturally when the new pair is issued and
+        // the client overwrites localStorage / SecureStore.
+        // Force-revoke-all-devices is now exclusive to /reset-password.
 
         // Create new tokens - extend lifetime significantly for better UX
         $rememberMe = (bool) $request->input('remember_me', false);
@@ -347,8 +357,11 @@ class AuthController extends Controller
         // Check if the refresh token was created with remember_me
         $wasRemembered = $token->can('remember');
 
-        // Revoke old tokens
-        $user->tokens()->delete();
+        // SECURITY (audit Chain A item 6): revoke ONLY the refresh token that
+        // was used (and any access token paired with it on the same device,
+        // if we ever start linking them). Do NOT delete tokens for other
+        // devices. The only loaded $token IS the one that was just consumed.
+        $token->delete();
 
         // Create new tokens - preserve remember_me setting from original login
         $accessTokenExpiry = $wasRemembered ? Carbon::now()->addDays(7) : Carbon::now()->addHours(24);
@@ -439,7 +452,12 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = Auth::user();
-        $user->tokens()->delete();
+        // SECURITY (audit Chain A item 6): revoke only the access token used
+        // for this request — not every device the user is logged in on.
+        $current = $user->currentAccessToken();
+        if ($current) {
+            $current->delete();
+        }
 
         // Log logout activity
         ActivityLog::log('user_logged_out', $user->id, 'User', $user->id);
@@ -485,7 +503,7 @@ class AuthController extends Controller
         }
 
         $otp = $this->otpService->createPasswordResetOtp($user->email);
-        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Password Reset');
+        $sent = $this->otpService->sendEmail($user->email, $otp->getAttribute('plaintext_otp'), 'Password Reset');
 
         if (!$sent) {
             return response()->json([
@@ -786,7 +804,7 @@ class AuthController extends Controller
 
         // Generate and send new OTP
         $otp = $this->otpService->createEmailVerificationOtp($user->email);
-        $sent = $this->otpService->sendEmail($user->email, $otp->otp, 'Email Verification');
+        $sent = $this->otpService->sendEmail($user->email, $otp->getAttribute('plaintext_otp'), 'Email Verification');
 
         if (!$sent) {
             return response()->json([
@@ -994,7 +1012,7 @@ class AuthController extends Controller
         // ── Send OTP to the new email ──────────────────────────────────
         $newEmail = strtolower(trim($request->new_email));
         $otp = $this->otpService->createEmailChangeOtp($newEmail);
-        $sent = $this->otpService->sendEmail($newEmail, $otp->otp, 'Email Change Verification');
+        $sent = $this->otpService->sendEmail($newEmail, $otp->getAttribute('plaintext_otp'), 'Email Change Verification');
 
         if (!$sent) {
             return response()->json([
@@ -1188,10 +1206,9 @@ class AuthController extends Controller
             // 6. Login history
             UserLoginHistory::where('user_id', $userId)->delete();
 
-            // 7. Wallet (delete balance)
-            $user->wallet()->delete();
+            // Wallet feature removed; nothing to delete here.
 
-            // 8. Customer notes
+            // 7. Customer notes
             $user->notes()->delete();
 
             // 9. Activity logs referencing this user
@@ -1306,7 +1323,7 @@ class AuthController extends Controller
             DB::table('carts')->where('user_id', $userId)->delete();
             DB::table('cart_reminders')->where('user_id', $userId)->delete();
             UserLoginHistory::where('user_id', $userId)->delete();
-            $user->wallet()->delete();
+            // Wallet feature removed; nothing to delete here.
             $user->notes()->delete();
             ActivityLog::where('user_id', $userId)->delete();
 

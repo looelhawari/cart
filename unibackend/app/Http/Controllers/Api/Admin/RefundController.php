@@ -77,7 +77,7 @@ class RefundController extends Controller
                     'order_id' => $order->id,
                     'order_number' => $order->order_number,
                     'refunded_amount' => $order->total,
-                    'refunded_to' => 'wallet',
+                    'refunded_to' => 'card',
                 ],
             ]);
 

@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Models\Category;
 use App\Models\PromoCode;
 use App\Models\Promotion;
-use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -851,15 +850,8 @@ class ComprehensiveAnalyticsController extends Controller
             ->orderBy('date')
             ->get();
 
-        // Wallet transactions
-        $walletStats = WalletTransaction::whereBetween('created_at', [$fromDate, Carbon::parse($toDate)->endOfDay()])
-            ->select(
-                'type',
-                DB::raw('SUM(amount) as total'),
-                DB::raw('COUNT(*) as count')
-            )
-            ->groupBy('type')
-            ->get();
+        // Wallet transactions analytics removed — wallet feature deleted.
+        $walletStats = [];
 
         return response()->json([
             'revenue' => [

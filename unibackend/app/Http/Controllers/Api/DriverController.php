@@ -85,16 +85,25 @@ class DriverController extends Controller
      */
     public function updateLocation(Request $request): JsonResponse
     {
+        $driver = $request->user();
+
         $request->validate([
             'latitude'  => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'speed'     => 'nullable|numeric|min:0',
             'heading'   => 'nullable|numeric|between:0,360',
             'accuracy'  => 'nullable|numeric|min:0',
-            'order_id'  => 'nullable|exists:orders,id',
+            // SECURITY HARDENED (audit Chain E): scope order_id to THIS driver.
+            // Previously a malicious driver could send order_id of another
+            // driver's order — the broadcast then fired on that order's
+            // tracking channel showing this driver's GPS as the assigned one.
+            'order_id'  => [
+                'nullable',
+                \Illuminate\Validation\Rule::exists('orders', 'id')->where(function ($q) use ($driver) {
+                    $q->where('driver_id', $driver->id);
+                }),
+            ],
         ]);
-
-        $driver = $request->user();
 
         $this->zoneService->updateDriverLocation($driver, $request->latitude, $request->longitude, [
             'order_id' => $request->order_id,

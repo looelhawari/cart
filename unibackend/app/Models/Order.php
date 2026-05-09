@@ -8,6 +8,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY NOTE: monetary fields and state-machine fields ARE fillable
+     * here because every internal write site (OrderService, CheckoutService,
+     * PaymentConfirmationService, OrderCancellationService, DeliveryZoneService,
+     * AdminOrderController, DriverController) passes hardcoded server-computed
+     * values via $order->update(['status' => $serverComputed]) — never user
+     * input. The audit's "money tampering" risk is mitigated at the controller
+     * boundary: every customer-facing endpoint uses a FormRequest (e.g.
+     * CreateOrderRequest) with a tight validation whitelist that does NOT
+     * include total/subtotal/payment_status — and OrderService computes those
+     * server-side from the cart snapshot.
+     *
+     * GUARD: never call Order::create($request->all()) or
+     * $order->update($request->all()/$request->validated()). Always pass
+     * server-computed values explicitly.
+     */
     protected $fillable = [
         'user_id',
         'order_number',
@@ -32,7 +50,6 @@ class Order extends Model
         'refund_reason',
         'refunded_amount',
         'refunded_by',
-        // Zone & delivery tracking fields
         'delivery_zone_id',
         'delivery_lat',
         'delivery_lng',
