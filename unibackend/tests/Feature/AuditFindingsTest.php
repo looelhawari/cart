@@ -520,4 +520,191 @@ class AuditFindingsTest extends TestCase
             'Manual Pusher signing fallback exists in /broadcasting/auth — any user can subscribe to any private channel.'
         );
     }
+
+    // -----------------------------------------------------------------------
+    //  Wave A1 — Apple Sign-In nonce
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_apple_signin_requires_raw_nonce(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/Auth/SocialAuthController.php'));
+        $this->assertMatchesRegularExpression(
+            '/[\'"]raw_nonce[\'"]\s*=>\s*[\'"]required\|/',
+            $source,
+            'Apple Sign-In must require a raw_nonce param to defend against token replay.',
+        );
+        $this->assertStringContainsString(
+            "hash_equals(\$expected, \$tokenNonce)",
+            $source,
+            'Apple Sign-In must verify hash_equals(sha256(raw_nonce), payload[nonce]).',
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave A2 — UpdateProfileRequest no email/phone change
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_profile_update_does_not_accept_email_or_phone(): void
+    {
+        $rules = (new \App\Http\Requests\Auth\UpdateProfileRequest())->rules();
+        $this->assertArrayNotHasKey('email', $rules, 'UpdateProfileRequest must not allow email change here — must go through OTP-verified flow.');
+        $this->assertArrayNotHasKey('phone', $rules, 'UpdateProfileRequest must not allow phone change here — must go through OTP-verified flow.');
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave B3 — WatchlistController column refs
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_watchlist_does_not_query_nonexistent_columns(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/WatchlistController.php'));
+        // Strip comments so explanatory text doesn't trip the assertion.
+        $stripped = preg_replace('!//.*?\n|/\*.*?\*/!s', '', $source);
+
+        $this->assertStringNotContainsString("'image_url'", $stripped, "products has 'image' not 'image_url'.");
+        $this->assertStringNotContainsString("'exists:products,id'", $stripped, "products PK is 'barcode' not 'id'.");
+        // Use a regex that only flags `$item->product->stock` accesses, not 'stock_quantity'.
+        $this->assertDoesNotMatchRegularExpression('/->product->stock(?!_quantity)/', $stripped);
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave B4 — billing_data.email is server-set
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_checkout_billing_email_is_server_set(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/CheckoutController.php'));
+        $this->assertMatchesRegularExpression(
+            '/[\'"]email[\'"]\s*=>\s*\$caller->email/',
+            $source,
+            "CheckoutController must overwrite billing_data.email with caller's email server-side."
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave B6/B7 — DriverController hardening
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_driver_accept_order_blocks_unpaid_card_orders(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/DriverController.php'));
+        $this->assertStringContainsString("payment_method === 'card'", $source);
+        $this->assertStringContainsString("payment_status !== 'completed'", $source);
+    }
+
+    /** @test */
+    public function test_driver_deliver_cod_requires_confirmation_code(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/DriverController.php'));
+        $this->assertStringContainsString("confirmation_code", $source);
+        $this->assertStringContainsString('hash_equals(', $source);
+        $this->assertStringContainsString('deliveryConfirmationCode', $source);
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave C2 — search wildcard strip
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_search_strips_sql_like_wildcards(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/SearchSuggestionsController.php'));
+        $this->assertMatchesRegularExpression(
+            '/preg_replace\([\'"]\/\[%_/',
+            $source,
+            'SearchSuggestionsController must strip SQL LIKE wildcards before normalising.',
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave C3 — cache key whitelisted
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_product_index_cache_key_is_whitelisted(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/ProductController.php'));
+        $stripped = preg_replace('!//.*?\n|/\*.*?\*/!s', '', $source);
+
+        $this->assertStringNotContainsString(
+            "md5(json_encode(\$request->all()))",
+            $stripped,
+            "ProductController must NOT cache by full request payload — Redis key DoS vector.",
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave D2/D3 — race fixes
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_set_as_default_address_uses_transaction_and_lock(): void
+    {
+        $source = file_get_contents(app_path('Models/Address.php'));
+        $this->assertStringContainsString('DB::transaction', $source, 'Address::setAsDefault must run inside DB::transaction.');
+        $this->assertStringContainsString('lockForUpdate()', $source, 'Address::setAsDefault must lockForUpdate to serialise concurrent calls.');
+    }
+
+    /** @test */
+    public function test_order_number_generator_is_concurrency_safe(): void
+    {
+        $source = file_get_contents(app_path('Models/Order.php'));
+        // Hard-bounded retry loop — old code was unbounded `do{...}while`
+        // which can spin forever under concurrent collisions.
+        $this->assertMatchesRegularExpression(
+            '/for\s*\(\s*\$attempt\s*=\s*0;\s*\$attempt\s*<\s*10/',
+            $source,
+            'Order::generateOrderNumber must use a bounded retry loop (was unbounded do/while).',
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave A3 — Google relink throttle
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_relink_google_has_strict_throttle(): void
+    {
+        $source = file_get_contents(base_path('routes/api.php'));
+        $this->assertMatchesRegularExpression(
+            '/relink-google.*throttle:3,60/s',
+            $source,
+            "relink-google must have a strict throttle (3/hour) — endpoint mutates canonical email.",
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave B5 — preCheckPayment rate limit
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_pre_check_payment_is_rate_limited(): void
+    {
+        $source = file_get_contents(base_path('routes/api.php'));
+        $this->assertMatchesRegularExpression(
+            '/throttle:10,1[\s\S]+paymob\/pre-check/',
+            $source,
+            "preCheckPayment must be tightly rate-limited — each call creates a Paymob order.",
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave D1 — amount_cents BIGINT
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_paymob_amount_cents_is_bigint(): void
+    {
+        $col = \DB::selectOne("SHOW COLUMNS FROM paymob_payments WHERE Field='amount_cents'");
+        $this->assertStringContainsString(
+            'bigint',
+            strtolower($col->Type ?? ''),
+            'paymob_payments.amount_cents must be BIGINT to avoid signed-INT overflow at ~21,475 EGP.',
+        );
+    }
 }

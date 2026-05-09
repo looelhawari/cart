@@ -114,7 +114,14 @@ class CheckoutController extends Controller
         try {
             $user = $request->user();
 
-            $subtotal = (float) $request->input('subtotal', 0);
+            // SECURITY HARDENED (audit): the client previously could submit
+            // any 'subtotal' and the server would compute discount caps,
+            // free-delivery thresholds, etc. against it — leaking promo
+            // logic and giving an enumeration aid. Server now ALWAYS
+            // computes subtotal from the authenticated user's cart.
+            // Anonymous callers (no user) get $subtotal = 0 — they have
+            // no cart server-side anyway.
+            $subtotal = 0.0;
             $promoCode = $request->input('promo_code');
             $addressId = $request->input('address_id');
 
@@ -206,21 +213,33 @@ class CheckoutController extends Controller
                 ], 400);
             }
 
-            // Prepare billing data for card payments
+            // Prepare billing data for card payments.
+            //
+            // SECURITY HARDENED (audit M5): server forces billing_data.email
+            // and billing_data.phone_number to the authenticated user's
+            // values — Paymob receipts go to the real owner. Previously a
+            // customer could submit arbitrary `email` and Paymob sent
+            // confirmation receipts to that address (phishing / fraud aid).
             $billingData = [];
             if ($request->payment_method === 'card') {
-                $billingData = array_merge($request->billing_data, [
-                    'apartment' => 'NA',
-                    'floor' => 'NA',
-                    'building' => 'NA',
-                    'shipping_method' => 'NA',
-                    'postal_code' => 'NA',
-                    'country' => 'Egypt',
-                    'state' => $request->billing_data['city'] ?? 'Cairo',
-                ]);
+                $caller = $request->user();
+                $billingData = array_merge(
+                    $request->billing_data,
+                    [
+                        'email' => $caller->email,                  // server-controlled
+                        'phone_number' => $caller->phone ?? ($request->billing_data['phone_number'] ?? ''),
+                        'apartment' => 'NA',
+                        'floor' => 'NA',
+                        'building' => 'NA',
+                        'shipping_method' => 'NA',
+                        'postal_code' => 'NA',
+                        'country' => 'Egypt',
+                        'state' => $request->billing_data['city'] ?? 'Cairo',
+                    ],
+                );
             }
 
-            // Process payment with wallet-first strategy
+            // Process payment (card or COD).
             $result = $this->checkoutService->processPayment(
                 $order,
                 $request->payment_method,

@@ -160,8 +160,19 @@ class CategoryController extends Controller
     public function products($id): JsonResponse
     {
         try {
-            // Generate cache key from request params
-            $cacheKey = "categories:{$id}:products:" . md5(json_encode(request()->all()));
+            // SECURITY HARDENED (audit C3): cache key built from a whitelisted
+            // set of filters, NOT request()->all(). Prevents Redis-key flooding.
+            $cacheParams = [
+                'sort_by' => request()->query('sort_by'),
+                'sort_order' => request()->query('sort_order'),
+                'search' => is_string(request()->query('search')) ? mb_substr(mb_strtolower(request()->query('search')), 0, 50) : null,
+                'min_price' => request()->query('min_price'),
+                'max_price' => request()->query('max_price'),
+                'in_stock' => request()->boolean('in_stock') ? 1 : 0,
+                'page' => (int) request()->query('page', 1),
+                'per_page' => min((int) request()->query('per_page', 20), 100),
+            ];
+            $cacheKey = "categories:{$id}:products:" . md5(json_encode($cacheParams));
 
             $result = Cache::remember($cacheKey, 300, function () use ($id) {
                 $category = Category::with('subcategories')->findOrFail($id);

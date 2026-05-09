@@ -84,9 +84,36 @@ class ComplaintController extends Controller
 
                 if ($request->hasFile('attachments')) {
                     foreach ($request->file('attachments') as $file) {
-                        $extension = strtolower($file->getClientOriginalExtension());
-                        $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true);
-                        $fileType = $isImage ? 'image' : 'pdf';
+                        // SECURITY HARDENED (audit C1):
+                        //   - Verify MIME via the SERVER (Symfony guesses
+                        //     from file headers), NOT from client.
+                        //   - Sanitize the stored filename to prevent path-
+                        //     traversal / XSS in the admin viewer.
+                        //   - Whitelist only image types and pdf.
+                        $serverMime = $file->getMimeType();
+                        $allowedMimes = [
+                            'image/jpeg' => 'image',
+                            'image/png'  => 'image',
+                            'image/webp' => 'image',
+                            'application/pdf' => 'pdf',
+                        ];
+
+                        if (!isset($allowedMimes[$serverMime])) {
+                            throw new \RuntimeException('Unsupported attachment type.');
+                        }
+                        $fileType = $allowedMimes[$serverMime];
+                        $isImage = $fileType === 'image';
+
+                        // Sanitize filename: strip directory traversal, control
+                        // chars, HTML; cap to a safe length; preserve extension.
+                        $rawName = $file->getClientOriginalName();
+                        $extension = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
+                        $safeStem = \Illuminate\Support\Str::slug(
+                            pathinfo($rawName, PATHINFO_FILENAME),
+                            '-',
+                        );
+                        $safeStem = $safeStem === '' ? 'attachment' : substr($safeStem, 0, 80);
+                        $safeName = $safeStem . ($extension ? '.' . preg_replace('/[^a-z0-9]/', '', $extension) : '');
 
                         $uploadResult = $this->cloudinaryService->uploadFile(
                             $file,
@@ -101,10 +128,10 @@ class ComplaintController extends Controller
                         ComplaintAttachment::create([
                             'complaint_id' => $complaint->id,
                             'user_id' => $user->id,
-                            'file_name' => $file->getClientOriginalName(),
+                            'file_name' => $safeName,        // sanitized
                             'file_path' => $uploadResult['url'],
                             'file_type' => $fileType,
-                            'mime_type' => $file->getClientMimeType(),
+                            'mime_type' => $serverMime,      // server-detected
                             'size_bytes' => $file->getSize(),
                             'storage_provider' => 'cloudinary',
                             'public_id' => $uploadResult['public_id'] ?? null,

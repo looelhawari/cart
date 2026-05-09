@@ -43,8 +43,22 @@ class SearchSuggestionsController extends Controller
             ]);
         }
 
-        // Normalize: lowercase, limit length
+        // SECURITY HARDENED (audit C2):
+        //   - Lowercase + 50-char cap (existing).
+        //   - Strip SQL LIKE wildcards (% and _) so an attacker cannot
+        //     submit '%%%%%%%%' to defeat indexes / DoS the DB.
+        //   - Strip control characters and force a min length post-strip.
         $normalized = mb_strtolower(mb_substr($query, 0, 50));
+        $normalized = preg_replace('/[%_\x00-\x1F]/u', '', $normalized) ?? '';
+        $normalized = trim($normalized);
+
+        if (mb_strlen($normalized) < 2) {
+            return response()->json([
+                'success' => true,
+                'data' => ['products' => [], 'categories' => [], 'offers' => []],
+            ]);
+        }
+
         $cacheKey = 'search:suggestions:' . md5($normalized);
 
         $suggestions = Cache::remember($cacheKey, 180, function () use ($normalized) {

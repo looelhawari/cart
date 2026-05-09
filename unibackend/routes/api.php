@@ -218,9 +218,13 @@ Route::prefix('v1')->group(function () {
         Route::delete('profile/delete-account', [AuthController::class, 'deleteAccount'])
             ->middleware('throttle:3,1'); // max 3 attempts per minute
 
-        // Relink Google account (social-only users)
+        // Relink Google account (social-only users).
+        // SECURITY: heavy rate limit (3/hour per user) — endpoint changes
+        // canonical email + google_id without step-up auth. A proper fix is
+        // a 2-step flow with an OTP sent to the CURRENT email; until that's
+        // implemented, the strict throttle raises the cost of exploitation.
         Route::post('profile/relink-google', [SocialAuthController::class, 'relinkGoogle'])
-            ->middleware('throttle:5,1');
+            ->middleware('throttle:3,60');
 
         // Address management endpoints
         Route::get('addresses', [AddressController::class, 'index']);
@@ -305,14 +309,20 @@ Route::prefix('v1')->group(function () {
 
         // Payment endpoints (protected) - no session middleware for API (mobile/SPA)
         Route::prefix('payments')->group(function () {
-            // Pre-check payment (NEW - validates Paymob BEFORE order creation)
-            Route::post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
+            // Pre-check payment - SECURITY: tight rate limit. Each call creates
+            // a Paymob order on the merchant account; spamming this drains
+            // Paymob quota and pollutes reporting.
+            Route::middleware('throttle:10,1')
+                ->post('/paymob/pre-check', [PaymentController::class, 'preCheckPayment']);
 
-            // Initiate payment (creates payment record)
-            Route::post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
+            // Initiate payment (creates payment record). SECURITY: same risk
+            // as pre-check; tighter cap.
+            Route::middleware('throttle:10,1')
+                ->post('/paymob/initiate', [PaymentController::class, 'initiatePayment']);
 
             // Initiate payment with saved card (Phase 5)
-            Route::post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
+            Route::middleware('throttle:10,1')
+                ->post('/paymob/initiate-with-saved-card', [PaymentController::class, 'initiateSavedCardPayment']);
 
             // Check payment status for polling (per-payment query)
             Route::get('/status/{paymentId}', [PaymentController::class, 'checkStatus']);

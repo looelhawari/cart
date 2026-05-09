@@ -491,29 +491,69 @@ class NotificationController extends Controller
                 ], 401);
             }
 
-            // Store token in user's push_tokens column (JSON)
-            $tokens = $user->push_tokens ?? [];
+            $token = $validated['token'];
+            $deviceType = $validated['device_type'] ?? 'unknown';
 
-            // Check if token already exists
-            $existingToken = collect($tokens)->first(function ($item) use ($validated) {
-                return $item['token'] === $validated['token'];
-            });
+            // SECURITY HARDENED (audit Chain F item 3):
+            // Cross-user dedup. If user A logged out without removing the
+            // token and user B logs in on the same physical device, both
+            // accounts would have had the same Expo token in their
+            // push_tokens — every subsequent push to user A would also
+            // deliver to the device user B is now using.
+            //
+            // Strategy: before adding the token to this user, scan every
+            // OTHER user with the same token in their JSON column and
+            // strip it from theirs. The Expo token now belongs to this
+            // user only.
+            $others = \App\Models\User::whereJsonContains('push_tokens', ['token' => $token])
+                ->orWhere(function ($q) use ($token) {
+                    // Tolerate legacy rows that stored tokens as bare strings.
+                    $q->whereJsonContains('push_tokens', $token);
+                })
+                ->where('id', '!=', $user->id)
+                ->get();
 
-            if (!$existingToken) {
-                $tokens[] = [
-                    'token' => $validated['token'],
-                    'device_type' => $validated['device_type'] ?? 'unknown',
-                    'created_at' => now()->toISOString(),
-                ];
-
-                $user->push_tokens = $tokens;
-                $user->save();
-
-                Log::info('Push token saved', [
-                    'user_id' => $user->id,
-                    'token' => substr($validated['token'], 0, 20) . '...',
+            foreach ($others as $other) {
+                $otherTokens = collect($other->push_tokens ?? [])
+                    ->reject(fn ($it) => is_array($it)
+                        ? ($it['token'] ?? null) === $token
+                        : $it === $token)
+                    ->values()
+                    ->all();
+                $other->push_tokens = $otherTokens;
+                $other->save();
+                Log::info('Push token reassigned to new owner', [
+                    'old_user_id' => $other->id,
+                    'new_user_id' => $user->id,
                 ]);
             }
+
+            // Now upsert the token onto the current user (object form is
+            // canonical; legacy string-form tolerated on read).
+            $tokens = collect($user->push_tokens ?? [])
+                ->reject(function ($it) use ($token) {
+                    if (is_array($it)) {
+                        return ($it['token'] ?? null) === $token;
+                    }
+                    return $it === $token;
+                })
+                ->values()
+                ->all();
+
+            $tokens[] = [
+                'token' => $token,
+                'device_type' => $deviceType,
+                'created_at' => now()->toISOString(),
+            ];
+
+            $user->push_tokens = $tokens;
+            $user->save();
+
+            Log::info('Push token saved', [
+                'user_id' => $user->id,
+                'token_prefix' => substr($token, 0, 20) . '...',
+                'reassigned_from' => $others->count(),
+            ]);
 
             return response()->json([
                 'success' => true,

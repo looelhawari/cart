@@ -331,9 +331,16 @@ class CartController extends Controller
                 ], 422);
             }
 
-            // Store the promo code on the cart so it persists
-            $cart->promo_code = $promoCode->code;
-            $cart->save();
+            // SECURITY HARDENED (audit B8): persist the promo on the cart row
+            // under a transactional lock so a concurrent order-creation
+            // (which lockForUpdate's the cart in OrderService) cannot
+            // snapshot the previous value mid-write.
+            \DB::transaction(function () use ($cart, $promoCode) {
+                $locked = \App\Models\Cart::where('id', $cart->id)->lockForUpdate()->first();
+                $locked->promo_code = $promoCode->code;
+                $locked->save();
+            });
+            $cart->refresh();
 
             $cartDetails = $this->cartService->getCartDetails($cart, $promoCode);
 
@@ -348,9 +355,14 @@ class CartController extends Controller
                 ],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
+            // SECURITY (audit C4): don't surface internal exception text.
+            \Log::warning('Cart applyPromo failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => __('cart.promo_apply_failed'),
             ], 422);
         }
     }

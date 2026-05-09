@@ -31,8 +31,26 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            // Generate cache key from request params
-            $cacheKey = 'products:list:' . md5(json_encode($request->all()));
+            // SECURITY HARDENED (audit C3 — Redis key DoS):
+            // Cache key was built from md5(json_encode($request->all())),
+            // letting an attacker spam random query-string params and fill
+            // Redis with junk entries (each cached for CACHE_TTL). We now
+            // build the key from a small whitelist of allowed filters,
+            // normalised, so noise parameters don't create new keys.
+            $cacheParams = [
+                'category_id' => $request->get('category_id'),
+                'search' => is_string($request->get('search')) ? mb_substr(mb_strtolower($request->get('search')), 0, 50) : null,
+                'on_sale' => $request->boolean('on_sale') ? 1 : 0,
+                'min_price' => $request->get('min_price'),
+                'max_price' => $request->get('max_price'),
+                'min_rating' => $request->get('min_rating'),
+                'in_stock' => $request->boolean('in_stock') ? 1 : 0,
+                'sort_by' => $request->get('sort_by'),
+                'sort_order' => $request->get('sort_order'),
+                'page' => (int) $request->get('page', 1),
+                'per_page' => min((int) $request->get('per_page', 20), 100),
+            ];
+            $cacheKey = 'products:list:' . md5(json_encode($cacheParams));
 
             $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($request) {
                 $query = Product::select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'stock_quantity', 'is_in_stock', 'weight', 'unit', 'rating', 'review_count', 'is_featured', 'sales_count', 'created_at', 'active_promotion_id')

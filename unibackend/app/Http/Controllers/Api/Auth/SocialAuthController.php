@@ -180,6 +180,11 @@ class SocialAuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'token' => 'required|string',
+            // SECURITY HARDENED: client must send the raw nonce that it
+            // SHA-256-hashed and gave to Apple as part of the auth request.
+            // We re-hash it server-side and compare against the JWT's `nonce`
+            // claim to prevent token replay across devices/sessions.
+            'raw_nonce' => 'required|string|min:8|max:255',
             'user' => 'nullable|array',
             'user.name' => 'nullable|array',
             'user.name.firstName' => 'nullable|string',
@@ -196,7 +201,7 @@ class SocialAuthController extends Controller
         }
 
         try {
-            $applePayload = $this->verifyAppleToken($request->token);
+            $applePayload = $this->verifyAppleToken($request->token, $request->raw_nonce);
 
             if (!$applePayload) {
                 return response()->json([
@@ -233,9 +238,14 @@ class SocialAuthController extends Controller
 
     /**
      * Verify Apple's identityToken JWT.
-     * Fetches Apple's public keys and validates signature, issuer, audience, expiry.
+     *
+     * Fetches Apple's public keys and validates signature, issuer, audience,
+     * expiry, AND nonce. The nonce check is critical: without it, an attacker
+     * who captures another user's identityToken can replay it (the token is
+     * valid for ~10 minutes after issue and Apple does not bind it to a
+     * specific session by itself).
      */
-    private function verifyAppleToken(string $token): ?array
+    private function verifyAppleToken(string $token, ?string $rawNonce = null): ?array
     {
         try {
             $publicKeys = Cache::remember('apple_public_keys', 3600, function () {
@@ -305,6 +315,23 @@ class SocialAuthController extends Controller
             // Validate expiration
             if (($payload['exp'] ?? 0) < time()) {
                 throw new \Exception('Token has expired');
+            }
+
+            // SECURITY HARDENED (audit S6 part 2): nonce replay-protection.
+            // The Apple Sign-In best practice: client generates a raw nonce,
+            // sends SHA-256(raw_nonce) to Apple, server verifies the JWT's
+            // `nonce` claim equals SHA-256(raw_nonce_received_from_client).
+            // Without this, a captured identityToken can be replayed.
+            if ($rawNonce !== null) {
+                $expected = hash('sha256', $rawNonce);
+                $tokenNonce = $payload['nonce'] ?? null;
+                if (!is_string($tokenNonce) || !hash_equals($expected, $tokenNonce)) {
+                    Log::warning('Apple token nonce mismatch — rejected', [
+                        'expected_hash_prefix' => substr($expected, 0, 8) . '…',
+                        'received_prefix' => is_string($tokenNonce) ? substr($tokenNonce, 0, 8) . '…' : '(missing)',
+                    ]);
+                    return null;
+                }
             }
 
             return $payload;
