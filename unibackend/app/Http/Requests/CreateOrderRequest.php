@@ -30,7 +30,7 @@ class CreateOrderRequest extends FormRequest
                     $query->where('user_id', $this->user()->id);
                 }),
             ],
-            'payment_method' => 'required|in:cash_on_delivery,card,wallet',
+            'payment_method' => 'required|in:cash_on_delivery,card,wallet,card_on_delivery',
             'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
             'delivery_date' => 'nullable|date|after_or_equal:today',
             'delivery_time_slot' => 'nullable|string|max:100',
@@ -48,7 +48,7 @@ class CreateOrderRequest extends FormRequest
             'delivery_address_id.required' => 'Delivery address is required',
             'delivery_address_id.exists' => 'Selected delivery address does not exist or does not belong to you',
             'payment_method.required' => 'Payment method is required',
-            'payment_method.in' => 'Invalid payment method. Must be cash_on_delivery, card, or wallet',
+            'payment_method.in' => 'Invalid payment method. Must be cash_on_delivery, card_on_delivery, card, or wallet',
             'delivery_date.after_or_equal' => 'Delivery date must be today or in the future',
             'delivery_time_slot.max' => 'Delivery time slot is too long',
             'notes.max' => 'Notes cannot exceed 500 characters',

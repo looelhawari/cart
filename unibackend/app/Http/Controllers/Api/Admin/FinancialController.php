@@ -33,9 +33,9 @@ class FinancialController extends Controller
             'count' => Order::whereBetween('created_at', [$fromDate, $toDate])->where('payment_status', 'completed')->count()
         ]);
 
-        // Cash Revenue (cash_on_delivery)
+        // On-delivery revenue (cash or card-machine collected at delivery)
         $cashRevenue = Order::whereBetween('created_at', [$fromDate, $toDate])
-            ->where('payment_method', 'cash_on_delivery')
+            ->whereIn('payment_method', ['cash_on_delivery', 'card_on_delivery'])
             ->where('payment_status', 'completed')
             ->sum('total');
 
@@ -102,7 +102,11 @@ class FinancialController extends Controller
             ->get()
             ->map(function ($item) {
                 return [
-                    'method' => $item->method === 'cash_on_delivery' ? 'Cash on Delivery' : ucfirst($item->method),
+                    'method' => match ($item->method) {
+                        'cash_on_delivery' => 'Cash on Delivery',
+                        'card_on_delivery' => 'Card Machine on Delivery',
+                        default => ucfirst($item->method),
+                    },
                     'amount' => (float) $item->amount,
                     'count' => $item->count,
                 ];

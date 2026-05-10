@@ -34,10 +34,10 @@ class OrderStatusController extends Controller
 
         $order = Order::findOrFail($orderId);
 
-        if ($order->payment_method !== 'cash_on_delivery') {
+        if (!Order::isOnDeliveryPayment($order->payment_method)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only cash on delivery orders can be marked delivered through this endpoint',
+                'message' => 'Only pay-on-delivery orders (cash or card machine) can be marked delivered through this endpoint',
             ], 422);
         }
 

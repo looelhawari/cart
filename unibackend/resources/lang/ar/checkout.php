@@ -14,6 +14,8 @@ return [
     'unauthorized' => 'غير مصرح',
     'method_cod_name' => 'الدفع عند الاستلام',
     'method_cod_desc' => 'ادفع عند استلام طلبك',
+    'method_card_machine_name' => 'ماكينة البطاقة عند الاستلام',
+    'method_card_machine_desc' => 'يحضر السائق ماكينة بطاقات — ادفع بالبطاقة عند الاستلام',
     'method_card_name' => 'بطاقة ائتمان/خصم',
     'method_card_desc' => 'ادفع بأمان ببطاقتك',
     'method_wallet_name' => 'المحفظة',

@@ -8,6 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    public const PAYMENT_CASH_ON_DELIVERY = 'cash_on_delivery';
+    public const PAYMENT_CARD_ON_DELIVERY = 'card_on_delivery';
+    public const PAYMENT_CARD = 'card';
+    public const PAYMENT_WALLET = 'wallet';
+
+    public const ON_DELIVERY_PAYMENT_METHODS = [
+        self::PAYMENT_CASH_ON_DELIVERY,
+        self::PAYMENT_CARD_ON_DELIVERY,
+    ];
+
+    public static function isOnDeliveryPayment(?string $method): bool
+    {
+        return in_array($method, self::ON_DELIVERY_PAYMENT_METHODS, true);
+    }
+
     protected $fillable = [
         'user_id',
         'order_number',

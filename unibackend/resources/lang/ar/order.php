@@ -111,6 +111,7 @@ return [
     'partial_wallet_card' => 'تم دفع :wallet ج.م من المحفظة، :card ج.م في انتظار الدفع بالبطاقة.',
     'payment_gateway_refunded' => 'خطأ في بوابة الدفع. تم استرداد رصيد محفظتك. يرجى المحاولة مرة أخرى.',
     'cod_confirmed' => 'تم تأكيد الطلب. الدفع عند الاستلام.',
+    'card_on_delivery_confirmed' => 'تم تأكيد الطلب. سيحضر السائق ماكينة بطاقات.',
 
     // Refund messages
     'refund_exceeds_max' => 'مبلغ الاسترداد (:amount ج.م) يتجاوز الحد الأقصى للاسترداد (:max ج.م).',

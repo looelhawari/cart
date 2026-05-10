@@ -146,7 +146,7 @@ class CheckoutController extends Controller
     {
         $validator = \Validator::make($request->all(), [
             'order_id' => 'required|exists:orders,id',
-            'payment_method' => 'required|in:wallet,card,cash_on_delivery',
+            'payment_method' => 'required|in:wallet,card,cash_on_delivery,card_on_delivery',
             // Billing data only required for card payments
             'billing_data' => 'required_if:payment_method,card|array',
             'billing_data.first_name' => 'required_if:payment_method,card|string|max:255',
@@ -266,6 +266,11 @@ class CheckoutController extends Controller
                     'available' => true,
                     'name' => __('checkout.method_cod_name'),
                     'description' => __('checkout.method_cod_desc'),
+                ],
+                'card_on_delivery' => [
+                    'available' => true,
+                    'name' => __('checkout.method_card_machine_name'),
+                    'description' => __('checkout.method_card_machine_desc'),
                 ],
                 'card' => [
                     'available' => true,

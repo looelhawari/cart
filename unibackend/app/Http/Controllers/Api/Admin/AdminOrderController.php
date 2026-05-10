@@ -166,8 +166,8 @@ class AdminOrderController extends Controller
             // Update order status
             $order->update(['status' => $newStatus]);
 
-            // Auto-complete payment for COD when delivered
-            if ($newStatus === 'delivered' && $order->payment_method === 'cash_on_delivery') {
+            // Auto-complete payment for on-delivery methods (cash or card machine) when delivered
+            if ($newStatus === 'delivered' && \App\Models\Order::isOnDeliveryPayment($order->payment_method)) {
                 $order->update(['payment_status' => 'completed']);
             }
 

@@ -111,6 +111,7 @@ return [
     'partial_wallet_card' => 'Paid :wallet EGP with wallet, :card EGP pending card payment.',
     'payment_gateway_refunded' => 'Payment gateway error. Your wallet has been refunded. Please try again.',
     'cod_confirmed' => 'Order confirmed. Pay on delivery.',
+    'card_on_delivery_confirmed' => 'Order confirmed. Driver will bring a card machine.',
 
     // Refund messages
     'refund_exceeds_max' => 'Refund amount (:amount EGP) exceeds maximum refundable (:max EGP).',

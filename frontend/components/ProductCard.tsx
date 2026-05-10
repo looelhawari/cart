@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from "react";
+import React, { useState, useEffect, useRef, memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Heart } from "lucide-react-native";
 import Colors from "@/constants/Colors";
@@ -60,6 +60,22 @@ export const ProductCard = memo(function ProductCard({
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error" | "info">("info");
 
+  // Stepper auto-revert: show the +/- stepper only briefly after interaction,
+  // then revert to the "Add to Cart" button so the user can quickly add other
+  // items without each card sticking in stepper mode.
+  const STEPPER_VISIBLE_MS = 1500;
+  const [stepperVisible, setStepperVisible] = useState(false);
+  const stepperTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showStepperBriefly = () => {
+    setStepperVisible(true);
+    if (stepperTimerRef.current) clearTimeout(stepperTimerRef.current);
+    stepperTimerRef.current = setTimeout(() => {
+      setStepperVisible(false);
+      stepperTimerRef.current = null;
+    }, STEPPER_VISIBLE_MS);
+  };
+
   // Cache product image
   useEffect(() => {
     if (product.image) {
@@ -70,6 +86,13 @@ export const ProductCard = memo(function ProductCard({
       });
     }
   }, [product.image]);
+
+  // Cleanup the stepper timer on unmount
+  useEffect(() => {
+    return () => {
+      if (stepperTimerRef.current) clearTimeout(stepperTimerRef.current);
+    };
+  }, []);
 
   const handleAddToCart = (e: any) => {
     e.stopPropagation();
@@ -84,6 +107,7 @@ export const ProductCard = memo(function ProductCard({
       return;
     }
 
+    showStepperBriefly();
     addToCart(productId, 1).catch((error: any) => {
       const msg =
         error?.message ||
@@ -103,6 +127,7 @@ export const ProductCard = memo(function ProductCard({
   const handleDecrease = (e: any) => {
     e.stopPropagation();
     if (!cartItem) return;
+    showStepperBriefly();
     if (cartQuantity === 1) {
       removeFromCart(cartItem.id).catch(() => {});
     } else {
@@ -113,6 +138,7 @@ export const ProductCard = memo(function ProductCard({
   const handleIncrease = (e: any) => {
     e.stopPropagation();
     if (!cartItem) return;
+    showStepperBriefly();
     updateQuantity(cartItem.id, cartQuantity + 1).catch(() => {});
   };
 
@@ -210,7 +236,7 @@ export const ProductCard = memo(function ProductCard({
           )}
         </View>
 
-        {inCart ? (
+        {inCart && stepperVisible ? (
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               style={styles.quantityBtn}

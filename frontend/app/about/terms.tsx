@@ -7,6 +7,8 @@ import StaticPageScreen from "@/components/StaticPageScreen";
 const FALLBACK_CONTENT = `
 <h1>Terms and Conditions</h1>
 
+<p><strong>Cart is operated by Al Baraka Market.</strong></p>
+
 <h2>1. Acceptance of Terms</h2>
 <p>By downloading, installing, accessing, or using the CART mobile application ("App"), you accept and agree to be bound by these Terms and Conditions ("Terms"). If you do not agree with any part of these Terms, you must not use our services.</p>
 <p>These Terms constitute a legally binding agreement between you ("User", "you", "your") and CART ("we", "us", "our").</p>
@@ -149,6 +151,8 @@ const FALLBACK_CONTENT = `
 
 const FALLBACK_CONTENT_AR = `
 <h1>الشروط والأحكام</h1>
+
+<p><strong>تطبيق Cart يُدار بواسطة Al Baraka Market.</strong></p>
 
 <h2>1. قبول الشروط</h2>
 <p>بتنزيل أو تثبيت أو الوصول إلى أو استخدام تطبيق CART ("التطبيق")، فإنك تقبل وتوافق على الالتزام بهذه الشروط والأحكام ("الشروط"). إذا كنت لا توافق على أي جزء من هذه الشروط، يجب عليك عدم استخدام خدماتنا.</p>

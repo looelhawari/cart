@@ -19,6 +19,7 @@ import {
   Clock,
   CreditCard,
   Banknote,
+  Smartphone,
   Tag,
 } from "lucide-react-native";
 import { useStore } from "@/store";
@@ -78,6 +79,17 @@ export default function CheckoutConfirmationScreen() {
     loadData();
   }, []);
 
+  const NOW_SLOT_VALUE = "Now";
+
+  // Synthetic slot: "Now" lets customers ask for ASAP delivery on today's date.
+  const buildNowSlot = (): DeliverySlot => ({
+    slot: NOW_SLOT_VALUE,
+    start_hour: -1,
+    end_hour: -1,
+    capacity: 50,
+    is_active: true,
+  });
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -92,17 +104,16 @@ export default function CheckoutConfirmationScreen() {
       const todayStr = today.toISOString().split("T")[0];
       setSelectedDate(todayStr);
 
-      // Filter out past slots for today
+      // Filter out past slots for today, and prepend the "Now" option
       const currentHour = today.getHours();
-      const availableSlots = activeSlots.filter(
+      const futureSlots = activeSlots.filter(
         (s: DeliverySlot) => s.start_hour > currentHour,
       );
+      const availableSlots = [buildNowSlot(), ...futureSlots];
       setDeliverySlots(availableSlots);
 
-      // Auto-select first available slot
-      if (availableSlots.length > 0) {
-        setSelectedSlot(availableSlots[0].slot);
-      }
+      // Auto-select "Now" — that is what most customers expect on today
+      setSelectedSlot(NOW_SLOT_VALUE);
 
       console.log("🛒 [CHECKOUT] Fetching cart in confirmation screen...");
       await fetchCart();
@@ -143,14 +154,15 @@ export default function CheckoutConfirmationScreen() {
     const isToday = dateValue === todayStr;
 
     if (isToday) {
-      // Filter out slots whose start_hour has already passed
+      // Filter out slots whose start_hour has already passed; prepend "Now"
       const currentHour = new Date().getHours();
-      const available = allSlots.filter(
+      const futureSlots = allSlots.filter(
         (s: DeliverySlot) => s.start_hour > currentHour,
       );
+      const available = [buildNowSlot(), ...futureSlots];
       setDeliverySlots(available);
-      // Auto-select first available or clear
-      setSelectedSlot(available.length > 0 ? available[0].slot : "");
+      // Default to "Now" for today
+      setSelectedSlot(NOW_SLOT_VALUE);
     } else {
       // Future date — show all slots
       setDeliverySlots(allSlots);
@@ -201,11 +213,18 @@ export default function CheckoutConfirmationScreen() {
       } else {
         // Create new order (with pending payment status)
         // Promo code is already applied in cart, so we send the cart's promo code
+        const paymentMethodPayload =
+          paymentType === "cod"
+            ? "cash_on_delivery"
+            : paymentType === "card_on_delivery"
+              ? "card_on_delivery"
+              : "card";
+
         const response = await createOrder({
           delivery_address_id: addressId,
           delivery_date: selectedDate,
           delivery_time_slot: selectedSlot,
-          payment_method: paymentType === "cod" ? "cash_on_delivery" : "card",
+          payment_method: paymentMethodPayload,
           promo_code: cart?.promo_code || undefined,
           notes: deliveryNotes.trim() || undefined,
         });
@@ -326,7 +345,7 @@ export default function CheckoutConfirmationScreen() {
           return;
         }
       } else {
-        // COD - navigate to success (cart already cleared by backend)
+        // COD or Card-on-Delivery - navigate to success (cart already cleared by backend)
         router.replace({
           pathname: "/order-success" as any,
           params: {
@@ -426,25 +445,30 @@ export default function CheckoutConfirmationScreen() {
           </View>
           {deliverySlots.length > 0 ? (
             <View style={styles.slotGrid}>
-              {deliverySlots.map((slot) => (
-                <TouchableOpacity
-                  key={slot.slot}
-                  style={[
-                    styles.slotOption,
-                    selectedSlot === slot.slot && styles.slotOptionSelected,
-                  ]}
-                  onPress={() => setSelectedSlot(slot.slot)}
-                >
-                  <Text
+              {deliverySlots.map((slot) => {
+                const isNow = slot.slot === NOW_SLOT_VALUE;
+                return (
+                  <TouchableOpacity
+                    key={slot.slot}
                     style={[
-                      styles.slotText,
-                      selectedSlot === slot.slot && styles.slotTextSelected,
+                      styles.slotOption,
+                      selectedSlot === slot.slot && styles.slotOptionSelected,
                     ]}
+                    onPress={() => setSelectedSlot(slot.slot)}
                   >
-                    {slot.slot}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.slotText,
+                        selectedSlot === slot.slot && styles.slotTextSelected,
+                      ]}
+                    >
+                      {isNow
+                        ? (t.checkout as any).deliverNow || "Now"
+                        : slot.slot}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : (
             <View style={{ paddingVertical: 16, alignItems: "center" }}>
@@ -502,6 +526,18 @@ export default function CheckoutConfirmationScreen() {
                   </Text>
                   <Text style={styles.paymentDetail}>
                     {t.checkout.payWhenReceive}
+                  </Text>
+                </View>
+              </View>
+            ) : paymentType === "card_on_delivery" ? (
+              <View style={styles.paymentSummary}>
+                <Smartphone size={20} color={Colors.neutralMedium} />
+                <View style={styles.paymentTextContainer}>
+                  <Text style={styles.paymentType}>
+                    {t.checkout.cardMachineOnDelivery}
+                  </Text>
+                  <Text style={styles.paymentDetail}>
+                    {t.checkout.payByCardMachineOnArrival}
                   </Text>
                 </View>
               </View>
@@ -781,6 +817,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     fontWeight: Typography.semibold,
     color: Colors.neutralMedium,
+    textAlign: "center",
   },
   slotTextSelected: {
     color: Colors.primary900,

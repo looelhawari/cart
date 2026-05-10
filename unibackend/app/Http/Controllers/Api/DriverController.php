@@ -216,8 +216,8 @@ class DriverController extends Controller
             // Update driver stats
             $driver->increment('total_deliveries');
 
-            // Mark COD as payment completed
-            if ($order->payment_method === 'cash_on_delivery') {
+            // Mark on-delivery payments (cash or card machine) as completed
+            if (Order::isOnDeliveryPayment($order->payment_method)) {
                 $order->update(['payment_status' => 'completed']);
             }
         });

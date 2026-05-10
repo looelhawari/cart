@@ -51,6 +51,7 @@ export interface Order {
     | "cod"
     | "card"
     | "cash_on_delivery"
+    | "card_on_delivery"
     | "wallet"
     | "wallet+card";
   payment_method_id: number | null;
@@ -162,7 +163,7 @@ export interface CreateOrderData {
   delivery_address_id: number;
   delivery_date: string;
   delivery_time_slot: string;
-  payment_method: "cod" | "card" | "cash_on_delivery";
+  payment_method: "cod" | "card" | "cash_on_delivery" | "card_on_delivery";
   payment_method_id?: number;
   notes?: string;
   promo_code?: string;

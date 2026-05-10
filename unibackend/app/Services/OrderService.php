@@ -112,18 +112,20 @@ class OrderService
                 'TOTAL' => $total,
             ]);
 
+            $isOnDelivery = Order::isOnDeliveryPayment($paymentMethod);
+
             // Create order
             $order = Order::create([
                 'user_id' => $userId,
                 'order_number' => Order::generateOrderNumber(),
-                'status' => $paymentMethod === 'cash_on_delivery' ? 'pending' : 'pending_payment',
+                'status' => $isOnDelivery ? 'pending' : 'pending_payment',
                 'subtotal' => $cartTotals['subtotal'],
                 'delivery_fee' => $deliveryFee,
                 'discount' => $discount,
                 'tax' => $tax,
                 'total' => $total,
                 'payment_method' => $paymentMethod,
-                'payment_status' => $paymentMethod === 'cash_on_delivery' ? 'pending' : 'pending',
+                'payment_status' => 'pending',
                 'delivery_address_id' => $deliveryAddressId,
                 'promo_code_snapshot' => $promoSnapshot,
                 'delivery_date' => $deliveryDate,
@@ -214,8 +216,8 @@ class OrderService
 
             // CRITICAL: DO NOT clear cart here for card payments
             // Cart should only be cleared AFTER successful payment confirmation
-            // For COD, we can clear immediately
-            if ($paymentMethod === 'cash_on_delivery') {
+            // For pay-on-delivery (cash or card machine), we can clear immediately.
+            if ($isOnDelivery) {
                 $this->cartService->clearCart($cart);
             }
 

@@ -13,7 +13,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { FileText, Shield, Info, Clock, RefreshCw } from "lucide-react-native";
+import {
+  FileText,
+  Shield,
+  Info,
+  Clock,
+  RefreshCw,
+  Building2,
+} from "lucide-react-native";
 
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -212,6 +219,27 @@ export default function StaticPageScreen({
             />
           }
         >
+          {/* Operator notice — Cart is operated by Al Baraka Market */}
+          {(slug === "about" || slug === "terms") && (
+            <View
+              style={[
+                styles.operatorBanner,
+                isRTL && styles.operatorBannerRTL,
+              ]}
+            >
+              <View style={styles.operatorIconWrap}>
+                <Building2 size={20} color={Colors.neutralWhite} />
+              </View>
+              <Text
+                style={[styles.operatorBannerText, isRTL && styles.textRTL]}
+              >
+                {language === "ar"
+                  ? "تطبيق Cart يُدار بواسطة Al Baraka Market"
+                  : "Cart is operated by Al Baraka Market"}
+              </Text>
+            </View>
+          )}
+
           {/* Content Card */}
           <View style={styles.contentCard}>
             <HtmlContentRenderer content={getContent()} isRTL={isRTL} />
@@ -345,6 +373,45 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
+  },
+  operatorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: Colors.primary900,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.primary900,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.18,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  operatorBannerRTL: {
+    flexDirection: "row-reverse",
+  },
+  operatorIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  operatorBannerText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
   },
   contentCard: {
     backgroundColor: "#fff",

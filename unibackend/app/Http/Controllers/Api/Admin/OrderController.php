@@ -156,7 +156,7 @@ class OrderController extends Controller
             $order->cancellation_reason = $request->cancellation_reason;
         }
 
-        if ($request->status === 'delivered' && $order->payment_method === 'cash_on_delivery' && $order->payment_status === 'pending') {
+        if ($request->status === 'delivered' && \App\Models\Order::isOnDeliveryPayment($order->payment_method) && $order->payment_status === 'pending') {
             $order->payment_status = 'completed';
         }
 

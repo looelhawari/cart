@@ -1602,6 +1602,12 @@ export default function OrderDetailsScreen() {
                   size={20}
                   color={Colors.primary900}
                 />
+              ) : order.payment_method === "card_on_delivery" ? (
+                <Ionicons
+                  name="phone-portrait-outline"
+                  size={20}
+                  color={Colors.primary900}
+                />
               ) : (
                 <Ionicons
                   name="card-outline"
@@ -1614,11 +1620,14 @@ export default function OrderDetailsScreen() {
                   {order.payment_method === "cod" ||
                   order.payment_method === "cash_on_delivery"
                     ? t.orderDetail.cashOnDelivery
-                    : order.payment_method === "wallet"
-                      ? t.orderDetail.walletPayment
-                      : order.payment_method === "wallet+card"
-                        ? t.orderDetail.walletPlusCardPayment
-                        : t.orderDetail.cardPayment}
+                    : order.payment_method === "card_on_delivery"
+                      ? (t.checkout as any).cardMachineOnDelivery ||
+                        "Card Machine on Delivery"
+                      : order.payment_method === "wallet"
+                        ? t.orderDetail.walletPayment
+                        : order.payment_method === "wallet+card"
+                          ? t.orderDetail.walletPlusCardPayment
+                          : t.orderDetail.cardPayment}
                 </Text>
                 <Text
                   style={[

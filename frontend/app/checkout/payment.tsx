@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Plus,
   Shield,
+  Smartphone,
 } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
@@ -37,7 +38,9 @@ export default function CheckoutPaymentScreen() {
   const params = useLocalSearchParams();
   const addressId = params.addressId as string;
 
-  const [paymentType, setPaymentType] = useState<"card" | "cod">("cod");
+  const [paymentType, setPaymentType] = useState<
+    "card" | "cod" | "card_on_delivery"
+  >("cod");
 
   // Saved cards state
   const [savedCards, setSavedCards] = useState<PaymentMethod[]>([]);
@@ -235,6 +238,50 @@ export default function CheckoutPaymentScreen() {
               </View>
             )}
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.paymentTypeCard,
+              paymentType === "card_on_delivery" &&
+                styles.paymentTypeCardActive,
+            ]}
+            onPress={() => setPaymentType("card_on_delivery")}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.paymentTypeIconWrapper,
+                paymentType === "card_on_delivery" &&
+                  styles.paymentTypeIconWrapperActive,
+              ]}
+            >
+              <Smartphone
+                size={26}
+                color={
+                  paymentType === "card_on_delivery"
+                    ? Colors.neutralWhite
+                    : Colors.primary900
+                }
+              />
+            </View>
+            <Text
+              style={[
+                styles.paymentTypeText,
+                paymentType === "card_on_delivery" &&
+                  styles.paymentTypeTextActive,
+              ]}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
+              {t.checkout.cardMachine}
+            </Text>
+            {paymentType === "card_on_delivery" && (
+              <View style={styles.paymentTypeCheck}>
+                <Check size={14} color={Colors.neutralWhite} />
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Card Payment Section */}
@@ -389,6 +436,44 @@ export default function CheckoutPaymentScreen() {
           </View>
         )}
 
+        {/* Card Machine on Delivery Section */}
+        {paymentType === "card_on_delivery" && (
+          <View style={styles.codSection}>
+            <View style={styles.codIconContainer}>
+              <View style={styles.codIconCircle}>
+                <Smartphone size={32} color={Colors.primary900} />
+              </View>
+            </View>
+            <Text style={styles.codTitle}>
+              {t.checkout.cardMachineOnDelivery}
+            </Text>
+            <Text style={styles.codDescription}>
+              {t.checkout.cardMachineDescription}
+            </Text>
+
+            <View style={styles.codFeatures}>
+              <View style={styles.codFeatureRow}>
+                <Check size={16} color={Colors.primary900} />
+                <Text style={styles.codFeatureText}>
+                  {t.checkout.cardMachineFeatureBring}
+                </Text>
+              </View>
+              <View style={styles.codFeatureRow}>
+                <Check size={16} color={Colors.primary900} />
+                <Text style={styles.codFeatureText}>
+                  {t.checkout.cardMachineFeaturePayOnArrival}
+                </Text>
+              </View>
+              <View style={styles.codFeatureRow}>
+                <Check size={16} color={Colors.primary900} />
+                <Text style={styles.codFeatureText}>
+                  {t.checkout.cardMachineFeatureNoOnlineCharge}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={{ height: 120 }} />
       </ScrollView>
 
@@ -523,7 +608,7 @@ const styles = StyleSheet.create({
   paymentTypesContainer: {
     flexDirection: "row",
     paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     marginBottom: Spacing.sm,
   },
 
@@ -532,7 +617,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutralWhite,
     borderRadius: 16,
     paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     alignItems: "center",
     borderWidth: 2,
     borderColor: Colors.neutralLight,

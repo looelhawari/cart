@@ -136,7 +136,7 @@ class OrderCancellationService
 
         try {
             // Phase 2: Execute (outside transaction so Paymob call can't cause rollback)
-            $isCod = $order->payment_method === 'cash_on_delivery';
+            $isCod = Order::isOnDeliveryPayment($order->payment_method);
 
             if ($isCod) {
                 return DB::transaction(fn() => $this->handleCodCancellation($order->fresh(), $reason, 'customer', null, $previousStatus));
@@ -188,7 +188,7 @@ class OrderCancellationService
 
         try {
             // Phase 2: Execute (outside transaction for card payments)
-            $isCod = $order->payment_method === 'cash_on_delivery';
+            $isCod = Order::isOnDeliveryPayment($order->payment_method);
 
             if ($isCod) {
                 return DB::transaction(fn() => $this->handleCodCancellation($order->fresh(), $reason, 'admin', $adminId, $previousStatus));
@@ -230,7 +230,7 @@ class OrderCancellationService
                     }
                 }
 
-                if ($order->payment_method === 'cash_on_delivery') {
+                if (Order::isOnDeliveryPayment($order->payment_method)) {
                     throw new Exception(__('order.partial_refund_card_only'));
                 }
 
@@ -398,8 +398,8 @@ class OrderCancellationService
         }
         RateLimiter::hit($rateLimitKey, 30);
 
-        // Route to COD-specific handler if cash on delivery
-        if ($order->payment_method === 'cash_on_delivery') {
+        // Route to COD-specific handler for any pay-on-delivery method (cash or card machine)
+        if (Order::isOnDeliveryPayment($order->payment_method)) {
             return $this->codPartialItemCancel($orderId, $itemIds, $reason, null, 'customer');
         }
 
@@ -427,7 +427,7 @@ class OrderCancellationService
                     ->with('items')
                     ->firstOrFail();
 
-                if ($order->payment_method !== 'cash_on_delivery') {
+                if (!Order::isOnDeliveryPayment($order->payment_method)) {
                     throw new Exception(__('order.cod_only_method'));
                 }
 
@@ -528,7 +528,7 @@ class OrderCancellationService
      */
     public function getCancellationEligibility(Order $order): array
     {
-        $isCod = $order->payment_method === 'cash_on_delivery';
+        $isCod = Order::isOnDeliveryPayment($order->payment_method);
         $config = config('payments.cancellation');
 
         if (in_array($order->status, ['cancelled', 'failed'])) {

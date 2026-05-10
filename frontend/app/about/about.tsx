@@ -7,6 +7,8 @@ import StaticPageScreen from "@/components/StaticPageScreen";
 const FALLBACK_CONTENT = `
 <h1>Welcome to CART</h1>
 
+<p><strong>Cart is operated by Al Baraka Market.</strong></p>
+
 <h2>Who We Are</h2>
 <p>CART is your trusted online hypermarket, bringing fresh groceries and daily essentials directly to your doorstep. Since our founding, we've been committed to making grocery shopping effortless and enjoyable for families across Egypt.</p>
 
@@ -39,6 +41,8 @@ const FALLBACK_CONTENT = `
 
 const FALLBACK_CONTENT_AR = `
 <h1>مرحبًا بكم في CART</h1>
+
+<p><strong>تطبيق Cart يُدار بواسطة Al Baraka Market.</strong></p>
 
 <h2>من نحن</h2>
 <p>CART هو هايبر ماركت إلكتروني موثوق، يقدم البقالة الطازجة والمستلزمات اليومية مباشرة إلى باب منزلك. منذ تأسيسنا، نلتزم بجعل تسوق البقالة سهلًا وممتعًا للعائلات في جميع أنحاء مصر.</p>

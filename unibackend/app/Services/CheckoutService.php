@@ -60,6 +60,12 @@ class CheckoutService
             return $this->payWithCOD($order);
         }
 
+        if ($paymentMethod === 'card_on_delivery') {
+            // Strategy 5: Pay-on-delivery via card machine — same flow as COD,
+            // tagged so the driver knows to bring a card machine.
+            return $this->payWithCardOnDelivery($order);
+        }
+
         if ($paymentMethod === 'wallet' && !$wallet->hasSufficientBalance($order->total)) {
             throw new Exception(__('order.insufficient_wallet_balance'));
         }
@@ -308,6 +314,37 @@ class CheckoutService
             'payment_method' => 'cash_on_delivery',
             'status' => 'pending',
             'message' => __('order.cod_confirmed'),
+            'order_id' => $order->id,
+        ];
+    }
+
+    /**
+     * Strategy 5: Card Machine on Delivery
+     *
+     * Same flow as cash on delivery, but flagged so the driver brings a
+     * portable card machine to collect payment in person.
+     */
+    private function payWithCardOnDelivery(Order $order): array
+    {
+        $order->update([
+            'payment_method' => 'card_on_delivery',
+            'payment_status' => 'pending',
+            'status' => 'confirmed',
+        ]);
+
+        app(OrderService::class)->finalizePromoUsage($order);
+
+        Log::info('Order placed with Card-on-Delivery', [
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'amount' => $order->total,
+        ]);
+
+        return [
+            'success' => true,
+            'payment_method' => 'card_on_delivery',
+            'status' => 'pending',
+            'message' => __('order.card_on_delivery_confirmed'),
             'order_id' => $order->id,
         ];
     }

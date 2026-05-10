@@ -14,6 +14,8 @@ return [
     'unauthorized' => 'Unauthorized',
     'method_cod_name' => 'Cash on Delivery',
     'method_cod_desc' => 'Pay when you receive your order',
+    'method_card_machine_name' => 'Card Machine on Delivery',
+    'method_card_machine_desc' => 'Driver brings a card machine — pay by card on arrival',
     'method_card_name' => 'Credit/Debit Card',
     'method_card_desc' => 'Pay securely with your card',
     'method_wallet_name' => 'Wallet',

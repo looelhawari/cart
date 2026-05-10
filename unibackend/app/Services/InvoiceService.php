@@ -71,6 +71,7 @@ class InvoiceService
         // ---------- Payment label ----------
         $paymentLabel = match ($order->payment_method) {
             'cod', 'cash_on_delivery' => 'Cash on Delivery',
+            'card_on_delivery'        => 'Card Machine on Delivery',
             'card'                    => 'Card Payment',
             default                   => ucfirst(str_replace('_', ' ', $order->payment_method)),
         };
