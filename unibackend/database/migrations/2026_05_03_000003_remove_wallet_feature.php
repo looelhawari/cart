@@ -19,14 +19,30 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Convert any existing 'wallet' orders to 'card' or 'cash_on_delivery'
+        // Convert any existing 'wallet' orders to 'cash_on_delivery'
         // so the ENUM modify doesn't crash on existing data.
         DB::statement("UPDATE orders SET payment_method = 'cash_on_delivery' WHERE payment_method = 'wallet'");
 
-        // Drop ENUM 'wallet' value
+        // Drop the 'wallet' ENUM value, but preserve any other values that
+        // may have been added by sibling migrations (e.g. 'card_on_delivery'
+        // from the card-machine branch). Without this, dropping 'wallet'
+        // also silently drops 'card_on_delivery' on any DB where the
+        // card-machine migration ran first.
+        $col = DB::selectOne("SHOW COLUMNS FROM orders LIKE 'payment_method'");
+        $values = array_values(array_filter(
+            array_map(
+                fn ($v) => trim($v, "' "),
+                preg_match("/enum\\((.+)\\)/i", $col->Type, $m) ? explode(',', $m[1]) : []
+            ),
+            fn ($v) => $v !== '' && $v !== 'wallet'
+        ));
+        if (empty($values)) {
+            $values = ['cash_on_delivery', 'card'];
+        }
+        $newEnum = "ENUM('" . implode("','", $values) . "')";
         DB::statement(
             "ALTER TABLE orders MODIFY COLUMN payment_method " .
-            "ENUM('cash_on_delivery','card') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"
+            $newEnum . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"
         );
 
         // Drop dependent tables. wallet_transactions has FK to user_wallets,
@@ -69,10 +85,25 @@ return new class extends Migration
             });
         }
 
-        // Restore 'wallet' ENUM value
+        // Restore 'wallet' ENUM value, preserving any other values already in the enum.
+        $col = DB::selectOne("SHOW COLUMNS FROM orders LIKE 'payment_method'");
+        $values = array_values(array_filter(
+            array_map(
+                fn ($v) => trim($v, "' "),
+                preg_match("/enum\\((.+)\\)/i", $col->Type, $m) ? explode(',', $m[1]) : []
+            ),
+            fn ($v) => $v !== ''
+        ));
+        if (!in_array('wallet', $values, true)) {
+            $values[] = 'wallet';
+        }
+        if (empty($values)) {
+            $values = ['cash_on_delivery', 'card', 'wallet'];
+        }
+        $newEnum = "ENUM('" . implode("','", $values) . "')";
         DB::statement(
             "ALTER TABLE orders MODIFY COLUMN payment_method " .
-            "ENUM('cash_on_delivery','card','wallet') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"
+            $newEnum . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"
         );
     }
 };
