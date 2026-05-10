@@ -14,13 +14,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Wallet was removed in 2026_05_03_000003_remove_wallet_feature, so the
+        // current enum is ('cash_on_delivery','card'). Extend it with card_on_delivery.
         DB::statement("ALTER TABLE `orders`
             MODIFY COLUMN `payment_method` ENUM(
                 'cash_on_delivery',
                 'card',
-                'wallet',
                 'card_on_delivery'
-            ) NOT NULL");
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
     }
 
     public function down(): void
@@ -31,8 +32,7 @@ return new class extends Migration
         DB::statement("ALTER TABLE `orders`
             MODIFY COLUMN `payment_method` ENUM(
                 'cash_on_delivery',
-                'card',
-                'wallet'
-            ) NOT NULL");
+                'card'
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
     }
 };

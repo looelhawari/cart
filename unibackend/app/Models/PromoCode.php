@@ -10,6 +10,15 @@ use App\Models\Order;
 
 class PromoCode extends Model
 {
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY HARDENED: used_count is NOT fillable. It must only be modified
+     * via increment/decrement (which is what OrderService::finalizePromoUsage
+     * already does correctly). Previously an admin form forwarding
+     * $request->validated() to ->fill() could let any admin reset used_count
+     * to bypass usage_limit and drain the promo budget.
+     */
     protected $fillable = [
         'code',
         'type',                  // percentage, fixed_amount, free_delivery, bogo
@@ -20,7 +29,6 @@ class PromoCode extends Model
         'maximum_discount',
         'usage_limit',
         'usage_per_user',
-        'used_count',
         'valid_from',
         'valid_until',
         'is_active',
@@ -35,6 +43,7 @@ class PromoCode extends Model
         'registration_date_to',
         'location',
         'specific_user_ids',
+        // NOT FILLABLE: used_count (use increment/decrement only)
     ];
 
     protected $casts = [

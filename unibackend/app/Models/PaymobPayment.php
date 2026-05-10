@@ -12,28 +12,32 @@ class PaymobPayment extends Model
 
     protected $table = 'paymob_payments';
 
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY HARDENED: status, paid_at, paymob_response, paymob_transaction_id,
+     * is_fallback_from_moto, moto_attempts/moto_attempted_at are state-machine
+     * fields — must only flip via the dedicated transitionTo()/markAsPaid()/
+     * markAsFailed() methods. Direct $payment->update(['status'=>'PAID']) was
+     * possible from any controller and bypassed the state machine entirely.
+     */
     protected $fillable = [
         'order_id',
         'user_id',
         'internal_order_id',
         'paymob_order_id',
         'paymob_intention_id',   // For Unified Checkout
-        'paymob_transaction_id', // FIXED: Matches actual DB column name
-        'special_reference',     // P0 FIX: Unified Checkout merchant reference — was silently discarded
+        'special_reference',     // P0 FIX: Unified Checkout merchant reference
         'amount_cents',
         'currency',
         'payment_method',
         'flow',                  // classic_iframe, unified_3ds, moto
         'save_card_requested',
-        'moto_attempts',         // Track MOTO retry attempts
-        'moto_attempted_at',     // When MOTO was last attempted
-        'is_fallback_from_moto', // Track if fell back from MOTO to 3DS
         'integration_id',
-        'status',
         'billing_data',
-        'paymob_response',
-        'error_message',         // FIXED: Matches actual DB column name
-        'paid_at',
+        // NOT FILLABLE (state machine / gateway-only):
+        //   status, paid_at, paymob_response, paymob_transaction_id,
+        //   is_fallback_from_moto, moto_attempts, moto_attempted_at, error_message
     ];
 
     protected $casts = [

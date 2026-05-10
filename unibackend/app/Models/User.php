@@ -16,6 +16,16 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY HARDENED: privilege, verification, money, and identity-link
+     * fields are intentionally NOT fillable — they must be set via dedicated
+     * services using $user->forceFill([...])->save() AFTER the caller is
+     * authorized to mutate them. Mass-assigning these from $request input
+     * was the root cause of the role-escalation + OTP-bypass + COD-cap
+     * tampering vectors. See AuditFindingsTest::user_role_cannot_be_mass_assigned.
+     */
     protected $fillable = [
         'first_name',
         'last_name',
@@ -26,40 +36,40 @@ class User extends Authenticatable
         'password',
         'avatar',
         'language',
-        'role',
-        'is_active',
-        'is_verified',
-        'email_verified_at',
-        'phone_verified_at',
-        'google_id',
-        'apple_id',
-        'is_social_only',
-        'two_factor_enabled',
-        'is_cod_restricted',
-        'max_order_value',
-        'registration_source',
-        'loyalty_points',
-        'is_vip',
-        // Driver fields
+        // Driver-public fields (driver app updates own location, status)
         'current_lat',
         'current_lng',
         'location_updated_at',
         'is_available',
-        'assigned_zone_id',
         'vehicle_type',
         'vehicle_plate',
-        'total_deliveries',
-        'average_rating',
+        // NOT FILLABLE (privilege escalation / verification bypass / money cap):
+        //   role, is_active, is_verified, email_verified_at, phone_verified_at,
+        //   google_id, apple_id, is_social_only, two_factor_enabled,
+        //   is_cod_restricted, max_order_value, registration_source,
+        //   loyalty_points, is_vip, assigned_zone_id, total_deliveries,
+        //   average_rating
     ];
 
     /**
      * The attributes that should be hidden for serialization.
+     *
+     * SECURITY: push_tokens, google_id, apple_id, current_lat/lng leak via
+     * direct Eloquent serialization in admin endpoints. Hide globally;
+     * dedicated audit endpoints can use ->makeVisible([...]) when explicitly needed.
      *
      * @var array<int, string>
      */
     protected $hidden = [
         'password',
         'remember_token',
+        'push_tokens',
+        'google_id',
+        'apple_id',
+        'two_factor_enabled',
+        'current_lat',
+        'current_lng',
+        'location_updated_at',
     ];
 
     /**
@@ -225,11 +235,5 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class);
     }
 
-    /**
-     * Get the user's wallet.
-     */
-    public function wallet()
-    {
-        return $this->hasOne(UserWallet::class);
-    }
+    // Wallet relation removed — wallet feature is no longer part of this product.
 }

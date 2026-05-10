@@ -12,6 +12,17 @@ class OrderRefund extends Model
 
     protected $table = 'order_refunds';
 
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY HARDENED: status, paymob_refund_id, paymob_response, completed_at,
+     * failure_reason are gateway/state fields — must only be flipped via the
+     * dedicated mark*() methods that go through Paymob's webhook. Previously
+     * a controller forwarding $request->validated() could fabricate a
+     * status='completed' refund record without touching Paymob, then
+     * RefundService::partialRefund's totalRefundedForOrder would credit the
+     * wallet trusting the lie.
+     */
     protected $fillable = [
         'order_id',
         'user_id',
@@ -22,17 +33,14 @@ class OrderRefund extends Model
         'penalty_amount',
         'refund_amount',
         'paymob_transaction_id',
-        'paymob_refund_id',
         'refund_method',
-        'status',
         'reason',
-        'failure_reason',
         'initiated_by',
         'admin_id',
-        'paymob_response',
         'refunded_items',
-        'completed_at',
         'idempotency_key',
+        // NOT FILLABLE (gateway/state):
+        //   status, paymob_refund_id, paymob_response, completed_at, failure_reason
     ];
 
     protected $casts = [

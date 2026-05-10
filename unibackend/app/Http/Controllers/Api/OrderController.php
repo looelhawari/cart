@@ -98,9 +98,21 @@ class OrderController extends Controller
 
             $order = $this->orderService->getOrder($id, $user->id);
 
+            // SECURITY (audit M3 paired): expose the COD delivery confirmation
+            // code so the customer can read it to the driver at delivery.
+            // Only present for COD orders that are out_for_delivery — visible
+            // when the driver is at the door. The code is HMAC-derived from
+            // the order id + order_number + APP_KEY, so it can't be guessed.
+            $orderArr = is_array($order) ? $order : (method_exists($order, 'toArray') ? $order->toArray() : (array) $order);
+            $isCod = ($orderArr['payment_method'] ?? null) === 'cash_on_delivery';
+            $isOutForDelivery = ($orderArr['status'] ?? null) === 'out_for_delivery';
+            if ($isCod && $isOutForDelivery && is_object($order)) {
+                $orderArr['delivery_confirmation_code'] = \App\Http\Controllers\Api\DriverController::deliveryConfirmationCode($order);
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => ['order' => $order],
+                'data' => ['order' => $orderArr],
             ], 200, [], JSON_UNESCAPED_UNICODE);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -108,10 +120,15 @@ class OrderController extends Controller
                 'message' => __('order.order_not_found_short'),
             ], 404);
         } catch (\Exception $e) {
+            // SECURITY (audit C4): no longer leak $e->getMessage() to client.
+            \Log::error('Order show failed', [
+                'order_id' => $id,
+                'user_id' => $user?->id,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => __('order.failed_retrieve_order'),
-                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -564,9 +581,27 @@ class OrderController extends Controller
                 ], 401);
             }
 
+            // SECURITY HARDENED (audit): item_ids validated to belong to THIS
+            // order owned by THIS user. Previously the rule was just
+            // `exists:order_items,id` (global) — relying on the service to
+            // re-verify, which is fragile. Now even the validation rejects
+            // cross-order item refunds before the service is invoked.
             $validator = Validator::make($request->all(), [
                 'item_ids' => 'required|array|min:1',
-                'item_ids.*' => 'integer|exists:order_items,id',
+                'item_ids.*' => [
+                    'integer',
+                    \Illuminate\Validation\Rule::exists('order_items', 'id')->where(function ($q) use ($id, $user) {
+                        $q->where('order_id', $id);
+                        // Sub-where via whereExists to verify the order belongs to the caller
+                        $q->whereExists(function ($sub) use ($id, $user) {
+                            $sub->select(\DB::raw(1))
+                                ->from('orders')
+                                ->whereColumn('orders.id', 'order_items.order_id')
+                                ->where('orders.id', $id)
+                                ->where('orders.user_id', $user->id);
+                        });
+                    }),
+                ],
                 'reason' => 'required|string|max:500',
             ]);
 
@@ -592,10 +627,20 @@ class OrderController extends Controller
                 'message' => __('order.order_not_found'),
             ], 404);
         } catch (\Exception $e) {
-            $statusCode = str_contains($e->getMessage(), 'Please wait') ? 429 : 400;
+            $msg = $e->getMessage();
+            $statusCode = str_contains($msg, 'Please wait') ? 429 : 400;
+
+            // SECURITY: only return our own user-facing exception messages.
+            // Hide raw internals (SQL strings, paths, Paymob IDs).
+            $safeMessage = $statusCode === 429
+                ? $msg
+                : (str_starts_with($msg, 'No valid items') || str_starts_with($msg, 'Cannot ')
+                    ? $msg
+                    : __('order.cancel_failed'));
+
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => $safeMessage,
             ], $statusCode);
         }
     }

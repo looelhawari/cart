@@ -7,6 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderItem extends Model
 {
+    /**
+     * Mass-assignable attributes.
+     *
+     * SECURITY HARDENED: subtotal is computed from quantity × price server-side
+     * (in OrderService::createOrderFromCart). Removing it from $fillable
+     * prevents future controllers from forwarding client-supplied subtotals.
+     * `refunded` is flipped only by RefundService.
+     */
     protected $fillable = [
         'order_id',
         'product_id',
@@ -14,8 +22,8 @@ class OrderItem extends Model
         'product_sku',
         'quantity',
         'price',
-        'subtotal',
-        'refunded',
+        // NOT FILLABLE (computed / state):
+        //   subtotal (= quantity * price), refunded (set by RefundService)
     ];
 
     protected $casts = [

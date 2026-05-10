@@ -83,15 +83,26 @@ class Address extends Model
 
     /**
      * Set this address as default and unset all others for the user.
+     *
+     * CONCURRENCY HARDENED (audit H6): two concurrent setAsDefault calls
+     * could both update without coordination, leaving the user with two
+     * defaults during the gap. Wrapped in a transaction with row locks
+     * scoped per-user so the unset-then-set runs atomically.
      */
     public function setAsDefault()
     {
-        // Unset all other default addresses for this user
-        static::where('user_id', $this->user_id)
-            ->where('id', '!=', $this->id)
-            ->update(['is_default' => false]);
+        \DB::transaction(function () {
+            // Lock all of this user's address rows so concurrent setAsDefault
+            // calls serialize.
+            static::where('user_id', $this->user_id)
+                ->lockForUpdate()
+                ->get();
 
-        // Set this address as default
-        $this->update(['is_default' => true]);
+            static::where('user_id', $this->user_id)
+                ->where('id', '!=', $this->id)
+                ->update(['is_default' => false]);
+
+            $this->forceFill(['is_default' => true])->save();
+        });
     }
 }

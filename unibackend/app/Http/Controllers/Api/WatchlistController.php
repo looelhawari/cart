@@ -17,8 +17,12 @@ class WatchlistController extends Controller
     {
         $user = $request->user();
 
+        // FIXED (audit): the product table has 'barcode' (PK), 'name_en'/'name_ar',
+        // 'image' (not 'image_url'), 'stock_quantity' (not 'stock'). Selecting
+        // non-existent columns silently returned null fields and broke the
+        // out-of-stock flag. Corrected to canonical column names.
         $watchlist = ProductWatchlist::with(['product' => function ($query) {
-            $query->select('id', 'name', 'name_ar', 'price', 'sale_price', 'image_url', 'stock', 'is_active');
+            $query->select('barcode', 'name_en', 'name_ar', 'price', 'sale_price', 'image', 'stock_quantity', 'is_active');
         }])
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
@@ -31,7 +35,7 @@ class WatchlistController extends Controller
                     'notify_back_in_stock' => $item->notify_back_in_stock,
                     'notify_price_drop' => $item->notify_price_drop,
                     'price_threshold' => $item->price_threshold,
-                    'is_out_of_stock' => $item->product && $item->product->stock <= 0,
+                    'is_out_of_stock' => $item->product && (int) ($item->product->stock_quantity ?? 0) <= 0,
                     'created_at' => $item->created_at->toIso8601String(),
                 ];
             });
@@ -48,8 +52,14 @@ class WatchlistController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        // FIXED (audit): products PK is 'barcode' (not 'id'). The previous
+        // rule `exists:products,id` would always fail validation, making
+        // /watchlist non-functional. Also gate active products only.
         $request->validate([
-            'product_id' => 'required|exists:products,id',
+            'product_id' => [
+                'required',
+                \Illuminate\Validation\Rule::exists('products', 'barcode')->where(fn ($q) => $q->where('is_active', true)),
+            ],
             'notify_back_in_stock' => 'boolean',
             'notify_price_drop' => 'boolean',
             'price_threshold' => 'nullable|numeric|min:0',

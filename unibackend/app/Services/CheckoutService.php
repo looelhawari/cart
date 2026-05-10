@@ -7,7 +7,6 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\PromoCode;
-use App\Models\UserWallet;
 use App\Models\PaymobPayment;
 use App\Services\OrderService;
 use Illuminate\Support\Facades\DB;
@@ -26,204 +25,40 @@ class CheckoutService
     }
 
     /**
-     * Process payment with wallet-first strategy
+     * Process payment.
+     *
+     * Wallet feature has been removed from the product. Supported payment
+     * methods: 'card' (Paymob), 'cash_on_delivery', or 'card_on_delivery'
+     * (driver brings a portable card machine). Anything else is rejected.
      *
      * @param Order $order
-     * @param string $paymentMethod 'wallet' | 'card' | 'cash_on_delivery'
+     * @param string $paymentMethod 'card' | 'cash_on_delivery' | 'card_on_delivery'
      * @param array $billingData Required for card payments
      * @return array Payment result with status and next steps
      * @throws Exception
      */
     public function processPayment(Order $order, string $paymentMethod, array $billingData = []): array
     {
-        // Get or create user wallet
-        $wallet = UserWallet::firstOrCreate(['user_id' => $order->user_id]);
-
-        // Strategy selection based on payment method and wallet balance
-        if ($paymentMethod === 'wallet' && $wallet->hasSufficientBalance($order->total)) {
-            // Strategy 1: Full payment with wallet
-            return $this->payWithWalletOnly($order, $wallet);
-        }
-
         if ($paymentMethod === 'card') {
-            if ($wallet->balance > 0 && $wallet->balance < $order->total) {
-                // Strategy 2: Partial wallet + card
-                return $this->payWithWalletAndCard($order, $wallet, $billingData);
-            } else {
-                // Strategy 3: Card only
-                return $this->payWithCardOnly($order, $billingData);
-            }
+            return $this->payWithCardOnly($order, $billingData);
         }
 
         if ($paymentMethod === 'cash_on_delivery') {
-            // Strategy 4: COD
             return $this->payWithCOD($order);
         }
 
         if ($paymentMethod === 'card_on_delivery') {
-            // Strategy 5: Pay-on-delivery via card machine — same flow as COD,
+            // Pay-on-delivery via card machine — same flow as COD,
             // tagged so the driver knows to bring a card machine.
             return $this->payWithCardOnDelivery($order);
         }
 
-        if ($paymentMethod === 'wallet' && !$wallet->hasSufficientBalance($order->total)) {
-            throw new Exception(__('order.insufficient_wallet_balance'));
-        }
 
         throw new Exception(__('order.invalid_payment_method'));
     }
 
     /**
-     * Strategy 1: Pay entirely with wallet balance
-     */
-    private function payWithWalletOnly(Order $order, UserWallet $wallet): array
-    {
-        DB::transaction(function () use ($order, $wallet) {
-            // Debit wallet
-            $wallet->debit(
-                $order->total,
-                "Payment for order #{$order->order_number}",
-                'Order',
-                $order->id,
-                "order_payment_{$order->id}"
-            );
-
-            // Update order
-            $order->update([
-                'payment_method' => 'wallet',
-                'payment_status' => 'completed',
-                'status' => 'confirmed',
-            ]);
-
-            app(OrderService::class)->finalizePromoUsage($order);
-
-            Log::info('Order paid with wallet', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'amount' => $order->total,
-                'user_id' => $order->user_id,
-            ]);
-        });
-
-        return [
-            'success' => true,
-            'payment_method' => 'wallet',
-            'status' => 'completed',
-            'message' => __('order.payment_completed_wallet'),
-            'order_id' => $order->id,
-        ];
-    }
-
-    /**
-     * Strategy 2: Pay partially with wallet, remainder with card
-     * Wallet debit is committed first, with auto-rollback if Paymob fails.
-     */
-    private function payWithWalletAndCard(Order $order, UserWallet $wallet, array $billingData): array
-    {
-        $walletAmount = $wallet->balance;
-        $cardAmount = $order->total - $walletAmount;
-
-        // Debit wallet first (committed immediately)
-        DB::transaction(function () use ($order, $wallet, $walletAmount, $cardAmount) {
-            $wallet->debit(
-                $walletAmount,
-                "Partial payment for order #{$order->order_number} (wallet portion)",
-                'Order',
-                $order->id,
-                "order_partial_wallet_{$order->id}"
-            );
-
-            $order->update([
-                'payment_method' => 'wallet+card',
-                'payment_status' => 'pending',
-            ]);
-
-            Log::info('Partial wallet payment processed', [
-                'order_id' => $order->id,
-                'wallet_amount' => $walletAmount,
-                'remaining_amount' => $cardAmount,
-            ]);
-        });
-
-        // Initiate Paymob - if this fails, roll back the wallet debit
-        try {
-            $amountCents = (int)($cardAmount * 100);
-            $internalOrderId = 'ORD-' . $order->id . '-' . time();
-
-            $authToken = $this->paymobService->authenticate();
-
-            $paymobOrderId = $this->paymobService->registerOrder(
-                $authToken,
-                $amountCents,
-                $internalOrderId
-            );
-
-            $paymentToken = $this->paymobService->generatePaymentKey(
-                $authToken,
-                $amountCents,
-                $paymobOrderId,
-                $billingData,
-                'CARD'
-            );
-
-            $integrationId = $this->paymobService->getIntegrationId('CARD');
-
-            PaymobPayment::create([
-                'order_id' => $order->id,
-                'user_id' => $order->user_id,
-                'internal_order_id' => $internalOrderId,
-                'paymob_order_id' => $paymobOrderId,
-                'amount_cents' => $amountCents,
-                'currency' => 'EGP',
-                'payment_method' => 'CARD',
-                'flow' => 'classic_iframe',
-                'save_card_requested' => false,
-                'special_reference' => $internalOrderId,
-                'integration_id' => $integrationId,
-                'status' => 'PENDING',
-                'billing_data' => $billingData,
-            ]);
-            $iframeUrl = $this->paymobService->getIframeUrl($paymentToken);
-
-            return [
-                'success' => true,
-                'payment_method' => 'wallet+card',
-                'status' => 'pending',
-                'wallet_amount' => $walletAmount,
-                'card_amount' => $cardAmount,
-                'iframe_url' => $iframeUrl,
-                'payment_token' => $paymentToken,
-                'message' => __('order.partial_wallet_card', ['wallet' => $walletAmount, 'card' => $cardAmount]),
-            ];
-        } catch (\Exception $e) {
-            // Paymob failed — roll back wallet debit to prevent money loss
-            Log::error('Paymob initiation failed, rolling back wallet debit', [
-                'order_id' => $order->id,
-                'wallet_amount' => $walletAmount,
-                'error' => $e->getMessage(),
-            ]);
-
-            DB::transaction(function () use ($order, $wallet, $walletAmount) {
-                $wallet->credit(
-                    $walletAmount,
-                    "Refund: Paymob initiation failed for order #{$order->order_number}",
-                    'Order',
-                    $order->id,
-                    "order_partial_wallet_refund_{$order->id}"
-                );
-
-                $order->update([
-                    'payment_method' => null,
-                    'payment_status' => 'failed',
-                ]);
-            });
-
-            throw new Exception(__('order.payment_gateway_refunded'));
-        }
-    }
-
-    /**
-     * Strategy 3: Pay entirely with card
+     * Pay entirely with card (Paymob)
      */
     private function payWithCardOnly(Order $order, array $billingData): array
     {
@@ -269,7 +104,6 @@ class CheckoutService
             'billing_data' => $billingData,
         ]);
 
-        // Update order
         $order->update([
             'payment_method' => 'card',
             'payment_status' => 'pending',
@@ -290,7 +124,7 @@ class CheckoutService
     }
 
     /**
-     * Strategy 4: Cash on Delivery
+     * Cash on Delivery
      */
     private function payWithCOD(Order $order): array
     {
@@ -300,7 +134,7 @@ class CheckoutService
             'status' => 'confirmed',
         ]);
 
-        // Finalize promo usage for COD orders (same as wallet/card paths)
+        // Finalize promo usage for COD orders (same as card path)
         app(OrderService::class)->finalizePromoUsage($order);
 
         Log::info('Order placed with COD', [

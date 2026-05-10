@@ -32,7 +32,17 @@ class OffersController extends Controller
         if ($isPersonalized) {
             $data = $offerService->listOffers($filters, $user?->id, $sessionId);
         } else {
-            $cacheKey = 'offers:list:' . md5(json_encode($filters));
+            // SECURITY HARDENED (audit C3): cache key uses ONLY the controlled
+            // filter set above, with `search` normalised + length-capped so
+            // an attacker can't fill Redis by spamming arbitrary search
+            // strings.
+            $cacheFilters = $filters;
+            if (is_string($cacheFilters['search'])) {
+                $cacheFilters['search'] = mb_substr(mb_strtolower($cacheFilters['search']), 0, 50);
+            } else {
+                $cacheFilters['search'] = null;
+            }
+            $cacheKey = 'offers:list:' . md5(json_encode($cacheFilters));
             $data = Cache::remember($cacheKey, 300, function () use ($offerService, $filters, $sessionId) {
                 return $offerService->listOffers($filters, null, $sessionId);
             });

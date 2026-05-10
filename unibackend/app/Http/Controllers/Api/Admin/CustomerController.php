@@ -102,11 +102,10 @@ class CustomerController extends Controller
     {
         $customer = User::where('role', 'customer')
             ->with([
-                'addresses', 
+                'addresses',
                 'defaultAddress',
-                'orders' => fn($q) => $q->latest()->limit(50), 
-                'complaints' => fn($q) => $q->latest(), 
-                'wallet',
+                'orders' => fn($q) => $q->latest()->limit(50),
+                'complaints' => fn($q) => $q->latest(),
                 'notes.author' // Internal notes
             ])
             ->withCount('orders')

@@ -106,19 +106,26 @@ class AdminDriverController extends Controller
             'assigned_zone_id' => 'nullable|integer|exists:delivery_zones,id',
         ]);
 
+        // Privilege fields (role, assigned_zone_id, email_verified_at) are no
+        // longer in $fillable (security hardening). Set via forceFill() since
+        // an admin with users.manage permission is authorized to create drivers.
         $driver = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
-            'role' => 'driver',
             'vehicle_type' => $request->vehicle_type,
             'vehicle_plate' => $request->vehicle_plate,
-            'assigned_zone_id' => $request->assigned_zone_id ?: null,
             'is_available' => false,
-            'email_verified_at' => now(),
         ]);
+        $driver->forceFill([
+            'role' => 'driver',
+            'assigned_zone_id' => $request->assigned_zone_id ?: null,
+            'email_verified_at' => now(),
+            'is_active' => true,
+            'is_verified' => true,
+        ])->save();
 
         return response()->json([
             'success' => true,

@@ -30,8 +30,16 @@ class CreateOrderRequest extends FormRequest
                     $query->where('user_id', $this->user()->id);
                 }),
             ],
-            'payment_method' => 'required|in:cash_on_delivery,card,wallet,card_on_delivery',
-            'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
+            'payment_method' => 'required|in:cash_on_delivery,card,card_on_delivery',
+            'payment_method_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('payment_methods', 'id')->where(function ($q) {
+                    // SECURITY (audit fix): scope to caller — was unscoped, allowing
+                    // a customer to attach another user's saved card id to their own order.
+                    $q->where('user_id', $this->user()->id);
+                }),
+            ],
             'delivery_date' => 'nullable|date|after_or_equal:today',
             'delivery_time_slot' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
@@ -48,7 +56,7 @@ class CreateOrderRequest extends FormRequest
             'delivery_address_id.required' => 'Delivery address is required',
             'delivery_address_id.exists' => 'Selected delivery address does not exist or does not belong to you',
             'payment_method.required' => 'Payment method is required',
-            'payment_method.in' => 'Invalid payment method. Must be cash_on_delivery, card_on_delivery, card, or wallet',
+            'payment_method.in' => 'Invalid payment method. Must be cash_on_delivery, card_on_delivery, or card',
             'delivery_date.after_or_equal' => 'Delivery date must be today or in the future',
             'delivery_time_slot.max' => 'Delivery time slot is too long',
             'notes.max' => 'Notes cannot exceed 500 characters',

@@ -50,10 +50,33 @@ class UserController extends Controller
             'two_factor_enabled' => 'boolean',
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
-        $validated['email_verified_at'] = now();
+        // SECURITY: Only an existing 'owner' may create another 'owner'.
+        // Without this, any admin with users.manage could elevate by creating
+        // an owner account they control. See AuditFindingsTest.
+        if ($validated['role'] === 'owner' && optional($request->user())->role !== 'owner') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only an existing owner can create owner accounts.',
+            ], 403);
+        }
 
-        $user = User::create($validated);
+        // Mass-assignable subset (after $fillable hardening)
+        $user = User::create([
+            'first_name' => $validated['first_name'],
+            'last_name'  => $validated['last_name'],
+            'email'      => $validated['email'],
+            'phone'      => $validated['phone'],
+            'password'   => Hash::make($validated['password']),
+        ]);
+
+        // Privileged fields via forceFill — caller has been authorized above.
+        $user->forceFill([
+            'role'               => $validated['role'],
+            'is_active'          => $validated['is_active'] ?? true,
+            'two_factor_enabled' => $validated['two_factor_enabled'] ?? false,
+            'is_verified'        => true,
+            'email_verified_at'  => now(),
+        ])->save();
 
         return response()->json($user, 201);
     }
@@ -79,13 +102,53 @@ class UserController extends Controller
             'two_factor_enabled' => 'sometimes|boolean',
         ]);
 
-        if (isset($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
+        // SECURITY (Chain B): Block role escalation. Without these guards,
+        // any admin with users.manage permission could PUT {role: 'owner'}
+        // and gain full takeover via RbacController::myPermissions logic.
+        if (isset($validated['role'])) {
+            $caller = $request->user();
+            // Only an owner can set/change someone's role to 'owner'
+            if ($validated['role'] === 'owner' && optional($caller)->role !== 'owner') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only an existing owner can grant the owner role.',
+                ], 403);
+            }
+            // No self-role-change at all
+            if ($caller && $caller->id === $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot change your own role.',
+                ], 403);
+            }
+            // Demoting an existing owner: only another owner may do that
+            if ($user->role === 'owner' && optional($caller)->role !== 'owner') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only an owner can modify another owner.',
+                ], 403);
+            }
         }
 
-        $user->update($validated);
+        // Split mass-assignable from privileged
+        $massSafe = array_intersect_key($validated, array_flip([
+            'first_name', 'last_name', 'email', 'phone',
+        ]));
+        $privileged = array_intersect_key($validated, array_flip([
+            'role', 'is_active', 'two_factor_enabled',
+        ]));
 
-        return response()->json($user);
+        if (isset($validated['password'])) {
+            $massSafe['password'] = Hash::make($validated['password']);
+        }
+        if (!empty($massSafe)) {
+            $user->update($massSafe);
+        }
+        if (!empty($privileged)) {
+            $user->forceFill($privileged)->save();
+        }
+
+        return response()->json($user->refresh());
     }
 
     public function destroy($id)

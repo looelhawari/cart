@@ -85,16 +85,25 @@ class DriverController extends Controller
      */
     public function updateLocation(Request $request): JsonResponse
     {
+        $driver = $request->user();
+
         $request->validate([
             'latitude'  => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'speed'     => 'nullable|numeric|min:0',
             'heading'   => 'nullable|numeric|between:0,360',
             'accuracy'  => 'nullable|numeric|min:0',
-            'order_id'  => 'nullable|exists:orders,id',
+            // SECURITY HARDENED (audit Chain E): scope order_id to THIS driver.
+            // Previously a malicious driver could send order_id of another
+            // driver's order — the broadcast then fired on that order's
+            // tracking channel showing this driver's GPS as the assigned one.
+            'order_id'  => [
+                'nullable',
+                \Illuminate\Validation\Rule::exists('orders', 'id')->where(function ($q) use ($driver) {
+                    $q->where('driver_id', $driver->id);
+                }),
+            ],
         ]);
-
-        $driver = $request->user();
 
         $this->zoneService->updateDriverLocation($driver, $request->latitude, $request->longitude, [
             'order_id' => $request->order_id,
@@ -160,6 +169,17 @@ class DriverController extends Controller
             ->where('status', 'confirmed')
             ->firstOrFail();
 
+        // SECURITY HARDENED (audit M2): for online (card) orders, refuse to
+        // accept until payment_status is in a non-failed state. Without this
+        // a driver could accept an unpaid card order, deliver it, and then
+        // the company is out the goods.
+        if ($order->payment_method === 'card' && $order->payment_status !== 'completed') {
+            return response()->json([
+                'success' => false,
+                'message' => __('driver.cannot_accept_unpaid'),
+            ], 400);
+        }
+
         $order->update([
             'status' => 'preparing',
         ]);
@@ -207,6 +227,26 @@ class DriverController extends Controller
             ->where('status', 'out_for_delivery')
             ->firstOrFail();
 
+        // SECURITY HARDENED (audit M3): for COD orders, require a confirmation
+        // code that proves the customer was present at delivery. The code is
+        // derived deterministically from order_id + order_number; the customer
+        // sees it in their app on the "Order delivered?" screen and reads it
+        // to the driver, who enters it here. Mitigates driver-side fraud
+        // (mark delivered without actually delivering / collecting cash).
+        if ($order->payment_method === 'cash_on_delivery') {
+            $request->validate([
+                'confirmation_code' => 'required|string|size:6',
+            ]);
+
+            $expected = self::deliveryConfirmationCode($order);
+            if (!hash_equals($expected, strtoupper($request->input('confirmation_code')))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('driver.invalid_confirmation_code'),
+                ], 422);
+            }
+        }
+
         DB::transaction(function () use ($order, $driver) {
             $order->update([
                 'status' => 'delivered',
@@ -216,7 +256,9 @@ class DriverController extends Controller
             // Update driver stats
             $driver->increment('total_deliveries');
 
-            // Mark on-delivery payments (cash or card machine) as completed
+            // Mark on-delivery payments (cash or card machine) as completed.
+            // COD path is gated above by the confirmation code check; card-on-delivery
+            // is gated by the card terminal transaction itself.
             if (Order::isOnDeliveryPayment($order->payment_method)) {
                 $order->update(['payment_status' => 'completed']);
             }
@@ -227,6 +269,22 @@ class DriverController extends Controller
             'message' => __('driver.order_delivered'),
             'data' => $order->fresh(),
         ]);
+    }
+
+    /**
+     * Deterministic 6-character delivery confirmation code derived from a
+     * server-side secret. The customer sees this in their app's order screen.
+     * The driver requests it from the customer and enters it on delivery.
+     */
+    public static function deliveryConfirmationCode(Order $order): string
+    {
+        $hmac = hash_hmac(
+            'sha256',
+            "delivery_confirm:{$order->id}:{$order->order_number}",
+            (string) config('app.key'),
+        );
+        // 6 hex chars uppercase, easy to read aloud
+        return strtoupper(substr($hmac, 0, 6));
     }
 
     /**

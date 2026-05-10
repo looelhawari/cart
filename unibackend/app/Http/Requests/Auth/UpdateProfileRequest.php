@@ -17,9 +17,21 @@ class UpdateProfileRequest extends FormRequest
 
     /**
      * Prepare the data for validation.
+     *
+     * SECURITY HARDENED (audit Chain C item 4 — account takeover):
+     * `email` and `phone` are stripped here before validation. Changing these
+     * requires the dedicated email-change/phone-change OTP flow. Without this,
+     * a stolen access token could change the account's email to attacker-
+     * controlled, then trigger password-reset and lock the legit user out.
      */
     protected function prepareForValidation(): void
     {
+        // Drop attempts to change email/phone via the profile-edit endpoint.
+        // The legitimate path is /auth/email-change/start + /auth/email-change/verify
+        // (sends OTP to the new email; commits only after Hash::check OK).
+        $this->offsetUnset('email');
+        $this->offsetUnset('phone');
+
         $data = [];
 
         if ($this->has('first_name')) {
@@ -28,14 +40,6 @@ class UpdateProfileRequest extends FormRequest
 
         if ($this->has('last_name')) {
             $data['last_name'] = strip_tags(trim($this->last_name));
-        }
-
-        if ($this->has('email')) {
-            $data['email'] = strtolower(trim($this->email));
-        }
-
-        if ($this->has('phone')) {
-            $data['phone'] = preg_replace('/[^0-9+]/', '', $this->phone);
         }
 
         if ($this->has('date_of_birth')) {
@@ -52,54 +56,29 @@ class UpdateProfileRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * SECURITY: `email` and `phone` are intentionally ABSENT — they're not
+     * settable from this endpoint. See prepareForValidation().
      */
     public function rules(): array
     {
-        $user = $this->user();
-
         return [
-            'first_name' => 'sometimes|required|string|max:255',
-            'last_name' => 'sometimes|required|string|max:255',
-            'email' => [
-                'sometimes',
-                'required',
-                'email',
-                'max:255',
-                Rule::unique('users')->ignore($user->id),
-            ],
-            'phone' => [
-                'sometimes',
-                'required',
-                'regex:/^\+?[0-9]{10,15}$/',
-                Rule::unique('users')->ignore($user->id),
-            ],
+            'first_name'    => 'sometimes|required|string|max:255',
+            'last_name'     => 'sometimes|required|string|max:255',
             'date_of_birth' => 'sometimes|nullable|date|before:today|after:1900-01-01',
-            'gender' => 'sometimes|nullable|in:male,female,other',
-            'language' => 'sometimes|in:en,ar',
+            'gender'        => 'sometimes|nullable|in:male,female,other',
+            'language'      => 'sometimes|in:en,ar',
         ];
     }
 
-    /**
-     * Get custom messages for validator errors.
-     *
-     * @return array<string, string>
-     */
     public function messages(): array
     {
         return [
             'first_name.required' => 'First name is required.',
-            'last_name.required' => 'Last name is required.',
-            'email.required' => 'Email is required.',
-            'email.email' => 'Please provide a valid email address.',
-            'email.unique' => 'This email is already in use.',
-            'phone.required' => 'Phone number is required.',
-            'phone.regex' => 'Please provide a valid phone number.',
-            'phone.unique' => 'This phone number is already in use.',
-            'date_of_birth.date' => 'Please provide a valid date of birth.',
+            'last_name.required'  => 'Last name is required.',
+            'date_of_birth.date'  => 'Please provide a valid date of birth.',
             'date_of_birth.before' => 'Date of birth must be in the past.',
             'date_of_birth.after' => 'Please provide a valid date of birth.',
-            'gender.in' => 'Please select a valid gender.',
+            'gender.in'   => 'Please select a valid gender.',
             'language.in' => 'Please select a valid language.',
         ];
     }
