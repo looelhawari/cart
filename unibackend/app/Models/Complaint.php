@@ -26,7 +26,28 @@ class Complaint extends Model
         'escalation_reason',
         'bot_satisfaction_rating',
         'bot_feedback',
+        // Identity snapshot — populated by booted() so the audit trail
+        // survives user deletion (FK is nullOnDelete).
+        'user_email_snapshot',
+        'user_name_snapshot',
     ];
+
+    /**
+     * Auto-populate the identity snapshot at create-time so deleting the
+     * user (or anonymising them for GDPR) doesn't erase the audit trail.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $c) {
+            if (! $c->user_email_snapshot && $c->user_id) {
+                $u = User::find($c->user_id);
+                if ($u) {
+                    $c->user_email_snapshot = $u->email;
+                    $c->user_name_snapshot  = trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? ''));
+                }
+            }
+        });
+    }
 
     protected $casts = [
         'resolved_at' => 'datetime',

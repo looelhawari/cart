@@ -54,6 +54,25 @@ class PaymobPayment extends Model
     ];
 
     /**
+     * Hidden from JSON serialization.
+     *
+     * SECURITY: paymob_response can carry card BINs, masked PAN, raw gateway
+     * payloads and internal merchant identifiers; billing_data can carry the
+     * customer's email/phone — both are leaked into admin endpoints that
+     * return PaymobPayment rows verbatim. Hide by default and use
+     * makeVisible() at the rare call site that genuinely needs them.
+     */
+    protected $hidden = [
+        'paymob_response',
+        'paymob_transaction_id',
+        'paymob_intention_id',
+        'paymob_order_id',
+        'integration_id',
+        'billing_data',
+        'special_reference',
+    ];
+
+    /**
      * Get the order that owns the payment.
      */
     public function order(): BelongsTo

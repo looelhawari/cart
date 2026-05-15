@@ -27,5 +27,6 @@ return [
     'promo_misconfigured' => 'Promo code is not configured correctly',
     'promo_bogo_add_item' => 'Promo eligible — add your free item to cart to claim',
     'promo_bogo_add_more' => 'Promo eligible — add more eligible items to claim full discount',
+    'promo_not_targeted' => 'This promo code is not available for your account',
     'promo_not_valid' => 'Promo code is not valid',
 ];

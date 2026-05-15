@@ -1,4 +1,11 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  useReducer,
+} from "react";
 import {
   View,
   Text,
@@ -6,7 +13,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Platform,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
@@ -15,7 +21,8 @@ import { MapPin, Navigation, X, Check } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import {
   deliveryZoneApi,
-  type CoverageResult,
+  type ReverseGeocodeResult,
+  type ResolvedZone,
 } from "@/services/api/deliveryZoneApi";
 import { useTranslation } from "@/i18n";
 
@@ -27,7 +34,7 @@ interface MapAddressPickerProps {
     longitude: number;
     formattedAddress: string;
     placeId: string;
-    zone: CoverageResult["zone"] | null;
+    zone: ResolvedZone | null;
     addressComponents?: {
       street: string;
       city: string;
@@ -37,12 +44,105 @@ interface MapAddressPickerProps {
   onClose: () => void;
 }
 
-// Default center: Cairo
-const DEFAULT_LAT = 30.0444;
+const DEFAULT_LAT = 30.0444; // Cairo
 const DEFAULT_LNG = 31.2357;
 
-// Nominatim public server (free, no API key needed)
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org";
+// Drop a fetch when the pin moved < this many metres since the previous
+// resolved fetch. flyTo / minor jitter / a moveend at the same coords no
+// longer trigger redundant round-trips.
+const MIN_MOVE_METRES = 8;
+
+// Single source of truth for "how long to wait after the user stops moving
+// the pin before we hit the server". Lives in the WebView (where moveend
+// fires); RN side does NOT add another debounce on top.
+const SETTLE_MS = 500;
+
+// ───────────────────────────── reducer ──────────────────────────────────
+//
+// All map-state moves through one reducer so we can't end up with mismatched
+// (lat, lng, address, zone) tuples — the previous code had eight independent
+// useState slots that could disagree mid-flight.
+
+type Status = "idle" | "fetching" | "ready" | "error";
+
+interface MapState {
+  status: Status;
+  lat: number | null;
+  lng: number | null;
+  address: string;
+  placeId: string;
+  components: { street: string; city: string; area: string } | null;
+  zone: ResolvedZone | null;
+  isInZone: boolean | null;
+}
+
+type Action =
+  | { type: "PIN_MOVED"; lat: number; lng: number }
+  | { type: "FETCH_OK"; lat: number; lng: number; payload: ReverseGeocodeResult }
+  | { type: "FETCH_FAIL"; lat: number; lng: number };
+
+function reducer(state: MapState, action: Action): MapState {
+  switch (action.type) {
+    case "PIN_MOVED":
+      return {
+        ...state,
+        status: "fetching",
+        lat: action.lat,
+        lng: action.lng,
+        // Clear the old result so the UI shows "checking…" instead of stale OK/NOT-OK
+        address: "",
+        placeId: "",
+        components: null,
+        zone: null,
+        isInZone: null,
+      };
+    case "FETCH_OK": {
+      // Only accept the result if the pin hasn't moved on since we asked.
+      // Belt-and-braces: AbortController already cancels the network side,
+      // this guards against a fetch that resolved between dispatch and the
+      // next state read.
+      if (state.lat !== action.lat || state.lng !== action.lng) return state;
+      return {
+        ...state,
+        status: "ready",
+        address: action.payload.address.formatted_address ?? "",
+        placeId: action.payload.address.place_id ?? "",
+        components: {
+          street: action.payload.address.components.street ?? "",
+          city: action.payload.address.components.city ?? "",
+          area: action.payload.address.components.area ?? "",
+        },
+        zone: action.payload.zone,
+        isInZone: action.payload.is_covered,
+      };
+    }
+    case "FETCH_FAIL":
+      if (state.lat !== action.lat || state.lng !== action.lng) return state;
+      return { ...state, status: "error", isInZone: null, zone: null };
+    default:
+      return state;
+  }
+}
+
+// Haversine in metres — used for the distance-threshold guard so flyTo /
+// jitter doesn't spam the network.
+function distanceMetres(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6_371_000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const sa = Math.sin(dLat / 2);
+  const sb = Math.sin(dLng / 2);
+  const h =
+    sa * sa +
+    Math.cos((a.lat * Math.PI) / 180) *
+      Math.cos((b.lat * Math.PI) / 180) *
+      sb *
+      sb;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
 
 export default function MapAddressPicker({
   initialLatitude,
@@ -52,27 +152,84 @@ export default function MapAddressPicker({
 }: MapAddressPickerProps) {
   const { t } = useTranslation();
   const webViewRef = useRef<WebView>(null);
-  const [loading, setLoading] = useState(true);
+  const [mapLoading, setMapLoading] = useState(true);
   const [gpsLoading, setGpsLoading] = useState(false);
-  const [checkingZone, setCheckingZone] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(
+
+  const [state, dispatch] = useReducer(reducer, {
+    status: "idle",
+    lat: initialLatitude ?? null,
+    lng: initialLongitude ?? null,
+    address: "",
+    placeId: "",
+    components: null,
+    zone: null,
+    isInZone: null,
+  });
+
+  // Tracks the last (lat, lng) we actually fetched against. Used by the
+  // <8 m threshold so we don't re-hit the server when the pin lands within
+  // jitter range of the previous location.
+  const lastResolvedRef = useRef<{ lat: number; lng: number } | null>(
     initialLatitude && initialLongitude
       ? { lat: initialLatitude, lng: initialLongitude }
       : null,
   );
-  const [address, setAddress] = useState<string>("");
-  const [placeId, setPlaceId] = useState<string>("");
-  const [addressComponents, setAddressComponents] = useState<any>(null);
-  const [zoneInfo, setZoneInfo] = useState<CoverageResult["zone"] | null>(null);
-  const [isInZone, setIsInZone] = useState<boolean | null>(null);
 
-  // Counter to track zone check requests — ignore stale responses
-  const zoneRequestId = useRef(0);
+  // One AbortController per in-flight request. Replaced atomically every
+  // time the pin moves; the previous controller is aborted, which both
+  // cancels the underlying fetch and lets RN's reducer ignore the now-stale
+  // result.
+  const inFlightRef = useRef<AbortController | null>(null);
 
-  // Get user's current location
+  // ── Resolve a pin: ONE backend call, returns address + zone in one shot ─
+  const resolvePin = useCallback(async (lat: number, lng: number) => {
+    // Distance gate — drop near-identical coords from flyTo / mid-animation moveend.
+    if (
+      lastResolvedRef.current &&
+      distanceMetres(lastResolvedRef.current, { lat, lng }) < MIN_MOVE_METRES
+    ) {
+      return;
+    }
+
+    // Cancel whatever was in flight.
+    inFlightRef.current?.abort();
+    const controller = new AbortController();
+    inFlightRef.current = controller;
+
+    dispatch({ type: "PIN_MOVED", lat, lng });
+
+    try {
+      const response = await deliveryZoneApi.reverseGeocode(
+        lat,
+        lng,
+        controller.signal,
+      );
+      const data = (response as any)?.data ?? response;
+      if (!data) throw new Error("No data");
+
+      lastResolvedRef.current = { lat, lng };
+      dispatch({ type: "FETCH_OK", lat, lng, payload: data });
+    } catch (err: any) {
+      if (err?.name === "AbortError" || controller.signal.aborted) return;
+      dispatch({ type: "FETCH_FAIL", lat, lng });
+    }
+  }, []);
+
+  // ── Resolve once on mount if we opened with initial coords. After that,
+  //    every resolve is driven by WebView messages (no React deps loop).
+  useEffect(() => {
+    if (initialLatitude != null && initialLongitude != null) {
+      resolvePin(initialLatitude, initialLongitude);
+    }
+    return () => {
+      inFlightRef.current?.abort();
+    };
+    // resolvePin is stable (useCallback with [] deps); initial coords are
+    // mount-time props. We deliberately don't react to prop changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── GPS button ──────────────────────────────────────────────────────────
   const getCurrentLocation = useCallback(async () => {
     try {
       setGpsLoading(true);
@@ -91,14 +248,14 @@ export default function MapAddressPicker({
       });
 
       const { latitude, longitude } = location.coords;
-      setSelectedLocation({ lat: latitude, lng: longitude });
-
-      // Move map to GPS location
+      // The WebView's flyTo emits one moveend after settling; that single
+      // event triggers the resolve. We don't dispatch PIN_MOVED here — the
+      // WebView will tell us when the map actually settles on the new pin.
       webViewRef.current?.injectJavaScript(`
         moveToLocation(${latitude}, ${longitude});
         true;
       `);
-    } catch (error) {
+    } catch (e) {
       Alert.alert(
         t?.common?.error || "Error",
         t?.ui?.failedToGetLocation || "Failed to get current location",
@@ -106,86 +263,27 @@ export default function MapAddressPicker({
     } finally {
       setGpsLoading(false);
     }
-  }, []);
+  }, [t]);
 
-  // Debounce timer for zone check
-  const zoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Check zone coverage when location settles (debounced)
-  useEffect(() => {
-    if (!selectedLocation) return;
-
-    // Immediately clear stale zone status so user sees "checking" not old result
-    setZoneInfo(null);
-    setIsInZone(null);
-    setCheckingZone(true);
-
-    // Increment request ID — any older in-flight response will be ignored
-    const currentRequestId = ++zoneRequestId.current;
-
-    // Clear any pending zone check timer
-    if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
-
-    // Wait 800ms after last location change before checking zone
-    zoneCheckTimer.current = setTimeout(async () => {
+  // ── WebView messages ────────────────────────────────────────────────────
+  const onWebViewMessage = useCallback(
+    (event: any) => {
       try {
-        const response = await deliveryZoneApi.checkCoverage(
-          selectedLocation.lat,
-          selectedLocation.lng,
-        );
-
-        // Only apply result if this is still the latest request
-        if (currentRequestId !== zoneRequestId.current) return;
-
-        const data = response.data || response;
-        setZoneInfo(data.zone);
-        setIsInZone(data.is_covered ?? data.covered ?? false);
-      } catch (error) {
-        // Only apply if still the latest request
-        if (currentRequestId !== zoneRequestId.current) return;
-        setZoneInfo(null);
-        setIsInZone(null);
-      } finally {
-        if (currentRequestId === zoneRequestId.current) {
-          setCheckingZone(false);
+        const data = JSON.parse(event.nativeEvent.data);
+        if (data.type === "mapReady") {
+          setMapLoading(false);
+        } else if (data.type === "pinSettled") {
+          resolvePin(Number(data.lat), Number(data.lng));
         }
+      } catch {
+        /* malformed message — ignore */
       }
-    }, 800);
-
-    return () => {
-      if (zoneCheckTimer.current) clearTimeout(zoneCheckTimer.current);
-    };
-  }, [selectedLocation]);
-
-  // Handle messages from WebView
-  const onWebViewMessage = useCallback((event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-
-      if (data.type === "mapReady") {
-        setLoading(false);
-      } else if (data.type === "locationSelected") {
-        setSelectedLocation({ lat: data.lat, lng: data.lng });
-        setAddress(data.address || "");
-        setPlaceId(data.placeId || "");
-        if (data.addressComponents) {
-          setAddressComponents(data.addressComponents);
-        }
-      } else if (data.type === "markerDragged") {
-        setSelectedLocation({ lat: data.lat, lng: data.lng });
-        setAddress(data.address || "");
-        setPlaceId(data.placeId || "");
-        if (data.addressComponents) {
-          setAddressComponents(data.addressComponents);
-        }
-      }
-    } catch (e) {
-      // Ignore malformed messages
-    }
-  }, []);
+    },
+    [resolvePin],
+  );
 
   const handleConfirm = () => {
-    if (!selectedLocation) {
+    if (state.lat == null || state.lng == null) {
       Alert.alert(
         t?.common?.error || "Error",
         t?.addresses?.pleaseSelectLocation ||
@@ -193,23 +291,36 @@ export default function MapAddressPicker({
       );
       return;
     }
+    if (state.status === "fetching") {
+      // Don't let the user confirm while we're still resolving — the result
+      // (address + zone) is what gets persisted, so confirming mid-flight
+      // would commit stale or empty values.
+      return;
+    }
 
     onLocationSelected({
-      latitude: selectedLocation.lat,
-      longitude: selectedLocation.lng,
-      formattedAddress: address,
-      placeId: placeId,
-      zone: zoneInfo,
-      addressComponents: addressComponents,
+      latitude: state.lat,
+      longitude: state.lng,
+      formattedAddress: state.address,
+      placeId: state.placeId,
+      zone: state.zone,
+      addressComponents: state.components ?? undefined,
     });
   };
 
-  const initLat = initialLatitude || DEFAULT_LAT;
-  const initLng = initialLongitude || DEFAULT_LNG;
+  const initLat = initialLatitude ?? DEFAULT_LAT;
+  const initLng = initialLongitude ?? DEFAULT_LNG;
   const initZoom = initialLatitude ? 16 : 12;
 
-  // ── Leaflet + OpenStreetMap + Nominatim WebView HTML ─────────────────
-  const mapHtml = `
+  // ── Leaflet HTML ───────────────────────────────────────────────────────
+  // The WebView is now a *dumb display layer*: it emits `pinSettled` after
+  // 500ms of idle following moveend. It does NOT call Nominatim itself for
+  // the centre pin — RN's resolvePin does the single backend round-trip
+  // that returns (address + zone) atomically. The search box still uses
+  // Nominatim directly for typing autocomplete only — that's a separate
+  // concern from the pricing-critical pin resolution.
+  const mapHtml = useMemo(
+    () => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -225,9 +336,7 @@ export default function MapAddressPicker({
       z-index: 1000; pointer-events: none;
       font-size: 36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
     }
-    .search-box {
-      position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000;
-    }
+    .search-box { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 1000; }
     .search-box input {
       width: 100%; padding: 12px 16px; border: none; border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.15); font-size: 14px;
@@ -265,94 +374,52 @@ export default function MapAddressPicker({
       zoomControl: false,
       attributionControl: false
     });
-
-    // OpenStreetMap tiles — completely free, no API key
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
-
-    // Add zoom control bottom-right
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    var debounceTimer = null;
-    var isDragging = false;
-    var NOMINATIM = '${NOMINATIM_URL}';
+    var settleTimer = null;
+    var lastEmitted = null;
 
-    // Reverse geocode via Nominatim (free, no API key)
-    function reverseGeocode(lat, lng) {
-      var url = NOMINATIM + '/reverse?format=json&lat=' + lat + '&lon=' + lng +
-        '&addressdetails=1&accept-language=en,ar&zoom=18';
-
-      fetch(url, { headers: { 'User-Agent': 'CART-App/1.0' } })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          var address = data.display_name || '';
-          var placeId = (data.osm_type || '') + ':' + (data.osm_id || '');
-          var components = { street: '', city: '', area: '', governorate: '' };
-
-          if (data.address) {
-            var a = data.address;
-            components.street = a.road || a.pedestrian || a.footway || '';
-            components.city = a.city || a.town || a.village || '';
-            components.area = a.suburb || a.neighbourhood || a.quarter || a.district || '';
-            components.governorate = a.state || a.governorate || '';
-          }
-
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'locationSelected',
-            lat: lat,
-            lng: lng,
-            address: address,
-            placeId: placeId,
-            addressComponents: components
-          }));
-        })
-        .catch(function() {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'locationSelected',
-            lat: lat,
-            lng: lng,
-            address: '',
-            placeId: '',
-            addressComponents: {}
-          }));
-        });
+    function emitPinSettled() {
+      var c = map.getCenter();
+      // Quantise to 6 decimals (~11 cm). Two consecutive moveends with
+      // the same coords (flyTo emits multiple moveends mid-animation) won't
+      // trigger duplicate emissions.
+      var key = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+      if (key === lastEmitted) return;
+      lastEmitted = key;
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'pinSettled',
+        lat: c.lat,
+        lng: c.lng
+      }));
     }
 
-    // Cancel any pending geocode when user starts dragging again
-    map.on('movestart', function() {
-      isDragging = true;
-      if (debounceTimer) clearTimeout(debounceTimer);
-    });
+    // Reset the settle timer on EVERY movement event so we only fire once
+    // the user has actually stopped panning/zooming for SETTLE_MS.
+    function scheduleSettle() {
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(emitPinSettled, ${SETTLE_MS});
+    }
 
-    // Only reverse geocode AFTER the user fully stops moving the map (1.5s idle)
-    map.on('moveend', function() {
-      isDragging = false;
-      var center = map.getCenter();
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function() {
-        if (!isDragging) {
-          reverseGeocode(center.lat, center.lng);
-        }
-      }, 1500);
-    });
+    map.on('movestart', function() { if (settleTimer) clearTimeout(settleTimer); });
+    map.on('move',      function() { if (settleTimer) clearTimeout(settleTimer); });
+    map.on('moveend',   scheduleSettle);
+    map.on('zoomend',   scheduleSettle);
 
-    // Click to re-center
-    map.on('click', function(e) {
-      map.flyTo(e.latlng, Math.max(map.getZoom(), 16));
-    });
+    map.on('click', function(e) { map.flyTo(e.latlng, Math.max(map.getZoom(), 16)); });
 
-    // Signal ready
     map.whenReady(function() {
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady' }));
-      ${initialLatitude ? `reverseGeocode(${initLat}, ${initLng});` : ""}
     });
 
     function moveToLocation(lat, lng) {
+      // flyTo emits multiple move/moveend events mid-animation; the
+      // settle timer + lastEmitted dedup take care of suppressing duplicates.
       map.flyTo([lat, lng], 16, { duration: 1 });
     }
 
-    // ── Search via Nominatim ────────────────────────────────────
+    // ── Search box (Nominatim direct — typing autocomplete, NOT pin resolution) ──
     var searchInput = document.getElementById('searchInput');
     var searchResults = document.getElementById('searchResults');
     var searchDebounce = null;
@@ -368,7 +435,7 @@ export default function MapAddressPicker({
 
       searchDebounce = setTimeout(function() {
         var center = map.getCenter();
-        var url = NOMINATIM + '/search?format=json&q=' + encodeURIComponent(query) +
+        var url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query) +
           '&limit=5&addressdetails=1&accept-language=en,ar' +
           '&viewbox=' + (center.lng - 0.5) + ',' + (center.lat + 0.5) + ',' + (center.lng + 0.5) + ',' + (center.lat - 0.5) +
           '&bounded=0';
@@ -385,9 +452,7 @@ export default function MapAddressPicker({
                 div.addEventListener('click', function() {
                   searchInput.value = item.display_name;
                   searchResults.classList.remove('active');
-                  var lat = parseFloat(item.lat);
-                  var lng = parseFloat(item.lon);
-                  map.flyTo([lat, lng], 16, { duration: 1 });
+                  map.flyTo([parseFloat(item.lat), parseFloat(item.lon)], 16, { duration: 1 });
                 });
                 searchResults.appendChild(div);
               });
@@ -396,9 +461,7 @@ export default function MapAddressPicker({
               searchResults.classList.remove('active');
             }
           })
-          .catch(function() {
-            searchResults.classList.remove('active');
-          });
+          .catch(function() { searchResults.classList.remove('active'); });
       }, 400);
     });
 
@@ -411,11 +474,14 @@ export default function MapAddressPicker({
   </script>
 </body>
 </html>
-  `;
+  `,
+    [initLat, initLng, initZoom, t?.ui?.searchAddress],
+  );
+
+  const checkingZone = state.status === "fetching";
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.headerButton}>
           <X size={20} color={Colors.neutralCharcoal} />
@@ -436,9 +502,8 @@ export default function MapAddressPicker({
         </TouchableOpacity>
       </View>
 
-      {/* Map */}
       <View style={styles.mapContainer}>
-        {loading && (
+        {mapLoading && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors.primary900} />
             <Text style={styles.loadingText}>
@@ -459,14 +524,12 @@ export default function MapAddressPicker({
         />
       </View>
 
-      {/* Bottom Panel */}
       <View style={styles.bottomPanel}>
-        {/* Address Display */}
-        {address ? (
+        {state.address ? (
           <View style={styles.addressRow}>
             <MapPin size={16} color={Colors.primary900} />
             <Text style={styles.addressText} numberOfLines={2}>
-              {address}
+              {state.address}
             </Text>
           </View>
         ) : (
@@ -479,7 +542,6 @@ export default function MapAddressPicker({
           </View>
         )}
 
-        {/* Zone Status */}
         {checkingZone ? (
           <View style={styles.zoneRow}>
             <ActivityIndicator size="small" color={Colors.primary900} />
@@ -487,57 +549,53 @@ export default function MapAddressPicker({
               {t?.ui?.checkingDeliveryZone || "Checking delivery zone..."}
             </Text>
           </View>
-        ) : isInZone !== null ? (
-          <View style={isInZone ? styles.zoneOk : styles.zoneNotOk}>
-            {isInZone ? (
-              <>
-                <View style={styles.zoneRow}>
-                  <Check size={14} color="#16a34a" />
-                  <Text style={styles.zoneOkText}>
-                    {(zoneInfo as any)?.zone_name ||
-                      zoneInfo?.name ||
-                      t.ui.deliveryZone}{" "}
-                    {t.ui.deliveryFeeAmount.replace(
-                      "{amount}",
-                      String(zoneInfo?.delivery_fee || 0),
-                    )}
-                  </Text>
-                </View>
-                {(zoneInfo?.estimated_delivery_time ||
-                  zoneInfo?.distance_from_center_km) && (
-                  <View style={styles.zoneDetailsRow}>
-                    {zoneInfo?.estimated_delivery_time && (
-                      <Text style={styles.zoneDetailText}>
-                        🕐 {zoneInfo.estimated_delivery_time}
-                      </Text>
-                    )}
-                    {zoneInfo?.distance_from_center_km && (
-                      <Text style={styles.zoneDetailText}>
-                        📍 {zoneInfo.distance_from_center_km.toFixed(1)} km away
-                      </Text>
-                    )}
-                  </View>
+        ) : state.isInZone === true ? (
+          <View style={styles.zoneOk}>
+            <View style={styles.zoneRow}>
+              <Check size={14} color="#16a34a" />
+              <Text style={styles.zoneOkText}>
+                {state.zone?.zone_name || t.ui.deliveryZone}{" "}
+                {t.ui.deliveryFeeAmount.replace(
+                  "{amount}",
+                  String(state.zone?.delivery_fee ?? 0),
                 )}
-              </>
-            ) : (
-              <View style={styles.zoneRow}>
-                <X size={14} color="#dc2626" />
-                <Text style={styles.zoneNotOkText}>
-                  {t?.addresses?.outsideDeliveryZone || "Outside delivery area"}
-                </Text>
+              </Text>
+            </View>
+            {(state.zone?.estimated_delivery_time ||
+              state.zone?.distance_from_center_km) && (
+              <View style={styles.zoneDetailsRow}>
+                {state.zone?.estimated_delivery_time && (
+                  <Text style={styles.zoneDetailText}>
+                    🕐 {state.zone.estimated_delivery_time}
+                  </Text>
+                )}
+                {state.zone?.distance_from_center_km && (
+                  <Text style={styles.zoneDetailText}>
+                    📍 {state.zone.distance_from_center_km.toFixed(1)} km away
+                  </Text>
+                )}
               </View>
             )}
           </View>
+        ) : state.isInZone === false ? (
+          <View style={styles.zoneNotOk}>
+            <View style={styles.zoneRow}>
+              <X size={14} color="#dc2626" />
+              <Text style={styles.zoneNotOkText}>
+                {t?.addresses?.outsideDeliveryZone || "Outside delivery area"}
+              </Text>
+            </View>
+          </View>
         ) : null}
 
-        {/* Confirm Button */}
         <TouchableOpacity
           style={[
             styles.confirmButton,
-            !selectedLocation && styles.confirmButtonDisabled,
+            (state.lat == null || state.status === "fetching") &&
+              styles.confirmButtonDisabled,
           ]}
           onPress={handleConfirm}
-          disabled={!selectedLocation}
+          disabled={state.lat == null || state.status === "fetching"}
           activeOpacity={0.8}
         >
           <Check size={18} color="#fff" />

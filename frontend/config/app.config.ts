@@ -14,7 +14,7 @@ export const API_CONFIG = {
 
   // Development URL - Uncomment for local testing
   // Android Emulator: 10.0.2.2 | iOS Simulator: localhost | Physical device: your PC's LAN IP
-  BASE_URL: "http://192.168.100.16:8000/api/v1",
+  BASE_URL: "http://192.168.100.10:8000/api/v1",
 
   TIMEOUT: 15000, // 15 seconds
 };

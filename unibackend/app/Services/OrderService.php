@@ -79,31 +79,70 @@ class OrderService
             $total = $cartTotals['total'];
             $promoSnapshot = $cartTotals['promo_summary'] ?? null;
 
-            // ZONE FEE OVERRIDE: Use zone-specific delivery fee when available
-            try {
-                $address = Address::find($deliveryAddressId);
-                if ($address && $address->latitude && $address->longitude) {
-                    $zoneService = app(DeliveryZoneService::class);
-                    $zoneFeeResult = $zoneService->calculateDeliveryFee(
-                        $address->latitude,
-                        $address->longitude,
-                        $cartTotals['subtotal']
+            // ZONE FEE OVERRIDE: Use zone-specific delivery fee when available.
+            //
+            // SECURITY/PRICING (Slice 3): two earlier bugs lived here.
+            //   1. Out-of-zone bypass — when the address was outside every
+            //      active zone we fell through silently with the flat fee,
+            //      so the order succeeded but no driver could deliver.
+            //   2. Free-delivery threshold ignored — when the cart already
+            //      qualified for free delivery (subtotal >= threshold),
+            //      this branch unconditionally overrode the freebie with
+            //      the zone fee. The customer paid delivery they were
+            //      promised was free.
+            //
+            // Fixes below: hard-throw on out-of-zone (caller surfaces the
+            // user-friendly message), and skip the zone-fee override when
+            // the threshold says free delivery is owed.
+            $address = Address::find($deliveryAddressId);
+            if ($address && $address->latitude && $address->longitude) {
+                $zoneService = app(DeliveryZoneService::class);
+                $zoneFeeResult = $zoneService->calculateDeliveryFee(
+                    $address->latitude,
+                    $address->longitude,
+                    $cartTotals['subtotal']
+                );
+
+                if (! ($zoneFeeResult['is_deliverable'] ?? false)) {
+                    throw new \Exception(
+                        $zoneFeeResult['error'] ?? __('delivery_zone.outside_delivery_zones'),
+                        422
                     );
-                    if ($zoneFeeResult['is_deliverable'] && isset($zoneFeeResult['delivery_fee'])) {
-                        $oldFee = $deliveryFee;
-                        $deliveryFee = $zoneFeeResult['delivery_fee'];
-                        $total = $cartTotals['subtotal'] + $deliveryFee - $discount + $tax;
-                        Log::info('🗺️ Zone delivery fee applied', [
-                            'zone_id' => $zoneFeeResult['zone_id'],
-                            'zone_name' => $zoneFeeResult['zone_name'],
-                            'flat_fee' => $oldFee,
-                            'zone_fee' => $deliveryFee,
-                            'new_total' => $total,
-                        ]);
-                    }
                 }
-            } catch (\Exception $e) {
-                Log::warning('Zone fee lookup failed, using flat fee', ['error' => $e->getMessage()]);
+
+                if (isset($zoneFeeResult['can_accept_orders']) && $zoneFeeResult['can_accept_orders'] === false) {
+                    throw new \Exception(__('delivery_zone.zone_at_capacity'), 422);
+                }
+
+                $freeDeliveryThreshold = (float) \App\Models\StoreSetting::getValue('free_delivery_threshold', 200);
+                $freeByThreshold = $freeDeliveryThreshold > 0 && $cartTotals['subtotal'] >= $freeDeliveryThreshold;
+
+                if (! $freeByThreshold && isset($zoneFeeResult['delivery_fee'])) {
+                    $oldFee = $deliveryFee;
+                    $deliveryFee = (float) $zoneFeeResult['delivery_fee'];
+                    // SECURITY: clamp recomputed total at zero. A discount
+                    // larger than (subtotal + zone fee + tax) would
+                    // otherwise produce a negative total which Order::create
+                    // would store as owing money on a paid order.
+                    $total = max(0.0, $cartTotals['subtotal'] + $deliveryFee - $discount + $tax);
+                    Log::info('🗺️ Zone delivery fee applied', [
+                        'zone_id' => $zoneFeeResult['zone_id'],
+                        'zone_name' => $zoneFeeResult['zone_name'],
+                        'flat_fee' => $oldFee,
+                        'zone_fee' => $deliveryFee,
+                        'new_total' => $total,
+                    ]);
+                } elseif ($freeByThreshold) {
+                    Log::info('🚚 Free-delivery threshold honored over zone fee', [
+                        'subtotal' => $cartTotals['subtotal'],
+                        'threshold' => $freeDeliveryThreshold,
+                        'zone_id' => $zoneFeeResult['zone_id'] ?? null,
+                    ]);
+                }
+            } elseif ($address && (! $address->latitude || ! $address->longitude)) {
+                // No coordinates and we couldn't recover them: refuse rather
+                // than send a driver without a destination.
+                throw new \Exception(__('delivery_zone.no_coordinates'), 422);
             }
 
             Log::info('🔒 [STEP 2] SNAPSHOT LOCKED - Order totals finalized', [

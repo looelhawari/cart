@@ -34,6 +34,15 @@ class AddressController extends Controller
 
     /**
      * Store a newly created address.
+     *
+     * SECURITY (Slice 3): when the client supplies lat/lng, we no longer
+     * trust the matching `formatted_address` text. The driver follows the
+     * GPS pin, and the customer-readable address is what admin / support
+     * sees in the dashboard — they MUST agree. We reverse-geocode the
+     * supplied coordinates server-side and overwrite formatted_address
+     * with the canonical Nominatim result. The customer's typed
+     * city/area/street are kept (so the customer sees what they typed) but
+     * the canonical address is server-authoritative.
      */
     public function store(StoreAddressRequest $request): JsonResponse
     {
@@ -41,11 +50,10 @@ class AddressController extends Controller
 
         $address = $user->addresses()->create($request->validated());
 
-        // If no coordinates provided, geocode the text address to get lat/lng
         if (!$address->hasCoordinates()) {
             $this->geocodeAndAssignZone($address);
         } else {
-            // Coordinates provided — just assign zone
+            $this->reverseGeocodeAndStamp($address);
             $this->geoHelper->autoAssignZone($address);
         }
         $address->refresh();
@@ -84,6 +92,45 @@ class AddressController extends Controller
             // Now assign zone with the new coordinates
             $this->geoHelper->autoAssignZone($address);
         }
+    }
+
+    /**
+     * Reverse-geocode the (client-supplied) coordinates server-side and
+     * stamp formatted_address / place_id from the canonical result.
+     *
+     * Why: the client mobile app sends both `latitude/longitude` and
+     * `formatted_address`. Trusting the client text means a customer in
+     * an expensive zone can supply coordinates inside a cheap zone but
+     * keep the formatted_address pointing at their real (expensive)
+     * location. Driver follows the pin → wrong delivery, or customer
+     * disputes the fee post-hoc. Server-side reverse-geocode resolves
+     * the disagreement: pin and address text always describe the same
+     * place.
+     *
+     * Failure handling: if Nominatim is unreachable we keep whatever the
+     * client sent. The downside (slightly stale text) is acceptable; the
+     * upside (we fail open instead of refusing every new address while
+     * Nominatim is down) outweighs it.
+     */
+    private function reverseGeocodeAndStamp(Address $address): void
+    {
+        try {
+            $result = $this->geoHelper->reverseGeocode(
+                (float) $address->latitude,
+                (float) $address->longitude
+            );
+        } catch (\Throwable $e) {
+            $result = null;
+        }
+
+        if (! $result || empty($result['formatted_address'])) {
+            return;
+        }
+
+        $address->forceFill([
+            'formatted_address' => $result['formatted_address'],
+            'place_id'          => $result['place_id'] ?? $address->place_id,
+        ])->save();
     }
 
     /**
@@ -139,13 +186,19 @@ class AddressController extends Controller
         $user = $request->user();
         $address = $user->addresses()->findOrFail($id);
 
+        $coordsChanged = $request->has('latitude') || $request->has('longitude');
+
         $address->update($request->validated());
 
-        // Re-assign delivery zone
         if ($address->hasCoordinates()) {
+            // Slice 3: when the client edits coords, re-stamp the canonical
+            // formatted_address from the server-side reverse-geocode so the
+            // map pin and the displayed address can't drift apart.
+            if ($coordsChanged) {
+                $this->reverseGeocodeAndStamp($address);
+            }
             $this->geoHelper->autoAssignZone($address);
         } else {
-            // No coordinates — geocode from text fields
             $this->geocodeAndAssignZone($address);
         }
 

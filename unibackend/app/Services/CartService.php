@@ -348,8 +348,20 @@ class CartService
             }
         }
 
-        // Calculate total (no tax)
-        $total = $subtotal - $discount + $deliveryFee;
+        // SECURITY: clamp the discount to never exceed (subtotal + delivery)
+        // and clamp the total to never go negative. A misconfigured BOGO rule
+        // (or a fixed_amount > subtotal) used to be able to produce
+        // total < 0, which `Order::create` would then store, leaving us owing
+        // the customer money on a paid order.
+        $maxDiscountable = $subtotal + $deliveryFee;
+        if ($discount > $maxDiscountable) {
+            $discount = $maxDiscountable;
+            if ($promoSummary !== null) {
+                $promoSummary['discount_amount'] = round($discount, 2);
+            }
+        }
+
+        $total = max(0.0, $subtotal - $discount + $deliveryFee);
 
         return [
             'subtotal' => round($subtotal, 2),
@@ -422,6 +434,30 @@ class CartService
 
             if ($paidOrders > 0) {
                 return $this->invalidatePromo($payload, 'FIRST_ORDER_ONLY');
+            }
+        }
+
+        // SECURITY: targeting / audience gates (specific_user_ids,
+        // registration_date_from/to, last_order_date_from/to,
+        // minimum_spend_30days, minimum_orders_30days, location,
+        // target_audience='offline_users') were enforced only by
+        // PromoCode::validateForUser, which the cart-time path didn't call.
+        // A targeted code (e.g. 30%-off only for users in 'New Cairo') was
+        // therefore applied to ANY user as long as their cart cleared the
+        // basic limits. Delegate the targeting checks to validateForUser so
+        // both the order-creation cart path and the preview path enforce the
+        // same gates.
+        if ($userId) {
+            $targetingValidation = $promoCode->validateForUser(
+                $userId,
+                $subtotal,
+                /* isFirstOrder */ ! DB::table('orders')
+                    ->where('user_id', $userId)
+                    ->whereNotIn('status', ['cancelled', 'failed'])
+                    ->exists()
+            );
+            if (! $targetingValidation['valid']) {
+                return $this->invalidatePromo($payload, 'NOT_TARGETED');
             }
         }
 
@@ -966,6 +1002,7 @@ class CartService
             'PROMO_MISCONFIGURED' => __('cart.promo_misconfigured'),
             'BOGO_ADD_ELIGIBLE_ITEM' => __('cart.promo_bogo_add_item'),
             'BOGO_ADD_MORE_GET_ITEMS' => __('cart.promo_bogo_add_more'),
+            'NOT_TARGETED' => __('cart.promo_not_targeted'),
             default => __('cart.promo_not_valid'),
         };
     }

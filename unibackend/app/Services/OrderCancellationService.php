@@ -1273,10 +1273,13 @@ class OrderCancellationService
     /**
      * Generate a deterministic idempotency key for refund deduplication.
      *
-     * Format: SHA-256 of "refund:{orderId}:{type}:{amountCents}"
+     * Delegates to OrderRefund::idempotencyKey so RefundService and this
+     * service share one canonical shape — refunds routed through either
+     * service will hit the same uniquely-indexed row and cannot
+     * double-charge Paymob.
      */
     private function generateIdempotencyKey(int $orderId, string $type, int $amountCents): string
     {
-        return hash('sha256', "refund:{$orderId}:{$type}:{$amountCents}");
+        return \App\Models\OrderRefund::idempotencyKey($orderId, $type, $amountCents);
     }
 }

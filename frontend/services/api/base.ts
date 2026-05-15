@@ -149,13 +149,30 @@ export const apiRequest = async <T>(
 ): Promise<T> => {
   const token = await getAuthToken();
 
+  // Defense-in-depth against the platform fetch caching API GET responses.
+  // RN's fetch on iOS goes through NSURLSession.sharedSession.configuration
+  // which heuristic-caches GETs that lack Cache-Control. After mutations
+  // (POST /addresses, PUT /products/...), the next GET could return a
+  // stale cached body — that's how a freshly-added address would silently
+  // disappear from the list until the user navigated away and back.
+  //
+  // Force no-store + a Cache-Control header so the platform doesn't cache.
+  // Mutating verbs (POST/PUT/PATCH/DELETE) aren't cached anyway, so the
+  // override is harmless there. Callers that genuinely want caching should
+  // pass `cache` themselves and that wins via spread order below.
+  const method = (options.method || "GET").toUpperCase();
+  const isReadOnly = method === "GET" || method === "HEAD";
+  const cacheDefaults: RequestInit = isReadOnly ? { cache: "no-store" } : {};
+
   const headers: HeadersInit = {
     ...getCommonHeaders(),
+    ...(isReadOnly ? { "Cache-Control": "no-cache" } : {}),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...cacheDefaults,
     ...options,
     headers,
   });

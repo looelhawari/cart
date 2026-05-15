@@ -100,10 +100,17 @@ class AdminRefundDashboardController extends Controller
             $perPage = min((int) $request->input('per_page', 20), 100);
             $refunds = $query->paginate($perPage);
 
+            // Admin reconciliation legitimately needs the gateway refund ID +
+            // transaction ID. The model hides them by default so customer-facing
+            // endpoints don't leak them; we re-expose for the admin list view.
+            $items = collect($refunds->items())->map(function ($r) {
+                return $r->makeVisible(['paymob_refund_id', 'paymob_transaction_id']);
+            })->values();
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'refunds' => $refunds->items(),
+                    'refunds' => $items,
                     'pagination' => [
                         'current_page' => $refunds->currentPage(),
                         'per_page' => $refunds->perPage(),
@@ -131,6 +138,11 @@ class AdminRefundDashboardController extends Controller
                 'user:id,first_name,last_name,email,phone',
                 'admin:id,first_name,last_name',
             ])->findOrFail($id);
+
+            // Admin detail view: re-expose gateway IDs needed for reconciliation
+            // but keep paymob_response hidden — its raw form is intentionally
+            // opaque to the dashboard.
+            $refund->makeVisible(['paymob_refund_id', 'paymob_transaction_id']);
 
             return response()->json([
                 'success' => true,

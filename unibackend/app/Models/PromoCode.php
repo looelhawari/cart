@@ -366,8 +366,18 @@ class PromoCode extends Model
     }
 
     /**
-     * Calculate discount for cart items
-     * This is the SMART engine that figures out the best discount
+     * Calculate discount for cart items.
+     *
+     * ⚠ PREVIEW-ONLY: This is the model-side engine. It is wired ONLY into
+     * `PromoCodeService::applyPromoCode` / `getBestPromoCodesForUser` (used by
+     * `PromoCodeApiController::preview` / recommendations). The CANONICAL
+     * money-time engine — used by `OrderService::createOrderFromCart` via
+     * `CartService::calculateTotals` — is `CartService::evaluatePromoForCart`.
+     *
+     * Do NOT call this from any code path that creates an order or charges
+     * a card. The two engines have slightly different implementations of
+     * BOGO, fixed-amount distribution, and category-eligibility, and only
+     * the cart engine has the targeting/audience checks (NOT_TARGETED).
      */
     public function calculateDiscount(array $cartItems, float $orderSubtotal): array
     {

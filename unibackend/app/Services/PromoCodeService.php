@@ -10,6 +10,16 @@ use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
+/**
+ * ⚠ PREVIEW / RECOMMENDATION engine.
+ *
+ * This service powers `/promo-codes/preview` and the "best codes for you"
+ * recommendation API. It is NOT the engine that calculates the discount
+ * applied at order creation — that is `CartService::evaluatePromoForCart`
+ * (canonical, has targeting/audience checks, has the negative-total clamp).
+ *
+ * If you change discount math, change BOTH places.
+ */
 class PromoCodeService
 {
     /**

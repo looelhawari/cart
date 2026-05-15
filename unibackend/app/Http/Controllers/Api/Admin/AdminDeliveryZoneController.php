@@ -281,6 +281,9 @@ class AdminDeliveryZoneController extends Controller
 
     /**
      * Bulk update zone order (sort_order).
+     *
+     * Cache invalidation (Slice 3): the customer-facing zone list is ordered
+     * by sort_order, so reordering must purge the cached payload too.
      */
     public function reorder(Request $request): JsonResponse
     {
@@ -293,6 +296,10 @@ class AdminDeliveryZoneController extends Controller
         foreach ($request->zones as $item) {
             DeliveryZone::where('id', $item['id'])
                 ->update(['sort_order' => $item['sort_order']]);
+        }
+
+        foreach (DeliveryZoneService::ZONE_CACHE_KEYS as $key) {
+            \Illuminate\Support\Facades\Cache::forget($key);
         }
 
         return response()->json([

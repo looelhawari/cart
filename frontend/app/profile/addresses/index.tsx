@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -27,48 +27,61 @@ import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { Address } from "@/types";
-import { authApi } from "@/services/api";
-import { API_CONFIG } from "@/config/app.config";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { addressApi } from "@/services/api/addressApi";
 import { useTranslation } from "@/i18n";
 
 export default function AddressesScreen() {
   const { t } = useTranslation();
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [loading, setLoading] = useState(true);
+  // First-mount loading. Subsequent focuses (e.g. user came back from
+  // /profile/addresses/new) do a *background* refresh so the existing
+  // list stays visible — wiping it on every focus is what made the new
+  // address feel like it never appeared.
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      loadAddresses();
-    }, []),
-  );
+  // Cancel any in-flight load when a newer one starts (focus → focus →
+  // focus rapidly when navigating back/forth). Without this, an older
+  // pending response could overwrite a fresh one and revert the UI.
+  const inFlightAbortRef = useRef<AbortController | null>(null);
 
-  const loadAddresses = async () => {
+  const loadAddresses = useCallback(async () => {
+    inFlightAbortRef.current?.abort();
+    const controller = new AbortController();
+    inFlightAbortRef.current = controller;
+
     try {
-      setLoading(true);
-      const response = await fetch(`${API_CONFIG.BASE_URL}/addresses`, {
-        headers: {
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "CART-Mobile-App",
-          Authorization: `Bearer ${await getToken()}`,
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
+      const data = (await addressApi.getAddresses()) as any;
+      if (controller.signal.aborted) return;
+
+      if (data?.success && Array.isArray(data.data)) {
         setAddresses(data.data);
       }
-    } catch (error: any) {
-      Alert.alert(t.common.error, t.addresses.failedToLoad);
+    } catch (err: any) {
+      if (controller.signal.aborted) return;
+      // On the very first load, surface the error. On background refreshes
+      // we silently keep the previous list — it's better UX than wiping the
+      // screen with an alert every time the network blips.
+      if (!hasLoadedOnceRef.current) {
+        Alert.alert(t.common.error, t.addresses.failedToLoad);
+      }
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        hasLoadedOnceRef.current = true;
+        setInitialLoading(false);
+      }
     }
-  };
+  }, [t.common.error, t.addresses.failedToLoad]);
 
-  const getToken = async () => {
-    return await AsyncStorage.getItem("access_token");
-  };
+  useFocusEffect(
+    useCallback(() => {
+      loadAddresses();
+      return () => {
+        inFlightAbortRef.current?.abort();
+      };
+    }, [loadAddresses]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -86,23 +99,15 @@ export default function AddressesScreen() {
           text: t.common.delete,
           style: "destructive",
           onPress: async () => {
+            // Optimistic remove — UI updates immediately. If the server
+            // rejects the delete we re-fetch to roll back.
+            const previous = addresses;
+            setAddresses((curr) => curr.filter((a) => a.id !== address.id));
             try {
-              const response = await fetch(
-                `${API_CONFIG.BASE_URL}/addresses/${address.id}`,
-                {
-                  method: "DELETE",
-                  headers: {
-                    Accept: "application/json",
-                    "ngrok-skip-browser-warning": "true",
-                    "User-Agent": "CART-Mobile-App",
-                    Authorization: `Bearer ${await getToken()}`,
-                  },
-                },
-              );
-              if (response.ok) {
-                await loadAddresses();
-              }
-            } catch (error) {
+              await addressApi.deleteAddress(address.id);
+              loadAddresses();
+            } catch {
+              setAddresses(previous);
               Alert.alert(t.common.error, t.addresses.failedToDelete);
             }
           },
@@ -112,23 +117,16 @@ export default function AddressesScreen() {
   };
 
   const handleSetDefault = async (id: number) => {
+    // Optimistic flip — only one default at a time.
+    const previous = addresses;
+    setAddresses((curr) =>
+      curr.map((a) => ({ ...a, is_default: a.id === id })),
+    );
     try {
-      const response = await fetch(
-        `${API_CONFIG.BASE_URL}/addresses/${id}/default`,
-        {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "ngrok-skip-browser-warning": "true",
-            "User-Agent": "CART-Mobile-App",
-            Authorization: `Bearer ${await getToken()}`,
-          },
-        },
-      );
-      if (response.ok) {
-        await loadAddresses();
-      }
-    } catch (error) {
+      await addressApi.setDefaultAddress(id);
+      loadAddresses();
+    } catch {
+      setAddresses(previous);
       Alert.alert(t.common.error, t.addresses.failedToSetDefault);
     }
   };
@@ -228,7 +226,11 @@ export default function AddressesScreen() {
     </View>
   );
 
-  if (loading) {
+  // Only show the full-screen spinner on the very first mount. On later
+  // focuses we keep showing the previous list (with a small RefreshControl
+  // indicator at the top via pull-to-refresh) so a freshly-created address
+  // can't be hidden behind a flash of "Loading…".
+  if (initialLoading && addresses.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>

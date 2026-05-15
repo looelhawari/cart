@@ -18,8 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { API_CONFIG } from "@/config/app.config";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { addressApi } from "@/services/api/addressApi";
 import { useStore } from "@/store";
 import { useTranslation } from "@/i18n";
 import MapAddressPicker from "@/components/MapAddressPicker";
@@ -54,10 +53,6 @@ export default function AddEditAddressScreen() {
   const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<string | null>(null);
 
-  const getToken = async () => {
-    return await AsyncStorage.getItem("access_token");
-  };
-
   useEffect(() => {
     if (isEdit) {
       loadAddress();
@@ -67,25 +62,14 @@ export default function AddEditAddressScreen() {
   const loadAddress = async () => {
     try {
       setInitialLoading(true);
-      const response = await fetch(
-        `${API_CONFIG.BASE_URL}/addresses/${addressId}`,
-        {
-          headers: {
-            Accept: "application/json",
-            "ngrok-skip-browser-warning": "true",
-            "User-Agent": "CART-Mobile-App",
-            Authorization: `Bearer ${await getToken()}`,
-          },
-        },
-      );
-      const data = await response.json();
-      if (data.success) {
-        const address = data.data;
+      const response = (await addressApi.getAddress(Number(addressId))) as any;
+      if (response?.success) {
+        const address = response.data;
         setLabel(address.label);
         setStreet(address.street);
         setBuilding(address.building || "");
         setFloor(address.floor || "");
-        setApartment(address.apartment || address.apartment || "");
+        setApartment(address.apartment || "");
         setCity(address.city);
         setArea(address.area || "");
         setLandmark(address.landmark || "");
@@ -115,7 +99,7 @@ export default function AddEditAddressScreen() {
 
     setLoading(true);
     try {
-      const addressData = {
+      const addressData: any = {
         label,
         street,
         building: building || null,
@@ -131,25 +115,11 @@ export default function AddEditAddressScreen() {
         place_id: placeId || null,
       };
 
-      const url = isEdit
-        ? `${API_CONFIG.BASE_URL}/addresses/${addressId}`
-        : `${API_CONFIG.BASE_URL}/addresses`;
+      const response = (isEdit
+        ? await addressApi.updateAddress(Number(addressId), addressData)
+        : await addressApi.createAddress(addressData)) as any;
 
-      const response = await fetch(url, {
-        method: isEdit ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "CART-Mobile-App",
-          Authorization: `Bearer ${await getToken()}`,
-        },
-        body: JSON.stringify(addressData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
+      if (response?.success !== false) {
         const actionText = isEdit ? t.addresses.updated : t.addresses.added;
         Alert.alert(
           t.common.success,
@@ -157,15 +127,25 @@ export default function AddEditAddressScreen() {
           [
             {
               text: t.common.ok,
+              // The list screen's useFocusEffect will refetch on focus.
+              // apiRequest now sends Cache-Control: no-cache + cache:'no-store'
+              // for GETs, so the refetch can't return a stale cached body
+              // that's missing this just-created address.
               onPress: () => router.back(),
             },
           ],
         );
       } else {
-        Alert.alert(t.common.error, data.message || t.addresses.failedToSave);
+        Alert.alert(
+          t.common.error,
+          response?.message || t.addresses.failedToSave,
+        );
       }
     } catch (error: any) {
-      Alert.alert(t.common.error, t.addresses.failedToSave);
+      Alert.alert(
+        t.common.error,
+        error?.message || t.addresses.failedToSave,
+      );
     } finally {
       setLoading(false);
     }
@@ -487,7 +467,10 @@ export default function AddEditAddressScreen() {
             setFormattedAddress(location.formattedAddress);
             setPlaceId(location.placeId);
             if (location.zone) {
-              setZoneName(location.zone.name);
+              // The backend (GeoHelper::findZone) returns zone_name not name —
+              // the older `zone.name` reads here silently produced undefined
+              // and saved an empty zone label on the address.
+              setZoneName(location.zone.zone_name);
               setDeliveryFee(location.zone.delivery_fee);
               setEstimatedTime(location.zone.estimated_delivery_time);
             } else {

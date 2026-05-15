@@ -53,6 +53,23 @@ class OrderRefund extends Model
         'completed_at' => 'datetime',
     ];
 
+    /**
+     * Hidden from JSON serialization.
+     *
+     * SECURITY: gateway IDs and the full Paymob response can include card BINs,
+     * masked PANs, internal merchant IDs and idempotency fingerprints. The
+     * admin refund dashboard returns OrderRefund rows directly, so these must
+     * never reach the client without an explicit makeVisible() at the call
+     * site that needs them. The internal idempotency_key is also hidden so
+     * its shape can't be probed and replayed.
+     */
+    protected $hidden = [
+        'paymob_response',
+        'paymob_refund_id',
+        'paymob_transaction_id',
+        'idempotency_key',
+    ];
+
     // ═══════════════════════════════════════════
     // RELATIONSHIPS
     // ═══════════════════════════════════════════
@@ -142,5 +159,23 @@ class OrderRefund extends Model
         return (float) self::where('order_id', $orderId)
             ->where('status', 'completed')
             ->sum('refund_amount');
+    }
+
+    /**
+     * Canonical idempotency key for refund deduplication.
+     *
+     * SECURITY: previously RefundService and OrderCancellationService used
+     * different key shapes (plain string vs sha256). The same partial refund
+     * routed through the two paths produced two different keys, so the
+     * idempotency unique-index never fired and Paymob could be charged twice.
+     *
+     * Both services now route through this single method so the key is
+     * shape-stable across all entry points.
+     *
+     * Format: sha256("refund:{orderId}:{type}:{amountCents}")
+     */
+    public static function idempotencyKey(int $orderId, string $type, int $amountCents): string
+    {
+        return hash('sha256', "refund:{$orderId}:{$type}:{$amountCents}");
     }
 }

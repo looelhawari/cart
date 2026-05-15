@@ -77,8 +77,15 @@ class RefundService
                 throw new Exception('No successful payment found for this order');
             }
 
+            $refundAmountCents = (int) round($refundAmount * 100);
+
+            // Canonical idempotency key — same shape as
+            // OrderCancellationService so a refund routed through either path
+            // hits the same unique-index row and cannot double-charge Paymob.
+            $idempotencyKey = OrderRefund::idempotencyKey($order->id, 'full', $refundAmountCents);
+
             // Persist the refund-attempt row first (idempotency_key column on
-            // OrderRefund is now deterministic and uniquely indexed).
+            // OrderRefund is uniquely indexed).
             // OrderRefund.status is non-fillable (state machine) — use forceFill
             // for the initial 'processing' status. The webhook will flip it to
             // completed/failed via OrderRefund::markAsCompleted/Failed.
@@ -94,7 +101,7 @@ class RefundService
                 'reason' => $reason,
                 'admin_id' => $admin?->id,
                 'initiated_by' => 'admin',
-                'idempotency_key' => "refund_order_{$order->id}",
+                'idempotency_key' => $idempotencyKey,
             ]);
             $refund->forceFill(['status' => 'processing'])->save();
 
@@ -166,9 +173,14 @@ class RefundService
                 throw new Exception('No successful payment found for this order');
             }
 
-            // Sort itemIds before building the key — order-independent.
+            // Canonical idempotency key — same shape as
+            // OrderCancellationService::partialItemRefund. The amount-based
+            // hash means [items 1,2] and [items 2,1] always produce the same
+            // key (sorted IDs no longer matter for collision avoidance, but
+            // we still sort them for the audit log column below).
             $sortedIds = $items->pluck('id')->sort()->values()->all();
-            $idempotencyKey = "partial_refund_{$order->id}_" . implode('_', $sortedIds);
+            $refundAmountCents = (int) round($refundAmount * 100);
+            $idempotencyKey = OrderRefund::idempotencyKey($order->id, 'partial', $refundAmountCents);
 
             $refund = OrderRefund::create([
                 'order_id' => $order->id,
@@ -221,12 +233,18 @@ class RefundService
     }
 
     /**
-     * Reject COD orders (nothing to refund) and unpaid orders.
+     * Reject pay-on-delivery orders (nothing to refund) and unpaid orders.
+     *
+     * Uses Order::isOnDeliveryPayment() so card_on_delivery (the card-machine
+     * payment method) is rejected for the same reason as cash_on_delivery —
+     * neither has any money on the gateway to refund. Without this, a
+     * card_on_delivery order would slip past the literal check and crash
+     * later when Paymob has no transaction to refund against.
      */
     private function assertRefundable(Order $order): void
     {
-        if ($order->payment_method === 'cash_on_delivery') {
-            throw new Exception('Cannot refund a cash-on-delivery order — no payment was collected.');
+        if (Order::isOnDeliveryPayment($order->payment_method)) {
+            throw new Exception('Cannot refund a pay-on-delivery order — no payment was collected at the gateway.');
         }
         if ($order->payment_status !== 'completed' && $order->payment_status !== 'partially_refunded') {
             throw new Exception('Cannot refund — order payment is not in a refundable state.');

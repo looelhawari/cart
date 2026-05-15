@@ -6,7 +6,7 @@ import type {
 
 export const userService = {
     getUsers: async (params?: any): Promise<PaginatedResponse<User>> => {
-        return apiClient.get('/admin/users', { params })
+        return apiClient.get('/admin/users', params)
     },
 
     getUser: async (id: number): Promise<User> => {
@@ -27,7 +27,7 @@ export const userService = {
 
     // Customer specific methods
     getCustomers: async (filters?: any): Promise<PaginatedResponse<User>> => {
-        return apiClient.get('/admin/customers', { params: filters })
+        return apiClient.get('/admin/customers', filters)
     },
 
     getCustomer: async (id: number): Promise<User> => {

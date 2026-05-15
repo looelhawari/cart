@@ -707,4 +707,514 @@ class AuditFindingsTest extends TestCase
             'paymob_payments.amount_cents must be BIGINT to avoid signed-INT overflow at ~21,475 EGP.',
         );
     }
+
+    // -----------------------------------------------------------------------
+    //  Wave M1 — OrderRefund hides gateway IDs from JSON
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_order_refund_hides_gateway_fields_from_json(): void
+    {
+        $hidden = (new \App\Models\OrderRefund())->getHidden();
+        foreach (['paymob_response', 'paymob_refund_id', 'paymob_transaction_id', 'idempotency_key'] as $field) {
+            $this->assertContains(
+                $field,
+                $hidden,
+                'OrderRefund $hidden must include ' . $field . ' so refund rows returned by the admin dashboard do not leak gateway internals.'
+            );
+        }
+    }
+
+    /** @test */
+    public function test_paymob_payment_hides_gateway_fields_from_json(): void
+    {
+        $hidden = (new \App\Models\PaymobPayment())->getHidden();
+        foreach (['paymob_response', 'paymob_transaction_id', 'paymob_intention_id', 'paymob_order_id', 'integration_id', 'billing_data', 'special_reference'] as $field) {
+            $this->assertContains(
+                $field,
+                $hidden,
+                'PaymobPayment $hidden must include ' . $field . ' — admin endpoints return PaymobPayment rows verbatim and must not leak card BINs/PANs/integration IDs.'
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave M2 — Refund idempotency key is shape-stable across services
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_refund_idempotency_key_is_canonical_sha256(): void
+    {
+        $key = \App\Models\OrderRefund::idempotencyKey(123, 'partial', 4500);
+        $this->assertSame(64, strlen($key), 'OrderRefund::idempotencyKey must be sha256 (64 hex chars).');
+        $this->assertSame(
+            hash('sha256', 'refund:123:partial:4500'),
+            $key,
+            'OrderRefund::idempotencyKey shape must be sha256("refund:{orderId}:{type}:{amountCents}") — both RefundService and OrderCancellationService route through this.'
+        );
+    }
+
+    /** @test */
+    public function test_refund_service_uses_canonical_idempotency_key(): void
+    {
+        // Source-level check: RefundService must NOT build its own ad-hoc
+        // idempotency key string. The previous implementation used
+        // "partial_refund_{$id}_{joinedItemIds}" which couldn't collide with
+        // OrderCancellationService's sha256 form, so a partial refund routed
+        // through both paths created two refund rows with different keys
+        // and Paymob got charged twice.
+        $src = file_get_contents(base_path('app/Services/RefundService.php'));
+        $this->assertStringNotContainsString(
+            '"partial_refund_{$order->id}_"',
+            $src,
+            'RefundService must not compose a non-canonical partial refund key — use OrderRefund::idempotencyKey().'
+        );
+        $this->assertStringContainsString(
+            'OrderRefund::idempotencyKey',
+            $src,
+            'RefundService must delegate to the canonical OrderRefund::idempotencyKey.'
+        );
+
+        $ocsSrc = file_get_contents(base_path('app/Services/OrderCancellationService.php'));
+        $this->assertStringContainsString(
+            'OrderRefund::idempotencyKey',
+            $ocsSrc,
+            'OrderCancellationService must delegate to the canonical OrderRefund::idempotencyKey.'
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave M3 — Promo cart engine enforces targeting / audience gates
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_cart_engine_rejects_promo_when_user_outside_specific_user_ids(): void
+    {
+        $cartService = app(\App\Services\CartService::class);
+
+        $owner = $this->makeUser('customer');
+        $other = $this->makeUser('customer');
+
+        // A targeted promo: only $owner can use it.
+        $promo = \App\Models\PromoCode::create([
+            'code' => 'TARGET' . Str::random(4),
+            'type' => 'percentage',
+            'applies_to' => 'order',
+            'value' => 10,
+            'is_active' => 1,
+            'valid_from' => now()->subDay(),
+            'valid_until' => now()->addDays(7),
+            'specific_user_ids' => [$owner->id],
+        ]);
+
+        $cart = \App\Models\Cart::create(['user_id' => $other->id]);
+
+        // Inject one item into the cart so eligibility checks can pass on
+        // their own merits — the rejection here must be on targeting, not
+        // on emptiness.
+        $product = \App\Models\Product::where('is_active', 1)->first();
+        if (!$product) {
+            $this->markTestSkipped('No active product in DB to seed cart against.');
+        }
+        \App\Models\CartItem::create([
+            'cart_id' => $cart->id,
+            'product_id' => $product->barcode,
+            'quantity' => 2,
+            'price' => 100.00,
+        ]);
+        $cart = $cart->fresh('items');
+
+        $eval = $cartService->evaluatePromoForCart($promo, $cart, $other->id, 200.00, 20.00);
+
+        $this->assertSame('invalid', $eval['validation_state'],
+            'Cart engine must reject targeted promos for non-targeted users — money exploit otherwise.');
+        $this->assertSame('NOT_TARGETED', $eval['invalid_reason']);
+        $this->assertSame(0.00, (float) $eval['discount_amount']);
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave M4 — Negative-total clamp
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_cart_totals_clamp_total_at_zero_when_discount_exceeds_subtotal(): void
+    {
+        // Source-level check: CartService::calculateTotals must guard against
+        // discount > subtotal+delivery producing a negative total. A
+        // misconfigured fixed_amount (e.g. 9999 EGP off a 50 EGP cart) used
+        // to be saved as total < 0, which Paymob then refused to charge but
+        // the COD flow would still mark "completed" leaving us owing the
+        // customer money on a paid order.
+        $src = file_get_contents(base_path('app/Services/CartService.php'));
+        $this->assertMatchesRegularExpression(
+            '/total\s*=\s*max\(\s*0(?:\.0)?\s*,/',
+            $src,
+            'CartService::calculateTotals must wrap total in max(0, …) so a discount larger than (subtotal + delivery) cannot produce a negative total.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/discount\s*=\s*\$maxDiscountable/',
+            $src,
+            'CartService::calculateTotals must clamp the discount itself to (subtotal + delivery) before computing total.'
+        );
+    }
+
+    /** @test */
+    public function test_order_creation_clamps_total_after_zone_fee_recompute(): void
+    {
+        // OrderService::createOrderFromCart recomputes total when a delivery
+        // zone overrides the flat fee. That recomputation also has to clamp
+        // at zero — otherwise the zone-fee path becomes a back door for the
+        // negative-total bug.
+        $src = file_get_contents(base_path('app/Services/OrderService.php'));
+        $this->assertMatchesRegularExpression(
+            '/\$total\s*=\s*max\(\s*0(?:\.0)?\s*,/',
+            $src,
+            'OrderService::createOrderFromCart must clamp the recomputed total at zero when applying zone fees.'
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave M5 — Preview-only engine clearly marked
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_preview_promo_engine_is_documented_as_preview_only(): void
+    {
+        // The model-side calculateDiscount and PromoCodeService are NOT the
+        // money-time engine. They must be clearly annotated so future devs
+        // don't wire them into checkout.
+        $modelSrc = file_get_contents(base_path('app/Models/PromoCode.php'));
+        $this->assertStringContainsString(
+            'PREVIEW-ONLY',
+            $modelSrc,
+            'PromoCode::calculateDiscount must be annotated PREVIEW-ONLY to keep the canonical engine (CartService::evaluatePromoForCart) the single money-time path.'
+        );
+
+        $svcSrc = file_get_contents(base_path('app/Services/PromoCodeService.php'));
+        $this->assertStringContainsString(
+            'PREVIEW',
+            $svcSrc,
+            'PromoCodeService must be annotated as preview/recommendation engine, not the order-creation engine.'
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Slice 2 — Auth + Users/Customers merge
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_admin_users_service_does_not_double_wrap_params(): void
+    {
+        // SECURITY/CORRECTNESS: AdminDashboard's user.service.ts used to
+        // double-wrap query params:
+        //   apiClient.get('/admin/users', { params })  // <-- WRONG
+        // The internal apiClient.get already wraps the second arg as
+        // axios `{ params }`, so the line above made axios serialise
+        // `?params[role]=admin&params[per_page]=100` and the server
+        // silently received NO filters. Result: every Users page rendered
+        // every customer as "no role filter applied".
+        $svcPath = base_path('../AdminDashboard/src/services/user.service.ts');
+        if (! file_exists($svcPath)) {
+            $this->markTestSkipped('AdminDashboard sibling repo not present.');
+        }
+        $src = file_get_contents($svcPath);
+        $this->assertStringNotContainsString(
+            "apiClient.get('/admin/users', { params })",
+            $src,
+            "user.service.ts must NOT double-wrap params. apiClient.get's second arg IS the params object, not an axios config."
+        );
+        $this->assertStringNotContainsString(
+            "apiClient.get('/admin/customers', { params: filters })",
+            $src,
+            "user.service.ts: getCustomers must pass filters directly, not wrap them as { params: filters }."
+        );
+    }
+
+    /** @test */
+    public function test_dead_support_ticket_tables_are_dropped(): void
+    {
+        $this->assertFalse(
+            \Schema::hasTable('support_tickets'),
+            'support_tickets table must be dropped — complaints is the canonical schema.'
+        );
+        $this->assertFalse(
+            \Schema::hasTable('ticket_messages'),
+            'ticket_messages table must be dropped — complaint_messages is the canonical schema.'
+        );
+    }
+
+    /** @test */
+    public function test_orphan_support_ticket_models_are_removed(): void
+    {
+        $appPath = base_path('app');
+        $this->assertFileDoesNotExist(
+            $appPath . '/Models/SupportTicket.php',
+            'SupportTicket model must be deleted — the underlying support_tickets table is dropped.'
+        );
+        $this->assertFileDoesNotExist(
+            $appPath . '/Models/TicketMessage.php',
+            'TicketMessage model must be deleted — the underlying ticket_messages table is dropped.'
+        );
+    }
+
+    /** @test */
+    public function test_complaint_user_fk_is_set_null_on_user_delete(): void
+    {
+        $rows = \DB::select(
+            "SELECT DELETE_RULE
+               FROM information_schema.REFERENTIAL_CONSTRAINTS rc
+               JOIN information_schema.KEY_COLUMN_USAGE kcu
+                 ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+              WHERE rc.CONSTRAINT_SCHEMA = DATABASE()
+                AND kcu.TABLE_NAME = 'complaints'
+                AND kcu.COLUMN_NAME = 'user_id'
+                AND kcu.REFERENCED_TABLE_NAME = 'users'"
+        );
+        $this->assertNotEmpty($rows, 'complaints.user_id FK to users not found.');
+        foreach ($rows as $r) {
+            $this->assertSame('SET NULL', strtoupper((string) $r->DELETE_RULE),
+                'complaints.user_id FK must onDelete SET NULL — cascade would destroy the audit trail when a customer is deleted.');
+        }
+    }
+
+    /** @test */
+    public function test_complaint_message_user_fk_is_set_null_on_user_delete(): void
+    {
+        $rows = \DB::select(
+            "SELECT DELETE_RULE
+               FROM information_schema.REFERENTIAL_CONSTRAINTS rc
+               JOIN information_schema.KEY_COLUMN_USAGE kcu
+                 ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+                AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+              WHERE rc.CONSTRAINT_SCHEMA = DATABASE()
+                AND kcu.TABLE_NAME = 'complaint_messages'
+                AND kcu.COLUMN_NAME = 'user_id'
+                AND kcu.REFERENCED_TABLE_NAME = 'users'"
+        );
+        $this->assertNotEmpty($rows, 'complaint_messages.user_id FK to users not found.');
+        foreach ($rows as $r) {
+            $this->assertSame('SET NULL', strtoupper((string) $r->DELETE_RULE),
+                'complaint_messages.user_id FK must onDelete SET NULL — admin replies and customer messages must outlive user deletion.');
+        }
+    }
+
+    /** @test */
+    public function test_complaint_creation_writes_identity_snapshot(): void
+    {
+        $user = $this->makeUser('customer', [
+            'first_name' => 'Snapshot', 'last_name' => 'Test',
+        ]);
+
+        $complaint = \App\Models\Complaint::create([
+            'user_id' => $user->id,
+            'ticket_number' => \App\Models\Complaint::generateTicketNumber(),
+            'subject' => 'Test snapshot',
+            'category' => 'general_inquiry',
+            'priority' => 'medium',
+            'status' => 'open',
+            'description' => 'Verifies identity snapshot is auto-populated.',
+        ]);
+
+        $this->assertSame($user->email, $complaint->user_email_snapshot,
+            'Complaint::booted creating hook must auto-populate user_email_snapshot from the referenced user.');
+        $this->assertStringContainsString('Snapshot', (string) $complaint->user_name_snapshot,
+            'Complaint::booted creating hook must auto-populate user_name_snapshot.');
+    }
+
+    // -----------------------------------------------------------------------
+    //  Slice 3 — Delivery zones + addresses
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_zone_cache_keys_include_customer_facing_key(): void
+    {
+        // Admin invalidations only forgot 'delivery_zones:active', but the
+        // customer-facing /api/v1/delivery-zones endpoint reads from
+        // 'zones:active:all' with a 30-min TTL. An admin lowering a fee
+        // kept serving the old map for half an hour. The fix consolidated
+        // the keys into ZONE_CACHE_KEYS — assert the customer key is in.
+        $keys = \App\Services\DeliveryZoneService::ZONE_CACHE_KEYS;
+        $this->assertContains('zones:active:all', $keys,
+            'DeliveryZoneService::ZONE_CACHE_KEYS must include the customer-facing cache key so admin updates invalidate it.');
+        $this->assertContains('delivery_zones:active', $keys);
+    }
+
+    /** @test */
+    public function test_zone_create_clears_customer_cache(): void
+    {
+        // Seed the customer-facing cache, run the admin path, assert flush.
+        \Illuminate\Support\Facades\Cache::put('zones:active:all', ['stale'], 1800);
+
+        $svc = app(\App\Services\DeliveryZoneService::class);
+        // Build a tiny square polygon over Cairo so validation passes.
+        $svc->createZone([
+            'name' => 'CacheTest_' . Str::random(4),
+            'city' => 'Cairo',
+            'area' => 'TestArea',
+            'delivery_fee' => 25,
+            'minimum_order' => 0,
+            'is_active' => true,
+            'polygon_coordinates' => [
+                ['lat' => 30.0, 'lng' => 31.0],
+                ['lat' => 30.0, 'lng' => 31.1],
+                ['lat' => 30.1, 'lng' => 31.1],
+                ['lat' => 30.1, 'lng' => 31.0],
+            ],
+        ]);
+
+        $this->assertNull(
+            \Illuminate\Support\Facades\Cache::get('zones:active:all'),
+            'createZone must invalidate the customer-facing zones:active:all cache.'
+        );
+    }
+
+    /** @test */
+    public function test_order_creation_blocks_out_of_zone_addresses(): void
+    {
+        // Build a Cairo square zone, then point an address at coords way
+        // outside any zone (-89, 0 = south pole). Order creation must throw
+        // with a user-friendly message, not silently accept the order at
+        // the flat fee.
+        $svc = app(\App\Services\DeliveryZoneService::class);
+        $svc->createZone([
+            'name' => 'OutOfZoneTest_' . Str::random(4),
+            'city' => 'Cairo',
+            'area' => 'TestArea',
+            'delivery_fee' => 25,
+            'minimum_order' => 0,
+            'is_active' => true,
+            'polygon_coordinates' => [
+                ['lat' => 30.0, 'lng' => 31.0],
+                ['lat' => 30.0, 'lng' => 31.1],
+                ['lat' => 30.1, 'lng' => 31.1],
+                ['lat' => 30.1, 'lng' => 31.0],
+            ],
+        ]);
+
+        $user = $this->makeUser('customer');
+        $address = \App\Models\Address::create([
+            'user_id' => $user->id,
+            'label' => 'Home',
+            'street' => 'Nowhere Lane',
+            'city' => 'AntarcticaCity',
+            'latitude' => -89.0,
+            'longitude' => 0.0,
+            'is_default' => 1,
+        ]);
+
+        $product = \App\Models\Product::where('is_active', 1)->first();
+        if (!$product) {
+            $this->markTestSkipped('No active product available.');
+        }
+        $cart = \App\Models\Cart::create(['user_id' => $user->id]);
+        \App\Models\CartItem::create([
+            'cart_id' => $cart->id,
+            'product_id' => $product->barcode,
+            'quantity' => 1,
+            'price' => 100.00,
+        ]);
+
+        $orderService = app(\App\Services\OrderService::class);
+        $this->expectException(\Exception::class);
+        $orderService->createOrderFromCart(
+            $cart->fresh('items'),
+            $user->id,
+            $address->id,
+            'cash_on_delivery'
+        );
+    }
+
+    /** @test */
+    public function test_order_service_honors_free_delivery_threshold_over_zone_fee(): void
+    {
+        // Source-level guard: OrderService must read free_delivery_threshold
+        // from StoreSetting and skip the zone-fee override when the cart
+        // has cleared that threshold. The earlier code unconditionally
+        // replaced cartTotals['delivery_fee'] (which was already 0) with
+        // the zone fee, charging customers delivery they were promised
+        // was free.
+        $src = file_get_contents(base_path('app/Services/OrderService.php'));
+        $this->assertStringContainsString(
+            'free_delivery_threshold',
+            $src,
+            'OrderService::createOrderFromCart must read free_delivery_threshold so zone fees do not override the freebie.'
+        );
+        $this->assertStringContainsString(
+            '$freeByThreshold',
+            $src,
+            'OrderService::createOrderFromCart must compute $freeByThreshold to gate the zone-fee override.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/if\s*\(\s*!\s*\$freeByThreshold/',
+            $src,
+            'OrderService::createOrderFromCart must skip the zone-fee override when the threshold is met.'
+        );
+    }
+
+    /** @test */
+    public function test_zone_snapshot_does_not_overwrite_delivery_fee(): void
+    {
+        // Defense against regression: snapshotZoneToOrder used to write
+        // delivery_fee = $zone->delivery_fee, which clobbered the
+        // free-delivery-threshold rule applied in OrderService a moment
+        // earlier. This guards against re-introducing that line.
+        $src = file_get_contents(base_path('app/Services/DeliveryZoneService.php'));
+        $this->assertStringNotContainsString(
+            "'delivery_fee'              => \$zone?->delivery_fee",
+            $src,
+            'DeliveryZoneService::snapshotZoneToOrder must NOT write delivery_fee — that overwrites the free-threshold result from OrderService.'
+        );
+    }
+
+    /** @test */
+    public function test_address_controller_reverse_geocodes_client_coords(): void
+    {
+        // SECURITY: when the customer supplies lat/lng + a free-text
+        // formatted_address, the two could disagree (cheap-zone pin,
+        // expensive-zone text). AddressController must reverse-geocode
+        // the supplied coords server-side and overwrite formatted_address
+        // with the canonical Nominatim result. Source-level check.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/AddressController.php'));
+        $this->assertStringContainsString(
+            'reverseGeocodeAndStamp',
+            $src,
+            'AddressController must call reverseGeocodeAndStamp() so client coords do not drive a forged formatted_address.'
+        );
+        $this->assertStringContainsString(
+            '$this->geoHelper->reverseGeocode(',
+            $src,
+            'AddressController::reverseGeocodeAndStamp must call GeoHelper::reverseGeocode (Nominatim) to derive canonical address text.'
+        );
+    }
+
+    /** @test */
+    public function test_complaint_message_creation_writes_author_snapshot(): void
+    {
+        $user = $this->makeUser('customer', [
+            'first_name' => 'Author', 'last_name' => 'Snapshot',
+        ]);
+
+        $complaint = \App\Models\Complaint::create([
+            'user_id' => $user->id,
+            'ticket_number' => \App\Models\Complaint::generateTicketNumber(),
+            'subject' => 'Test',
+            'category' => 'general_inquiry',
+            'priority' => 'medium',
+            'status' => 'open',
+            'description' => 'x',
+        ]);
+
+        $msg = \App\Models\ComplaintMessage::create([
+            'complaint_id' => $complaint->id,
+            'user_id' => $user->id,
+            'message' => 'hello',
+            'is_admin_reply' => false,
+        ]);
+
+        $this->assertSame($user->email, $msg->author_email_snapshot,
+            'ComplaintMessage::booted creating hook must auto-populate author_email_snapshot.');
+        $this->assertSame('customer', $msg->author_role_snapshot,
+            'ComplaintMessage::booted creating hook must auto-populate author_role_snapshot — needed to read the audit trail after a user is deleted.');
+    }
 }

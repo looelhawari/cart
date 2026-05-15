@@ -25,7 +25,20 @@ class DeliveryZoneService
 {
     private GeoHelper $geoHelper;
 
-    private const ZONE_CACHE_KEY = 'delivery_zones:active';
+    /**
+     * Cache keys cleared whenever a zone is created/updated/deleted/toggled.
+     *
+     * SECURITY/PRICING (Slice 3): These keys MUST stay in sync with every
+     * place that does Cache::remember(...) on zone data. Previously this
+     * service only forgot 'delivery_zones:active', but DeliveryZoneController::index
+     * read from 'zones:active:all' (30-min TTL) — so an admin lowering a
+     * delivery fee or redrawing a polygon kept serving the old map and
+     * old prices to customers for up to half an hour.
+     */
+    public const ZONE_CACHE_KEYS = [
+        'delivery_zones:active',
+        'zones:active:all',
+    ];
     private const ZONE_CACHE_TTL = 300; // 5 minutes
 
     public function __construct(GeoHelper $geoHelper)
@@ -227,6 +240,12 @@ class DeliveryZoneService
     /**
      * Snapshot zone data onto an order (called during order creation).
      * These values are IMMUTABLE after order creation.
+     *
+     * Slice 3 fix: this used to also overwrite $order->delivery_fee with the
+     * zone's base fee. That clobbered the carefully-computed delivery_fee
+     * set by OrderService::createOrderFromCart, including the
+     * free-delivery-threshold rule (subtotal >= threshold → fee = 0). Drop
+     * the delivery_fee write — the order already has the right number.
      */
     public function snapshotZoneToOrder(Order $order, Address $address): void
     {
@@ -242,7 +261,6 @@ class DeliveryZoneService
             'delivery_lng'              => $address->longitude,
             'zone_name'                 => $zone?->name,
             'estimated_delivery_minutes' => $zone?->max_delivery_time_minutes,
-            'delivery_fee'              => $zone?->delivery_fee ?? $order->delivery_fee,
         ]);
     }
 
@@ -472,10 +490,13 @@ class DeliveryZoneService
     }
 
     /**
-     * Clear cached zone data.
+     * Clear ALL cached zone data — every key listed in ZONE_CACHE_KEYS.
+     * Called on every zone create/update/delete/toggle/reorder.
      */
     private function clearZoneCache(): void
     {
-        Cache::forget(self::ZONE_CACHE_KEY);
+        foreach (self::ZONE_CACHE_KEYS as $key) {
+            Cache::forget($key);
+        }
     }
 }
