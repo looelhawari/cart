@@ -55,10 +55,15 @@ class AdminProductController extends Controller
             $query->where('price', '<=', $request->max_price);
         }
 
-        // Whitelist sort columns and direction to prevent SQL injection
+        // Whitelist sort columns and direction to prevent SQL injection.
+        // BUGFIX: the previous version called $request->get('order') a second
+        // time *without* the default, so when the request omitted ?order=
+        // the truthy branch returned null and Laravel's orderBy() threw
+        // "Order direction must be asc or desc" → 500. Normalise once.
         $allowedSorts = ['created_at', 'updated_at', 'price', 'stock_quantity', 'name_en', 'name_ar', 'barcode', 'sales_count', 'is_active'];
-        $sortBy = in_array($request->get('sort_by'), $allowedSorts) ? $request->get('sort_by') : 'created_at';
-        $sortOrder = in_array(strtolower($request->get('order', 'desc')), ['asc', 'desc']) ? $request->get('order') : 'desc';
+        $sortBy = in_array($request->get('sort_by'), $allowedSorts, true) ? $request->get('sort_by') : 'created_at';
+        $orderInput = strtolower((string) $request->get('order', 'desc'));
+        $sortOrder = in_array($orderInput, ['asc', 'desc'], true) ? $orderInput : 'desc';
 
         $products = $query->with('categories')
             ->orderBy($sortBy, $sortOrder)
