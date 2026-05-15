@@ -3,6 +3,7 @@ import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
 import {
   getCacheData,
   setCacheData,
+  removeCacheByPrefix,
 } from "../cache/apiCache";
 
 /** Default TTL for cached responses — 24h. Pull-to-refresh always bypasses. */
@@ -275,19 +276,16 @@ export const apiRequest = async <T>(
 
   // 3) Auto-invalidate on mutations. Callers declare which prefixes the
   //    mutation logically affects (e.g. POST /addresses -> ["addresses"]).
-  //    Walks the AsyncStorage keys once, drops everything starting with
-  //    "@api_cache:<prefix>". The next read for that prefix will miss
-  //    the cache and fetch fresh from the server.
+  //    BUGFIX: previously this only wiped AsyncStorage — the in-memory
+  //    Map inside services/cache/apiCache.ts kept serving the stale
+  //    body, so a freshly-created address never appeared on the list
+  //    screen until the app was relaunched. removeCacheByPrefix wipes
+  //    both tiers atomically.
   if (!isReadOnly && invalidatePrefixes && invalidatePrefixes.length > 0) {
     try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const targets = invalidatePrefixes
-        .flatMap((prefix) =>
-          allKeys.filter((k) => k.startsWith(`@api_cache:${prefix}`)),
-        );
-      if (targets.length > 0) {
-        await AsyncStorage.multiRemove(targets);
-      }
+      await Promise.all(
+        invalidatePrefixes.map((prefix) => removeCacheByPrefix(prefix)),
+      );
     } catch {
       /* best-effort — never fail the mutation because cache wipe failed */
     }

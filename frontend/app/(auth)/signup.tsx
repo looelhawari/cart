@@ -305,7 +305,21 @@ export default function SignupScreen() {
     } else if (step === 2) {
       if (!validateStep2()) return;
 
-      // OTP BYPASS: Register user and redirect directly to home (skip OTP step 3)
+      // OTP BYPASS: Register user and redirect directly to home (skip OTP step 3).
+      //
+      // BUGFIX: previously this fired-and-forgot the navigation 2s after
+      // register() resolved, but `register()` resolves as soon as the HTTP
+      // response is parsed — saveTokens() runs synchronously after that on
+      // the same microtask but AsyncStorage.multiSet() is async. If the
+      // user's network was fast OR the user tapped Next quickly, the first
+      // authenticated request (orders/profile) could fire BEFORE
+      // multiSet() had flushed, returning 401.
+      //
+      // We now: (1) await register() — which now also awaits the multiSet —
+      // and (2) verify a token is actually visible in the in-memory cache
+      // before navigating. If somehow the backend didn't return tokens, we
+      // surface the error instead of dumping the user into /(tabs) where
+      // every API call would 401.
       setLoading(true);
       try {
         await register({
@@ -317,6 +331,20 @@ export default function SignupScreen() {
           password_confirmation: confirmPassword,
           language,
         });
+
+        // Defensive double-check: token must be persisted before we send
+        // the user to authenticated screens. getAuthToken() reads the
+        // in-memory cache that saveTokens() populates synchronously, so
+        // this is effectively a "did the backend actually return tokens?"
+        // assertion.
+        const { getAuthToken } = await import("@/services/api/base");
+        const token = await getAuthToken();
+        if (!token) {
+          throw new Error(
+            "Registration succeeded but no session token was issued. Please log in.",
+          );
+        }
+
         // Track what we registered so we can skip checks if user edits and comes back
         setRegisteredEmail(email.trim());
         setRegisteredPhone(phone.trim());

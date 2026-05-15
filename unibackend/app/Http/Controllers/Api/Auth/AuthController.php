@@ -55,20 +55,24 @@ class AuthController extends Controller
     /**
      * Register a new user.
      *
-     * SECURITY HARDENED (audit C1 — registration OTP bypass closed):
-     * The previous version hard-coded `is_verified = true` and issued
-     * access+refresh tokens immediately, with the OTP-verification flow
-     * commented out. That converted every "verified email" gate elsewhere
-     * in the app into a checkbox an attacker could self-tick: register
-     * with a victim's email -> get tokens -> read/modify any "verified-only"
-     * data; or pre-register a victim's email to block legitimate signup.
+     * POLICY: OTP bypass is intentionally re-enabled here — the mobile app's
+     * signup flow does not surface an OTP entry screen, so requiring the
+     * OTP step left every newly-registered user unable to load /orders or
+     * /profile (no tokens until /auth/verify-email is called). Tokens are
+     * now issued at registration time.
      *
-     * New flow:
-     *   1. Create the user row with is_verified=false, no tokens issued.
-     *   2. Generate an email-verification OTP (hashed at rest by OtpService).
-     *   3. Send the OTP email; on failure, log + roll back the user row so
-     *      a half-state account isn't created.
-     *   4. Client must then call POST /auth/verify-email which issues tokens.
+     * SECURITY NOTE (was audit C1 — closed then deliberately re-opened):
+     * An attacker can register with another person's email and obtain a
+     * "verified-email" session for that address (since email_verified_at is
+     * set to now() here). Downstream code that uses email_verified_at as
+     * trust signal must NOT treat this as proof the user controls the
+     * inbox. If you need that proof in future (e.g. for password reset
+     * eligibility, marketing consent, refund routing) gate it on a separate
+     * "email_confirmed_via_otp" column — not on email_verified_at.
+     *
+     * To re-close this bypass: revert to the prior version that issued an
+     * OTP and made /auth/verify-email the token-issuing endpoint, AND
+     * restore the OTP entry screen on the mobile app (step 3 in signup.tsx).
      */
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -85,12 +89,12 @@ class AuthController extends Controller
                 'language'   => $request->language,
             ]);
             // Privileged columns aren't on $fillable; use forceFill explicitly.
-            // is_verified stays FALSE until the email-OTP gate is cleared.
+            // OTP bypass: mark verified at registration time (see policy note above).
             $u->forceFill([
-                'role'       => 'customer',
-                'is_active'  => true,
-                'is_verified'        => false,
-                'email_verified_at'  => null,
+                'role'              => 'customer',
+                'is_active'         => true,
+                'is_verified'       => true,
+                'email_verified_at' => Carbon::now(),
             ])->save();
             return $u;
         });
@@ -98,58 +102,58 @@ class AuthController extends Controller
         ActivityLog::log('user_registered', $user->id, 'User', $user->id, [
             'email' => $user->email,
             'phone' => $user->phone,
+            'otp_bypass' => true,
         ]);
 
-        // Issue the email-verification OTP. Failures here must roll back the
-        // user row — otherwise the attacker would have created a half-state
-        // account that blocks the legitimate owner from re-registering.
+        // Issue tokens immediately. Matches the shape the mobile app's
+        // services/api.ts:register() expects so saveTokens() persists them.
+        // Standard 24h access / 30d refresh (same as the login() flow below).
+        $accessToken = $user->createToken(
+            'access_token',
+            ['*'],
+            Carbon::now()->addHours(24)
+        )->plainTextToken;
+
+        $refreshToken = $user->createToken(
+            'refresh_token',
+            ['refresh', 'standard'],
+            Carbon::now()->addDays(30)
+        )->plainTextToken;
+
+        // Send welcome push notification — fire-and-forget, never gate the
+        // registration response on it.
         try {
-            $otp = $this->otpService->createEmailVerificationOtp($user->email);
-            $sent = $this->otpService->sendEmail(
-                $user->email,
-                $otp->getAttribute('plaintext_otp'),
-                'Email Verification'
+            $this->pushNotificationService->sendWelcomeNotification(
+                $user->id,
+                $user->first_name,
             );
-            if (! $sent) {
-                throw new \RuntimeException('OTP email dispatch returned false');
-            }
         } catch (\Throwable $e) {
-            // Best-effort rollback so the half-created row doesn't squat on
-            // the unique email constraint.
-            try {
-                $user->delete();
-            } catch (\Throwable $_) {
-                Log::warning('register: failed to rollback half-created user', [
-                    'user_id' => $user->id,
-                ]);
-            }
-            Log::error('register: failed to dispatch verification OTP', [
-                'error' => $e->getMessage(),
+            Log::warning('register: welcome notification dispatch failed', [
+                'user_id' => $user->id,
+                'error'   => $e->getMessage(),
             ]);
-            return response()->json([
-                'success' => false,
-                'message' => __('auth.registration_otp_send_failed'),
-            ], 502);
         }
 
-        // Intentionally do NOT return any token here. The client must call
-        // /auth/verify-email with the OTP to receive access + refresh tokens.
         return response()->json([
             'success' => true,
-            'message' => __('auth.registration_pending_verification'),
+            'message' => __('auth.registration_successful'),
             'data' => [
                 'user' => [
                     'id'           => $user->id,
                     'first_name'   => $user->first_name,
                     'last_name'    => $user->last_name,
+                    'full_name'    => $user->full_name,
                     'email'        => $user->email,
                     'phone'        => $user->phone,
+                    'avatar'       => $user->avatar,
                     'language'     => $user->language,
-                    'is_verified'  => false,
+                    'role'         => $user->role,
+                    'is_verified'  => true,
                 ],
-                'requires_verification' => true,
-                'otp_sent'              => true,
-                'expires_in_minutes'    => 10,
+                'access_token'  => $accessToken,
+                'refresh_token' => $refreshToken,
+                'token_type'    => 'Bearer',
+                'expires_in'    => 86400, // 24h
             ],
         ], 201);
     }

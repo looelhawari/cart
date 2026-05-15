@@ -209,8 +209,11 @@ body {
 .receipt {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
     color: #111827;
-    font-size: 12px;
-    line-height: 1.35;
+    /* Bumped from 12px / 1.35 — cashier complaint: product names and
+       totals were unreadable on the 80mm thermal strip. Larger base
+       size cascades to all child rules via inheritance / em. */
+    font-size: 14px;
+    line-height: 1.45;
 }
 
 .receipt-mono {
@@ -381,13 +384,18 @@ body {
     }
 
     .receipt {
-        font-size: 9pt !important;
-        line-height: 1.3 !important;
+        /* Print sizes bumped one step up for thermal readability.
+           Previous 9pt body / 8.5pt items came back from the cashier as
+           "too small to read at arm's length". Thermal paper fades fast,
+           so weight is also nudged up. */
+        font-size: 11pt !important;
+        line-height: 1.4 !important;
         color: #000 !important;
+        font-weight: 600;
     }
-    .receipt-brand   { font-size: 13pt !important; }
-    .receipt-title   { font-size: 8.5pt !important; }
-    .receipt-section { gap: 3px !important; }
+    .receipt-brand   { font-size: 15pt !important; }
+    .receipt-title   { font-size: 10pt !important; }
+    .receipt-section { gap: 4px !important; }
 
     /* Narrow-page item grid: 80mm leaves no room for 4 wide columns. Collapse
        price into the same line as quantity, dropping the per-unit price for
@@ -395,14 +403,15 @@ body {
        per item (handled below). */
     .receipt-items-header,
     .receipt-item {
-        grid-template-columns: 1fr 9mm 17mm !important;
+        grid-template-columns: 1fr 9mm 19mm !important;
         gap: 1.5mm !important;
-        font-size: 8.5pt !important;
-        padding: 1mm 0 !important;
+        font-size: 10.5pt !important;
+        padding: 1.5mm 0 !important;
     }
     .receipt-col-name,
     .receipt-item-name {
         word-break: break-word;
+        font-weight: 700;
     }
     .receipt-col-price,
     .receipt-item-price {
@@ -412,7 +421,7 @@ body {
     .receipt-item-total,
     .receipt-col-qty,
     .receipt-col-total {
-        font-size: 8.5pt !important;
+        font-size: 10.5pt !important;
     }
 
     .receipt-row {

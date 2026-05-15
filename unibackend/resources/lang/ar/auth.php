@@ -72,5 +72,5 @@ return [
     'no_account_found' => 'لم يتم العثور على حساب بهذا البريد الإلكتروني.',
     'provide_valid_email_password' => 'يرجى تقديم بريد إلكتروني وكلمة مرور صالحين.',
     'active_orders_exist_web' => 'هذا الحساب لديه طلبات نشطة. يرجى الانتظار حتى اكتمال جميع الطلبات أو إلغائها قبل طلب الحذف.',
-    'account_deletion_failed_web' => 'حدث خطأ أثناء حذف حسابك. يرجى المحاولة مرة أخرى أو التواصل مع الدعم على support@cartshop.site.',
+    'account_deletion_failed_web' => 'حدث خطأ أثناء حذف حسابك. يرجى المحاولة مرة أخرى أو التواصل مع الدعم على Cart.shopegy@gmail.com.',
 ];

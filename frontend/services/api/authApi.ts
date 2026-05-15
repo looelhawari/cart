@@ -16,12 +16,28 @@ import {
 
 // Authentication API
 export const authApi = {
-  // Register a new user
+  // Register a new user.
+  //
+  // BUGFIX: previous version returned the response without persisting tokens,
+  // so the next authenticated call (orders, profile, etc.) read AsyncStorage,
+  // found no token, and 401'd. Logging out and back in masked it because
+  // login() persists tokens.
+  //
+  // We now AWAIT saveTokens() before resolving so the caller can safely
+  // navigate to an authenticated screen and trigger an authenticated request
+  // immediately. saveTokens() updates BOTH the in-memory _cachedToken in
+  // base.ts AND AsyncStorage, so the very next apiRequest sees the token.
   async register(data: RegisterData) {
-    return apiRequest<AuthResponse>("/auth/register", {
+    const response = await apiRequest<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     });
+
+    if (response.data?.access_token && response.data?.refresh_token) {
+      await saveTokens(response.data.access_token, response.data.refresh_token);
+    }
+
+    return response;
   },
 
   // Login user

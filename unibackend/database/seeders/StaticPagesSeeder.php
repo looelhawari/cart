@@ -101,8 +101,8 @@ class StaticPagesSeeder extends Seeder
 
 <h2>14. Contact Us</h2>
 <p>For questions about these Terms and Conditions, please contact us at:</p>
-<p><strong>Email:</strong> support@cart.com</p>
-<p><strong>Phone:</strong> +20 123 456 789</p>
+<p><strong>Email:</strong> Cart.shopegy@gmail.com</p>
+<p><strong>Phone:</strong> 01036909533</p>
 HTML;
     }
 
@@ -158,8 +158,8 @@ HTML;
 
 <h2>14. اتصل بنا</h2>
 <p>للاستفسارات حول هذه الشروط والأحكام، يرجى الاتصال بنا على:</p>
-<p><strong>البريد الإلكتروني:</strong> support@cart.com</p>
-<p><strong>الهاتف:</strong> 789 456 123 20+</p>
+<p><strong>البريد الإلكتروني:</strong> Cart.shopegy@gmail.com</p>
+<p><strong>الهاتف:</strong> 01036909533</p>
 HTML;
     }
 
@@ -238,9 +238,9 @@ HTML;
 
 <h2>11. Contact Us</h2>
 <p>For questions, concerns, or requests regarding your privacy, please contact us:</p>
-<p><strong>Email:</strong> privacy@cart.com</p>
-<p><strong>Phone:</strong> +20 123 456 789</p>
-<p><strong>Address:</strong> 123 Main Street, Cairo, Egypt</p>
+<p><strong>Email:</strong> Cart.shopegy@gmail.com</p>
+<p><strong>Phone:</strong> 01036909533</p>
+<p><strong>Address:</strong> Cairo, Egypt</p>
 HTML;
     }
 
@@ -319,9 +319,9 @@ HTML;
 
 <h2>11. اتصل بنا</h2>
 <p>للاستفسارات أو المخاوف أو الطلبات المتعلقة بخصوصيتك، يرجى الاتصال بنا:</p>
-<p><strong>البريد الإلكتروني:</strong> privacy@cart.com</p>
-<p><strong>الهاتف:</strong> 789 456 123 20+</p>
-<p><strong>العنوان:</strong> 123 الشارع الرئيسي، القاهرة، مصر</p>
+<p><strong>البريد الإلكتروني:</strong> Cart.shopegy@gmail.com</p>
+<p><strong>الهاتف:</strong> 01036909533</p>
+<p><strong>العنوان:</strong> القاهرة، مصر</p>
 HTML;
     }
 

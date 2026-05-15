@@ -137,10 +137,21 @@
                     <div class="info-box">
                         <div class="info-box-title">Customer</div>
                         <div class="info-box-value">
-                            @if($customer['first_name']) {{ $customer['first_name'] }} @endif
-                            @if($customer['last_name']) {{ $customer['last_name'] }} @endif
-                            @if($customer['phone']) {{ $customer['phone'] }}<br> @endif
-                            @if($customer['email']) {{ $customer['email'] }} @endif
+                            {{-- Use ?? to coalesce so a missing first_name/last_name
+                                 doesn't trip Blade with an "undefined array key"
+                                 dompdf-fatal error. Falls back to the 'name'
+                                 accessor when individual parts aren't supplied. --}}
+                            @php
+                                $displayName = trim(
+                                    ($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')
+                                );
+                                if ($displayName === '') {
+                                    $displayName = $customer['name'] ?? 'Customer';
+                                }
+                            @endphp
+                            {{ $displayName }}<br>
+                            @if(!empty($customer['phone'])) {{ $customer['phone'] }}<br> @endif
+                            @if(!empty($customer['email'])) {{ $customer['email'] }} @endif
                         </div>
                     </div>
                 </td>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -98,8 +98,27 @@ export default function OrderSuccessScreen() {
     fetchPromoFromOrder();
   }, [orderId, promoCode]);
 
+  // Abort the in-flight polling chain if the user navigates away or this
+  // screen unmounts. Without this, setTimeout-based polling kept calling
+  // /payments/status/{id} long after the user left.
+  const pollAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      pollAbortRef.current?.abort();
+      pollAbortRef.current = null;
+    };
+  }, []);
+
   /**
-   * Poll payment status for MOTO instant payments
+   * Poll payment status for MOTO instant payments — also reached as the
+   * fallback target from /payment-webview when its own polling ceiling is
+   * hit. The backend's /payments/status endpoint now reconciles with
+   * Paymob on each call so terminal state is usually known within a few
+   * ticks even when the webhook hasn't fired.
    */
   useEffect(() => {
     if (polling === "true" && paymentId && !isPolling) {
@@ -114,17 +133,24 @@ export default function OrderSuccessScreen() {
     console.log("[OrderSuccess] Starting payment status polling...");
     setPaymentStatus("processing");
 
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
+
     try {
       const result = await pollPaymentStatus(
         parseInt(paymentId),
         (status) => {
+          if (!isMountedRef.current) return;
           console.log(`[OrderSuccess] Payment status: ${status}`);
         },
         {
           intervalMs: 2000,
           maxAttempts: 30,
+          signal: controller.signal,
         },
       );
+
+      if (!isMountedRef.current) return;
 
       if (result.status === "PAID") {
         console.log("[OrderSuccess] ✅ Payment confirmed!");
@@ -133,14 +159,25 @@ export default function OrderSuccessScreen() {
         console.log("[OrderSuccess] ❌ Payment failed");
         setPaymentStatus("failed");
       } else {
+        // Hit polling ceiling without a terminal state. We surface a
+        // "processing" status so the user can leave the screen; the
+        // reconciliation cron will converge the row. Critically we do
+        // NOT spin up another poll cycle — that was the infinite loop.
         console.warn("[OrderSuccess] ⏱️ Payment verification timeout");
         setPaymentStatus("processing");
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (!isMountedRef.current) return;
+      if (error?.name === "AbortError" || error?.message === "Polling aborted") {
+        return; // unmounted — silent
+      }
       console.error("[OrderSuccess] Polling error:", error);
       setPaymentStatus("processing");
     } finally {
-      setIsPolling(false);
+      if (isMountedRef.current) setIsPolling(false);
+      if (pollAbortRef.current === controller) {
+        pollAbortRef.current = null;
+      }
     }
   };
 

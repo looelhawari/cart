@@ -376,7 +376,7 @@
             <strong style="color: #15803d; font-size: 18px;">✅ Account Deletion Request Submitted</strong>
             <p style="margin-top: 12px;">Your account deletion request has been received and is being processed. Your account will be deactivated immediately and all personal data will be permanently deleted within <strong>7 days</strong>.</p>
             <p>A confirmation email has been sent to your registered email address.</p>
-            <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">If you did not make this request, please contact us immediately at <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a>.</p>
+            <p style="margin-bottom: 0; color: #64748b; font-size: 14px;">If you did not make this request, please contact us immediately at <a href="mailto:Cart.shopegy@gmail.com">Cart.shopegy@gmail.com</a>.</p>
         </div>
 
         <form id="delete-form" method="POST" action="/delete-account" novalidate>
@@ -410,7 +410,7 @@
         <h2>Need Help?</h2>
         <p>If you have any questions about account deletion or data privacy, please contact us:</p>
         <ul>
-            <li><strong>Email:</strong> <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a></li>
+            <li><strong>Email:</strong> <a href="mailto:Cart.shopegy@gmail.com">Cart.shopegy@gmail.com</a></li>
             <li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
             <li><strong>Privacy Policy:</strong> <a href="/privacy-policy">View our Privacy Policy</a></li>
         </ul>

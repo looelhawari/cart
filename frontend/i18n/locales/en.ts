@@ -1765,7 +1765,7 @@ export default {
     // StaticPageScreen
     lastUpdated: "Last updated: ",
     contactEmail:
-      "If you have any questions, please contact us at kareemhesham105@gmail.com",
+      "If you have any questions, please contact us at Cart.shopegy@gmail.com",
     // Profile extras
     signInToViewProfile: "Sign in to view your profile",
     spent: "Spent",

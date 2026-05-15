@@ -292,7 +292,7 @@
             <div class="contact-icon">📧</div>
             <h3>Email Support</h3>
             <p>Send us a message and we'll respond within 24 hours.</p>
-            <a href="mailto:kareemhesham105@gmail.com" class="contact-btn">Send Email</a>
+            <a href="mailto:Cart.shopegy@gmail.com" class="contact-btn">Send Email</a>
         </div>
         <div class="contact-card">
             <div class="contact-icon">📱</div>
@@ -363,7 +363,7 @@
                 What if an item is missing or wrong? <span class="arrow">▾</span>
             </button>
             <div class="faq-answer">
-                Go to <strong>Profile → Complaints</strong>, submit a complaint with your order number, and our team will resolve it within 24 hours. For urgent issues, email us directly at <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a>.
+                Go to <strong>Profile → Complaints</strong>, submit a complaint with your order number, and our team will resolve it within 24 hours. For urgent issues, email us directly at <a href="mailto:Cart.shopegy@gmail.com">Cart.shopegy@gmail.com</a>.
             </div>
         </div>
     </div>
@@ -472,7 +472,7 @@
         <a href="/">Home</a> &nbsp;·&nbsp;
         <a href="/privacy-policy">Privacy Policy</a> &nbsp;·&nbsp;
         <a href="/delete-account">Delete Account</a> &nbsp;·&nbsp;
-        <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a>
+        <a href="mailto:Cart.shopegy@gmail.com">Cart.shopegy@gmail.com</a>
     </p>
     <p style="margin-top: 8px;">&copy; {{ date('Y') }} CART Grocery Shop. All rights reserved.</p>
 </div>

@@ -95,10 +95,18 @@ export const getCacheData = async <T>(key: string): Promise<T | null> => {
 };
 
 /**
- * Remove specific cache entry
+ * Remove specific cache entry from BOTH the in-memory map and AsyncStorage.
+ *
+ * BUGFIX: the previous version only removed from AsyncStorage; the
+ * in-memory `memoryCache` retained the stale entry and the next
+ * getCacheData() returned it without ever hitting the network. That
+ * defeated `invalidatePrefixes` in apiRequest — e.g. adding a new
+ * address wiped the disk cache but `getAddresses()` still saw the old
+ * list from memory until the app was killed.
  */
 export const removeCacheData = async (key: string): Promise<void> => {
   try {
+    memoryCache.delete(key);
     const cacheKey = getCacheKey(key);
     await AsyncStorage.removeItem(cacheKey);
   } catch (error) {
@@ -107,10 +115,40 @@ export const removeCacheData = async (key: string): Promise<void> => {
 };
 
 /**
- * Clear all cache entries
+ * Remove every cache entry whose logical key starts with `prefix`, from
+ * BOTH layers. Used by apiRequest's `invalidatePrefixes` option after
+ * mutations (create address → wipe "addresses", place order → wipe
+ * "orders", etc.).
+ */
+export const removeCacheByPrefix = async (prefix: string): Promise<void> => {
+  try {
+    // In-memory pass: iterate and delete matching keys.
+    for (const key of Array.from(memoryCache.keys())) {
+      if (key.startsWith(prefix)) {
+        memoryCache.delete(key);
+      }
+    }
+
+    // AsyncStorage pass: keys are stored with the @api_cache: prefix.
+    const allKeys = await AsyncStorage.getAllKeys();
+    const targets = allKeys.filter((k) =>
+      k.startsWith(`${CACHE_PREFIX}${prefix}`),
+    );
+    if (targets.length > 0) {
+      await AsyncStorage.multiRemove(targets);
+    }
+  } catch (error) {
+    console.error(`Failed to remove cache by prefix ${prefix}:`, error);
+  }
+};
+
+/**
+ * Clear all cache entries from both tiers. Called from logout so a
+ * different account never sees the previous user's data.
  */
 export const clearAllCache = async (): Promise<void> => {
   try {
+    memoryCache.clear();
     const keys = await AsyncStorage.getAllKeys();
     const cacheKeys = keys.filter((key) => key.startsWith(CACHE_PREFIX));
     await AsyncStorage.multiRemove(cacheKeys);

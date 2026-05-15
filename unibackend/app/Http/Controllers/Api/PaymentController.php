@@ -1159,10 +1159,21 @@ class PaymentController extends Controller
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // READ-ONLY: Fetch remote status for display only.
-            // ✅ P0 FIX: Polling NEVER mutates DB. Only the webhook
-            //    (processedCallback) can transition payment state.
-            //    The reconciliation job handles missed webhooks.
+            // Polling endpoint behaviour (revised):
+            //
+            // The previous "polling never mutates DB" rule meant that when
+            // Paymob's webhook was missed/delayed, the client was forced to
+            // wait up to 10 min for the ReconcilePendingPayments cron — long
+            // enough that the user typically gave up on a "Verifying Payment"
+            // screen. The cron job's reconciliation logic is now extracted
+            // into PaymentConfirmationService::reconcileFromPaymob() and
+            // shared between three callers (webhook, cron, polling). All
+            // three use lockForUpdate + status==='PENDING' re-check, so
+            // letting polling drive the same transition is race-safe.
+            //
+            // Net effect: the moment Paymob's server reports PROCESSED, the
+            // very next /payments/status/{id} call promotes our row to
+            // PAID/FAILED and the client's terminal-state polling exits.
             // ═══════════════════════════════════════════════════════════════
             $paymobStatus = null;
             $paymobSuccess = null;
@@ -1176,6 +1187,22 @@ class PaymentController extends Controller
                         $paymobStatus = $transactionData['status'];
                         $latestTxn = $transactionData['latest_transaction'] ?? null;
                         $paymobSuccess = $latestTxn['success'] ?? null;
+
+                        // If Paymob reached a terminal state, transition our
+                        // row now so this same response already reflects
+                        // PAID/FAILED. confirmationService handles locking +
+                        // idempotency so a concurrent webhook can't double-fire.
+                        if ($paymobStatus === 'PROCESSED' && $latestTxn) {
+                            $outcome = $this->confirmationService->reconcileFromPaymob(
+                                $payment,
+                                $transactionData,
+                                'polling',
+                            );
+                            if (in_array($outcome, ['confirmed', 'failed'], true)) {
+                                // Refetch so the response carries the new status.
+                                $payment = PaymobPayment::with('order')->find($payment->id);
+                            }
+                        }
                     }
                 } catch (Exception $e) {
                     Log::warning('Could not fetch Paymob status for display', [

@@ -72,5 +72,5 @@ return [
     'no_account_found' => 'No account found with this email address.',
     'provide_valid_email_password' => 'Please provide a valid email address and password.',
     'active_orders_exist_web' => 'This account has active orders. Please wait for all orders to be completed or cancelled before requesting deletion.',
-    'account_deletion_failed_web' => 'An error occurred while deleting your account. Please try again or contact support at support@cartshop.site.',
+    'account_deletion_failed_web' => 'An error occurred while deleting your account. Please try again or contact support at Cart.shopegy@gmail.com.',
 ];

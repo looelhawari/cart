@@ -44,12 +44,19 @@ export default function PaymentWebViewScreen() {
   // Refs for cleanup — polling can be cancelled on unmount
   const pollingStarted = useRef(false);
   const isMounted = useRef(true);
+  // AbortController fed into pollPaymentStatus so the in-flight setTimeout
+  // chain is torn down the moment this screen unmounts. Without this, the
+  // polling loop kept calling /payments/status/{id} forever (the symptom
+  // the user reported as "infinite Verifying Payment").
+  const pollAbortRef = useRef<AbortController | null>(null);
 
   // Track unmount for cleanup
   React.useEffect(() => {
     isMounted.current = true;
     return () => {
       isMounted.current = false;
+      pollAbortRef.current?.abort();
+      pollAbortRef.current = null;
     };
   }, []);
 
@@ -69,6 +76,12 @@ export default function PaymentWebViewScreen() {
       "[PaymentWebView] 🔄 Redirect detected — starting payment status polling...",
     );
 
+    // Create one AbortController per polling session. unmount → abort →
+    // pollPaymentStatus tears down its setTimeout chain and either resolves
+    // (with last seen status) or rejects. Either way: no orphan polling.
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
+
     try {
       // Small delay: give webhook 2s to arrive at backend first
       await new Promise((r) => setTimeout(r, 2000));
@@ -83,7 +96,11 @@ export default function PaymentWebViewScreen() {
         },
         {
           intervalMs: 2000, // Poll every 2 seconds
-          maxAttempts: 15, // 30 seconds total (webhook should arrive within 5s)
+          // 60s ceiling. Backend's checkStatus now reconciles with Paymob
+          // on each tick (was: passive read), so a terminal state should
+          // surface within 4-6 ticks even if Paymob's webhook never lands.
+          maxAttempts: 30,
+          signal: controller.signal,
         },
       );
 
@@ -98,24 +115,51 @@ export default function PaymentWebViewScreen() {
         setPaymentSuccess(false);
         setShowResultModal(true);
       } else {
-        // Still PENDING after 30s — webhook might be delayed
+        // Still PENDING after the ceiling. Route to order-success with the
+        // orderId/paymentId so the order detail screen can keep checking on
+        // its own cadence (every focus, no infinite loop) and the user is
+        // no longer stuck on the verification spinner. The backend will
+        // converge via the scheduled ReconcilePendingPayments job at worst.
         console.warn("[PaymentWebView] ⏱️ Payment verification timeout");
         Alert.alert(
           t.paymentFlow.paymentVerification,
           t.paymentFlow.paymentProcessingMessage,
-          [{ text: t.common.ok, onPress: () => router.replace("/(tabs)") }],
+          [
+            {
+              text: t.common.ok,
+              onPress: () => {
+                if (!isMounted.current) return;
+                router.replace({
+                  pathname: "/order-success",
+                  params: {
+                    orderId: params.orderId,
+                    paymentId: params.paymentId,
+                    promoCode: params.promoCode,
+                    promoDiscount: params.promoDiscount,
+                  },
+                });
+              },
+            },
+          ],
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       if (!isMounted.current) return;
+      // Abort from unmount is the cleanup path — not a user-visible error.
+      if (error?.name === "AbortError" || error?.message === "Polling aborted") {
+        return;
+      }
       console.error("[PaymentWebView] Polling error:", error);
       Alert.alert(t.common.error, t.paymentFlow.failedToVerify, [
         { text: t.common.ok, onPress: () => router.replace("/(tabs)") },
       ]);
     } finally {
       if (isMounted.current) setIsVerifying(false);
+      if (pollAbortRef.current === controller) {
+        pollAbortRef.current = null;
+      }
     }
-  }, [params.paymentId, router]);
+  }, [params.paymentId, params.orderId, params.promoCode, params.promoDiscount, router, t]);
 
   /**
    * Intercept navigation — detect redirect from Paymob after 3DS.

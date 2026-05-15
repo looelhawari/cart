@@ -103,12 +103,45 @@ export function useNewOrderNotification() {
     }, [])
 
     // Detect new orders and announce them to the store.
+    //
+    // BUGFIX (Issue #3): the previous version rang the bell the instant a
+    // new order ID appeared in the list — including card-online orders
+    // whose payment was still PENDING. The cashier got "ding!" before
+    // Paymob had even authorised the card, and 1-in-N of those failed
+    // anyway. We now only ring when the order is in a *verified* state:
+    //   - COD / card-on-delivery: confirmed at creation time
+    //   - card-online: confirmed once the Paymob webhook / reconciliation
+    //                   has flipped payment_status to 'completed'
+    //
+    // Practically, this means a card-online order won't ring on the
+    // initial creation poll — it'll ring on a subsequent poll *after*
+    // the payment confirms. That's the desired behaviour.
     useEffect(() => {
         const orders = (data?.data as any[] | undefined) || []
         if (!orders.length) return
 
-        const latest = orders[0]
-        const latestId = Number(latest?.id)
+        const isPaymentVerified = (o: any): boolean => {
+            const paymentStatus = String(o?.payment_status ?? '').toLowerCase()
+            const paymentMethod = String(o?.payment_method ?? '').toLowerCase()
+            // Methods that don't pre-charge the customer — order is fully
+            // actionable at creation time, no gateway round-trip to wait for.
+            const onDelivery =
+                paymentMethod === 'cod' ||
+                paymentMethod === 'cash_on_delivery' ||
+                paymentMethod === 'card_on_delivery' ||
+                paymentMethod === 'card_machine'
+            if (onDelivery) return true
+            // For card/online flows we require Paymob's webhook or our
+            // polling-driven reconciliation to have committed the payment.
+            return paymentStatus === 'completed' || paymentStatus === 'paid'
+        }
+
+        // Pick the most recent *verified* order, not the most recent order
+        // overall — fixes the premature-bell symptom for card payments.
+        const latestVerified = orders.find((o) => isPaymentVerified(o))
+        if (!latestVerified) return
+
+        const latestId = Number(latestVerified?.id)
         if (!Number.isFinite(latestId)) return
 
         const stored = Number(localStorage.getItem(STORAGE_KEY) || 0)
@@ -123,15 +156,18 @@ export function useNewOrderNotification() {
 
         if (latestId > stored) {
             localStorage.setItem(STORAGE_KEY, String(latestId))
-            const customerName = [latest?.user?.first_name, latest?.user?.last_name]
+            const customerName = [latestVerified?.user?.first_name, latestVerified?.user?.last_name]
                 .filter(Boolean)
                 .join(' ')
                 .trim() || undefined
             setPending({
                 id: latestId,
-                order_number: latest?.order_number,
+                order_number: latestVerified?.order_number,
                 customerName,
-                total: typeof latest?.total === 'number' ? latest.total : Number(latest?.total) || undefined,
+                total:
+                    typeof latestVerified?.total === 'number'
+                        ? latestVerified.total
+                        : Number(latestVerified?.total) || undefined,
             })
         }
     }, [data, setPending])

@@ -351,7 +351,7 @@
         <h2>11. Contact Us</h2>
         <p>If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:</p>
         <ul>
-            <li><strong>Email:</strong> <a href="mailto:kareemhesham105@gmail.com">kareemhesham105@gmail.com</a></li>
+            <li><strong>Email:</strong> <a href="mailto:Cart.shopegy@gmail.com">Cart.shopegy@gmail.com</a></li>
             <li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
             <li><strong>Developer:</strong> CART</li>
         </ul>

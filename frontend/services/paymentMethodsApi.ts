@@ -200,43 +200,89 @@ export async function pollPaymentStatus(
   options: {
     intervalMs?: number;
     maxAttempts?: number;
+    /**
+     * Cancellation signal. When aborted, the next scheduled tick is
+     * cancelled and the promise resolves with whatever data was last seen
+     * (or rejects with the abort reason if nothing was ever fetched). This
+     * exists because the verification screen can be unmounted mid-poll —
+     * without abort support, setTimeout-based ticks would keep firing
+     * /payments/status/{id} forever, hammering the server and burning
+     * battery.
+     */
+    signal?: AbortSignal;
   } = {},
 ): Promise<PaymentStatusResponse["data"]> {
-  const intervalMs = options.intervalMs || 2000; // 2 seconds
-  const maxAttempts = options.maxAttempts || 30; // 60 seconds total
+  const intervalMs = options.intervalMs || 2000;
+  const maxAttempts = options.maxAttempts || 30;
+  const signal = options.signal;
 
   let attempts = 0;
+  let lastSeen: PaymentStatusResponse["data"] | null = null;
 
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // Single abort handler that tears down the in-flight loop. If we have
+    // a snapshot of the latest response we resolve with that so callers
+    // can decide what to do with it; otherwise we reject so the caller's
+    // try/catch can render an error state instead of hanging.
+    const onAbort = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (lastSeen) {
+        resolve(lastSeen);
+      } else {
+        reject(
+          signal?.reason instanceof Error
+            ? signal.reason
+            : new Error("Polling aborted"),
+        );
+      }
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+
     const poll = async () => {
+      if (signal?.aborted) return; // safety: caller cancelled between ticks
+
       try {
         attempts++;
 
         const response = await getPaymentStatus(paymentId);
-        const { status } = response.data;
+        lastSeen = response.data;
 
+        if (signal?.aborted) return;
+
+        const { status } = response.data;
         onStatusChange?.(status);
 
         if (status === "PAID" || status === "FAILED" || status === "REFUNDED") {
-          // Terminal state reached
           resolve(response.data);
         } else if (attempts >= maxAttempts) {
-          // Timeout - return current state
+          // Timed out with no terminal state. Resolve with the last snapshot
+          // so the caller can route to a "still processing" screen rather
+          // than rejecting and showing a generic error.
           console.warn(
             `[PaymentPolling] Timeout after ${maxAttempts} attempts`,
           );
           resolve(response.data);
         } else {
-          // Continue polling
-          setTimeout(poll, intervalMs);
+          timer = setTimeout(poll, intervalMs);
         }
       } catch (error) {
         console.error("[PaymentPolling] Error:", error);
         if (attempts >= maxAttempts) {
           reject(error);
         } else {
-          // Retry on error
-          setTimeout(poll, intervalMs);
+          timer = setTimeout(poll, intervalMs);
         }
       }
     };

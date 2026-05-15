@@ -115,117 +115,20 @@ class ReconcilePendingPayments implements ShouldQueue
             return 'skipped';
         }
 
-        $paymobStatus = $transactionData['status'];
-        $latestTxn = $transactionData['latest_transaction'] ?? null;
+        // DRY: identical reconcile flow runs in three places (webhook miss,
+        // cron, user polling). Centralised in PaymentConfirmationService so
+        // amount/currency checks, lockForUpdate, and the auth-vs-capture
+        // quirks can't drift apart between callers.
+        $outcome = $confirmationService->reconcileFromPaymob(
+            $payment,
+            $transactionData,
+            'reconciliation',
+        );
 
-        // Not yet processed at Paymob — skip for now
-        if ($paymobStatus !== 'PROCESSED' || !$latestTxn) {
-            return 'skipped';
-        }
-
-        $txnSuccess = (bool) ($latestTxn['success'] ?? false);
-        $txnId = (string) ($latestTxn['id'] ?? '');
-        $isCapture = (bool) ($latestTxn['is_capture'] ?? false);
-        $isAuth = (bool) ($latestTxn['is_auth'] ?? false);
-
-        // Paymob Unified Checkout quirk: is_capture can be false even when captured
-        if ($txnSuccess && !$isCapture) {
-            $migsStatus  = strtoupper(trim($latestTxn['data']['migs_order']['status'] ?? ''));
-            $capturedAmt = (float) ($latestTxn['data']['captured_amount'] ?? $latestTxn['captured_amount'] ?? 0);
-            $orderPaySt  = strtoupper(trim($latestTxn['order']['payment_status'] ?? ''));
-
-            if ($migsStatus === 'CAPTURED' || $capturedAmt > 0 || $orderPaySt === 'PAID') {
-                Log::info('🔧 Reconciliation: Paymob quirk — overriding is_capture to true', [
-                    'payment_id'  => $payment->id,
-                    'migs_status' => $migsStatus,
-                    'captured_amt' => $capturedAmt,
-                ]);
-                $isCapture = true;
-            }
-        }
-
-        // Verify amount
-        $txnAmount = (int) ($latestTxn['amount_cents'] ?? 0);
-        if ($txnAmount !== (int) $payment->amount_cents) {
-            Log::error('🚨 Reconciliation: Amount mismatch!', [
-                'payment_id' => $payment->id,
-                'expected' => $payment->amount_cents,
-                'paymob_amount' => $txnAmount,
-            ]);
-            return 'skipped'; // Don't auto-fix amount mismatches — manual review required
-        }
-
-        // Verify currency
-        $txnCurrency = strtoupper(trim((string) ($latestTxn['currency'] ?? '')));
-        $expectedCurrency = strtoupper(trim((string) $payment->currency));
-        if ($txnCurrency !== '' && $txnCurrency !== $expectedCurrency) {
-            Log::error('🚨 Reconciliation: Currency mismatch!', [
-                'payment_id' => $payment->id,
-                'expected' => $expectedCurrency,
-                'paymob_currency' => $txnCurrency,
-            ]);
-            return 'skipped';
-        }
-
-        return DB::transaction(function () use ($payment, $txnSuccess, $txnId, $isCapture, $isAuth, $latestTxn, $confirmationService) {
-            // Lock the row to prevent race with webhook
-            $payment = PaymobPayment::where('id', $payment->id)
-                ->lockForUpdate()
-                ->first();
-
-            // Webhook may have processed it while we were querying Paymob
-            if (!$payment || $payment->status !== 'PENDING') {
-                return 'skipped';
-            }
-
-            if (!$txnSuccess) {
-                // Paymob says failed — use centralised failure handler
-                $confirmationService->failPayment(
-                    $payment,
-                    $txnId,
-                    'Reconciliation: Paymob reports failure',
-                    $latestTxn,
-                    'reconciliation'
-                );
-                return 'failed';
-            }
-
-            // Authorized but not captured — don't confirm
-            if ($isAuth && !$isCapture) {
-                $payment->markAsPending('Reconciliation: Authorized but not captured', $latestTxn);
-                Log::warning('⚠️ Reconciliation: Auth-only payment, awaiting capture', [
-                    'payment_id' => $payment->id,
-                ]);
-                return 'skipped';
-            }
-
-            if (!$isCapture) {
-                $confirmationService->failPayment(
-                    $payment,
-                    $txnId,
-                    'Reconciliation: Success but not captured',
-                    $latestTxn,
-                    'reconciliation'
-                );
-                return 'failed';
-            }
-
-            // ✅ Success + captured — use centralised confirmation handler
-            $confirmationService->confirmPayment(
-                $payment,
-                $txnId,
-                $latestTxn,
-                'reconciliation'
-            );
-
-            Log::info('✅ Reconciliation: Payment confirmed', [
-                'payment_id' => $payment->id,
-                'order_id' => $payment->order_id,
-                'transaction_id' => $txnId,
-                'was_stale_minutes' => now()->diffInMinutes($payment->created_at),
-            ]);
-
-            return 'reconciled';
-        });
+        return match ($outcome) {
+            'confirmed' => 'reconciled',
+            'failed'    => 'failed',
+            default     => 'skipped',
+        };
     }
 }

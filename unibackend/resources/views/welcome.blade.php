@@ -785,7 +785,7 @@
             <div class="footer-links">
                 <h5>Help</h5>
                 <a href="/support">Support</a>
-                <a href="mailto:kareemhesham105@gmail.com">Contact Us</a>
+                <a href="mailto:Cart.shopegy@gmail.com">Contact Us</a>
             </div>
         </div>
         <div class="footer-bottom">

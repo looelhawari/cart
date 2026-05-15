@@ -118,6 +118,130 @@ class PaymentConfirmationService
     }
 
     /**
+     * Inspect a Paymob intention payload and, if it represents a TERMINAL
+     * state (success-and-captured or genuine failure), atomically transition
+     * the local PaymobPayment row to PAID/FAILED.
+     *
+     * Designed to be called from BOTH:
+     *   - the scheduled ReconcilePendingPayments job (every 5 min)
+     *   - the user-driven /payments/status/{id} polling endpoint
+     *
+     * Behaviour:
+     *   - If $transactionData says "not processed yet" → returns 'pending' without
+     *     touching the row.
+     *   - If success && captured && amount/currency match → confirmPayment().
+     *   - If success && !captured (auth-only) → leaves row PENDING; caller will
+     *     keep polling until capture lands.
+     *   - If !success → failPayment().
+     *
+     * Returns: 'confirmed' | 'failed' | 'pending' | 'mismatch' | 'noop'
+     *
+     * IDEMPOTENCY: takes lockForUpdate inside DB::transaction and re-checks
+     * status === 'PENDING' before transitioning, so a concurrent webhook or
+     * a second polling caller can't double-confirm.
+     *
+     * @param PaymobPayment $payment           Fresh model (will be reloaded with lock).
+     * @param array         $transactionData   Output of PaymobService::getTransactionByIntention.
+     * @param string        $source            Caller tag for logs: 'polling' | 'reconciliation' | 'webhook'.
+     */
+    public function reconcileFromPaymob(
+        PaymobPayment $payment,
+        array $transactionData,
+        string $source = 'polling',
+    ): string {
+        $paymobStatus = $transactionData['status'] ?? null;
+        $latestTxn    = $transactionData['latest_transaction'] ?? null;
+
+        // Paymob hasn't reached a terminal state yet — caller should keep polling.
+        if ($paymobStatus !== 'PROCESSED' || !$latestTxn) {
+            return 'pending';
+        }
+
+        $txnSuccess = (bool) ($latestTxn['success'] ?? false);
+        $txnId      = (string) ($latestTxn['id'] ?? '');
+        $isCapture  = (bool) ($latestTxn['is_capture'] ?? false);
+        $isAuth     = (bool) ($latestTxn['is_auth'] ?? false);
+
+        // Paymob Unified Checkout quirk: is_capture sometimes false even when
+        // funds have actually been captured. Cross-check the secondary signals.
+        if ($txnSuccess && !$isCapture) {
+            $migsStatus  = strtoupper(trim($latestTxn['data']['migs_order']['status'] ?? ''));
+            $capturedAmt = (float) ($latestTxn['data']['captured_amount'] ?? $latestTxn['captured_amount'] ?? 0);
+            $orderPaySt  = strtoupper(trim($latestTxn['order']['payment_status'] ?? ''));
+
+            if ($migsStatus === 'CAPTURED' || $capturedAmt > 0 || $orderPaySt === 'PAID') {
+                $isCapture = true;
+            }
+        }
+
+        // Amount safety: never auto-confirm when gateway amount disagrees with
+        // our stored amount — that's a tampering signal, surface for manual review.
+        $txnAmount = (int) ($latestTxn['amount_cents'] ?? 0);
+        if ($txnAmount !== (int) $payment->amount_cents) {
+            Log::error("🚨 [{$source}] Reconcile: amount mismatch", [
+                'payment_id'    => $payment->id,
+                'expected'      => $payment->amount_cents,
+                'paymob_amount' => $txnAmount,
+            ]);
+            return 'mismatch';
+        }
+
+        $txnCurrency = strtoupper(trim((string) ($latestTxn['currency'] ?? '')));
+        $expected    = strtoupper(trim((string) $payment->currency));
+        if ($txnCurrency !== '' && $txnCurrency !== $expected) {
+            Log::error("🚨 [{$source}] Reconcile: currency mismatch", [
+                'payment_id'  => $payment->id,
+                'expected'    => $expected,
+                'paymob_ccy'  => $txnCurrency,
+            ]);
+            return 'mismatch';
+        }
+
+        return DB::transaction(function () use ($payment, $txnSuccess, $txnId, $isCapture, $isAuth, $latestTxn, $source) {
+            // Re-read with lock; webhook may have just finished while we were
+            // talking to Paymob. If state already moved off PENDING, nothing to do.
+            $locked = PaymobPayment::where('id', $payment->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$locked || $locked->status !== 'PENDING') {
+                return 'noop';
+            }
+
+            if (!$txnSuccess) {
+                $this->failPayment(
+                    $locked,
+                    $txnId,
+                    "Reconcile ({$source}): Paymob reports failure",
+                    $latestTxn,
+                    $source,
+                );
+                return 'failed';
+            }
+
+            // Auth-only (3DS authorised but not yet captured) — wait for capture.
+            if ($isAuth && !$isCapture) {
+                $locked->markAsPending("Reconcile ({$source}): authorised, awaiting capture", $latestTxn);
+                return 'pending';
+            }
+
+            if (!$isCapture) {
+                $this->failPayment(
+                    $locked,
+                    $txnId,
+                    "Reconcile ({$source}): success but not captured",
+                    $latestTxn,
+                    $source,
+                );
+                return 'failed';
+            }
+
+            $this->confirmPayment($locked, $txnId, $latestTxn, $source);
+            return 'confirmed';
+        });
+    }
+
+    /**
      * Handle a failed payment.
      *
      * @param PaymobPayment $payment    Locked payment record

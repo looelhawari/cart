@@ -192,7 +192,16 @@ export default function OrderReceiptPage() {
 
                             {(order.items || []).map((item) => (
                                 <div key={item.id} className="receipt-item">
-                                    <div className="receipt-item-name">{item.product_name}</div>
+                                    {/*
+                                      Receipt is fully Arabic — labels above are hardcoded
+                                      Arabic, so product names must match. Prefer the live
+                                      product's name_ar; fall back through name_en and the
+                                      historical product_name snapshot so a deleted product
+                                      still prints something readable instead of blank.
+                                    */}
+                                    <div className="receipt-item-name">
+                                        {item.product_name_ar || item.product_name_en || item.product_name}
+                                    </div>
                                     <div className="receipt-item-qty receipt-mono">{item.quantity}</div>
                                     <div className="receipt-item-price receipt-mono">{formatCurrency(item.product_price)}</div>
                                     <div className="receipt-item-total receipt-mono">{formatCurrency(item.subtotal)}</div>

@@ -15,8 +15,8 @@ class InvoiceService
         'name'        => 'CART',
         'legal_name'  => 'CART',
         'address'     => 'Cairo, Egypt',
-        'phone'       => '+20 123 456 7890',
-        'email'       => 'support@elbaraka.com',
+        'phone'       => '01036909533',
+        'email'       => 'Cart.shopegy@gmail.com',
     ];
 
     /**
@@ -111,9 +111,17 @@ class InvoiceService
             'status_label'   => $order->status_label,
 
             'customer' => [
-                'name'  => $order->user->name ?? 'Customer',
-                'email' => $order->user->email ?? null,
-                'phone' => $order->user->phone ?? null,
+                // The invoice template reads first_name / last_name separately;
+                // the User model exposes them as columns plus a `name`/`full_name`
+                // accessor. Pass all three so the blade can use whichever it
+                // prefers without needing a coalesce on every line.
+                'first_name' => $order->user->first_name ?? null,
+                'last_name'  => $order->user->last_name ?? null,
+                'name'       => trim(
+                    ($order->user->first_name ?? '') . ' ' . ($order->user->last_name ?? '')
+                ) ?: ($order->user->name ?? 'Customer'),
+                'email'      => $order->user->email ?? null,
+                'phone'      => $order->user->phone ?? null,
             ],
 
             'delivery_address' => $address,

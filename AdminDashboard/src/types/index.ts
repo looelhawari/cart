@@ -329,6 +329,10 @@ export interface OrderItem {
     order_id: number
     product_barcode: string
     product_name: string
+    /** Arabic name from the live product row; falls back to product_name. */
+    product_name_ar?: string
+    /** English name from the live product row; falls back to product_name. */
+    product_name_en?: string
     product_image?: string | null
     product_price: number
     quantity: number
