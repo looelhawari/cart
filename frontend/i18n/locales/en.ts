@@ -1039,6 +1039,9 @@ export default {
     // Payment screen keys
     card: "Card",
     cash: "Cash",
+    cardTemporarilyUnavailableTitle: "Card payment unavailable",
+    cardTemporarilyUnavailableMessage:
+      "Online card payment is temporarily disabled. Please use Cash on Delivery or Card Machine on Delivery to complete your order.",
     cardMachine: "Card Machine",
     cardMachineOnDelivery: "Card Machine on Delivery",
     cardMachineRequest: "Card Machine Request",

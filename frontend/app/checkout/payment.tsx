@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Switch,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -163,42 +164,34 @@ export default function CheckoutPaymentScreen() {
 
         {/* Payment Type Selection */}
         <View style={styles.paymentTypesContainer}>
+          {/*
+            Online card payment is temporarily disabled — the gateway flow
+            is being stabilised. Render the option as a non-selectable card
+            (dimmed) and show a bilingual popup when tapped so the customer
+            understands to use COD / Card Machine on Delivery instead.
+          */}
           <TouchableOpacity
-            style={[
-              styles.paymentTypeCard,
-              paymentType === "card" && styles.paymentTypeCardActive,
-            ]}
-            onPress={() => setPaymentType("card")}
+            style={[styles.paymentTypeCard, styles.paymentTypeCardDisabled]}
+            onPress={() =>
+              Alert.alert(
+                t.checkout.cardTemporarilyUnavailableTitle,
+                t.checkout.cardTemporarilyUnavailableMessage,
+                [{ text: t.common.ok }],
+              )
+            }
             activeOpacity={0.7}
           >
-            <View
-              style={[
-                styles.paymentTypeIconWrapper,
-                paymentType === "card" && styles.paymentTypeIconWrapperActive,
-              ]}
-            >
-              <CreditCard
-                size={26}
-                color={
-                  paymentType === "card"
-                    ? Colors.neutralWhite
-                    : Colors.primary900
-                }
-              />
+            <View style={styles.paymentTypeIconWrapper}>
+              <CreditCard size={26} color={Colors.neutralMedium} />
             </View>
             <Text
               style={[
                 styles.paymentTypeText,
-                paymentType === "card" && styles.paymentTypeTextActive,
+                styles.paymentTypeTextDisabled,
               ]}
             >
               {t.checkout.card}
             </Text>
-            {paymentType === "card" && (
-              <View style={styles.paymentTypeCheck}>
-                <Check size={14} color={Colors.neutralWhite} />
-              </View>
-            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -634,6 +627,17 @@ const styles = StyleSheet.create({
     shadowColor: Colors.primary900,
     shadowOpacity: 0.1,
     elevation: 3,
+  },
+
+  // Used for the temporarily-disabled card option — dimmed but still
+  // tappable so the disabled-popup can fire.
+  paymentTypeCardDisabled: {
+    opacity: 0.5,
+    backgroundColor: Colors.neutralCloud,
+  },
+
+  paymentTypeTextDisabled: {
+    color: Colors.neutralMedium,
   },
 
   paymentTypeIconWrapper: {

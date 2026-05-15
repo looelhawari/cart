@@ -120,6 +120,19 @@ export const orderService = {
                 order_id: item.order_id,
                 product_barcode: item.product_sku || item.product_barcode || item.product?.barcode,
                 product_name: item.product_name,
+                // BUGFIX: OrderItemResource emits product_name_ar / product_name_en
+                // from the live product row, but this mapper was dropping them,
+                // so the Arabic receipt fell through to the English snapshot
+                // (item.product_name) on every line. Pass them through, with
+                // safe fallbacks to the related product or the snapshot.
+                product_name_ar:
+                    item.product_name_ar ||
+                    item.product?.name_ar ||
+                    item.product_name,
+                product_name_en:
+                    item.product_name_en ||
+                    item.product?.name_en ||
+                    item.product_name,
                 product_image: item.product_image || item.product?.image || null,
                 product_price: parseFloat(item.price || item.product_price || 0),
                 quantity: parseInt(item.quantity || 0),

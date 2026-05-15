@@ -1027,6 +1027,9 @@ export default {
     // Payment screen keys
     card: "بطاقة",
     cash: "نقدي",
+    cardTemporarilyUnavailableTitle: "الدفع بالبطاقة غير متاح",
+    cardTemporarilyUnavailableMessage:
+      "الدفع بالبطاقة عبر الإنترنت غير متاح حاليًا. يرجى استخدام الدفع نقدًا عند الاستلام أو ماكينة البطاقة عند الاستلام لإتمام طلبك.",
     cardMachine: "ماكينة بطاقة",
     cardMachineOnDelivery: "ماكينة بطاقة عند الاستلام",
     cardMachineRequest: "طلب ماكينة بطاقة",
