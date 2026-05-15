@@ -135,6 +135,17 @@ export default function OrderDetailPage() {
                         <Printer className="h-4 w-4 mr-2" />
                         {t('orders.printReceipt')}
                     </Button>
+                    {/* Wave 5 — Task 4: header-level scheduled badge so staff
+                        at the detail page see immediately this is a scheduled
+                        order, not an instant one. */}
+                    {(order.is_scheduled || order.delivery_date) && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm10 5H4v9h12V7z" clipRule="evenodd" />
+                            </svg>
+                            {t('orders.scheduled') || 'Scheduled'}
+                        </span>
+                    )}
                     <OrderStatusBadge status={order.status} />
                     <PaymentStatusBadge status={order.payment_status} />
                 </div>
@@ -229,7 +240,31 @@ export default function OrderDetailPage() {
                                 <p className="font-medium">{order.delivery_notes}</p>
                             </div>
                         )}
-                        {order.estimated_delivery_time && (
+                        {/* Wave 5 — Task 4: show scheduled date + time slot
+                            independently. The old code did .toLocaleDateString
+                            on `estimated_delivery_time` which silently dropped
+                            the time-slot portion (e.g. "morning" / "14:00-16:00")
+                            because Date.parse couldn't handle the combined
+                            string format. */}
+                        {(order.delivery_date || order.delivery_time_slot) ? (
+                            <div className="rounded-md border border-blue-200 bg-blue-50/60 p-3">
+                                <p className="text-sm font-semibold text-blue-700 mb-1">
+                                    {t('orders.scheduledDelivery') || 'Scheduled delivery'}
+                                </p>
+                                {order.delivery_date && (
+                                    <p className="text-sm">
+                                        <span className="text-muted-foreground">{t('common.date')}: </span>
+                                        <span className="font-medium">{order.delivery_date}</span>
+                                    </p>
+                                )}
+                                {order.delivery_time_slot && (
+                                    <p className="text-sm">
+                                        <span className="text-muted-foreground">{t('orders.timeSlot') || 'Time slot'}: </span>
+                                        <span className="font-medium">{order.delivery_time_slot}</span>
+                                    </p>
+                                )}
+                            </div>
+                        ) : order.estimated_delivery_time && (
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('orders.estimatedDelivery')}</p>
                                 <p className="font-medium">{new Date(order.estimated_delivery_time).toLocaleDateString()}</p>

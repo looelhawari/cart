@@ -147,54 +147,29 @@ class AdminProductController extends Controller
         $product->refresh();
 
         // Check for price changes and back-in-stock notifications
-        if ($this->notificationService) {
+        // PERFORMANCE HARDENED (audit C12 — sync HTTP fan-out):
+        // The previous version looped over EVERY watcher of the product and
+        // made a synchronous Expo HTTP call per watcher (each up to 30s on
+        // retry). A popular product had N × 30s of network in the admin's
+        // `PUT /products/{barcode}` request — single-server killer.
+        //
+        // Dispatch the existing ProcessProductWatchlistNotifications job
+        // instead. It's a batch scanner that handles price-drop AND
+        // back-in-stock notifications, runs on the queue worker, and the
+        // admin's request returns immediately. The job already has 500-row
+        // limits + idempotency flags on the watchlist rows.
+        $priceDropped = isset($validated['price']) && $validated['price'] < $oldPrice;
+        $isNowInStock = $product->is_in_stock && $product->stock_quantity > 0;
+        $backInStock = $wasOutOfStock && $isNowInStock;
+
+        if ($priceDropped || $backInStock) {
             try {
-                // Check for price drop
-                if (isset($validated['price']) && $validated['price'] < $oldPrice) {
-                    // Notify all users watching this product for price drops
-                    $watchers = ProductWatchlist::where('product_id', $product->barcode)
-                        ->where('notify_price_drop', true)
-                        ->where(function($q) use ($validated) {
-                            $q->whereNull('price_threshold')
-                              ->orWhere('price_threshold', '>=', $validated['price']);
-                        })
-                        ->get();
-                    
-                    foreach ($watchers as $watcher) {
-                        $this->notificationService->notifyProductPriceChanged(
-                            $watcher->user_id,
-                            $product->name ?? 'Product',
-                            (int) $product->barcode,
-                            (float) $oldPrice,
-                            (float) $validated['price']
-                        );
-                        ProductWatchlist::where('id', $watcher->id)
-                            ->update(['notified_price_drop' => true, 'last_notified_at' => now()]);
-                    }
-                }
-                
-                // Check for back-in-stock
-                $isNowInStock = $product->is_in_stock && $product->stock_quantity > 0;
-                if ($wasOutOfStock && $isNowInStock) {
-                    // Notify all users watching this product for stock alerts
-                    $watchers = ProductWatchlist::where('product_id', $product->barcode)
-                        ->where('notify_back_in_stock', true)
-                        ->where('notified_back_in_stock', false)
-                        ->get();
-                    
-                    foreach ($watchers as $watcher) {
-                        $this->notificationService->notifyProductBackInStock(
-                            $watcher->user_id,
-                            $product->name ?? 'Product',
-                            (int) $product->barcode,
-                            $product->image
-                        );
-                        ProductWatchlist::where('id', $watcher->id)
-                            ->update(['notified_back_in_stock' => true, 'last_notified_at' => now()]);
-                    }
-                }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::warning('Failed to send product notification', ['error' => $e->getMessage()]);
+                \App\Jobs\ProcessProductWatchlistNotifications::dispatch()->afterCommit();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to dispatch watchlist notifications', [
+                    'product' => $product->barcode,
+                    'error'   => $e->getMessage(),
+                ]);
             }
         }
 
@@ -222,8 +197,15 @@ class AdminProductController extends Controller
     {
         $product = Product::where('barcode', $barcode)->firstOrFail();
 
+        // SECURITY HARDENED (audit C7 — SVG stored XSS):
+        // SVG can carry <script>/<foreignObject>/<onload> payloads. Cloudinary
+        // serves uploads with their original Content-Type, so an attacker-
+        // crafted SVG executes inline in any admin dashboard / WebView that
+        // renders it. Removed `svg` from the mime allowlist and added
+        // `mimetypes:` to validate the *actual* file MIME, not just the
+        // user-supplied extension.
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|mimetypes:image/jpeg,image/png,image/webp|max:2048',
         ]);
 
         if ($request->hasFile('image')) {

@@ -3,6 +3,8 @@
 return [
     // Registration
     'registration_successful' => 'Registration successful. Please verify your email address.',
+    'registration_pending_verification' => 'We have sent a verification code to your email. Enter it to complete sign-up.',
+    'registration_otp_send_failed' => 'We could not send the verification email. Please try again in a moment.',
 
     // OTP / Verification
     'invalid_or_expired_otp' => 'Invalid or expired OTP.',

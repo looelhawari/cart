@@ -18,6 +18,36 @@ class Product extends Model
         'cost_price',
     ];
 
+    /**
+     * Normalise product image URL to an absolute URL.
+     *
+     * Defence (Wave 5 — Task 5): legacy rows hold values like
+     *   "/storage/products/abc.jpg"   (relative, served by storage:link)
+     *   "products/abc.jpg"             (Cloudinary-style relative path)
+     *   "http://localhost:8000/..."   (env-specific, breaks when admin
+     *                                  dashboard is hosted on a different
+     *                                  origin)
+     *   "https://res.cloudinary.com/.../abc.jpg"  (already absolute — keep)
+     *
+     * Returning an absolute URL keyed off `config('app.url')` lets the
+     * admin dashboard render the <img> regardless of where it's hosted.
+     * Cloudinary / S3 / any https:// URL is returned unchanged.
+     */
+    public function getImageAttribute($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        // Already absolute (Cloudinary, S3, full URL) — keep.
+        if (preg_match('#^https?://#i', $value) === 1) {
+            return $value;
+        }
+        // Relative path — anchor to the app URL.
+        $base = rtrim((string) config('app.url'), '/');
+        $path = '/' . ltrim($value, '/');
+        return $base . $path;
+    }
+
     protected $fillable = [
         'barcode',
         'name_en',

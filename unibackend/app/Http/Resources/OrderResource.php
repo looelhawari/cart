@@ -42,6 +42,18 @@ class OrderResource extends JsonResource
             ]));
         }
 
+        // Scheduled-order fields (Wave 5 — Task 4):
+        // The dashboard needs to differentiate scheduled vs instant orders.
+        // Previously this Resource collapsed delivery_date + delivery_time_slot
+        // into a single `estimated_delivery_time` string and didn't expose
+        // a boolean — so the dashboard couldn't render a badge or filter.
+        // Now we expose all three separately so the UI can render the
+        // formatted slot AND branch on `is_scheduled`.
+        $deliveryDateStr = $this->delivery_date instanceof \Carbon\Carbon
+            ? $this->delivery_date->toDateString()
+            : ($this->delivery_date ? (string) $this->delivery_date : null);
+        $isScheduled = ! empty($deliveryDateStr);
+
         return [
             'id' => $this->id,
             'order_number' => $this->order_number,
@@ -64,7 +76,15 @@ class OrderResource extends JsonResource
             'delivery_latitude' => null,
             'delivery_longitude' => null,
             'delivery_notes' => $this->notes,
-            'estimated_delivery_time' => $this->delivery_date ? $this->delivery_date . ' ' . $this->delivery_time_slot : null,
+            // Scheduled-order fields exposed as separate keys + a boolean.
+            'delivery_date' => $deliveryDateStr,
+            'delivery_time_slot' => $this->delivery_time_slot,
+            'is_scheduled' => $isScheduled,
+            // Legacy combined string — kept for backward compat with any
+            // existing mobile consumers that read this key.
+            'estimated_delivery_time' => $isScheduled
+                ? trim($deliveryDateStr . ' ' . (string) $this->delivery_time_slot)
+                : null,
             'actual_delivery_time' => null,
             'promo_code_id' => null,
             'created_at' => $this->created_at?->toISOString(),

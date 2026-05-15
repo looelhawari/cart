@@ -89,12 +89,18 @@ class AdminRefundDashboardController extends Controller
             }
 
             // ── Sorting ──
-            $sortBy = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('sort_order', 'desc');
+            // SECURITY HARDENED (audit H10):
+            // sort_by was whitelisted but $sortOrder was passed straight to
+            // ->orderBy(), allowing comma-injection into the direction slot.
+            // Force asc/desc.
             $allowedSorts = ['id', 'created_at', 'refund_amount', 'status', 'type', 'completed_at', 'order_id'];
-            if (in_array($sortBy, $allowedSorts)) {
-                $query->orderBy($sortBy, $sortOrder);
-            }
+            $sortBy = in_array($request->input('sort_by'), $allowedSorts, true)
+                ? $request->input('sort_by')
+                : 'created_at';
+            $sortOrder = strtolower((string) $request->input('sort_order', 'desc')) === 'asc'
+                ? 'asc'
+                : 'desc';
+            $query->orderBy($sortBy, $sortOrder);
 
             // ── Pagination ──
             $perPage = min((int) $request->input('per_page', 20), 100);

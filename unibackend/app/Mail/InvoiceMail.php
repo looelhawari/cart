@@ -3,12 +3,19 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class InvoiceMail extends Mailable
+/**
+ * PERFORMANCE HARDENED (audit C12 — sync mail in request path):
+ * Implementing ShouldQueue makes every Mail::to(...)->send(this) call
+ * dispatch to the queue automatically — the SMTP round-trip (up to 30s on
+ * a slow MX) no longer blocks the HTTP worker thread.
+ */
+class InvoiceMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 

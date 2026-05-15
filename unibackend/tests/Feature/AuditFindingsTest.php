@@ -1188,6 +1188,678 @@ class AuditFindingsTest extends TestCase
         );
     }
 
+    // -----------------------------------------------------------------------
+    //  Wave 4 — Deep-audit hardening (this round)
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_registration_does_not_auto_verify_or_issue_tokens(): void
+    {
+        // C1: register() must NOT hard-code is_verified=true or return access
+        // tokens. The OTP-gated flow is the only legitimate path.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Auth/AuthController.php'));
+
+        // Extract just the register() method body — verifyEmail() legitimately
+        // sets is_verified=true so we can't grep the whole file.
+        $start = strpos($src, 'public function register(RegisterRequest $request)');
+        $this->assertNotFalse($start, 'register() method not found.');
+        // The method runs until the next "public function" or end of class.
+        $afterStart = substr($src, $start);
+        $end = strpos($afterStart, "\n    public function ", 10);
+        $body = $end !== false ? substr($afterStart, 0, $end) : $afterStart;
+
+        $this->assertDoesNotMatchRegularExpression(
+            "#'is_verified'\\s*=>\\s*true,\\s*\\n\\s*'email_verified_at'\\s*=>\\s*Carbon::now\\(\\)#",
+            $body,
+            'AuthController::register must not hard-code is_verified=true — registration OTP bypass is closed.'
+        );
+        $this->assertStringNotContainsString(
+            "createToken('access_token'",
+            $body,
+            'AuthController::register must not issue access tokens directly — verification must come first.'
+        );
+        $this->assertStringContainsString(
+            'createEmailVerificationOtp',
+            $body,
+            'AuthController::register must create an email-verification OTP — restored verification flow.'
+        );
+        $this->assertStringContainsString(
+            'requires_verification',
+            $body,
+            'AuthController::register response must signal requires_verification=true to the mobile client.'
+        );
+    }
+
+    /** @test */
+    public function test_admin_order_cancel_routes_through_cancellation_service(): void
+    {
+        // C2: AdminOrderController::cancel previously did a raw
+        // $order->status='cancelled'; $order->save(). Now it must delegate
+        // to OrderCancellationService::adminCancelOrder so Paymob refund,
+        // OrderRefund audit row, and promo rollback all fire.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Admin/OrderController.php'));
+
+        // Extract just the cancel() method body.
+        $start = strpos($src, 'public function cancel(');
+        $this->assertNotFalse($start, 'cancel() method not found.');
+        $afterStart = substr($src, $start);
+        $end = strpos($afterStart, "\n    public function ", 10);
+        $body = $end !== false ? substr($afterStart, 0, $end) : $afterStart;
+
+        $this->assertStringContainsString(
+            'adminCancelOrder',
+            $body,
+            'AdminOrderController::cancel must delegate to OrderCancellationService::adminCancelOrder.'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            "#\\\$order->status\\s*=\\s*'cancelled'#",
+            $body,
+            'AdminOrderController::cancel must NOT directly set status=cancelled — must go through the service for refund/promo rollback.'
+        );
+    }
+
+    /** @test */
+    public function test_paid_card_orders_go_to_confirmed_not_pending(): void
+    {
+        // C5: card payment was leaving orders at 'pending' but drivers
+        // only accept 'confirmed'. COD/card_on_delivery jump to 'confirmed'
+        // immediately, so card-via-Paymob must do the same for parity.
+        $src = file_get_contents(base_path('app/Services/PaymentConfirmationService.php'));
+        $this->assertMatchesRegularExpression(
+            "#'status'\\s*=>\\s*'confirmed'#",
+            $src,
+            'PaymentConfirmationService must set order status to confirmed for paid card orders so drivers can accept them.'
+        );
+    }
+
+    /** @test */
+    public function test_payment_webhook_has_replay_protection(): void
+    {
+        // C6: payment webhook (processedCallback) must insert into
+        // paymob_webhook_events for replay protection, mirroring the
+        // refund webhook.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/PaymentController.php'));
+        $this->assertStringContainsString(
+            "DB::table('paymob_webhook_events')",
+            $src,
+            'PaymentController::processedCallback must use paymob_webhook_events for replay protection.'
+        );
+        $this->assertStringContainsString(
+            "'event_type'     => 'payment'",
+            $src,
+            'PaymentController::processedCallback must mark the event as event_type=payment.'
+        );
+    }
+
+    /** @test */
+    public function test_static_page_admin_strips_script_tags(): void
+    {
+        // C7: StaticPage content rendered to users in WebView — admin
+        // submission must be sanitised. We only check the source-level
+        // guard here (HTMLPurifier-like strip) so a regression that
+        // removes the sanitiser fails this test loudly.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Admin/StaticPageController.php'));
+        $this->assertStringContainsString(
+            '$sanitizeHtml',
+            $src,
+            'StaticPageController must declare a $sanitizeHtml closure that strips <script>/<iframe>/event handlers before writing content_en/content_ar.'
+        );
+        $this->assertStringContainsString(
+            'script|style|iframe|object|embed',
+            $src,
+            'StaticPageController sanitizer must remove the dangerous-tag set.'
+        );
+    }
+
+    /** @test */
+    public function test_svg_uploads_are_no_longer_accepted(): void
+    {
+        // C7: SVG with embedded JS executes inline. Removed `svg` from the
+        // mimes list on both product + category image upload endpoints.
+        foreach (['AdminProductController', 'AdminCategoryController'] as $controller) {
+            $src = file_get_contents(base_path("app/Http/Controllers/Api/Admin/{$controller}.php"));
+            $this->assertDoesNotMatchRegularExpression(
+                "#mimes:[a-z,]*svg#i",
+                $src,
+                "{$controller} must NOT accept SVG uploads (stored XSS vector via Cloudinary)."
+            );
+            // Must also use mimetypes: to validate the actual MIME, not just the extension.
+            $this->assertStringContainsString(
+                'mimetypes:image/jpeg',
+                $src,
+                "{$controller} must validate mimetypes server-side, not only extension."
+            );
+        }
+    }
+
+    /** @test */
+    public function test_admin_sort_is_whitelisted(): void
+    {
+        // C8: SQL-injection-via-orderBy on admin endpoints that piped
+        // sort_by/sort_order straight into ->orderBy(). Now require a
+        // whitelist + forced asc/desc.
+        foreach ([
+            'Admin/OrderController',
+            'Admin/AdminReviewController',
+            'Admin/AdminRefundDashboardController',
+        ] as $file) {
+            $src = file_get_contents(base_path("app/Http/Controllers/Api/{$file}.php"));
+            $this->assertStringContainsString(
+                "in_array",
+                $src,
+                "{$file} must whitelist sort_by via in_array() so admins can't inject column expressions."
+            );
+            $this->assertStringContainsString(
+                "=== 'asc'",
+                $src,
+                "{$file} must force sort_order to 'asc' or 'desc' — Eloquent doesn't sanitise the direction."
+            );
+        }
+    }
+
+    /** @test */
+    public function test_partial_refund_does_not_swallow_post_paymob_failure(): void
+    {
+        // C9: Phase 3 used to catch the exception, log critical, and STILL
+        // return success=true. Now any Phase 3 failure must mark the
+        // OrderRefund with the paymob_ok_db_failed: prefix and re-throw.
+        $src = file_get_contents(base_path('app/Services/OrderCancellationService.php'));
+        $this->assertStringContainsString(
+            'paymob_ok_db_failed:',
+            $src,
+            'OrderCancellationService::partialItemRefund must tag failed-post-paymob refunds with the paymob_ok_db_failed: prefix.'
+        );
+        $this->assertStringContainsString(
+            'refund_pending_reconciliation',
+            $src,
+            'OrderCancellationService::partialItemRefund must re-throw with refund_pending_reconciliation so the caller cannot return success.'
+        );
+    }
+
+    /** @test */
+    public function test_cod_partial_cancel_recomputes_total(): void
+    {
+        // C10: codPartialItemCancel only updated refunded_amount; the
+        // driver still saw the original total. Now subtotal + total must
+        // be recomputed from remaining (refunded=false) items.
+        $src = file_get_contents(base_path('app/Services/OrderCancellationService.php'));
+        $this->assertStringContainsString(
+            'remainingSubtotal',
+            $src,
+            'codPartialItemCancel must recompute remaining subtotal/total so the driver sees the correct amount due.'
+        );
+        $this->assertStringContainsString(
+            "'subtotal'        => \$remainingSubtotal",
+            $src,
+            'codPartialItemCancel must persist the recomputed subtotal on the order row.'
+        );
+    }
+
+    /** @test */
+    public function test_promo_code_record_usage_uses_lock_for_update(): void
+    {
+        // I9: PromoCodeService::recordUsage previously incremented
+        // used_count on a free-floating model. Add lockForUpdate so
+        // usage_limit cannot be violated under concurrent finalizers.
+        $src = file_get_contents(base_path('app/Services/PromoCodeService.php'));
+        $this->assertStringContainsString(
+            'lockForUpdate',
+            $src,
+            'PromoCodeService::recordUsage must acquire a row lock before incrementing used_count.'
+        );
+    }
+
+    /** @test */
+    public function test_order_creation_has_unique_number_retry(): void
+    {
+        // I12: Order::generateOrderNumber races on the unique index. The
+        // OrderService must wrap Order::create in a 1062-retry loop.
+        $src = file_get_contents(base_path('app/Services/OrderService.php'));
+        $this->assertStringContainsString(
+            'QueryException',
+            $src,
+            'OrderService::createOrderFromCart must catch QueryException for the order-number retry loop.'
+        );
+        $this->assertStringContainsString(
+            '1062',
+            $src,
+            'OrderService::createOrderFromCart must filter retries to MySQL 1062 (duplicate key) only.'
+        );
+    }
+
+    /** @test */
+    public function test_checkout_summary_clamps_negative_total(): void
+    {
+        // I14: preview endpoint must mirror CartService's max(0, …) clamp
+        // and discount cap so a misconfigured fixed_amount promo can't
+        // surface a negative total.
+        $src = file_get_contents(base_path('app/Services/CheckoutService.php'));
+        $this->assertMatchesRegularExpression(
+            "#max\\(\\s*0(?:\\.0)?\\s*,#",
+            $src,
+            'CheckoutService::calculateOrderSummary must clamp total at zero.'
+        );
+        $this->assertStringContainsString(
+            'maxDiscountable',
+            $src,
+            'CheckoutService::calculateOrderSummary must cap discount at subtotal+delivery before computing total.'
+        );
+    }
+
+    /** @test */
+    public function test_assign_driver_route_requires_drivers_manage_permission(): void
+    {
+        // I5: the /admin/orders/{orderId}/assign-driver route was outside
+        // any permission middleware. Now it must be wrapped in
+        // permission:drivers.manage.
+        $src = file_get_contents(base_path('routes/api.php'));
+        $this->assertMatchesRegularExpression(
+            "#assign-driver.*?\\n.*?middleware\\(\\s*'permission:drivers\\.manage'\\s*\\)#s",
+            $src,
+            'POST /admin/orders/{id}/assign-driver must be gated by permission:drivers.manage.'
+        );
+    }
+
+    /** @test */
+    public function test_admin_write_routes_have_manage_permission(): void
+    {
+        // C4: each write route inside an `x.view,x.manage` (OR) group must
+        // ALSO declare permission:x.manage so viewers can't reach writes.
+        // Spot-check the highest-risk surfaces.
+        $src = file_get_contents(base_path('routes/api.php'));
+        foreach ([
+            'permission:products.manage',
+            'permission:categories.manage',
+            'permission:orders.manage',
+            'permission:promotions.manage',
+            'permission:customers.manage',
+            'permission:users.manage',
+            'permission:drivers.manage',
+            'permission:support.manage',
+        ] as $perm) {
+            $this->assertStringContainsString(
+                $perm,
+                $src,
+                "routes/api.php must declare {$perm} on at least one write route (closes the C4 OR-bug)."
+            );
+        }
+    }
+
+    /** @test */
+    public function test_public_reviews_endpoint_filters_unmoderated_content(): void
+    {
+        // I6: GET /reviews/{id} previously returned reviews regardless of
+        // status. Must now require status=approved like the listing.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/V1/ReviewController.php'));
+        $this->assertMatchesRegularExpression(
+            "#where\\(\\s*'status'\\s*,\\s*'approved'\\s*\\)#",
+            $src,
+            'Public V1/ReviewController::show must filter to status=approved so rejected/pending content cannot be fetched by ID.'
+        );
+    }
+
+    /** @test */
+    public function test_promotion_update_uses_validated_data_not_raw_request(): void
+    {
+        // I4: Admin/PromotionController::update used $request->except(...)
+        // which leaked unvalidated keys including created_by into update().
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Admin/PromotionController.php'));
+        $this->assertStringContainsString(
+            "\$validator->validated()",
+            $src,
+            'Admin/PromotionController::update must use $validator->validated() and strip created_by — audit-trail forgery otherwise.'
+        );
+        $this->assertStringContainsString(
+            "\$payload['created_by']",
+            $src,
+            'Admin/PromotionController::update must explicitly unset created_by from the payload.'
+        );
+    }
+
+    /** @test */
+    public function test_inventory_service_is_deleted(): void
+    {
+        // Audit Batch 8 + 5: InventoryService was never injected anywhere
+        // and contained an unsafe duplicate stock-decrement path. Delete.
+        $this->assertFileDoesNotExist(
+            base_path('app/Services/InventoryService.php'),
+            'InventoryService must be deleted — never injected, dangerous double-decrement if it were.'
+        );
+    }
+
+    /** @test */
+    public function test_duplicate_admin_controllers_are_deleted(): void
+    {
+        // Audit Batch 8: incomplete `Admin*` rename left orphan duplicates.
+        $base = base_path('app/Http/Controllers/Api/Admin/');
+        $this->assertFileDoesNotExist(
+            $base . 'AdminOrderController.php',
+            'Admin/AdminOrderController.php must be deleted — Admin/OrderController.php is the routed one (aliased as AdminOrderController in routes).'
+        );
+        $this->assertFileDoesNotExist(
+            $base . 'ReviewController.php',
+            'Admin/ReviewController.php must be deleted — Admin/AdminReviewController.php is routed.'
+        );
+        $this->assertFileDoesNotExist(
+            $base . 'StoreSettingsController.php',
+            'Admin/StoreSettingsController.php must be deleted — Admin/AdminStoreSettingsController.php is routed.'
+        );
+        $this->assertFileDoesNotExist(
+            $base . 'RateLimitController.php',
+            'Admin/RateLimitController.php must be deleted — its 9 methods had zero routes.'
+        );
+    }
+
+    /** @test */
+    public function test_invoice_mail_implements_should_queue(): void
+    {
+        // C12: synchronous Mail::send blocks the HTTP worker on SMTP.
+        // InvoiceMail must implement ShouldQueue so even ->send() defers
+        // the SMTP round-trip to the queue worker.
+        $src = file_get_contents(base_path('app/Mail/InvoiceMail.php'));
+        $this->assertStringContainsString(
+            'implements ShouldQueue',
+            $src,
+            'InvoiceMail must implement ShouldQueue so invoice emails do not block the request thread on SMTP.'
+        );
+    }
+
+    /** @test */
+    public function test_admin_product_update_does_not_loop_synchronous_push(): void
+    {
+        // C12: AdminProductController used to loop over every watcher and
+        // make a synchronous Expo HTTP call (up to 30s × N). Replace with
+        // ProcessProductWatchlistNotifications::dispatch() (existing job).
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Admin/AdminProductController.php'));
+        $this->assertStringContainsString(
+            'ProcessProductWatchlistNotifications::dispatch',
+            $src,
+            'AdminProductController::update must dispatch the watchlist job, not loop synchronous Expo calls.'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            "#foreach\\s*\\(\\s*\\\$watchers\\b.*?notifyProductPriceChanged#s",
+            $src,
+            'AdminProductController must not contain the synchronous notifyProductPriceChanged loop over watchers.'
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Wave 5 — Product feature hardening (Tasks 1, 3, 4, 5)
+    // -----------------------------------------------------------------------
+
+    /** @test */
+    public function test_store_setting_setvalue_invalidates_customer_facing_cache(): void
+    {
+        // Task 3 — Store-settings cache invalidation.
+        // Previously StoreSetting::setValue cleared only the model-layer
+        // cache namespace (store_setting_*, store_settings_all). The
+        // customer-facing keys (store:status, store:settings:public,
+        // store:working-hours, store:delivery-settings) lived in a
+        // separate namespace and were NEVER invalidated by individual
+        // admin mutators, so toggling "store closed" appeared to succeed
+        // but mobile kept seeing "open" for 2-15 min.
+        $src = file_get_contents(base_path('app/Models/StoreSetting.php'));
+        $this->assertStringContainsString(
+            "CUSTOMER_FACING_CACHE_KEYS",
+            $src,
+            'StoreSetting must publish the customer-facing cache key list so writers stay in sync with StoreSettingsController.'
+        );
+        foreach (['store:status', 'store:settings:public', 'store:working-hours', 'store:delivery-settings'] as $key) {
+            $this->assertStringContainsString(
+                "'{$key}'",
+                $src,
+                "StoreSetting::CUSTOMER_FACING_CACHE_KEYS must include '{$key}' so the customer-facing cache is invalidated on every write."
+            );
+        }
+    }
+
+    /** @test */
+    public function test_order_creation_gates_on_store_open_unless_scheduled(): void
+    {
+        // Task 3 secondary — the isStoreOpen gate must run on order
+        // creation, not only on payment-init. Scheduled orders are exempt
+        // (a customer scheduling for tomorrow shouldn't be blocked by
+        // store-closed-right-now).
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/OrderController.php'));
+        $this->assertStringContainsString(
+            'StoreSetting::isStoreOpen()',
+            $src,
+            'OrderController::store must call StoreSetting::isStoreOpen so COD orders cannot be placed while the store is closed.'
+        );
+        $this->assertStringContainsString(
+            '$isScheduled',
+            $src,
+            'OrderController::store must derive an $isScheduled flag and skip the store-open gate for scheduled orders.'
+        );
+    }
+
+    /** @test */
+    public function test_admin_orders_use_order_resource(): void
+    {
+        // Task 5 — admin index + show must serialise through OrderResource
+        // so OrderItemResource emits product_image (dashboard reads
+        // item.product_image; without the Resource the field never arrives).
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Admin/OrderController.php'));
+        $this->assertStringContainsString(
+            'OrderResource::collection',
+            $src,
+            'Admin\\OrderController::index must serialise orders through OrderResource::collection so items[].product_image is emitted.'
+        );
+        $this->assertStringContainsString(
+            'new \\App\\Http\\Resources\\OrderResource($order)',
+            $src,
+            'Admin\\OrderController::show must serialise through OrderResource so the dashboard sees the flat product_image field.'
+        );
+        $this->assertStringContainsString(
+            "'items.product'",
+            $src,
+            'Admin\\OrderController::index must eager-load items.product so product_image is available without N+1.'
+        );
+    }
+
+    /** @test */
+    public function test_product_image_accessor_returns_absolute_url(): void
+    {
+        // Task 5 — defence against legacy DB rows that hold relative
+        // paths. Product::image accessor must return an absolute URL so
+        // <img> works regardless of which origin the admin dashboard runs on.
+        $absolute = 'https://res.cloudinary.com/demo/image/upload/v1/x.jpg';
+        $product = new \App\Models\Product();
+        $product->setRawAttributes(['image' => $absolute], true);
+        $this->assertSame($absolute, $product->image, 'Absolute URLs must pass through unchanged.');
+
+        $product->setRawAttributes(['image' => '/storage/products/y.jpg'], true);
+        $this->assertNotNull($product->image);
+        $this->assertStringStartsWith('http', $product->image, 'Relative URLs must be made absolute via config(app.url).');
+        $this->assertStringEndsWith('/storage/products/y.jpg', $product->image);
+
+        $product->setRawAttributes(['image' => null], true);
+        $this->assertNull($product->image, 'NULL stays NULL.');
+    }
+
+    /** @test */
+    public function test_delivery_zone_has_gps_jitter_buffer(): void
+    {
+        // Task 1 — false outside-zone alerts.
+        // Without a GPS-jitter tolerance, the strict ray-cast test
+        // combined with Wave 3's hard-throw rejects customers a few
+        // metres outside the polygon edge (normal GPS noise).
+        $this->assertIsInt(
+            \App\Models\DeliveryZone::DEFAULT_BUFFER_METRES,
+            'DeliveryZone must expose a DEFAULT_BUFFER_METRES constant.'
+        );
+        $this->assertGreaterThan(0, \App\Models\DeliveryZone::DEFAULT_BUFFER_METRES);
+        $this->assertLessThanOrEqual(50, \App\Models\DeliveryZone::DEFAULT_BUFFER_METRES, 'Buffer too large would let far-away points through.');
+
+        // Containment with buffer: a square at Cairo (lat ~30.0444, lng ~31.2357)
+        // sized 0.001° (~111m N/S, ~96m E/W). A point 10m outside an edge
+        // must be accepted (within the 25m default buffer).
+        $polygon = [
+            ['lat' => 30.0440, 'lng' => 31.2350],
+            ['lat' => 30.0440, 'lng' => 31.2360],
+            ['lat' => 30.0450, 'lng' => 31.2360],
+            ['lat' => 30.0450, 'lng' => 31.2350],
+        ];
+        $zone = new \App\Models\DeliveryZone();
+        $zone->setRawAttributes(['polygon_coordinates' => json_encode($polygon)], true);
+
+        $this->assertTrue($zone->containsPoint(30.0445, 31.2355), 'Centre point must be inside.');
+
+        // Point ~7 metres NORTH of the polygon's top edge — within buffer.
+        $sevenMetresNorthLat = 30.0450 + (7 / 111_000);
+        $this->assertTrue(
+            $zone->containsPoint($sevenMetresNorthLat, 31.2355),
+            'Point ~7m outside an edge must be accepted (GPS-jitter tolerance).'
+        );
+
+        // Point ~100 metres NORTH — well outside buffer.
+        $hundredMetresNorthLat = 30.0450 + (100 / 111_000);
+        $this->assertFalse(
+            $zone->containsPoint($hundredMetresNorthLat, 31.2355),
+            'Point 100m outside must still be rejected; buffer must not be unbounded.'
+        );
+    }
+
+    /** @test */
+    public function test_zone_rejection_logs_detail(): void
+    {
+        // Task 1 — operations must be able to debug "customer says inside,
+        // app says outside" incidents. findZoneForCoordinates must log
+        // the rejection with point coords + nearest zone + edge distance.
+        $src = file_get_contents(base_path('app/Models/DeliveryZone.php'));
+        $this->assertStringContainsString(
+            "zone-detect: rejected",
+            $src,
+            'DeliveryZone::findZoneForCoordinates must Log::info a structured rejection record with the prefix "zone-detect: rejected".'
+        );
+        $this->assertStringContainsString(
+            "'nearest_edge_metres'",
+            $src,
+            'Rejection log must include the distance to the nearest active zone edge.'
+        );
+    }
+
+    /** @test */
+    public function test_order_resource_exposes_scheduled_fields(): void
+    {
+        // Task 4 — dashboard needs delivery_date, delivery_time_slot,
+        // is_scheduled exposed independently. Previously OrderResource
+        // collapsed them into estimated_delivery_time only.
+        $src = file_get_contents(base_path('app/Http/Resources/OrderResource.php'));
+        foreach (["'delivery_date'", "'delivery_time_slot'", "'is_scheduled'"] as $field) {
+            $this->assertStringContainsString(
+                $field,
+                $src,
+                "OrderResource must emit {$field} so the dashboard can render the scheduled-order badge."
+            );
+        }
+    }
+
+    /** @test */
+    public function test_admin_orders_index_accepts_scheduled_filter(): void
+    {
+        // Task 4 — filter param ?scheduled=1|0 must drive
+        // whereNotNull / whereNull on delivery_date.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/Admin/OrderController.php'));
+        $this->assertStringContainsString(
+            "\$request->has('scheduled')",
+            $src,
+            'Admin\\OrderController::index must read ?scheduled= and gate the query accordingly.'
+        );
+        $this->assertStringContainsString(
+            "whereNotNull('delivery_date')",
+            $src,
+            'Admin\\OrderController::index must apply whereNotNull(delivery_date) when ?scheduled=1.'
+        );
+        $this->assertStringContainsString(
+            "'delivery_date'",
+            $src,
+            'Admin\\OrderController::index sort whitelist must include delivery_date.'
+        );
+    }
+
+    /** @test */
+    public function test_order_item_subtotal_is_force_filled_not_mass_assigned(): void
+    {
+        // Production bug 2026-05-15: user got
+        //   "SQLSTATE[HY000]: 1364 Field 'subtotal' doesn't have a default value"
+        // when placing a COD order. Root cause: Wave-1 security hardening
+        // removed `subtotal` from OrderItem::$fillable (correct — clients
+        // must not be allowed to set it). But OrderService still used
+        // OrderItem::create([..., 'subtotal' => ...]) which silently dropped
+        // the value, and the DB column has no default → 1364.
+        //
+        // Fix: build with mass-assign for fillable columns, then forceFill
+        // the server-computed subtotal. This test guards against a
+        // regression where someone "fixes" the 1364 by putting subtotal
+        // back on $fillable (which would re-open client-side tampering).
+        $modelSrc = file_get_contents(base_path('app/Models/OrderItem.php'));
+        $this->assertDoesNotMatchRegularExpression(
+            "#protected\\s+\\\$fillable\\s*=\\s*\\[[^\\]]*'subtotal'#s",
+            $modelSrc,
+            "OrderItem::\$fillable must NOT include 'subtotal' — it's a server-computed field. Add it back via forceFill() in the service layer instead."
+        );
+
+        $serviceSrc = file_get_contents(base_path('app/Services/OrderService.php'));
+        $this->assertStringContainsString(
+            "forceFill([",
+            $serviceSrc,
+            'OrderService::createOrderFromCart must forceFill subtotal on OrderItem (subtotal is not on $fillable).'
+        );
+        $this->assertStringContainsString(
+            "'subtotal' => (float) \$cartItem->quantity * (float) \$cartItem->price",
+            $serviceSrc,
+            'OrderService must compute subtotal server-side from the locked cart row, not trust any client field.'
+        );
+    }
+
+    /** @test */
+    public function test_invoice_service_supports_thermal80_format(): void
+    {
+        // Task 6 partial — ELLIX35 thermal printer is 80mm × 80mm. The
+        // invoice generator must accept a `thermal80` format selector and
+        // render through the dedicated thermal blade at the matching paper
+        // size. Default A4 must still work for email / customer download.
+        $src = file_get_contents(base_path('app/Services/InvoiceService.php'));
+        $this->assertStringContainsString(
+            "generatePdf(Order \$order, string \$format = 'a4')",
+            $src,
+            'InvoiceService::generatePdf must accept a $format parameter (a4 | thermal80).'
+        );
+        $this->assertStringContainsString(
+            'order-invoice-thermal',
+            $src,
+            'Thermal path must render the dedicated thermal blade.'
+        );
+        $this->assertStringContainsString(
+            'setPaper([0, 0, $pt(80), $pt(80)]',
+            $src,
+            'Thermal path must call setPaper with 80mm × 80mm bounds (matching the ELLIX35 driver page size).'
+        );
+        $this->assertFileExists(
+            base_path('resources/views/invoices/order-invoice-thermal.blade.php'),
+            'The thermal blade template must exist.'
+        );
+    }
+
+    /** @test */
+    public function test_invoice_download_endpoint_accepts_format_query(): void
+    {
+        // Task 6 partial — the public invoice-download endpoint must honour
+        // ?format=thermal80 and refuse to template-inject arbitrary values.
+        $src = file_get_contents(base_path('app/Http/Controllers/Api/OrderController.php'));
+        $this->assertStringContainsString(
+            "\$request->query('format') === 'thermal80'",
+            $src,
+            'invoiceDownload must whitelist the format query param so user input cannot select arbitrary blade templates.'
+        );
+        $this->assertStringContainsString(
+            '$this->invoiceService->generatePdf($order, $format)',
+            $src,
+            'invoiceDownload must forward the validated format to InvoiceService::generatePdf.'
+        );
+    }
+
     /** @test */
     public function test_complaint_message_creation_writes_author_snapshot(): void
     {

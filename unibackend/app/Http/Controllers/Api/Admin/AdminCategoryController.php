@@ -94,8 +94,11 @@ class AdminCategoryController extends Controller
     {
         $category = Category::findOrFail($id);
 
+        // SECURITY HARDENED (audit C7 — SVG stored XSS): same fix as
+        // AdminProductController::uploadImage. SVG with <script>/<onload>
+        // would execute when rendered inline.
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|mimetypes:image/jpeg,image/png,image/webp|max:2048',
         ]);
 
         if ($request->hasFile('image')) {

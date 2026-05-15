@@ -418,53 +418,60 @@ Route::prefix('v1')->group(function () {
             });
 
             // Products Management
+            //
+            // SECURITY HARDENED (audit C4 — permission OR-bug):
+            // Group middleware uses comma-OR semantics ("user has view OR
+            // manage"), so a store_manager with only products.view used to
+            // reach POST/PUT/DELETE. Each mutating route now ALSO requires
+            // products.manage explicitly — middleware composes, so both the
+            // group OR-check and the per-route AND-check must pass.
             Route::middleware('permission:products.view,products.manage')->prefix('products')->group(function () {
                 Route::get('/', [AdminProductController::class, 'index']);
-                Route::post('/', [AdminProductController::class, 'store']);
                 Route::get('/stock-alerts', [AdminProductController::class, 'stockAlerts']);
-                Route::post('/bulk-stock', [AdminProductController::class, 'bulkToggleStock']);
                 Route::get('/{barcode}', [AdminProductController::class, 'show']);
-                Route::put('/{barcode}', [AdminProductController::class, 'update']);
-                Route::delete('/{barcode}', [AdminProductController::class, 'destroy']);
-                Route::post('/{barcode}/upload-image', [AdminProductController::class, 'uploadImage']);
-                Route::put('/{barcode}/stock', [AdminProductController::class, 'toggleStock']);
+                Route::post('/', [AdminProductController::class, 'store'])->middleware('permission:products.manage');
+                Route::post('/bulk-stock', [AdminProductController::class, 'bulkToggleStock'])->middleware('permission:products.manage');
+                Route::put('/{barcode}', [AdminProductController::class, 'update'])->middleware('permission:products.manage');
+                Route::delete('/{barcode}', [AdminProductController::class, 'destroy'])->middleware('permission:products.manage');
+                Route::post('/{barcode}/upload-image', [AdminProductController::class, 'uploadImage'])->middleware('permission:products.manage');
+                Route::put('/{barcode}/stock', [AdminProductController::class, 'toggleStock'])->middleware('permission:products.manage');
             });
 
-            // Categories Management
+            // Categories Management (same C4 hardening as products)
             Route::middleware('permission:categories.view,categories.manage')->prefix('categories')->group(function () {
                 Route::get('/', [AdminCategoryController::class, 'index']);
-                Route::post('/', [AdminCategoryController::class, 'store']);
                 Route::get('/{id}', [AdminCategoryController::class, 'show']);
-                Route::put('/{id}', [AdminCategoryController::class, 'update']);
-                Route::delete('/{id}', [AdminCategoryController::class, 'destroy']);
-                Route::post('/{id}/upload-image', [AdminCategoryController::class, 'uploadImage']);
+                Route::post('/', [AdminCategoryController::class, 'store'])->middleware('permission:categories.manage');
+                Route::put('/{id}', [AdminCategoryController::class, 'update'])->middleware('permission:categories.manage');
+                Route::delete('/{id}', [AdminCategoryController::class, 'destroy'])->middleware('permission:categories.manage');
+                Route::post('/{id}/upload-image', [AdminCategoryController::class, 'uploadImage'])->middleware('permission:categories.manage');
             });
 
-            // Orders Management
+            // Orders Management (same C4 hardening)
             Route::middleware('permission:orders.view,orders.manage')->prefix('orders')->group(function () {
                 Route::get('/', [AdminOrderController::class, 'index']);
                 Route::get('/status/{status}', [AdminOrderController::class, 'byStatus']);
                 Route::get('/{id}', [AdminOrderController::class, 'show']);
-                Route::put('/{id}/status', [AdminOrderController::class, 'updateStatus']);
-                Route::post('/{id}/cancel', [AdminOrderController::class, 'cancel']);
-                Route::post('/{orderId}/deliver', [OrderStatusController::class, 'markDelivered']);
+                Route::put('/{id}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
+                Route::post('/{id}/cancel', [AdminOrderController::class, 'cancel'])->middleware('permission:orders.manage');
+                Route::post('/{orderId}/deliver', [OrderStatusController::class, 'markDelivered'])->middleware('permission:orders.manage');
             });
 
-            // Support Tickets
+            // Support Tickets (C4 hardening — write actions require .manage)
             Route::middleware('permission:support.view,support.manage')->prefix('support')->group(function () {
                 Route::get('/tickets', [SupportController::class, 'index']);
-                Route::post('/tickets', [SupportController::class, 'store']);
                 Route::get('/tickets/{id}', [SupportController::class, 'show']);
-                Route::put('/tickets/{id}', [SupportController::class, 'update']);
-                Route::put('/tickets/{id}/status', [SupportController::class, 'updateStatus']);
-                Route::put('/tickets/{id}/priority', [SupportController::class, 'updatePriority']);
-                Route::post('/tickets/{id}/assign', [SupportController::class, 'assignTicket']);
-                Route::post('/tickets/{id}/messages', [SupportController::class, 'addMessage']);
-                Route::post('/tickets/{id}/typing', [SupportController::class, 'typing']);
                 Route::get('/tickets/{id}/suggestions', [SupportController::class, 'getSuggestions']);
-                Route::post('/tickets/{id}/read', [SupportController::class, 'markAsRead']);
                 Route::get('/tickets/{id}/customer-history', [SupportController::class, 'getCustomerHistory']);
                 Route::get('/analytics', [SupportController::class, 'analytics']);
+                Route::post('/tickets', [SupportController::class, 'store'])->middleware('permission:support.manage');
+                Route::put('/tickets/{id}', [SupportController::class, 'update'])->middleware('permission:support.manage');
+                Route::put('/tickets/{id}/status', [SupportController::class, 'updateStatus'])->middleware('permission:support.manage');
+                Route::put('/tickets/{id}/priority', [SupportController::class, 'updatePriority'])->middleware('permission:support.manage');
+                Route::post('/tickets/{id}/assign', [SupportController::class, 'assignTicket'])->middleware('permission:support.manage');
+                Route::post('/tickets/{id}/messages', [SupportController::class, 'addMessage'])->middleware('permission:support.manage');
+                Route::post('/tickets/{id}/typing', [SupportController::class, 'typing'])->middleware('permission:support.manage');
+                Route::post('/tickets/{id}/read', [SupportController::class, 'markAsRead'])->middleware('permission:support.manage');
             });
 
             // Canned Responses
@@ -477,28 +484,28 @@ Route::prefix('v1')->group(function () {
                 Route::delete('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'destroy']);
             });
 
-            // Financial Management
+            // Financial Management (C4 hardening)
             Route::middleware('permission:financial.view,financial.manage')->prefix('financial')->group(function () {
                 Route::get('/dashboard', [FinancialController::class, 'dashboard']);
                 Route::get('/transactions', [FinancialController::class, 'transactions']);
                 Route::get('/promo-codes', [FinancialController::class, 'promoCodes']);
-                Route::post('/promo-codes', [FinancialController::class, 'createPromoCode']);
-                Route::put('/promo-codes/{id}', [FinancialController::class, 'updatePromoCode']);
-                Route::delete('/promo-codes/{id}', [FinancialController::class, 'deletePromoCode']);
                 Route::get('/promo-codes/analytics', [FinancialController::class, 'promoCodesAnalytics']);
+                Route::post('/promo-codes', [FinancialController::class, 'createPromoCode'])->middleware('permission:financial.manage');
+                Route::put('/promo-codes/{id}', [FinancialController::class, 'updatePromoCode'])->middleware('permission:financial.manage');
+                Route::delete('/promo-codes/{id}', [FinancialController::class, 'deletePromoCode'])->middleware('permission:financial.manage');
             });
 
-            // Promotions Management
+            // Promotions Management (C4 hardening)
             Route::middleware('permission:promotions.view,promotions.manage')->prefix('promotions')->group(function () {
                 Route::get('/', [AdminPromotionController::class, 'index']);
-                Route::post('/', [AdminPromotionController::class, 'store']);
                 Route::get('/summary-analytics', [AdminPromotionController::class, 'summaryAnalytics']);
                 Route::get('/{id}', [AdminPromotionController::class, 'show']);
-                Route::put('/{id}', [AdminPromotionController::class, 'update']);
-                Route::delete('/{id}', [AdminPromotionController::class, 'destroy']);
-                Route::post('/{id}/feature', [AdminPromotionController::class, 'setFeatured']);
                 Route::get('/{id}/analytics', [AdminPromotionController::class, 'analytics']);
-                Route::post('/sync-status', [AdminPromotionController::class, 'syncStatus']);
+                Route::post('/', [AdminPromotionController::class, 'store'])->middleware('permission:promotions.manage');
+                Route::put('/{id}', [AdminPromotionController::class, 'update'])->middleware('permission:promotions.manage');
+                Route::delete('/{id}', [AdminPromotionController::class, 'destroy'])->middleware('permission:promotions.manage');
+                Route::post('/{id}/feature', [AdminPromotionController::class, 'setFeatured'])->middleware('permission:promotions.manage');
+                Route::post('/sync-status', [AdminPromotionController::class, 'syncStatus'])->middleware('permission:promotions.manage');
             });
 
             // Notification Management
@@ -513,33 +520,35 @@ Route::prefix('v1')->group(function () {
                 Route::post('/send-promotion', [AdminNotificationController::class, 'sendPromotion']);
             });
 
-            // Static Pages Management (Terms, Privacy, About)
+            // Static Pages Management (Terms, Privacy, About) — C4 hardening
             Route::middleware('permission:content.view,content.manage')->prefix('pages')->group(function () {
                 Route::get('/', [AdminStaticPageController::class, 'index']);
                 Route::get('/{slug}', [AdminStaticPageController::class, 'show']);
-                Route::put('/{slug}', [AdminStaticPageController::class, 'update']);
-                Route::post('/{slug}/toggle-status', [AdminStaticPageController::class, 'toggleStatus']);
                 Route::get('/{slug}/history', [AdminStaticPageController::class, 'history']);
+                Route::put('/{slug}', [AdminStaticPageController::class, 'update'])->middleware('permission:content.manage');
+                Route::post('/{slug}/toggle-status', [AdminStaticPageController::class, 'toggleStatus'])->middleware('permission:content.manage');
             });
 
-            // Customer Management
+            // Customer Management (C4 hardening — cashier had view only and
+            // could still hit reset-password / update / notes; now those
+            // explicitly require customers.manage)
             Route::middleware('permission:customers.view,customers.manage')->prefix('customers')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'index']);
                 Route::get('/stats', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'stats']);
                 Route::get('/{id}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'show']);
                 Route::get('/{id}/activity', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'activity']);
-                Route::put('/{id}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'update']);
-                Route::post('/{id}/notes', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'storeNote']);
-                Route::post('/{id}/reset-password', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'resetPassword']);
+                Route::put('/{id}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'update'])->middleware('permission:customers.manage');
+                Route::post('/{id}/notes', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'storeNote'])->middleware('permission:customers.manage');
+                Route::post('/{id}/reset-password', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'resetPassword'])->middleware('permission:customers.manage');
             });
 
-            // User Management
+            // User Management (C4 hardening)
             Route::middleware('permission:users.view,users.manage')->prefix('users')->group(function () {
                 Route::get('/', [UserController::class, 'index']);
-                Route::post('/', [UserController::class, 'store']);
                 Route::get('/{id}', [UserController::class, 'show']);
-                Route::put('/{id}', [UserController::class, 'update']);
-                Route::delete('/{id}', [UserController::class, 'destroy']);
+                Route::post('/', [UserController::class, 'store'])->middleware('permission:users.manage');
+                Route::put('/{id}', [UserController::class, 'update'])->middleware('permission:users.manage');
+                Route::delete('/{id}', [UserController::class, 'destroy'])->middleware('permission:users.manage');
             });
 
             // Analytics & Reporting
@@ -569,13 +578,19 @@ Route::prefix('v1')->group(function () {
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
             });
 
-            // Refund Dashboard (Paymob card refunds)
+            // Refund Dashboard (Paymob card refunds) — C4 + I15 hardening.
+            // The previous /reconcile route pointed to a method that didn't
+            // exist on AdminRefundDashboardController (would 500 with "method
+            // not found"). The actual reconcile lives on RefundWebhookController.
+            // Re-route there with the manage permission required.
             Route::middleware('permission:refunds.view,refunds.manage')->prefix('refund-dashboard')->group(function () {
                 Route::get('/', [AdminRefundDashboardController::class, 'index']);
                 Route::get('/stats', [AdminRefundDashboardController::class, 'stats']);
                 Route::get('/{id}', [AdminRefundDashboardController::class, 'show']);
-                Route::post('/partial-item-refund', [AdminRefundDashboardController::class, 'partialItemRefund']);
-                Route::post('/reconcile', [AdminRefundDashboardController::class, 'reconcile']);
+                Route::post('/partial-item-refund', [AdminRefundDashboardController::class, 'partialItemRefund'])
+                    ->middleware('permission:refunds.manage');
+                Route::post('/reconcile', [\App\Http\Controllers\Api\RefundWebhookController::class, 'reconcile'])
+                    ->middleware('permission:refunds.manage');
             });
 
             // Promo Code Analytics & Management
@@ -643,20 +658,25 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{id}/analytics', [AdminDeliveryZoneController::class, 'analytics']);
             });
 
-            // Driver Management
+            // Driver Management (C4 hardening)
             Route::middleware('permission:drivers.view,drivers.manage')->prefix('drivers')->group(function () {
                 Route::get('/', [AdminDriverController::class, 'index']);
                 Route::get('/available', [AdminDriverController::class, 'availableDrivers']);
                 Route::get('/locations', [AdminDriverController::class, 'locations']);
                 Route::get('/performance', [AdminDriverController::class, 'performance']);
-                Route::post('/', [AdminDriverController::class, 'store']);
                 Route::get('/{id}', [AdminDriverController::class, 'show']);
-                Route::put('/{id}', [AdminDriverController::class, 'update']);
-                Route::delete('/{id}', [AdminDriverController::class, 'destroy']);
+                Route::post('/', [AdminDriverController::class, 'store'])->middleware('permission:drivers.manage');
+                Route::put('/{id}', [AdminDriverController::class, 'update'])->middleware('permission:drivers.manage');
+                Route::delete('/{id}', [AdminDriverController::class, 'destroy'])->middleware('permission:drivers.manage');
             });
 
             // Assign driver to order
-            Route::post('/orders/{orderId}/assign-driver', [AdminDriverController::class, 'assignDriverToOrder']);
+            // SECURITY FIXED (audit I5): previously this route was registered
+            // OUTSIDE any permission middleware (only the admin group's
+            // is-admin check applied), so cashier / support / store_manager
+            // could reassign drivers without `drivers.manage`. Wrap it now.
+            Route::post('/orders/{orderId}/assign-driver', [AdminDriverController::class, 'assignDriverToOrder'])
+                ->middleware('permission:drivers.manage');
         });
     });
 

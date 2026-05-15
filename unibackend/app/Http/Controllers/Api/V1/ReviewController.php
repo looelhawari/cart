@@ -29,11 +29,20 @@ class ReviewController extends Controller
     }
 
     /**
-     * Get a single review
+     * Get a single review.
+     *
+     * SECURITY HARDENED (audit I6):
+     * Previously this returned reviews of any status (pending, rejected,
+     * spam) to anyone who knew the ID. A moderator hiding libelous /
+     * abusive content via status='rejected' did NOT remove it from public
+     * read — anyone could still fetch it by ID. Match the listing query's
+     * `status='approved'` filter so unmoderated content is unreachable here.
      */
     public function show($id)
     {
-        $review = Review::with(['user:id,first_name,last_name'])->findOrFail($id);
+        $review = Review::with(['user:id,first_name,last_name'])
+            ->where('status', 'approved')
+            ->findOrFail($id);
         return new ReviewResource($review);
     }
 

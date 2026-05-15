@@ -103,6 +103,13 @@ export const orderService = {
             delivery_latitude: orderData.delivery_latitude || null,
             delivery_longitude: orderData.delivery_longitude || null,
             delivery_notes: orderData.delivery_notes || orderData.notes || null,
+            // Wave 5 — Task 4: preserve scheduled-order fields separately.
+            // Don't collapse delivery_date + delivery_time_slot into a single
+            // string here — the orders list / detail components need them
+            // independently to render the "Scheduled for …" badge.
+            delivery_date: orderData.delivery_date || null,
+            delivery_time_slot: orderData.delivery_time_slot || null,
+            is_scheduled: Boolean(orderData.is_scheduled ?? orderData.delivery_date),
             estimated_delivery_time: orderData.estimated_delivery_time || orderData.delivery_date || null,
             actual_delivery_time: orderData.actual_delivery_time || null,
             promo_code_id: orderData.promo_code_id || null,

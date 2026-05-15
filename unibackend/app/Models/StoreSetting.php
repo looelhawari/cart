@@ -42,26 +42,59 @@ class StoreSetting extends Model
     }
 
     /**
-     * Set a setting value
+     * Customer-facing cache keys served by StoreSettingsController.
+     *
+     * SECURITY/CORRECTNESS HARDENED (Wave 5 — Task 3):
+     * Previously this method only invalidated the MODEL-layer cache namespace
+     * (`store_setting_*`, `store_settings_all`, `store_settings_public`). But
+     * the mobile-facing endpoints (StoreSettingsController) cache under a
+     * SECOND namespace using colons — `store:status`, `store:settings:public`,
+     * `store:working-hours`, `store:delivery-settings` — with 2-15 min TTLs.
+     * Result: an admin toggling "store closed" appeared to succeed but
+     * customers kept seeing "open" for up to 15 min, and the mobile checkout
+     * pre-gate (confirmation.tsx:193) read the stale value.
+     *
+     * Single source of truth: every writer must invalidate this list.
+     * Listed here as a const so a future code reader doesn't have to chase
+     * the namespace mismatch.
+     */
+    public const CUSTOMER_FACING_CACHE_KEYS = [
+        'store:settings:public',
+        'store:status',
+        'store:working-hours',
+        'store:delivery-settings',
+    ];
+
+    /**
+     * Set a setting value.
+     *
+     * Invalidates both cache namespaces (model-layer + customer-layer) so
+     * any writer — direct service call OR admin controller — propagates
+     * the change to mobile clients immediately.
      */
     public static function setValue(string $key, mixed $value): bool
     {
         $setting = static::where('key', $key)->first();
-        
+
         if (!$setting) {
             return false;
         }
 
         // Convert value to string for storage
         $stringValue = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
-        
+
         $setting->update(['value' => $stringValue]);
-        
-        // Clear cache
+
+        // Model-layer cache (legacy keys with underscores).
         Cache::forget("store_setting_{$key}");
         Cache::forget('store_settings_all');
         Cache::forget('store_settings_public');
-        
+
+        // Customer-facing cache (keys with colons, served by StoreSettingsController).
+        foreach (self::CUSTOMER_FACING_CACHE_KEYS as $cacheKey) {
+            Cache::forget($cacheKey);
+        }
+
         return true;
     }
 

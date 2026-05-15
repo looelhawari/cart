@@ -326,7 +326,22 @@ class OrderCancellationService
             );
         }
 
-        // Phase 3: Finalize DB updates
+        // Phase 3: Finalize DB updates.
+        //
+        // SECURITY/MONEY HARDENED (audit C9 — swallow-and-return-success):
+        // The previous version caught DB exceptions here, logged critical, and
+        // STILL returned `success: true`. That meant Paymob had refunded but
+        // the DB showed items not marked refunded, stock not restored, and the
+        // OrderRefund row would never be reconciled. The caller would tell the
+        // customer "refund completed" while leaving the system inconsistent.
+        //
+        // Now: any Phase-3 failure flips the OrderRefund row to
+        // `requires_reconciliation` and re-throws so the caller surfaces a
+        // 202-style "partial success — reconciliation pending" path instead of
+        // a misleading "completed". The Paymob refund itself is irreversible
+        // and the audit row remains in the DB; an operator (or a cron job
+        // querying OrderRefund::where('status','requires_reconciliation')) can
+        // finish the post-refund bookkeeping.
         try {
             $order->items()->whereIn('id', $itemIds)->update(['refunded' => true]);
 
@@ -344,12 +359,29 @@ class OrderCancellationService
 
             $this->notifyCustomer($order, $itemRefundAmount, 'partial');
             $this->sendRefundEmail($order, $refund, 'partial', $itemRefundAmount);
-        } catch (\Exception $e) {
-            Log::critical('[PARTIAL REFUND] DB update failed after Paymob success', [
-                'order_id' => $order->id,
+        } catch (\Throwable $e) {
+            Log::critical('[PARTIAL REFUND] DB update failed AFTER Paymob success — needs reconciliation', [
+                'order_id'  => $order->id,
                 'refund_id' => $refund->id,
-                'error' => $e->getMessage(),
+                'error'     => $e->getMessage(),
             ]);
+            try {
+                // The order_refunds.status enum doesn't include
+                // 'requires_reconciliation'. Park as 'failed' with a
+                // tagged failure_reason so an operator/cron can grep
+                // failure_reason starting with paymob_ok_db_failed:
+                // to find rows that need manual money-side reconciliation.
+                $refund->markAsFailed(
+                    'paymob_ok_db_failed: ' . substr($e->getMessage(), 0, 200),
+                );
+            } catch (\Throwable $inner) {
+                Log::critical('[PARTIAL REFUND] Could not even flag refund for reconciliation', [
+                    'refund_id' => $refund->id,
+                    'error'     => $inner->getMessage(),
+                ]);
+            }
+            // Re-throw so the caller returns 5xx / 422 instead of "success".
+            throw new Exception(__('order.refund_pending_reconciliation'));
         }
 
         Log::info('✅ [PARTIAL REFUND] Completed', [
@@ -466,9 +498,29 @@ class OrderCancellationService
                     ->sum('refund_amount');
                 $totalCancelled = $alreadyCancelled + $itemCancelAmount;
 
+                // MONEY HARDENED (audit C10):
+                // Previously this only updated `refunded_amount`. For a COD
+                // partial cancel the driver still saw the ORIGINAL `total`
+                // and would ask the customer to pay cash for the cancelled
+                // items too. Recompute subtotal/total from the remaining
+                // (still-active) items so the driver and customer see the
+                // correct amount owed.
+                $remainingSubtotal = (float) $order->items()
+                    ->where('refunded', false)
+                    ->sum('subtotal');
+                $newTotal = max(
+                    0.0,
+                    $remainingSubtotal
+                        + (float) $order->delivery_fee
+                        - (float) $order->discount
+                        + (float) $order->tax,
+                );
+
                 $order->update([
+                    'subtotal'        => $remainingSubtotal,
+                    'total'           => $newTotal,
                     'refunded_amount' => $totalCancelled,
-                    'refund_reason' => $reason,
+                    'refund_reason'   => $reason,
                 ]);
 
                 return [$order, $items, $itemCancelAmount, $refundedItemsLog];

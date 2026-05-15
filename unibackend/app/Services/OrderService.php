@@ -153,24 +153,51 @@ class OrderService
 
             $isOnDelivery = Order::isOnDeliveryPayment($paymentMethod);
 
-            // Create order
-            $order = Order::create([
-                'user_id' => $userId,
-                'order_number' => Order::generateOrderNumber(),
-                'status' => $isOnDelivery ? 'pending' : 'pending_payment',
-                'subtotal' => $cartTotals['subtotal'],
-                'delivery_fee' => $deliveryFee,
-                'discount' => $discount,
-                'tax' => $tax,
-                'total' => $total,
-                'payment_method' => $paymentMethod,
-                'payment_status' => 'pending',
-                'delivery_address_id' => $deliveryAddressId,
-                'promo_code_snapshot' => $promoSnapshot,
-                'delivery_date' => $deliveryDate,
-                'delivery_time_slot' => $deliveryTimeSlot,
-                'notes' => $notes,
-            ]);
+            // CONCURRENCY HARDENED (audit I12):
+            // Order::generateOrderNumber uses a check-then-insert pattern with
+            // no row lock. Under burst load two requests can pick the same
+            // number; the second hits MySQL 1062 (duplicate key) on the
+            // unique index for `order_number`. Previously this aborted the
+            // whole transaction with locks released. Now we retry up to N
+            // times on 1062, each time picking a fresh candidate; only after
+            // exhausting retries do we bubble the error.
+            $order = null;
+            $lastErr = null;
+            for ($attempt = 1; $attempt <= 5; $attempt++) {
+                try {
+                    $order = Order::create([
+                        'user_id' => $userId,
+                        'order_number' => Order::generateOrderNumber(),
+                        'status' => $isOnDelivery ? 'pending' : 'pending_payment',
+                        'subtotal' => $cartTotals['subtotal'],
+                        'delivery_fee' => $deliveryFee,
+                        'discount' => $discount,
+                        'tax' => $tax,
+                        'total' => $total,
+                        'payment_method' => $paymentMethod,
+                        'payment_status' => 'pending',
+                        'delivery_address_id' => $deliveryAddressId,
+                        'promo_code_snapshot' => $promoSnapshot,
+                        'delivery_date' => $deliveryDate,
+                        'delivery_time_slot' => $deliveryTimeSlot,
+                        'notes' => $notes,
+                    ]);
+                    break;
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // MySQL/MariaDB 1062 = duplicate-key. Anything else: bail.
+                    if ((int) ($e->errorInfo[1] ?? 0) !== 1062) {
+                        throw $e;
+                    }
+                    $lastErr = $e;
+                    Log::warning('order-number collision; retrying', [
+                        'attempt' => $attempt,
+                        'user_id' => $userId,
+                    ]);
+                }
+            }
+            if (! $order) {
+                throw $lastErr ?? new \RuntimeException('Could not allocate unique order number after retries');
+            }
 
             Log::info('Order created', [
                 'order_id' => $order->id,
@@ -222,15 +249,25 @@ class OrderService
                     throw new \Exception('Out of stock [ERR2]: ' . $cartItem->product_id, 422);
                 }
 
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product->barcode,
+                // BUG FIX (Wave 5):
+                // `subtotal` is intentionally NOT in OrderItem::$fillable
+                // (Wave 1 hardening: clients must not be able to set it).
+                // OrderItem::create() with a 'subtotal' key therefore
+                // silently dropped the value, and the DB rejected the
+                // insert with 1364 "Field 'subtotal' doesn't have a default
+                // value". Build the row via mass-assign for fillable columns
+                // and forceFill the server-computed subtotal afterwards.
+                $orderItem = new OrderItem([
+                    'order_id'     => $order->id,
+                    'product_id'   => $product->barcode,
                     'product_name' => $product->name_en,
-                    'product_sku' => (string) $product->barcode,
-                    'quantity' => $cartItem->quantity,
-                    'price' => $cartItem->price,
-                    'subtotal' => $cartItem->quantity * $cartItem->price,
+                    'product_sku'  => (string) $product->barcode,
+                    'quantity'     => $cartItem->quantity,
+                    'price'        => $cartItem->price,
                 ]);
+                $orderItem->forceFill([
+                    'subtotal' => (float) $cartItem->quantity * (float) $cartItem->price,
+                ])->save();
 
                 // Update product stock — atomic guard against negative stock
                 $affected = \App\Models\Product::where('barcode', $product->barcode)

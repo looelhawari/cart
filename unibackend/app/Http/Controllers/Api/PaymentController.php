@@ -489,6 +489,54 @@ class PaymentController extends Controller
                 return response()->json(['message' => 'Invalid data'], 400);
             }
 
+            // ═══════════════════════════════════════════════════════════════
+            // SECURITY HARDENED (audit C6 — payment webhook replay):
+            // The refund webhook (RefundWebhookController) already inserts
+            // into paymob_webhook_events for replay protection + applies a
+            // 10-minute age cutoff. The payment webhook had neither, so a
+            // captured valid payment webhook could be replayed indefinitely
+            // (while the payment row sat in PENDING, e.g. during a real
+            // payment that hadn't arrived yet). Mirror the same pattern here.
+            //
+            // Order matters:
+            //   1. HMAC verify (already done above at line ~441).
+            //   2. Age cutoff (reject anything older than 10 min).
+            //   3. Replay store (insert; duplicates raise DB unique-key
+            //      and we ack idempotently).
+            //
+            // Note we use the row lock + status==PENDING check inside the
+            // transaction below as a SECOND layer, but the replay store is
+            // the only layer that rejects an old captured webhook arriving
+            // AFTER the order has moved past PENDING (e.g. FAILED).
+            $createdAt = $payload['created_at'] ?? null;
+            if ($createdAt) {
+                try {
+                    $age = now()->diffInMinutes(\Carbon\Carbon::parse($createdAt));
+                    if ($age > 10) {
+                        Log::warning('🚫 Stale payment webhook rejected', [
+                            'transaction_id' => $transactionId,
+                            'age_minutes'    => $age,
+                        ]);
+                        return response()->json(['message' => 'Stale webhook'], 400);
+                    }
+                } catch (\Throwable $e) {
+                    return response()->json(['message' => 'Invalid created_at'], 400);
+                }
+            }
+            try {
+                DB::table('paymob_webhook_events')->insert([
+                    'transaction_id' => (string) $transactionId,
+                    'event_type'     => 'payment',
+                    'ip'             => $request->ip(),
+                    'received_at'    => now(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::info('🔁 Payment webhook replay suppressed', [
+                    'transaction_id' => $transactionId,
+                ]);
+                return response()->json(['message' => 'Already processed'], 200);
+            }
+
             // Try finding payment by paymob_order_id first (legacy/old flow)
             $payment = PaymobPayment::where('paymob_order_id', $paymobOrderId)->first();
 

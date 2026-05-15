@@ -160,6 +160,26 @@ class OrderController extends Controller
                 ], 422);
             }
 
+            // GATE: store-open check on every order creation (audit Task 3).
+            // Previously this lived only in CheckoutController::processPayment,
+            // so COD orders bypassed the gate — a customer could place a
+            // cash-on-delivery order while the store was temporarily closed.
+            // Scheduled orders are exempt: a customer placing an order for
+            // tomorrow noon must not be blocked by the store being closed now.
+            $isScheduled = !empty($request->delivery_date);
+            if (! $isScheduled) {
+                $storeStatus = \App\Models\StoreSetting::isStoreOpen();
+                if (! ($storeStatus['is_open'] ?? true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => app()->getLocale() === 'ar'
+                            ? ($storeStatus['message_ar'] ?? __('order.store_closed'))
+                            : ($storeStatus['message_en'] ?? __('order.store_closed')),
+                        'data'    => ['store_status' => $storeStatus],
+                    ], 422);
+                }
+            }
+
             // Validate promo code if provided
             $promoCode = null;
             if ($request->promo_code) {
@@ -690,7 +710,13 @@ class OrderController extends Controller
 
     /**
      * Download invoice as PDF.
-     * GET /api/v1/orders/{id}/invoice/download
+     *
+     * GET /api/v1/orders/{id}/invoice/download?format=a4|thermal80
+     *
+     * `format=thermal80` returns a 80mm × 80mm thermal-receipt PDF designed
+     * for BIXOLON ELLIX35 (and any 80mm thermal POS printer). Falls back to
+     * A4 portrait for any other value, preserving backward compatibility for
+     * existing mobile / dashboard callers that don't pass the param.
      */
     public function invoiceDownload(Request $request, int $id)
     {
@@ -708,11 +734,15 @@ class OrderController extends Controller
                 ->where('user_id', $user->id)
                 ->firstOrFail();
 
-            // Try PDF generation first
-            $pdfBytes = $this->invoiceService->generatePdf($order);
+            // Whitelist the format param — never trust raw user input as a
+            // template selector.
+            $format = $request->query('format') === 'thermal80' ? 'thermal80' : 'a4';
+
+            $pdfBytes = $this->invoiceService->generatePdf($order, $format);
 
             if ($pdfBytes) {
-                $filename = 'Invoice-' . $order->getOrCreateInvoiceNumber() . '.pdf';
+                $suffix = $format === 'thermal80' ? '-thermal80' : '';
+                $filename = 'Invoice-' . $order->getOrCreateInvoiceNumber() . $suffix . '.pdf';
 
                 return response($pdfBytes, 200, [
                     'Content-Type'        => 'application/pdf',
@@ -786,7 +816,13 @@ class OrderController extends Controller
             $filename = 'Invoice-' . $order->getOrCreateInvoiceNumber() . '.pdf';
             $invoiceData = $this->invoiceService->buildInvoiceData($order);
 
-            Mail::to($user->email)->send(new InvoiceMail(
+            // PERFORMANCE HARDENED (audit C12):
+            // ->send() blocks on the SMTP round-trip (up to 30s on a slow
+            // MX) and was a one-call DoS surface — a bot calling this in a
+            // loop could pin every PHP-FPM worker. ->queue() dispatches the
+            // Mailable to the queue (InvoiceMail now implements ShouldQueue),
+            // returning to the client immediately.
+            Mail::to($user->email)->queue(new InvoiceMail(
                 $order->order_number,
                 $user->name ?? 'Customer',
                 $invoiceData['total'],
@@ -797,7 +833,7 @@ class OrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => __('order.invoice_sent_to', ['email' => $user->email]),
-            ]);
+            ], 202);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,

@@ -138,14 +138,37 @@ class StaticPageController extends Controller
 
             $validated = $validator->validated();
 
+            // SECURITY HARDENED (audit C7 — stored XSS via StaticPage):
+            // content_en / content_ar are rendered to every user in the
+            // mobile WebView and the marketing web pages. Without
+            // sanitisation, any admin (or attacker who escalates via the
+            // pre-fix C4 chain) could inject <script>/<iframe>/onerror=...
+            // and own every reader.
+            //
+            // Strategy: strip <script>, <style>, <iframe>, <object>,
+            // <embed>, <link>, <meta> tags entirely, then strip ALL inline
+            // event handlers (on*=...) and javascript: URLs. We keep the
+            // safe formatting tags (p, div, span, br, ul, ol, li, h1-6,
+            // strong/b, em/i, a with href whitelist).
+            $sanitizeHtml = function (string $html): string {
+                // Remove dangerous blocks entirely.
+                $html = preg_replace('#<\s*(script|style|iframe|object|embed|link|meta|form|input|button|svg)\b[^>]*>.*?<\s*/\s*\1\s*>#is', '', $html) ?? '';
+                $html = preg_replace('#<\s*(script|style|iframe|object|embed|link|meta|form|input|button|svg)\b[^>]*/?>#i', '', $html) ?? $html;
+                // Strip inline event handlers ( onload=, onclick=, etc. ).
+                $html = preg_replace('#\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $html) ?? $html;
+                // Neutralise javascript: / data: / vbscript: URIs in href/src.
+                $html = preg_replace('#(href|src|action|formaction|xlink:href)\s*=\s*(?:"|\')\s*(?:javascript|data|vbscript)\s*:[^"\']*(?:"|\')#i', '$1="#"', $html) ?? $html;
+                return $html;
+            };
+
             DB::beginTransaction();
 
             // Update the page
             $page->update([
                 'title_en' => $validated['title_en'],
                 'title_ar' => $validated['title_ar'],
-                'content_en' => $validated['content_en'],
-                'content_ar' => $validated['content_ar'],
+                'content_en' => $sanitizeHtml($validated['content_en']),
+                'content_ar' => $sanitizeHtml($validated['content_ar']),
                 'is_active' => $validated['is_active'] ?? true,
                 'last_updated_at' => now(),
                 'updated_by' => Auth::id(),

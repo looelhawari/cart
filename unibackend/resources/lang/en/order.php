@@ -27,6 +27,8 @@ return [
     'cannot_cancel_all_items' => 'Cannot cancel all items. Use full order cancellation instead.',
     'unexpected_status_cancel' => 'Order is in an unexpected status and cannot be cancelled.',
     'refund_processing_failed' => 'Refund could not be processed. Please try again later or contact support.',
+    'refund_pending_reconciliation' => 'Your refund has been issued to the payment provider but we hit an internal bookkeeping issue. Our team has been alerted and will reconcile it shortly.',
+    'store_closed' => 'The store is currently closed. You can still schedule an order for a later time.',
 
     // Full order cancellation
     'no_payment_no_refund' => 'Order cancelled. No payment was completed, so no refund is needed.',

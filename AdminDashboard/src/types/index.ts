@@ -311,6 +311,11 @@ export interface Order {
     delivery_latitude: number | null
     delivery_longitude: number | null
     delivery_notes: string | null
+    // Wave 5 — Task 4: scheduled-order fields. Both nullable; if
+    // delivery_date is present, treat as scheduled.
+    delivery_date: string | null
+    delivery_time_slot: string | null
+    is_scheduled: boolean
     estimated_delivery_time: string | null
     actual_delivery_time: string | null
     promo_code_id: number | null

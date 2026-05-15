@@ -14,9 +14,20 @@ class AdminReviewController extends Controller
      */
     public function index(Request $request)
     {
-        $perPage = $request->input('per_page', 20);
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortOrder = $request->input('sort_order', 'desc');
+        $perPage = (int) min($request->input('per_page', 20), 100);
+
+        // SECURITY HARDENED (audit C8) — sort_by + sort_order are passed
+        // straight into ->orderBy(), and Eloquent does not validate column
+        // identifiers. Without this whitelist an admin could send
+        // `?sort_order=desc,(SELECT SLEEP(5))` for blind SQLi via timing.
+        $allowedSorts = ['id', 'rating', 'is_approved', 'product_id', 'rating_type', 'created_at', 'updated_at'];
+        $sortBy = in_array($request->input('sort_by'), $allowedSorts, true)
+            ? $request->input('sort_by')
+            : 'created_at';
+        $sortOrder = strtolower((string) $request->input('sort_order', 'desc')) === 'asc'
+            ? 'asc'
+            : 'desc';
+
         $status = $request->input('status');
         $rating = $request->input('rating');
 

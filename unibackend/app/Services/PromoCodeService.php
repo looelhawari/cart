@@ -73,6 +73,16 @@ class PromoCodeService
         $totalDiscount = $discountResult['discount_amount'] + $deliverySavings;
         $finalTotal = $subtotal + $finalDeliveryFee - $discountResult['discount_amount'];
 
+        // KNOWN LIMITATION (audit I13 — BOGO engine duplication):
+        // The numbers returned here are computed by the PREVIEW engine
+        // (PromoCode::calculateDiscount + PromoCodeBogoRule::applyToCart).
+        // The CHARGE-TIME engine used at order creation is
+        // CartService::evaluatePromoForCart. For percentage/fixed_amount/
+        // free_delivery promos the two engines agree; for BOGO rules with
+        // complex eligibility (cross-category get-scope, mixed buy-scope)
+        // they may differ. Flag this in the response so the frontend can
+        // display "Estimated savings" rather than presenting an exact total
+        // the customer will then see change at checkout.
         return $this->success([
             'promo_code' => [
                 'id' => $promoCode->id,
@@ -93,10 +103,12 @@ class PromoCodeService
                 'discount' => $discountResult['discount_amount'],
                 'final_total' => max(0, $finalTotal),
             ],
-            'applied_items' => $discountResult['applied_items'] ?? [],
-            'bogo_details' => $discountResult['bogo_details'] ?? null,
-            'remaining_uses' => $validation['remaining_uses'],
-            'message' => $this->getSuccessMessage($promoCode, $totalDiscount),
+            'applied_items'   => $discountResult['applied_items'] ?? [],
+            'bogo_details'    => $discountResult['bogo_details'] ?? null,
+            'remaining_uses'  => $validation['remaining_uses'],
+            'message'         => $this->getSuccessMessage($promoCode, $totalDiscount),
+            'is_estimate'     => $promoCode->type === 'bogo',  // true only when BOGO engines may diverge
+            'engine'          => 'preview',                    // canonical engine at checkout: CartService::evaluatePromoForCart
         ]);
     }
 
@@ -221,8 +233,24 @@ class PromoCodeService
                 'used_at' => now(),
             ]);
 
-            // Increment used count
-            $promoCode->increment('used_count');
+            // CONCURRENCY HARDENED (audit I9):
+            // Previously this called $promoCode->increment('used_count') on a
+            // free-floating model with no row lock. Under burst load (two
+            // concurrent checkouts using the same code), `OrderService::
+            // finalizePromoUsage` correctly locks the row but this recordUsage
+            // path didn't — both could pass the usage_limit check and the
+            // limit could be exceeded by 1.
+            // Acquire the row lock first, then increment via the locked
+            // instance so the read-modify-write is atomic per row.
+            $locked = PromoCode::where('id', $promoCode->id)
+                ->lockForUpdate()
+                ->first();
+            if ($locked) {
+                $locked->increment('used_count');
+            } else {
+                // Defensive: promo deleted between calc and record.
+                $promoCode->increment('used_count');
+            }
 
             // Clear any cached promo data
             Cache::forget("promo_code_{$promoCode->code}");

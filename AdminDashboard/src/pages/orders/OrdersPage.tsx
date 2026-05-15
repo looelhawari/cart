@@ -36,7 +36,10 @@ export default function OrdersPage() {
 
             <Card>
                 <CardContent className="pt-6">
-                    <div className="grid gap-4 md:grid-cols-4 mb-6">
+                    {/* Wave 5 — Task 4: filter row widened from md:grid-cols-4
+                        to md:grid-cols-5 to fit the new Scheduled-vs-instant
+                        select alongside Status + Payment-status. */}
+                    <div className="grid gap-4 md:grid-cols-5 mb-6">
                         <div className="md:col-span-2">
                             <div className={`flex ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
                                 <Input
@@ -88,6 +91,28 @@ export default function OrdersPage() {
                                 <SelectItem value="refunded">{t('orders.paymentStatus.refunded')}</SelectItem>
                             </SelectContent>
                         </Select>
+                        {/* Wave 5 — Task 4: scheduled-vs-instant filter.
+                            Backend maps ?scheduled=1 -> whereNotNull(delivery_date),
+                            ?scheduled=0 -> whereNull(delivery_date), absent -> both. */}
+                        <Select
+                            value={(filters as any).scheduled !== undefined ? String((filters as any).scheduled) : 'all'}
+                            onValueChange={(value) => {
+                                const next: any = { ...filters, page: 1 }
+                                if (value === '1') next.scheduled = 1
+                                else if (value === '0') next.scheduled = 0
+                                else delete next.scheduled
+                                setFilters(next)
+                            }}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder={t('orders.timing') || 'Timing'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{t('orders.allTiming') || 'All orders'}</SelectItem>
+                                <SelectItem value="0">{t('orders.instantOnly') || 'Instant only'}</SelectItem>
+                                <SelectItem value="1">{t('orders.scheduledOnly') || 'Scheduled only'}</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {isLoading ? (
@@ -111,9 +136,31 @@ export default function OrdersPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {(ordersData?.data as any[] | undefined)?.map((order) => (
-                                            <tr key={order.id} className="border-b hover:bg-gray-50">
-                                                <td className="p-3 font-mono text-sm font-medium">{order.order_number}</td>
+                                        {(ordersData?.data as any[] | undefined)?.map((order) => {
+                                            const isScheduled = Boolean(order.is_scheduled ?? order.delivery_date)
+                                            return (
+                                            <tr
+                                                key={order.id}
+                                                className={`border-b hover:bg-gray-50 ${isScheduled ? 'bg-blue-50/60' : ''}`}
+                                            >
+                                                <td className="p-3 font-mono text-sm font-medium">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span>{order.order_number}</span>
+                                                        {isScheduled && (
+                                                            // Wave 5 — Task 4: scheduled-order badge.
+                                                            // Shows date + slot so dashboard staff
+                                                            // can see at a glance when this order
+                                                            // is for, instead of treating it like
+                                                            // an instant order.
+                                                            <span className="inline-flex items-center gap-1 self-start rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                                                                <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6 2a1 1 0 011 1v1h6V3a1 1 0 112 0v1h1a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm10 5H4v9h12V7z" clipRule="evenodd" /></svg>
+                                                                {t('orders.scheduled') /* falls back to key if not present */}
+                                                                {' '}
+                                                                {[order.delivery_date, order.delivery_time_slot].filter(Boolean).join(' ')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="p-3">
                                                     <div>
                                                         <p className="font-medium">
@@ -151,7 +198,8 @@ export default function OrdersPage() {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                            )
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

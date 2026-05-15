@@ -75,11 +75,23 @@ class PaymentConfirmationService
             ]
         );
 
-        // 3. Update order status — set to 'pending' (same as COD)
-        // Admin will manually confirm the order via dashboard
+        // 3. Update order status.
+        //
+        // FUNCTIONAL FIX (audit C5):
+        // The previous code moved paid card orders to status='pending'
+        // (with a comment "Admin will manually confirm"). But COD and
+        // card_on_delivery orders jump straight to status='confirmed'
+        // (see CheckoutService::payWithCOD / payWithCardOnDelivery), and
+        // DriverController::acceptOrder only accepts status='confirmed'.
+        // The mismatch left paid card orders invisible to drivers until
+        // an admin manually advanced them — broken handoff in practice.
+        //
+        // Now: paid card orders go straight to 'confirmed' for parity with
+        // COD. The "admin must approve" workflow, if it ever becomes a
+        // requirement, should apply uniformly across all payment methods.
         $order->update([
             'payment_status' => 'completed',
-            'status' => 'pending',
+            'status'         => 'confirmed',
         ]);
 
         // 4. Finalize promo + clear cart

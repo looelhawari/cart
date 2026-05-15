@@ -242,7 +242,26 @@ class PromotionController extends Controller
             DB::beginTransaction();
 
             $wasActive = $promotion->is_currently_active;
-            $promotion->update($request->except(['category_ids', 'product_barcodes', 'image', 'banner_image']));
+
+            // SECURITY HARDENED (audit I4 — validation bypass):
+            // Previously used $request->except(...) which leaks unvalidated
+            // request keys straight into Promotion::update(). Because
+            // Promotion::$fillable contains `created_by`, any admin could
+            // post `?created_by=<other_admin_id>` and rewrite the authorship
+            // / audit trail. Use $validator->validated() and strip the
+            // immutable audit columns explicitly.
+            $payload = $validator->validated();
+            unset(
+                $payload['category_ids'],
+                $payload['product_barcodes'],
+                $payload['image'],
+                $payload['banner_image'],
+                $payload['created_by'],   // audit-trail field — must never be client-set on update
+                $payload['id'],
+                $payload['created_at'],
+                $payload['updated_at'],
+            );
+            $promotion->update($payload);
 
             // Handle image uploads
             if ($request->hasFile('image')) {

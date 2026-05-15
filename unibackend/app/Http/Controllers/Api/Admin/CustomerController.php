@@ -131,29 +131,52 @@ class CustomerController extends Controller
     }
 
     /**
-     * Update customer flags (Block, COD Restrict, VIP)
+     * Update customer flags (Block, COD Restrict, VIP).
+     *
+     * FIXED (audit I10 — silent no-op):
+     * Previously called `$customer->update($validated)` with keys
+     * is_active / is_cod_restricted / is_vip / max_order_value — NONE of
+     * which are on User::$fillable (intentionally — they're privileged).
+     * Mass-assignment silently dropped the writes, the admin UI appeared
+     * to "succeed" with HTTP 200, and the flags never actually changed.
+     * Use forceFill() to bypass the fillable guard now that the route is
+     * gated behind permission:customers.manage (audit C4 fix).
+     *
+     * Audit trail: ActivityLog records the actor + before/after diff so
+     * a cashier who slipped past the OR-permission gate (now closed) can
+     * still be detected after the fact.
      */
     public function update(Request $request, $id)
     {
         $customer = User::where('role', 'customer')->findOrFail($id);
-        
+
         $validated = $request->validate([
-            'is_active' => 'sometimes|boolean',
+            'is_active'         => 'sometimes|boolean',
             'is_cod_restricted' => 'sometimes|boolean',
-            'is_vip' => 'sometimes|boolean',
-            'max_order_value' => 'nullable|numeric|min:0',
+            'is_vip'            => 'sometimes|boolean',
+            'max_order_value'   => 'nullable|numeric|min:0',
         ]);
 
-        $customer->update($validated);
-        
-        if (isset($validated['is_active']) && !$validated['is_active']) {
-             $customer->tokens()->delete(); // Logout if banned
+        $before = $customer->only(array_keys($validated));
+        $customer->forceFill($validated)->save();
+
+        \App\Models\ActivityLog::log(
+            'admin_customer_update',
+            $request->user()->id,
+            'User',
+            (int) $customer->id,
+            ['before' => $before, 'after' => $validated],
+        );
+
+        if (array_key_exists('is_active', $validated) && ! $validated['is_active']) {
+            // Logout the customer everywhere if banned.
+            $customer->tokens()->delete();
         }
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Customer profile updated successfully',
-            'data' => $customer
+            'data' => $customer->fresh(),
         ]);
     }
 

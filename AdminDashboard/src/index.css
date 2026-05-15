@@ -325,16 +325,39 @@ body {
 }
 
 @media print {
+    /*
+     * Wave 5 — Task 6 thermal print fix.
+     *
+     * Target: BIXOLON ELLIX35 (and any 80mm thermal POS printer).
+     * The printer driver's page size is "80 x 80 mm[ELLIX35]" as visible in
+     * the Chrome print dialog. Matching @page to that size means Chrome
+     * paginates content every 80mm — the thermal printer then feeds those
+     * "pages" as one continuous strip with no gaps.
+     *
+     * Previous CSS used `size: 80mm auto` which left the page height up to
+     * the browser. That occasionally caused Chrome to render the receipt as
+     * a single oversized page that the driver then tried to scale or split
+     * non-deterministically, producing the misaligned / off-size print the
+     * user reported.
+     *
+     * Margins: 2mm — printer driver typically reserves its own physical
+     * margin around the paper edge; setting margin=0 here would cause our
+     * own content to bleed onto the driver's reserved strip. 2mm is safe.
+     */
     @page {
-        size: 80mm auto;
-        margin: 6mm;
+        size: 80mm 80mm;
+        margin: 2mm;
     }
 
     html,
     body {
         background: #fff !important;
+        color: #000 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        /* Thermal output prints darker for higher weight, so favour bold
+           globally. This compensates for the typical fade on thermal paper. */
+        font-weight: 500;
     }
 
     .no-print {
@@ -348,10 +371,65 @@ body {
 
     .receipt-shell {
         max-width: none !important;
-        width: 100% !important;
+        width: 76mm !important;          /* 80mm page minus 2mm × 2 margin */
+        margin: 0 !important;
         border: 0 !important;
         border-radius: 0 !important;
         box-shadow: none !important;
         padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .receipt {
+        font-size: 9pt !important;
+        line-height: 1.3 !important;
+        color: #000 !important;
+    }
+    .receipt-brand   { font-size: 13pt !important; }
+    .receipt-title   { font-size: 8.5pt !important; }
+    .receipt-section { gap: 3px !important; }
+
+    /* Narrow-page item grid: 80mm leaves no room for 4 wide columns. Collapse
+       price into the same line as quantity, dropping the per-unit price for
+       brevity. If finance needs unit price too, we wrap into a 2-row layout
+       per item (handled below). */
+    .receipt-items-header,
+    .receipt-item {
+        grid-template-columns: 1fr 9mm 17mm !important;
+        gap: 1.5mm !important;
+        font-size: 8.5pt !important;
+        padding: 1mm 0 !important;
+    }
+    .receipt-col-name,
+    .receipt-item-name {
+        word-break: break-word;
+    }
+    .receipt-col-price,
+    .receipt-item-price {
+        display: none !important;        /* drop unit-price column on 80mm */
+    }
+    .receipt-item-qty,
+    .receipt-item-total,
+    .receipt-col-qty,
+    .receipt-col-total {
+        font-size: 8.5pt !important;
+    }
+
+    .receipt-row {
+        gap: 4px !important;
+    }
+    .receipt-divider {
+        margin: 4px 0 !important;
+        border-top: 1px dashed #000 !important;
+    }
+    .receipt-total .receipt-label,
+    .receipt-total .receipt-value {
+        font-size: 11pt !important;
+        font-weight: 800 !important;
+    }
+    .receipt-mono {
+        /* Mono fonts render unevenly on thermal at small sizes; force the
+           default sans-serif which has better hinting. */
+        font-family: inherit !important;
     }
 }

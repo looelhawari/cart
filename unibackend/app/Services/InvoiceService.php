@@ -157,32 +157,58 @@ class InvoiceService
     /**
      * Generate a PDF for the given order and return raw PDF bytes.
      *
-     * Uses dompdf via the built-in Laravel helper (no extra package needed
-     * if barryvdh/laravel-dompdf is installed, but we also support a
-     * plain-HTML download fallback).
+     * @param string $format 'a4' (default, email-friendly A4 portrait) or
+     *                       'thermal80' (80mm x 80mm thermal receipt, e.g.
+     *                       BIXOLON ELLIX35 thermal POS printers).
+     *
+     * Thermal mode (Wave 5 — Task 6 partial):
+     *   - Paper is set to 80mm x 80mm via setPaper([0,0,226.77,226.77]).
+     *     dompdf uses PostScript points: 1mm = 2.83465pt, so 80mm = 226.77pt.
+     *   - Uses a dedicated `invoices.order-invoice-thermal` blade designed
+     *     for narrow paper: single-column, compact spacing, no flex/grid,
+     *     no gradients or emojis (dompdf without an emoji font drops them).
+     *   - Renders RTL with DejaVu Sans (dompdf built-in, has full Arabic
+     *     glyph coverage) when the order's customer is on `ar` locale.
+     *     Output quality is utilitarian, not beautiful — for full Arabic
+     *     typography polish we'd ship Cairo/Tajawal TTFs (separate task).
      */
-    public function generatePdf(Order $order): ?string
+    public function generatePdf(Order $order, string $format = 'a4'): ?string
     {
         $data = $this->buildInvoiceData($order);
+        // Locale derivation: prefer the order's customer language, fall back
+        // to the app's current locale.
+        $locale = strtolower((string) ($order->user->language ?? app()->getLocale() ?? 'en'));
+        if (! in_array($locale, ['en', 'ar'], true)) {
+            $locale = 'en';
+        }
+        $data['locale'] = $locale;
+        $data['dir']    = $locale === 'ar' ? 'rtl' : 'ltr';
 
         try {
-            // Try barryvdh/laravel-dompdf first (preferred)
-            if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('invoices.order-invoice', $data)
-                    ->setPaper('a4', 'portrait');
+            if (! class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+                Log::warning('[InvoiceService] barryvdh/laravel-dompdf not installed – falling back to HTML.');
+                return null;
+            }
 
+            if ($format === 'thermal80') {
+                // 80mm × 80mm — ELLIX35 paper size shown in Chrome's print dialog.
+                // 80mm in PostScript points = 80 * (72/25.4) = 226.77.
+                $pt = static fn (float $mm): float => $mm * 2.83464566929;
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('invoices.order-invoice-thermal', $data)
+                    ->setPaper([0, 0, $pt(80), $pt(80)], 'portrait');
                 return $pdf->output();
             }
 
-            // Fallback: render to HTML (caller can deliver as HTML download)
-            Log::warning('[InvoiceService] barryvdh/laravel-dompdf not installed – falling back to HTML.');
-            return null;
+            // Default A4 portrait — email-attached invoices, customer downloads.
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('invoices.order-invoice', $data)
+                ->setPaper('a4', 'portrait');
+            return $pdf->output();
         } catch (\Throwable $e) {
             Log::error('[InvoiceService] PDF generation failed', [
                 'order_id' => $order->id,
+                'format'   => $format,
                 'error'    => $e->getMessage(),
             ]);
-
             return null;
         }
     }

@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Services\PushNotificationService;
 use App\Services\EnterpriseNotificationService;
 use App\Services\DeliveryZoneService;
+use App\Services\OrderCancellationService;
+use App\Models\ActivityLog;
 use App\Events\OrderStatusUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +37,17 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['user', 'deliveryAddress', 'items'])
+        // FIXED (Wave 5 — Task 5 + Task 4):
+        // (1) Eager-load `items.product` so each line item carries its
+        //     product's image when serialised. Without `.product` here,
+        //     OrderItemResource::toArray() reads `null` for product_image
+        //     and dashboard order rows render no thumbnail.
+        // (2) The list previously returned raw `$orders->items()` so
+        //     `delivery_date` / `delivery_time_slot` reached the dashboard
+        //     by accident but the dashboard couldn't render them properly.
+        //     We now wrap with OrderResource::collection so every consumer
+        //     sees a stable shape.
+        $query = Order::with(['user', 'deliveryAddress', 'items.product'])
             ->select('orders.*');
 
         // Search by order number or customer name
@@ -89,9 +101,36 @@ class OrderController extends Controller
             $query->where('total', '<=', $maxTotal);
         }
 
-        // Sorting
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortOrder = $request->input('sort_order', 'desc');
+        // Scheduled-vs-instant filter (Wave 5 — Task 4):
+        // ?scheduled=1 returns only scheduled (delivery_date NOT NULL).
+        // ?scheduled=0 returns only instant.
+        // Anything else: no filter (returns both).
+        if ($request->has('scheduled')) {
+            $scheduledFlag = filter_var($request->input('scheduled'), FILTER_VALIDATE_BOOLEAN);
+            if ($scheduledFlag) {
+                $query->whereNotNull('delivery_date');
+            } else {
+                $query->whereNull('delivery_date');
+            }
+        }
+
+        // Sorting — SECURITY HARDENED (audit C8 — SQL injection via sort).
+        //
+        // Eloquent's orderBy does NOT validate column names. The previous
+        // code piped $request->input('sort_by') and $request->input('sort_order')
+        // straight in, so an attacker could send
+        //   ?sort_by=id&sort_order=desc,(SELECT SLEEP(5))
+        // and Laravel/PDO would happily pass it through as a raw ORDER BY
+        // fragment. That's blind SQLi via timing on an admin endpoint —
+        // chained with C4 (write-by-viewer) it becomes a real escalation.
+        // Whitelist + force asc/desc.
+        $allowedSorts = ['id', 'order_number', 'total', 'status', 'payment_status', 'created_at', 'updated_at', 'delivery_date'];
+        $sortBy = in_array($request->input('sort_by'), $allowedSorts, true)
+            ? $request->input('sort_by')
+            : 'created_at';
+        $sortOrder = strtolower((string) $request->input('sort_order', 'desc')) === 'asc'
+            ? 'asc'
+            : 'desc';
         $query->orderBy($sortBy, $sortOrder);
 
         // Pagination
@@ -108,10 +147,14 @@ class OrderController extends Controller
             'out_for_delivery_count' => Order::where('status', 'out_for_delivery')->count(),
             'delivered_count' => Order::where('status', 'delivered')->count(),
             'cancelled_count' => Order::where('status', 'cancelled')->count(),
+            'scheduled_count' => Order::whereNotNull('delivery_date')->count(),
         ];
 
+        // Serialise through OrderResource so items[].product_image,
+        // is_scheduled, delivery_date, delivery_time_slot all flow with a
+        // stable shape (audit Tasks 4 + 5).
         return response()->json([
-            'data' => $orders->items(),
+            'data' => \App\Http\Resources\OrderResource::collection($orders->items()),
             'meta' => [
                 'current_page' => $orders->currentPage(),
                 'per_page' => $orders->perPage(),
@@ -133,7 +176,15 @@ class OrderController extends Controller
             'items.product',
         ])->findOrFail($id);
 
-        return response()->json(['data' => $order]);
+        // FIXED (Wave 5 — Task 5):
+        // Previously returned the raw Eloquent model, which serialises as
+        // `items[].product.image` (nested). The dashboard component reads
+        // `items[].product_image` (flat) — produced ONLY when items are
+        // serialised through OrderItemResource. Wrap in OrderResource here
+        // so the field actually arrives.
+        return response()->json([
+            'data' => new \App\Http\Resources\OrderResource($order),
+        ]);
     }
 
     /**
@@ -223,41 +274,77 @@ class OrderController extends Controller
     }
 
     /**
-     * Cancel an order
+     * Cancel an order (admin-initiated).
+     *
+     * SECURITY/MONEY HARDENED (audit C2 — admin cancel bypass):
+     * The previous version did `$order->status = 'cancelled'; $order->save()`
+     * and nothing else. For card-paid orders this kept the customer's money
+     * with Paymob, left no `OrderRefund` audit row, never rolled back the
+     * promo_code used_count, never restored stock, and the admin actor was
+     * silently dropped (`cancelled_by` is not on `Order::$fillable`).
+     *
+     * Routed through `OrderCancellationService::adminCancelOrder` so all
+     * cancels — card, COD, card-on-delivery — flow through the single hardened
+     * pipeline: Paymob refund (where applicable), `OrderRefund` audit row,
+     * promo rollback, stock restore, notifications + email, idempotency-key
+     * gating. ActivityLog records the admin actor explicitly.
      */
-    public function cancel(Request $request, $id)
+    public function cancel(Request $request, $id, OrderCancellationService $cancellationService)
     {
-        $request->validate([
-            'cancellation_reason' => 'required|string',
+        $validated = $request->validate([
+            'cancellation_reason'      => 'required|string|max:500',
+            'override_penalty_percent' => 'sometimes|numeric|min:0|max:100',
         ]);
 
-        $order = Order::findOrFail($id);
+        $admin = $request->user();
+        if (! $admin) {
+            // Defense in depth — route is already auth:sanctum + admin gated.
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
 
-        if (in_array($order->status, ['delivered', 'cancelled'])) {
+        try {
+            $result = $cancellationService->adminCancelOrder(
+                (int) $id,
+                (int) $admin->id,
+                $validated['cancellation_reason'],
+                isset($validated['override_penalty_percent'])
+                    ? (float) $validated['override_penalty_percent']
+                    : null,
+            );
+        } catch (\Throwable $e) {
+            Log::warning('admin-cancel: service threw', [
+                'order_id' => $id,
+                'admin_id' => $admin->id,
+                'error'    => $e->getMessage(),
+            ]);
+            // Map known business-logic failures to 422; anything unrecognised
+            // becomes a generic 422 with safe copy (never the raw exception).
             return response()->json([
-                'message' => 'Cannot cancel an order that is already ' . $order->status,
+                'success' => false,
+                'message' => $e->getMessage() ?: 'Cancellation failed',
             ], 422);
         }
 
-        $order->status = 'cancelled';
-        $order->cancelled_at = now();
-        $order->cancellation_reason = $request->cancellation_reason;
-        $order->save();
-
-        // Send push notification for cancellation
-        if ($order->user_id) {
-            $this->pushNotificationService->sendOrderStatusNotification(
-                $order->user_id,
-                $order->id,
-                $order->order_number,
-                'cancelled',
-                $request->cancellation_reason
-            );
-        }
+        // Authoritative admin audit row — separate from the user-side
+        // ActivityLog already in place inside the service.
+        ActivityLog::log(
+            'admin_order_cancel',
+            $admin->id,
+            'Order',
+            (int) $id,
+            [
+                'reason'  => $validated['cancellation_reason'],
+                'penalty' => $validated['override_penalty_percent'] ?? null,
+            ],
+        );
 
         return response()->json([
-            'message' => 'Order cancelled successfully',
-            'data' => $order,
+            'success' => true,
+            'message' => $result['message'] ?? 'Order cancelled successfully',
+            'data'    => [
+                'refund' => $result['refund'] ?? null,
+                'order'  => $result['order'] ?? null,
+            ],
         ]);
     }
 

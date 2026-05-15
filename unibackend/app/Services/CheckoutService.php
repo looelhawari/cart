@@ -406,8 +406,17 @@ class CheckoutService
         // Tax removed from system
         $tax = 0;
 
-        // Calculate total (no tax)
-        $total = $subtotal + $deliveryFee - $discount;
+        // SECURITY/MONEY HARDENED (audit I14): clamp discount and total so a
+        // misconfigured promo (fixed_amount > subtotal+delivery) cannot
+        // produce a negative total in this preview endpoint. CartService
+        // already does this for the canonical money-time engine; mirroring it
+        // here keeps the preview UI consistent and avoids the "you owe me
+        // money" appearance.
+        $maxDiscountable = $subtotal + $deliveryFee;
+        if ($discount > $maxDiscountable) {
+            $discount = $maxDiscountable;
+        }
+        $total = max(0.0, $subtotal + $deliveryFee - $discount);
 
         return [
             'subtotal' => round($subtotal, 2),

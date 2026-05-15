@@ -3,6 +3,8 @@
 return [
     // Registration
     'registration_successful' => 'تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني.',
+    'registration_pending_verification' => 'أرسلنا رمز التحقق إلى بريدك الإلكتروني. أدخل الرمز لإكمال إنشاء الحساب.',
+    'registration_otp_send_failed' => 'تعذر إرسال بريد التحقق. يرجى المحاولة مرة أخرى بعد قليل.',
 
     // OTP / Verification
     'invalid_or_expired_otp' => 'رمز التحقق غير صالح أو منتهي الصلاحية.',

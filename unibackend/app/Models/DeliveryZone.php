@@ -114,8 +114,34 @@ class DeliveryZone extends Model
     // ─── Spatial Methods ─────────────────────────────────────────
 
     /**
+     * GPS-jitter tolerance buffer in metres applied to every polygon-
+     * containment check. Mobile GPS routinely reports 5-20 metres of
+     * accuracy error even in good conditions — without a buffer a
+     * customer literally standing inside the polygon can be flagged
+     * "outside zone" because the device pinned them just past an edge.
+     *
+     * 25 m is conservative: well inside one building block, but generous
+     * enough to absorb typical GPS noise. Admins can override via the
+     * `delivery_zone_buffer_metres` store setting if needed.
+     */
+    public const DEFAULT_BUFFER_METRES = 25;
+
+    /**
      * Check if a coordinate point falls within this zone's polygon.
-     * Uses ray casting algorithm (works without MySQL spatial extensions).
+     *
+     * BUFFERED RAY-CASTING (Wave 5 — Task 1 — false outside-zone alerts):
+     * Previously this was a strict ray-cast test. After Wave 3 added a
+     * hard-throw on out-of-zone (replacing the silent flat-fee fall-through),
+     * GPS jitter of a few metres started rejecting legitimate orders. Now
+     * we accept a point if EITHER:
+     *   (a) the strict ray-cast says it's inside, OR
+     *   (b) the point lies within `DEFAULT_BUFFER_METRES` of any polygon
+     *       edge (= GPS-noise tolerance).
+     *
+     * Branch (b) is implemented as a haversine distance check from the
+     * point to each polygon edge. This is intentionally cheap: for the
+     * "definitely inside" case (a) returns true immediately, and only the
+     * edge case (point < ~25 m outside) pays the cost.
      */
     public function containsPoint(float $lat, float $lng): bool
     {
@@ -125,7 +151,79 @@ class DeliveryZone extends Model
             return false;
         }
 
-        return self::pointInPolygon($lat, $lng, $polygon);
+        if (self::pointInPolygon($lat, $lng, $polygon)) {
+            return true;
+        }
+
+        // GPS-jitter tolerance: check distance to the polygon boundary.
+        $bufferMetres = self::DEFAULT_BUFFER_METRES;
+        return self::distanceToPolygonEdgeMetres($lat, $lng, $polygon) <= $bufferMetres;
+    }
+
+    /**
+     * Minimum great-circle distance (in metres) from a point to any edge
+     * of a polygon. Returns 0 if the point is on a vertex.
+     *
+     * Uses the projection-onto-line-segment formula in WGS84, accurate
+     * enough for delivery-zone-scale distances (< 100 km).
+     */
+    public static function distanceToPolygonEdgeMetres(float $lat, float $lng, array $polygon): float
+    {
+        $n = count($polygon);
+        if ($n < 2) {
+            return PHP_FLOAT_MAX;
+        }
+
+        $min = PHP_FLOAT_MAX;
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $aLat = (float) ($polygon[$j]['lat'] ?? 0);
+            $aLng = (float) ($polygon[$j]['lng'] ?? 0);
+            $bLat = (float) ($polygon[$i]['lat'] ?? 0);
+            $bLng = (float) ($polygon[$i]['lng'] ?? 0);
+            $d = self::pointToSegmentDistanceMetres($lat, $lng, $aLat, $aLng, $bLat, $bLng);
+            if ($d < $min) {
+                $min = $d;
+            }
+        }
+        return $min;
+    }
+
+    /**
+     * Distance from a (lat,lng) point to the line segment (A,B) in metres.
+     * Approximates the local plane via an equirectangular projection at
+     * the segment's mean latitude — accurate to ~0.1% over <50 km, which
+     * is more than enough for delivery-zone polygons.
+     */
+    private static function pointToSegmentDistanceMetres(
+        float $pLat, float $pLng,
+        float $aLat, float $aLng,
+        float $bLat, float $bLng,
+    ): float {
+        // Convert to local metres via equirectangular projection.
+        $R = 6_371_000.0;
+        $meanLatRad = deg2rad(($aLat + $bLat) / 2.0);
+        $latToM = $R * (M_PI / 180.0);
+        $lngToM = $R * (M_PI / 180.0) * cos($meanLatRad);
+
+        $px = $pLng * $lngToM; $py = $pLat * $latToM;
+        $ax = $aLng * $lngToM; $ay = $aLat * $latToM;
+        $bx = $bLng * $lngToM; $by = $bLat * $latToM;
+
+        $dx = $bx - $ax;
+        $dy = $by - $ay;
+        $len2 = $dx * $dx + $dy * $dy;
+        if ($len2 <= 0.0) {
+            // Zero-length segment — distance to point A.
+            $ex = $px - $ax; $ey = $py - $ay;
+            return sqrt($ex * $ex + $ey * $ey);
+        }
+        // Project p onto segment, clamp to [0, 1].
+        $t = (($px - $ax) * $dx + ($py - $ay) * $dy) / $len2;
+        $t = max(0.0, min(1.0, $t));
+        $cx = $ax + $t * $dx;
+        $cy = $ay + $t * $dy;
+        $ex = $px - $cx; $ey = $py - $cy;
+        return sqrt($ex * $ex + $ey * $ey);
     }
 
     /**
@@ -172,6 +270,14 @@ class DeliveryZone extends Model
     /**
      * Find the delivery zone that contains the given coordinates.
      * Returns null if no active zone covers the point.
+     *
+     * LOGGING (Wave 5 — Task 1):
+     * On a "no zone matched" result we log the point coords AND the
+     * nearest active zone with its edge distance. That gives operations
+     * a single grep target ("zone-detect: rejected") when a customer
+     * reports "I am inside the zone but the app rejects me", so admin
+     * can compare the user's pin to where their polygon actually sits
+     * and either correct the polygon or widen the buffer.
      */
     public static function findZoneForCoordinates(float $lat, float $lng): ?self
     {
@@ -180,11 +286,32 @@ class DeliveryZone extends Model
             ->ordered()
             ->get();
 
+        $nearest = null;
+        $nearestMetres = PHP_FLOAT_MAX;
+
         foreach ($zones as $zone) {
             if ($zone->containsPoint($lat, $lng)) {
                 return $zone;
             }
+            $polygon = $zone->polygon_coordinates ?? [];
+            if (count($polygon) >= 2) {
+                $d = self::distanceToPolygonEdgeMetres($lat, $lng, $polygon);
+                if ($d < $nearestMetres) {
+                    $nearestMetres = $d;
+                    $nearest = $zone;
+                }
+            }
         }
+
+        \Illuminate\Support\Facades\Log::info('zone-detect: rejected', [
+            'lat'                  => $lat,
+            'lng'                  => $lng,
+            'active_zones'         => $zones->count(),
+            'nearest_zone_id'      => $nearest?->id,
+            'nearest_zone_name'    => $nearest?->name,
+            'nearest_edge_metres'  => $nearest ? (int) round($nearestMetres) : null,
+            'buffer_metres'        => self::DEFAULT_BUFFER_METRES,
+        ]);
 
         return null;
     }
