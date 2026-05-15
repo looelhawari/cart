@@ -32,6 +32,15 @@ export interface ProductFilters {
   page?: number;
 }
 
+/**
+ * Pull-to-refresh path passes forceRefresh=true so the cached snapshot is
+ * overwritten with the fresh body. Network-first endpoints accept the flag
+ * for API symmetry but ignore it (they always hit the network first).
+ */
+interface ProductFetchOptions {
+  forceRefresh?: boolean;
+}
+
 // Helper to build query string
 const buildQueryString = (params?: Record<string, any>): string => {
   if (!params) return "";
@@ -46,11 +55,11 @@ const buildQueryString = (params?: Record<string, any>): string => {
 };
 
 /**
- * Get all products with optional filters
+ * Get all products with optional filters (network-first; offline fallback).
  */
 export const getProducts = async (
   filters?: ProductFilters,
-  useCache: boolean = true,
+  _options: ProductFetchOptions = {},
 ): Promise<ProductsResponse> => {
   const queryString = buildQueryString(filters);
   const cacheKey = `products:all${queryString}`;
@@ -78,19 +87,15 @@ export const getProducts = async (
     }
   };
 
-  if (useCache) {
-    return await networkFirstFetch(cacheKey, fetchFn, 5 * 60 * 1000); // 5 minutes
-  }
-
-  return await fetchFn();
+  return await networkFirstFetch(cacheKey, fetchFn, 5 * 60 * 1000);
 };
 
 /**
- * Get single product by barcode
+ * Get single product by barcode. Cache-first; forceRefresh overwrites.
  */
 export const getProduct = async (
   barcode: number | string,
-  useCache: boolean = true,
+  options: ProductFetchOptions = {},
 ): Promise<ProductResponse> => {
   const fetchFn = async () => {
     try {
@@ -117,19 +122,18 @@ export const getProduct = async (
     }
   };
 
-  if (useCache) {
-    return await cacheFirstFetch(`product:${barcode}`, fetchFn, {
-      ttl: 15 * 60 * 1000, // 15 minutes
-    });
-  }
-
-  return await fetchFn();
+  return await cacheFirstFetch(`product:${barcode}`, fetchFn, {
+    ttl: 15 * 60 * 1000,
+    forceRefresh: options.forceRefresh ?? false,
+  });
 };
 
 /**
- * Get featured products
+ * Get featured products (network-first; offline fallback to cache).
  */
-export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
+export const getFeaturedProducts = async (
+  _options: ProductFetchOptions = {},
+): Promise<ProductsResponse> => {
   const fetchFn = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/products/featured`, {
@@ -159,9 +163,11 @@ export const getFeaturedProducts = async (): Promise<ProductsResponse> => {
 };
 
 /**
- * Get flash deals (products on sale)
+ * Get flash deals (network-first; offline fallback).
  */
-export const getFlashDeals = async (): Promise<ProductsResponse> => {
+export const getFlashDeals = async (
+  _options: ProductFetchOptions = {},
+): Promise<ProductsResponse> => {
   const fetchFn = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/products/flash-deals`, {

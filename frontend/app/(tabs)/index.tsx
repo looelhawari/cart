@@ -136,9 +136,14 @@ export default function HomeScreen() {
   const loadCategoryOffers = async (
     allCategories: Category[],
     displayCats: Category[],
+    forceRefresh = false,
   ) => {
     try {
-      const offers = await fetchActiveOffersCached();
+      // Pull-to-refresh: bypass the cached active-offers snapshot so an
+      // admin-disabled offer disappears from the home-page badges
+      // immediately. Without this, the in-memory cache (5 min TTL) could
+      // keep painting a "15% OFF" badge after the offer was deactivated.
+      const offers = await fetchActiveOffersCached(forceRefresh);
       const discountMap = new Map<number, number>();
 
       for (const offer of offers) {
@@ -175,16 +180,24 @@ export default function HomeScreen() {
   };
 
   // ─── Data loading ─────────────────────────────────────────────────────────
-  const loadData = useCallback(async () => {
+  //
+  // Two paths:
+  //   - Initial mount (force=false): show cached snapshot immediately if
+  //     present, then refresh in background. The user sees data the
+  //     instant the home tab opens — even on a cold app start.
+  //   - Pull-to-refresh (force=true): bypass every cache and hit the
+  //     network. This is the only path that can evict an offer the
+  //     admin disabled while the user was offline.
+  const loadData = useCallback(async (force = false) => {
     try {
-      if (!refreshing) setLoading(true);
+      if (!force) setLoading(true);
 
       const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] =
         await Promise.all([
-          getFeaturedCategoriesWithProducts(),
-          getCategories(),
-          getFeaturedProducts(),
-          getFlashDeals(),
+          getFeaturedCategoriesWithProducts({ forceRefresh: force }),
+          getCategories({ forceRefresh: force }),
+          getFeaturedProducts({ forceRefresh: force }),
+          getFlashDeals({ forceRefresh: force }),
         ]);
 
       if (categoriesRes.success) {
@@ -193,7 +206,7 @@ export default function HomeScreen() {
       if (allCategoriesRes.success) {
         const rootCats = allCategoriesRes.data.categories.slice(0, 8);
         setQuickCategories(rootCats);
-        loadCategoryOffers(allCategoriesRes.data.categories, rootCats);
+        loadCategoryOffers(allCategoriesRes.data.categories, rootCats, force);
       }
       if (featuredRes.success) {
         setFeaturedProducts(featuredRes.data.products);
@@ -218,7 +231,7 @@ export default function HomeScreen() {
         }),
       ]).start();
     }
-  }, [refreshing, fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim]);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -245,7 +258,10 @@ export default function HomeScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), fetchUnreadCount()]);
+    // force=true bypasses the AsyncStorage cache and hits the network.
+    // The only way an admin-disabled / expired offer disappears from the
+    // home page is via this code path.
+    await Promise.all([loadData(true), fetchUnreadCount()]);
     setRefreshing(false);
   }, [loadData, fetchUnreadCount]);
 

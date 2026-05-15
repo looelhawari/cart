@@ -72,9 +72,12 @@ export default function CategoriesScreen() {
    * Fetch active offers and compute which root categories have discounts.
    * Covers both direct category targets and subcategory targets via include_subcategories.
    */
-  const loadCategoryOffers = async (rootCategories?: Category[]) => {
+  const loadCategoryOffers = async (
+    rootCategories?: Category[],
+    forceRefresh = false,
+  ) => {
     try {
-      const offers = await fetchActiveOffersCached();
+      const offers = await fetchActiveOffersCached(forceRefresh);
       const discountMap = new Map<number, number>();
 
       // Get the category list — use passed-in or current state
@@ -122,7 +125,7 @@ export default function CategoriesScreen() {
   const loadCategories = async (forceRefresh = false) => {
     try {
       setLoading(true);
-      const response = await getCategories(!forceRefresh);
+      const response = await getCategories({ forceRefresh });
 
       if (response.success) {
         const rootCategories = response.data.categories
@@ -134,8 +137,10 @@ export default function CategoriesScreen() {
 
         setCategories(rootCategories);
 
-        // Load category offer badges with the fresh root categories
-        loadCategoryOffers(rootCategories);
+        // Load category offer badges with the fresh root categories.
+        // Pull-to-refresh propagates forceRefresh so badges for newly
+        // disabled offers disappear in the same gesture.
+        loadCategoryOffers(rootCategories, forceRefresh);
 
         // Preload images
         const imageUrls = rootCategories

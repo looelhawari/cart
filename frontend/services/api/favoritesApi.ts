@@ -28,10 +28,27 @@ export interface FavoriteResponse {
   };
 }
 
+/**
+ * Pull-to-refresh on the favorites screen passes forceRefresh=true so the
+ * cached snapshot is replaced with fresh data. add/remove mutations
+ * invalidate the favorites:* prefix automatically.
+ */
+interface FavoritesFetchOptions {
+  forceRefresh?: boolean;
+}
+
+const FAVORITES_TTL = 24 * 60 * 60 * 1000;
+const FAVORITES_INVALIDATE = ["favorites"];
+
 export const listFavorites = async (
   perPage: number = 50,
+  options: FavoritesFetchOptions = {},
 ): Promise<FavoritesResponse> => {
-  return await apiRequest<FavoritesResponse>(`/favorites?per_page=${perPage}`);
+  return await apiRequest<FavoritesResponse>(`/favorites?per_page=${perPage}`, {
+    cacheKey: `favorites:list:${perPage}`,
+    cacheTtlMs: FAVORITES_TTL,
+    forceRefresh: options.forceRefresh,
+  });
 };
 
 export const addFavorite = async (
@@ -40,6 +57,7 @@ export const addFavorite = async (
   return await apiRequest<FavoriteResponse>("/favorites", {
     method: "POST",
     body: JSON.stringify({ product_id: productId }),
+    invalidatePrefixes: FAVORITES_INVALIDATE,
   });
 };
 
@@ -48,5 +66,6 @@ export const removeFavorite = async (
 ): Promise<FavoriteResponse> => {
   return await apiRequest<FavoriteResponse>(`/favorites/${productId}`, {
     method: "DELETE",
+    invalidatePrefixes: FAVORITES_INVALIDATE,
   });
 };

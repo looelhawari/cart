@@ -104,32 +104,48 @@ const authHeaders = async (): Promise<HeadersInit> => {
   };
 };
 
+/**
+ * Pull-to-refresh on the complaints screen passes forceRefresh=true.
+ * Mutations (create/reply/close/escalate/rate) invalidate the complaints
+ * prefix so the next list/detail read pulls a fresh server copy.
+ */
+interface ComplaintsFetchOptions {
+  forceRefresh?: boolean;
+}
+
+const COMPLAINTS_TTL = 5 * 60 * 1000;
+const COMPLAINTS_INVALIDATE = ["complaints"];
+
 export const listComplaints = async (
   status?: string,
   perPage: number = 20,
+  options: ComplaintsFetchOptions = {},
 ): Promise<ComplaintsResponse> => {
   const query = new URLSearchParams();
   if (status) query.set("status", status);
   query.set("per_page", perPage.toString());
 
-  const response = await fetch(
-    `${API_BASE_URL}/complaints?${query.toString()}`,
+  return apiRequest<ComplaintsResponse>(
+    `/complaints?${query.toString()}`,
     {
       method: "GET",
-      headers: await authHeaders(),
+      cacheKey: `complaints:list:${query.toString()}`,
+      cacheTtlMs: COMPLAINTS_TTL,
+      forceRefresh: options.forceRefresh,
     },
   );
-
-  return await safeResponseJson(response);
 };
 
-export const getComplaint = async (id: number): Promise<ComplaintResponse> => {
-  const response = await fetch(`${API_BASE_URL}/complaints/${id}`, {
+export const getComplaint = async (
+  id: number,
+  options: ComplaintsFetchOptions = {},
+): Promise<ComplaintResponse> => {
+  return apiRequest<ComplaintResponse>(`/complaints/${id}`, {
     method: "GET",
-    headers: await authHeaders(),
+    cacheKey: `complaints:detail:${id}`,
+    cacheTtlMs: COMPLAINTS_TTL,
+    forceRefresh: options.forceRefresh,
   });
-
-  return await safeResponseJson(response);
 };
 
 export const createComplaint = async (
@@ -162,6 +178,7 @@ export const createComplaint = async (
       "Content-Type": "multipart/form-data",
     },
     body: formData,
+    invalidatePrefixes: COMPLAINTS_INVALIDATE,
   });
 };
 
@@ -172,6 +189,7 @@ export const replyToComplaint = async (
   return await apiRequest<ReplyResponse>(`/complaints/${complaintId}/messages`, {
     method: "POST",
     body: JSON.stringify({ message }),
+    invalidatePrefixes: COMPLAINTS_INVALIDATE,
   });
 };
 
@@ -180,6 +198,7 @@ export const closeComplaint = async (
 ): Promise<{ success: boolean }> => {
   return await apiRequest<{ success: boolean }>(`/complaints/${id}/close`, {
     method: "POST",
+    invalidatePrefixes: COMPLAINTS_INVALIDATE,
   });
 };
 
@@ -202,6 +221,7 @@ export const escalateToAgent = async (
     {
       method: "POST",
       body: JSON.stringify({ reason }),
+      invalidatePrefixes: COMPLAINTS_INVALIDATE,
     },
   );
 };
@@ -214,5 +234,6 @@ export const rateBotExperience = async (
   return await apiRequest<{ success: boolean }>(`/complaints/${id}/rate-bot`, {
     method: "POST",
     body: JSON.stringify({ rating, feedback }),
+    invalidatePrefixes: COMPLAINTS_INVALIDATE,
   });
 };

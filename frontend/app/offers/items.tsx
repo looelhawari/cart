@@ -124,10 +124,11 @@ const fetchAllProductsByCategory = async (
   const allProducts: Product[] = [];
 
   while (page <= lastPage) {
-    const response = await getProducts(
-      { category_id: categoryId, per_page: 100, page },
-      false,
-    );
+    const response = await getProducts({
+      category_id: categoryId,
+      per_page: 100,
+      page,
+    });
     if (!response.success) {
       break;
     }
@@ -180,10 +181,7 @@ export default function OfferItemsScreen() {
           const getItems: DisplayProduct[] = [];
 
           if (rule.buy_scope === "product" && rule.buy_product_id) {
-            const productResponse = await getProduct(
-              rule.buy_product_id,
-              false,
-            );
+            const productResponse = await getProduct(rule.buy_product_id);
             buyItems.push(
               toDisplayProduct(
                 {
@@ -221,10 +219,7 @@ export default function OfferItemsScreen() {
           }
 
           if (rule.get_scope === "product" && rule.get_product_id) {
-            const productResponse = await getProduct(
-              rule.get_product_id,
-              false,
-            );
+            const productResponse = await getProduct(rule.get_product_id);
             getItems.push(
               toDisplayProduct(
                 {

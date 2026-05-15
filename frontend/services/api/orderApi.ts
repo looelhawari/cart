@@ -1,11 +1,45 @@
 ﻿import {
   API_BASE_URL,
+  apiRequest,
   safeJsonParse,
   safeResponseJson,
   getAuthToken,
 } from "./base";
 import { getSessionId } from "./cartApi";
 import type { PromoSummary } from "./types";
+
+/**
+ * Pull-to-refresh on the orders tab passes forceRefresh=true so the cached
+ * list snapshot is replaced with the freshly fetched body. Mutations
+ * (create/cancel/reorder/partial-cancel) invalidate the "orders" prefix
+ * inside apiRequest so the next read cannot return a stale list.
+ */
+interface OrderFetchOptions {
+  forceRefresh?: boolean;
+}
+
+const ORDERS_LIST_TTL = 5 * 60 * 1000; // 5 min — short, orders change often
+const ORDER_DETAIL_TTL = 5 * 60 * 1000;
+
+/**
+ * Drop every cached orders:* entry. Call after any mutation that changes
+ * the order list/detail (create, cancel, reorder, partial-cancel). The
+ * next getOrders/getOrder call will miss the cache and hit the server.
+ */
+const invalidateOrdersCache = async (): Promise<void> => {
+  try {
+    const AsyncStorage = (
+      await import("@react-native-async-storage/async-storage")
+    ).default;
+    const allKeys = await AsyncStorage.getAllKeys();
+    const targets = allKeys.filter((k) => k.startsWith("@api_cache:orders"));
+    if (targets.length > 0) {
+      await AsyncStorage.multiRemove(targets);
+    }
+  } catch {
+    /* best-effort */
+  }
+};
 
 export interface OrderItem {
   id: number;
@@ -255,63 +289,39 @@ export interface InvoiceData {
 
 export const orderApi = {
   /**
-   * Get user's orders with optional status filter
+   * Get user's orders with optional status filter. Cache-first; the orders
+   * tab passes forceRefresh=true on pull-to-refresh.
    */
   getOrders: async (
     status?: string,
     page: number = 1,
     perPage: number = 10,
+    options: OrderFetchOptions = {},
   ) => {
-    const token = await getAuthToken();
     const queryParams = new URLSearchParams();
     if (status) queryParams.append("status", status);
     queryParams.append("page", page.toString());
     queryParams.append("per_page", perPage.toString());
 
-    const response = await fetch(`${API_BASE_URL}/orders?${queryParams}`, {
+    return apiRequest<any>(`/orders?${queryParams}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json; charset=utf-8",
-        "ngrok-skip-browser-warning": "true",
-        "User-Agent": "CART-Mobile-App",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
+      cacheKey: `orders:list:${queryParams.toString()}`,
+      cacheTtlMs: ORDERS_LIST_TTL,
+      forceRefresh: options.forceRefresh,
     });
-
-    // Use safeResponseJson to handle JSON errors gracefully
-    const data = await safeResponseJson(response);
-
-    if (!response.ok) {
-      throw new Error(data.message || `HTTP ${response.status}`);
-    }
-
-    return data;
   },
 
   /**
-   * Get a single order by ID
+   * Get a single order by ID. Cache-first; reorder/cancel paths and the
+   * order-detail screen's pull-to-refresh pass forceRefresh=true.
    */
-  getOrder: async (orderId: number) => {
-    const token = await getAuthToken();
-
-    const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+  getOrder: async (orderId: number, options: OrderFetchOptions = {}) => {
+    return apiRequest<any>(`/orders/${orderId}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json; charset=utf-8",
-        "ngrok-skip-browser-warning": "true",
-        "User-Agent": "CART-Mobile-App",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
+      cacheKey: `orders:detail:${orderId}`,
+      cacheTtlMs: ORDER_DETAIL_TTL,
+      forceRefresh: options.forceRefresh,
     });
-
-    if (!response.ok) {
-      const error = await safeJsonParse(response);
-      throw error;
-    }
-
-    return await safeJsonParse(response);
   },
 
   /**
@@ -339,7 +349,9 @@ export const orderApi = {
       throw error;
     }
 
-    return await safeJsonParse(response);
+    const payload = await safeJsonParse(response);
+    await invalidateOrdersCache();
+    return payload;
   },
 
   /**
@@ -369,6 +381,7 @@ export const orderApi = {
       throw new Error(data?.message || "Failed to cancel order");
     }
 
+    await invalidateOrdersCache();
     return data;
   },
 
@@ -456,7 +469,10 @@ export const orderApi = {
       throw error;
     }
 
-    return await safeJsonParse(response);
+    const payload = await safeJsonParse(response);
+    // Reorder mutates the cart, not orders, but the cart cache (if any) is
+    // managed elsewhere — orders list is unchanged, so nothing to invalidate.
+    return payload;
   },
 
   /**
@@ -517,7 +533,9 @@ export const orderApi = {
       throw error;
     }
 
-    return await safeJsonParse(response);
+    const payload = await safeJsonParse(response);
+    await invalidateOrdersCache();
+    return payload;
   },
 
   /**

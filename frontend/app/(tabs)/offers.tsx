@@ -328,9 +328,24 @@ export default function OffersScreen() {
   // ─────────────────────────────────────────────────
   // DATA LOADING
   // ─────────────────────────────────────────────────
-  const loadData = useCallback(async () => {
+  /**
+   * Load offers + promotions data.
+   *
+   * Two paths:
+   *   - Initial / focus load (force=false): returns cached snapshot
+   *     instantly if available (so the screen paints fresh-from-cache
+   *     and the user doesn't see a flash of "Loading"). Background
+   *     refresh keeps the data current — staleness gated by the API
+   *     wrapper's TTL.
+   *   - Pull-to-refresh (force=true): bypasses the cache and hits the
+   *     network. This is the user's explicit "I want fresh data" signal
+   *     and is also how a stale ghost offer (e.g. one the admin
+   *     disabled while the user wasn't online) gets evicted from the
+   *     local snapshot.
+   */
+  const loadData = useCallback(async (force = false) => {
     try {
-      if (!refreshing) {
+      if (!force) {
         setLoading(true);
         setError(null);
         fadeAnim.setValue(0);
@@ -338,15 +353,18 @@ export default function OffersScreen() {
       }
 
       const [promoRes, offersRes, summaryRes] = await Promise.all([
-        getPromotions({}).catch(() => ({
+        getPromotions({}, { forceRefresh: force }).catch(() => ({
           success: false,
           data: { promotions: [] as Promotion[] },
         })),
-        getOffers({ status: "active", sort: "recommended" }).catch(() => ({
+        getOffers(
+          { status: "active", sort: "recommended" },
+          { forceRefresh: force },
+        ).catch(() => ({
           success: false,
           data: { offers: [] as Offer[], meta: { count: 0 } },
         })),
-        getOffersSummary().catch(() => null),
+        getOffersSummary({ forceRefresh: force }).catch(() => null),
       ]);
 
       if (promoRes.success) {
@@ -369,7 +387,7 @@ export default function OffersScreen() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshing]);
+  }, []);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -399,7 +417,10 @@ export default function OffersScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    // force=true bypasses the AsyncStorage cache and hits the network.
+    // This is the only way to evict an offer that was removed/disabled
+    // by the admin while the user wasn't connected.
+    await loadData(true);
     setRefreshing(false);
   }, [loadData]);
 

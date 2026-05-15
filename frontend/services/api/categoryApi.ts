@@ -48,50 +48,68 @@ export interface FeaturedCategoriesResponse {
 }
 
 /**
- * Get categories with featured products for home page
+ * Shared fetch options across all category endpoints.
+ *
+ *   forceRefresh: pull-to-refresh path — skip the cache read, hit the
+ *   network, and overwrite the saved snapshot with the fresh body so the
+ *   next cold app open sees current data.
  */
-export const getFeaturedCategoriesWithProducts =
-  async (): Promise<FeaturedCategoriesResponse> => {
-    const fetchFn = async () => {
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/categories/featured-with-products`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-          },
-        );
-
-        if (!response.ok) {
-          return { success: false, data: { categories: [] } };
-        }
-
-        const data = await safeResponseJson(response);
-        if (!data.success) {
-          return { success: false, data: { categories: [] } };
-        }
-        return data;
-      } catch (error) {
-        console.error("getFeaturedCategoriesWithProducts error:", error);
-        return { success: false, data: { categories: [] } };
-      }
-    };
-
-    return await networkFirstFetch(
-      "categories:featured-with-products",
-      fetchFn,
-      5 * 60 * 1000,
-    );
-  };
+interface CategoryFetchOptions {
+  forceRefresh?: boolean;
+}
 
 /**
- * Get all categories
+ * Get categories with featured products for home page.
+ *
+ * Uses network-first: always tries the network, falls back to the cached
+ * snapshot only when offline. forceRefresh is accepted for API symmetry but
+ * has no practical effect here — network-first already bypasses the cache
+ * read by design.
+ */
+export const getFeaturedCategoriesWithProducts = async (
+  _options: CategoryFetchOptions = {},
+): Promise<FeaturedCategoriesResponse> => {
+  const fetchFn = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/categories/featured-with-products`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        return { success: false, data: { categories: [] } };
+      }
+
+      const data = await safeResponseJson(response);
+      if (!data.success) {
+        return { success: false, data: { categories: [] } };
+      }
+      return data;
+    } catch (error) {
+      console.error("getFeaturedCategoriesWithProducts error:", error);
+      return { success: false, data: { categories: [] } };
+    }
+  };
+
+  return await networkFirstFetch(
+    "categories:featured-with-products",
+    fetchFn,
+    5 * 60 * 1000,
+  );
+};
+
+/**
+ * Get all categories. Cache-first by default; pull-to-refresh paths pass
+ * forceRefresh=true so the cached snapshot is replaced with fresh data.
  */
 export const getCategories = async (
-  useCache: boolean = true,
+  options: CategoryFetchOptions = {},
 ): Promise<CategoriesResponse> => {
   const fetchFn = async () => {
     try {
@@ -118,22 +136,18 @@ export const getCategories = async (
     }
   };
 
-  if (useCache) {
-    return await cacheFirstFetch("categories:all", fetchFn, {
-      ttl: 10 * 60 * 1000, // 10 minutes
-      forceRefresh: false, // Allow cache but it will be fresh from server if expired
-    });
-  }
-
-  return await fetchFn();
+  return await cacheFirstFetch("categories:all", fetchFn, {
+    ttl: 10 * 60 * 1000,
+    forceRefresh: options.forceRefresh ?? false,
+  });
 };
 
 /**
- * Get single category
+ * Get single category. Cache-first; forceRefresh re-fetches and overwrites.
  */
 export const getCategory = async (
   categoryId: number,
-  useCache: boolean = true,
+  options: CategoryFetchOptions = {},
 ): Promise<CategoryResponse> => {
   const fetchFn = async () => {
     try {
@@ -160,17 +174,14 @@ export const getCategory = async (
     }
   };
 
-  if (useCache) {
-    return await cacheFirstFetch(`category:${categoryId}`, fetchFn, {
-      ttl: 10 * 60 * 1000, // 10 minutes
-    });
-  }
-
-  return await fetchFn();
+  return await cacheFirstFetch(`category:${categoryId}`, fetchFn, {
+    ttl: 10 * 60 * 1000,
+    forceRefresh: options.forceRefresh ?? false,
+  });
 };
 
 /**
- * Get category with its products
+ * Get category with its products (network-first; offline fallback to cache).
  */
 export const getCategoryProducts = async (
   categoryId: number,
@@ -185,7 +196,7 @@ export const getCategoryProducts = async (
     per_page?: number;
     page?: number;
   },
-  useCache: boolean = true,
+  _options: CategoryFetchOptions = {},
 ): Promise<CategoryProductsResponse> => {
   const queryParams = new URLSearchParams();
   if (filters?.subcategory_id)
@@ -234,9 +245,5 @@ export const getCategoryProducts = async (
     }
   };
 
-  if (useCache) {
-    return await networkFirstFetch(cacheKey, fetchFn, 5 * 60 * 1000); // 5 minutes
-  }
-
-  return await fetchFn();
+  return await networkFirstFetch(cacheKey, fetchFn, 5 * 60 * 1000);
 };

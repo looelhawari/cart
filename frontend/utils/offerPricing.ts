@@ -15,6 +15,17 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 let cachedActiveOffers: Offer[] | null = null;
 let cachedAt = 0;
 
+/**
+ * Reset the in-memory + persistent offer cache. Called when:
+ *   - the user pulls-to-refresh on home / offers
+ *   - the user logs out (different account => different visible offers)
+ *   - the admin pushes an offer state change (real-time invalidation)
+ */
+export const invalidateActiveOffersCache = () => {
+  cachedActiveOffers = null;
+  cachedAt = 0;
+};
+
 const toNumber = (value?: number | string | null) => {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
@@ -42,12 +53,26 @@ const getProductCategories = (product: Product): Category[] => {
   return [];
 };
 
-export const fetchActiveOffersCached = async (): Promise<Offer[]> => {
-  if (cachedActiveOffers && Date.now() - cachedAt < CACHE_TTL_MS) {
+/**
+ * Read the active-offers list, caching for 5 min in memory + 10 min on
+ * disk (the AsyncStorage layer underneath getOffers).
+ *
+ * Pass forceRefresh=true to bypass BOTH layers — pull-to-refresh and
+ * post-mutation paths use this so a deactivated offer cannot keep
+ * painting badges after the admin disables it.
+ */
+export const fetchActiveOffersCached = async (
+  forceRefresh = false,
+): Promise<Offer[]> => {
+  if (
+    !forceRefresh &&
+    cachedActiveOffers &&
+    Date.now() - cachedAt < CACHE_TTL_MS
+  ) {
     return cachedActiveOffers;
   }
 
-  const response = await getOffers({ status: "active" });
+  const response = await getOffers({ status: "active" }, { forceRefresh });
   const offers = response.data.offers || [];
   cachedActiveOffers = offers;
   cachedAt = Date.now();

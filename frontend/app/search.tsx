@@ -155,7 +155,7 @@ export default function SearchScreen() {
 
   const loadCategories = async () => {
     try {
-      const response = await getCategories(true);
+      const response = await getCategories();
       if (response.success) {
         setCategories(response.data.categories.slice(0, 9));
       }
@@ -259,17 +259,14 @@ export default function SearchScreen() {
 
       try {
         const sortConfig = SORT_OPTIONS.find((s) => s.key === selectedSort);
-        const response = await getProducts(
-          {
-            search: trimmed || undefined,
-            category_id: selectedCategory || undefined,
-            sort_by: (sortConfig?.sortBy as any) || undefined,
-            sort_order: (sortConfig?.sortOrder as any) || undefined,
-            per_page: 20,
-            page,
-          },
-          false,
-        );
+        const response = await getProducts({
+          search: trimmed || undefined,
+          category_id: selectedCategory || undefined,
+          sort_by: (sortConfig?.sortBy as any) || undefined,
+          sort_order: (sortConfig?.sortOrder as any) || undefined,
+          per_page: 20,
+          page,
+        });
 
         // Discard stale results if user typed more since this search started
         if (searchVersionRef.current !== ver && !append) return;

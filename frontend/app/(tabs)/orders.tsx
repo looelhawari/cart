@@ -61,7 +61,11 @@ export default function OrdersScreen() {
   const lastFetchRef = useRef<number>(0);
   const authFailedRef = useRef<boolean>(false);
 
-  const fetchOrders = async (page: number = 1, append: boolean = false) => {
+  const fetchOrders = async (
+    page: number = 1,
+    append: boolean = false,
+    forceRefresh: boolean = false,
+  ) => {
     // Don't attempt if a previous fetch failed due to auth
     if (authFailedRef.current) return;
 
@@ -71,7 +75,9 @@ export default function OrdersScreen() {
       } else {
         setLoadingMore(true);
       }
-      const response = await orderApi.getOrders(undefined, page, 15);
+      const response = await orderApi.getOrders(undefined, page, 15, {
+        forceRefresh,
+      });
 
       // Handle various response formats
       let ordersData: Order[] = [];
@@ -214,7 +220,10 @@ export default function OrdersScreen() {
     setRefreshing(true);
     setCurrentPage(1);
     setHasMore(true);
-    await fetchOrders(1, false);
+    // forceRefresh=true bypasses the AsyncStorage snapshot — the only way
+    // a newly-cancelled order disappears (or a new one appears) before the
+    // 5-min TTL elapses naturally.
+    await fetchOrders(1, false, true);
     setRefreshing(false);
   }, []);
 

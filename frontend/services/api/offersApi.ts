@@ -1,4 +1,4 @@
-import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
+import { apiRequest } from "./base";
 import { getSessionId } from "./cartApi";
 import type { Offer, OffersResponse, OffersSummaryResponse } from "./types";
 
@@ -12,10 +12,33 @@ export interface OffersQueryParams {
   sort?: "recommended" | "ending_soon" | "biggest_savings" | "newest";
 }
 
+export interface FetchOptions {
+  /** Pull-to-refresh path — skip the AsyncStorage cache, hit the network. */
+  forceRefresh?: boolean;
+}
+
+/**
+ * Stable cache key from the params object. Order-independent and bounded —
+ * different filter combinations cache to different keys, but the same
+ * filters always produce the same key (no spurious cache misses from
+ * object-identity changes).
+ */
+const buildOffersCacheKey = (params: OffersQueryParams): string => {
+  const parts: string[] = [];
+  if (params.status) parts.push(`s=${params.status}`);
+  if (params.type) parts.push(`t=${params.type}`);
+  if (params.applies_to) parts.push(`a=${params.applies_to}`);
+  if (params.ending_soon) parts.push(`es=1`);
+  if (params.for_you) parts.push(`fy=1`);
+  if (params.search) parts.push(`q=${params.search}`);
+  if (params.sort) parts.push(`o=${params.sort}`);
+  return `offers:list:${parts.sort().join(":")}`;
+};
+
 export const getOffers = async (
   params: OffersQueryParams = {},
+  options: FetchOptions = {},
 ): Promise<OffersResponse> => {
-  const token = await getAuthToken();
   const sessionId = await getSessionId();
 
   const query = new URLSearchParams();
@@ -27,42 +50,29 @@ export const getOffers = async (
   if (params.search) query.set("search", params.search);
   if (params.sort) query.set("sort", params.sort);
 
-  const response = await fetch(`${API_BASE_URL}/offers?${query.toString()}`, {
+  return apiRequest<OffersResponse>(`/offers?${query.toString()}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Session-ID": sessionId,
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
+    headers: { "X-Session-ID": sessionId },
+    // Offers change rarely from the customer's perspective — 10 min TTL.
+    // Pull-to-refresh forces a network hit anyway.
+    cacheKey: buildOffersCacheKey(params),
+    cacheTtlMs: 10 * 60 * 1000,
+    forceRefresh: options.forceRefresh,
   });
-
-  if (!response.ok) {
-    const error = await safeJsonParse(response);
-    throw error;
-  }
-
-  return (await safeJsonParse(response)) as OffersResponse;
 };
 
-export const getOffersSummary = async (): Promise<OffersSummaryResponse> => {
-  const token = await getAuthToken();
+export const getOffersSummary = async (
+  options: FetchOptions = {},
+): Promise<OffersSummaryResponse> => {
   const sessionId = await getSessionId();
 
-  const response = await fetch(`${API_BASE_URL}/offers/summary`, {
+  return apiRequest<OffersSummaryResponse>(`/offers/summary`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Session-ID": sessionId,
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
+    headers: { "X-Session-ID": sessionId },
+    cacheKey: "offers:summary",
+    cacheTtlMs: 10 * 60 * 1000,
+    forceRefresh: options.forceRefresh,
   });
-
-  if (!response.ok) {
-    const error = await safeJsonParse(response);
-    throw error;
-  }
-
-  return (await safeJsonParse(response)) as OffersSummaryResponse;
 };
 
 export type { Offer };

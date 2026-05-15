@@ -112,16 +112,24 @@ export const authApi = {
     }
   },
 
-  // Get current user profile
-  async getProfile() {
-    return apiRequest("/profile", { method: "GET" });
+  // Get current user profile (cache-first; pull-to-refresh passes
+  // forceRefresh=true to bypass the 24h snapshot).
+  async getProfile(options: { forceRefresh?: boolean } = {}) {
+    return apiRequest("/profile", {
+      method: "GET",
+      cacheKey: "profile:me",
+      cacheTtlMs: 24 * 60 * 60 * 1000,
+      forceRefresh: options.forceRefresh,
+    });
   },
 
-  // Update user profile
+  // Update user profile — invalidates the profile cache so the next read
+  // cannot serve the pre-update snapshot.
   async updateProfile(data: any) {
     return apiRequest("/profile", {
       method: "PUT",
       body: JSON.stringify(data),
+      invalidatePrefixes: ["profile"],
     });
   },
 

@@ -144,7 +144,7 @@ export default function CategoryDetailScreen() {
         params.subcategory_id = selectedSubcategoryId;
       }
 
-      const response = await getCategoryProducts(Number(id), params, false);
+      const response = await getCategoryProducts(Number(id), params);
       if (response.success) {
         setCategory(response.data.category);
 

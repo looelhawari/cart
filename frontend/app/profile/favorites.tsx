@@ -60,26 +60,29 @@ export default function FavoritesScreen() {
   const bannerSlide = useRef(new Animated.Value(-100)).current;
 
   // Load favorites from API
-  const loadFavorites = useCallback(async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await listFavorites(100);
-      if (response.success && response.data?.favorites) {
-        setFavoriteItems(response.data.favorites);
-      } else {
-        setFavoriteItems([]);
+  const loadFavorites = useCallback(
+    async (forceRefresh = false) => {
+      if (!user) {
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to load favorites:", error);
-      setFavoriteItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+
+      try {
+        const response = await listFavorites(100, { forceRefresh });
+        if (response.success && response.data?.favorites) {
+          setFavoriteItems(response.data.favorites);
+        } else {
+          setFavoriteItems([]);
+        }
+      } catch (error) {
+        console.error("Failed to load favorites:", error);
+        setFavoriteItems([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user],
+  );
 
   // Get products from favorites
   const favoriteProducts = favoriteItems
@@ -98,7 +101,14 @@ export default function FavoritesScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadFavorites();
+    // forceRefresh=true bypasses the 24h favorites cache; offer pricing
+    // is also re-fetched so newly-disabled offers stop painting badges.
+    await Promise.all([
+      loadFavorites(true),
+      fetchActiveOffersCached(true)
+        .then(setActiveOffers)
+        .catch(() => setActiveOffers([])),
+    ]);
     setRefreshing(false);
   }, [loadFavorites]);
 

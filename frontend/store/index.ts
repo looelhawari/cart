@@ -70,7 +70,7 @@ interface StoreState {
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;
   resetPassword: (data: ResetPasswordData) => Promise<void>;
   updateProfile: (data: Partial<User>) => void;
-  fetchProfile: () => Promise<void>;
+  fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
   checkAuthStatus: () => Promise<void>; // Check if user has valid token
 
   // Social Login
@@ -200,6 +200,21 @@ export const useStore = create<StoreState>()(
             selectedPaymentMethod: null,
             promoCode: null,
           });
+          // Wipe the API response cache too — otherwise a different
+          // account signing in next would briefly see the previous
+          // user's snapshot (offers, favourites, etc.) on cold open
+          // until the network refresh completed. Also evicts any stale
+          // offer rows the admin may have disabled in the meantime.
+          try {
+            const { clearAllCache } = await import("@/services/cache/apiCache");
+            await clearAllCache();
+            const { invalidateActiveOffersCache } = await import(
+              "@/utils/offerPricing"
+            );
+            invalidateActiveOffersCache();
+          } catch {
+            /* best-effort */
+          }
         }
       },
 
@@ -276,8 +291,8 @@ export const useStore = create<StoreState>()(
         }));
       },
 
-      fetchProfile: async () => {
-        const response = await authApi.getProfile();
+      fetchProfile: async (options = {}) => {
+        const response = await authApi.getProfile(options);
         set({
           user: response.data,
         });

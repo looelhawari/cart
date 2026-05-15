@@ -1,5 +1,12 @@
 ﻿import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG, TOKEN_CONFIG } from "@/config/app.config";
+import {
+  getCacheData,
+  setCacheData,
+} from "../cache/apiCache";
+
+/** Default TTL for cached responses — 24h. Pull-to-refresh always bypasses. */
+const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // API Configuration
 export const API_BASE_URL = API_CONFIG.BASE_URL;
@@ -142,44 +149,99 @@ export const clearAuthData = async () => {
   ]);
 };
 
+/**
+ * Extra options on top of RequestInit for our cache layer.
+ *
+ *   cacheKey
+ *     Logical name for this read, e.g. "offers:active", "products:list:p=1".
+ *     If set on a GET/HEAD: a successful response is persisted to AsyncStorage
+ *     keyed by cacheKey, and a forceRefresh=false call returns the cached
+ *     value (if still inside ttl) without hitting the network.
+ *     Ignored on mutating verbs.
+ *
+ *   cacheTtlMs
+ *     Per-call TTL. Defaults to DEFAULT_CACHE_TTL_MS (24h). Use a small TTL
+ *     for time-sensitive data (e.g. cart totals); use the default for
+ *     things that change rarely (e.g. categories).
+ *
+ *   forceRefresh
+ *     If true, skip the cache READ but still WRITE the network response
+ *     into the cache. This is the pull-to-refresh path: always go to the
+ *     server, but refresh the saved snapshot so the next cold open is fast.
+ *
+ *   invalidatePrefixes
+ *     On a successful POST/PUT/PATCH/DELETE, wipe every cache entry whose
+ *     key starts with one of these prefixes. E.g. POST /addresses passes
+ *     ["addresses"] so the next GET /addresses cannot return a stale list.
+ *     Ignored on GET/HEAD.
+ */
+export interface ApiCacheOptions {
+  cacheKey?: string;
+  cacheTtlMs?: number;
+  forceRefresh?: boolean;
+  invalidatePrefixes?: string[];
+}
+
+export type ApiRequestInit = RequestInit & ApiCacheOptions;
+
 // Main API request function
 export const apiRequest = async <T>(
   endpoint: string,
-  options: RequestInit = {},
+  options: ApiRequestInit = {},
 ): Promise<T> => {
   const token = await getAuthToken();
 
+  const {
+    cacheKey,
+    cacheTtlMs = DEFAULT_CACHE_TTL_MS,
+    forceRefresh = false,
+    invalidatePrefixes,
+    ...fetchInit
+  } = options;
+
+  const method = (fetchInit.method || "GET").toUpperCase();
+  const isReadOnly = method === "GET" || method === "HEAD";
+
+  // 1) Read-through cache — only for GET/HEAD with an explicit cacheKey.
+  //    Pull-to-refresh paths pass forceRefresh=true to skip this read.
+  //    Cache storage is delegated to services/cache/apiCache.ts so we share
+  //    a single in-memory + AsyncStorage layer with the legacy cacheFirstFetch
+  //    / networkFirstFetch helpers — no two parallel caches.
+  if (isReadOnly && cacheKey && !forceRefresh) {
+    const cached = await getCacheData<T>(cacheKey);
+    if (cached !== null) {
+      if (__DEV__) {
+        console.log(`[API] CACHE HIT ${cacheKey} (${endpoint})`);
+      }
+      return cached;
+    }
+  }
+
   // Defense-in-depth against the platform fetch caching API GET responses.
   // RN's fetch on iOS goes through NSURLSession.sharedSession.configuration
-  // which heuristic-caches GETs that lack Cache-Control. After mutations
-  // (POST /addresses, PUT /products/...), the next GET could return a
-  // stale cached body — that's how a freshly-added address would silently
-  // disappear from the list until the user navigated away and back.
-  //
-  // Force no-store + a Cache-Control header so the platform doesn't cache.
-  // Mutating verbs (POST/PUT/PATCH/DELETE) aren't cached anyway, so the
-  // override is harmless there. Callers that genuinely want caching should
-  // pass `cache` themselves and that wins via spread order below.
-  const method = (options.method || "GET").toUpperCase();
-  const isReadOnly = method === "GET" || method === "HEAD";
+  // which heuristic-caches GETs that lack Cache-Control. We manage cache
+  // ourselves in AsyncStorage (above) — tell the platform layer NOT to
+  // cache so its lifetime doesn't surprise us. Mutating verbs aren't cached
+  // anyway, so the override is harmless there.
   const cacheDefaults: RequestInit = isReadOnly ? { cache: "no-store" } : {};
 
   const headers: HeadersInit = {
     ...getCommonHeaders(),
     ...(isReadOnly ? { "Cache-Control": "no-cache" } : {}),
     ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+    ...fetchInit.headers,
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...cacheDefaults,
-    ...options,
+    ...fetchInit,
     headers,
   });
 
   // Log request for debugging (only in development)
   if (__DEV__) {
-    console.log(`[API] ${options.method || "GET"} ${API_BASE_URL}${endpoint}`);
+    const refreshTag = isReadOnly && cacheKey && forceRefresh ? " [REFRESH]" : "";
+    console.log(`[API] ${method} ${API_BASE_URL}${endpoint}${refreshTag}`);
     if (!token) {
       console.warn("[API] ⚠️ No auth token available for request");
     }
@@ -202,5 +264,34 @@ export const apiRequest = async <T>(
     throw error;
   }
 
-  return await safeJsonParse(response);
+  const payload = (await safeJsonParse(response)) as T;
+
+  // 2) Persist the fresh body if a cacheKey was provided. Even on
+  //    forceRefresh we write — the point of forceRefresh is to skip
+  //    READING the cache, not to skip refreshing the saved snapshot.
+  if (isReadOnly && cacheKey) {
+    await setCacheData(cacheKey, payload, cacheTtlMs);
+  }
+
+  // 3) Auto-invalidate on mutations. Callers declare which prefixes the
+  //    mutation logically affects (e.g. POST /addresses -> ["addresses"]).
+  //    Walks the AsyncStorage keys once, drops everything starting with
+  //    "@api_cache:<prefix>". The next read for that prefix will miss
+  //    the cache and fetch fresh from the server.
+  if (!isReadOnly && invalidatePrefixes && invalidatePrefixes.length > 0) {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const targets = invalidatePrefixes
+        .flatMap((prefix) =>
+          allKeys.filter((k) => k.startsWith(`@api_cache:${prefix}`)),
+        );
+      if (targets.length > 0) {
+        await AsyncStorage.multiRemove(targets);
+      }
+    } catch {
+      /* best-effort — never fail the mutation because cache wipe failed */
+    }
+  }
+
+  return payload;
 };

@@ -46,13 +46,13 @@ export default function AddressesScreen() {
   // pending response could overwrite a fresh one and revert the UI.
   const inFlightAbortRef = useRef<AbortController | null>(null);
 
-  const loadAddresses = useCallback(async () => {
+  const loadAddresses = useCallback(async (forceRefresh = false) => {
     inFlightAbortRef.current?.abort();
     const controller = new AbortController();
     inFlightAbortRef.current = controller;
 
     try {
-      const data = (await addressApi.getAddresses()) as any;
+      const data = (await addressApi.getAddresses({ forceRefresh })) as any;
       if (controller.signal.aborted) return;
 
       if (data?.success && Array.isArray(data.data)) {
@@ -85,7 +85,9 @@ export default function AddressesScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadAddresses();
+    // forceRefresh=true so a pull-to-refresh always hits the network even
+    // if the 24h cache window hasn't elapsed.
+    await loadAddresses(true);
     setRefreshing(false);
   };
 

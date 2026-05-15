@@ -73,13 +73,15 @@ export default function ProfileScreen() {
     return () => task.cancel();
   }, [isAuthenticated]);
 
-  const loadProfile = async () => {
+  const loadProfile = async (forceRefresh = false) => {
     try {
       setLoading(true);
-      await fetchProfile();
+      await fetchProfile({ forceRefresh });
       // Fetch orders for stats - use per_page:1 and read pagination totals
       try {
-        const ordersRes = await orderApi.getOrders(undefined, 1, 1);
+        const ordersRes = await orderApi.getOrders(undefined, 1, 1, {
+          forceRefresh,
+        });
         // Try to read total from pagination metadata
         const meta = ordersRes?.data?.meta || ordersRes?.data;
         const totalOrders = meta?.total || meta?.pagination?.total || 0;
@@ -137,7 +139,9 @@ export default function ProfileScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadProfile();
+    // forceRefresh=true so the cached profile/order-count snapshot is
+    // skipped and the network is hit on every pull.
+    await loadProfile(true);
     setRefreshing(false);
   };
 

@@ -458,8 +458,11 @@ export const authApi = {
 
   // Profile Management
 
-  // Get User Profile
-  async getProfile() {
+  // Get User Profile.
+  // NOTE: the cache-first variant lives in services/api/authApi.ts. This
+  // legacy aggregate file ships a non-cached version; the options arg is
+  // accepted only for source-compat with that newer authApi signature.
+  async getProfile(_options: { forceRefresh?: boolean } = {}) {
     return apiRequest("/profile", { method: "GET" });
   },
 

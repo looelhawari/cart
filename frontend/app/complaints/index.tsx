@@ -123,9 +123,9 @@ export default function ComplaintsScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(15)).current;
 
-  const loadComplaints = async () => {
+  const loadComplaints = async (forceRefresh = false) => {
     try {
-      const response = await listComplaints(undefined, 50);
+      const response = await listComplaints(undefined, 50, { forceRefresh });
       if (!response.success) {
         throw new Error(t.ui.failedToLoadComplaints);
       }
@@ -163,7 +163,9 @@ export default function ComplaintsScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadComplaints();
+    // forceRefresh=true bypasses the cached complaints snapshot so the
+    // user always sees the freshest list/status on pull.
+    loadComplaints(true);
   }, []);
 
   const filteredComplaints = complaints.filter(
