@@ -1,11 +1,54 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/Colors";
 import { useTranslation } from "@/i18n";
+import { getDeliverySettings } from "@/services/api/storeApi";
+
+/**
+ * Module-level cache so every mount of this component (home tab focus, etc.)
+ * doesn't re-fire /store/delivery-settings. The threshold rarely changes;
+ * a fresh value lands the next time the app cold-starts.
+ */
+let cachedThreshold: number | null = null;
 
 export const FeatureStripSection = memo(function FeatureStripSection() {
   const { t } = useTranslation();
+  const [threshold, setThreshold] = useState<number | null>(cachedThreshold);
+
+  // Pull the free-delivery threshold from the admin's store settings so the
+  // home banner stays in sync when ops bumps it from 200 → 300. Falls back
+  // to the prior static "200+ EGP" string on any failure.
+  useEffect(() => {
+    let aborted = false;
+    if (cachedThreshold !== null) return;
+
+    getDeliverySettings()
+      .then((res) => {
+        if (aborted) return;
+        const v = res?.data?.free_delivery_threshold;
+        if (typeof v === "number" && v > 0) {
+          cachedThreshold = v;
+          setThreshold(v);
+        }
+      })
+      .catch(() => {
+        /* fall through to static fallback */
+      });
+
+    return () => {
+      aborted = true;
+    };
+  }, []);
+
+  // Render the dynamic threshold once it's loaded; until then, use the
+  // legacy string so the strip never flashes empty during the first fetch.
+  const freeDeliverySubtitle =
+    threshold !== null
+      ? (t.ui?.aboveThreshold ?? "{threshold}+ {currency}")
+          .replace("{threshold}", String(threshold))
+          .replace("{currency}", t.common?.currency ?? "EGP")
+      : t.ui.above200;
 
   return (
     <View style={styles.container}>
@@ -18,7 +61,7 @@ export const FeatureStripSection = memo(function FeatureStripSection() {
         <Text style={styles.title}>
           {t.common?.freeDelivery || "Free Delivery"}
         </Text>
-        <Text style={styles.subtitle}>{t.ui.above200}</Text>
+        <Text style={styles.subtitle}>{freeDeliverySubtitle}</Text>
       </View>
 
       <View style={styles.divider} />

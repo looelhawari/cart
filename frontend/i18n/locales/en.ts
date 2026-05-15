@@ -1898,6 +1898,7 @@ export default {
     // Index/Home page extras
     cairoEgypt: "Cairo, Egypt",
     above200: "200+ EGP",
+    aboveThreshold: "{threshold}+ {currency}",
     thirtyToFortyFiveMins: "30-45 mins",
     quality: "Quality",
     guaranteed: "Guaranteed",

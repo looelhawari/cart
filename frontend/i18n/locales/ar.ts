@@ -1875,6 +1875,7 @@ export default {
     // Index/Home page extras
     cairoEgypt: "القاهرة، مصر",
     above200: "200+ ج.م",
+    aboveThreshold: "{threshold}+ {currency}",
     thirtyToFortyFiveMins: "30-45 دقيقة",
     quality: "جودة",
     guaranteed: "مضمونة",
