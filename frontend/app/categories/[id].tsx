@@ -17,7 +17,6 @@ import {
   ArrowLeft,
   Search,
   ShoppingCart,
-  SlidersHorizontal,
   ChevronDown,
   ChevronRight,
 } from "lucide-react-native";
@@ -324,18 +323,14 @@ export default function CategoryDetailScreen() {
         />
       </TouchableOpacity>
 
-      {/* Filter Button */}
-      <TouchableOpacity
-        style={styles.filterButton}
-        onPress={() => {
-          // TODO: Implement filter modal
-          console.log("Filter pressed");
-        }}
-        activeOpacity={0.7}
-      >
-        <SlidersHorizontal size={18} color={Colors.neutralCharcoal} />
-        <Text style={styles.filterButtonText}>{t.ui.filter}</Text>
-      </TouchableOpacity>
+      {/*
+        Filter button hidden until the modal is implemented. The previous
+        version rendered an enabled button that did nothing on tap, which
+        users reported as "filter doesn't work". The sort dropdown to the
+        left covers the common reorder-by-popularity / price use case;
+        the dedicated multi-axis filter modal (price range, in-stock,
+        rating) can be re-enabled here once built.
+      */}
     </View>
   );
 

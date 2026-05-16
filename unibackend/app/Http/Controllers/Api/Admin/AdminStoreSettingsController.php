@@ -145,38 +145,29 @@ class AdminStoreSettingsController extends Controller
      */
     public function updateSetting(Request $request)
     {
+        // BUGFIX: was `exists:store_settings,key` which 404'd / 422'd
+        // whenever the canonical row hadn't been seeded yet. We now
+        // accept any safe key and route through StoreSetting::setValue()
+        // which upserts and infers type from the value. Same shape as
+        // updateSettings (batch) for consistency.
         $validated = $request->validate([
-            'key' => 'required|string|exists:store_settings,key',
-            'value' => 'required',
+            'key'   => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_.:-]+$/'],
+            'value' => 'present',
         ]);
 
+        StoreSetting::setValue($validated['key'], $validated['value']);
+        \App\Http\Controllers\Api\StoreSettingsController::clearCache();
+
+        // Re-read so we return the post-write type and cast value.
         $setting = StoreSetting::where('key', $validated['key'])->first();
-
-        if (!$setting) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Setting not found'
-            ], 404);
-        }
-
-        // Convert value based on type
-        $value = $validated['value'];
-        if ($setting->type === 'boolean') {
-            $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
-        } elseif ($setting->type === 'json') {
-            $value = is_array($value) ? json_encode($value) : $value;
-        }
-
-        $setting->update(['value' => (string) $value]);
-        StoreSetting::clearCache();
 
         return response()->json([
             'success' => true,
             'message' => 'Setting updated successfully',
             'data' => [
-                'key' => $setting->key,
-                'value' => $this->castValue($setting->value, $setting->type),
-                'type' => $setting->type,
+                'key'   => $setting?->key ?? $validated['key'],
+                'value' => $setting ? $this->castValue($setting->value, $setting->type) : $validated['value'],
+                'type'  => $setting?->type ?? 'string',
             ]
         ]);
     }

@@ -21,19 +21,27 @@ class StoreSettingsSeeder extends Seeder
 {
     public function run(): void
     {
+        // CANONICAL KEY NAMES — these MUST match what both the admin
+        // controller (`AdminStoreSettingsController::updateWorkingHours`
+        // + `toggleStoreClosure`) and the customer-facing controller
+        // (`StoreSettingsController::getWorkingHours` etc.) read/write.
+        // Using different names here creates orphan rows that the admin
+        // UI cannot see, which is exactly what bit us on the first pass.
         $defaults = [
             // Delivery & order economics
-            ['key' => 'minimum_order_amount',      'value' => '50',    'type' => 'number',  'category' => 'delivery'],
-            ['key' => 'delivery_fee',              'value' => '20',    'type' => 'number',  'category' => 'delivery'],
-            ['key' => 'free_delivery_threshold',   'value' => '200',   'type' => 'number',  'category' => 'delivery'],
+            ['key' => 'minimum_order_amount',         'value' => '50',    'type' => 'number',  'category' => 'general'],
+            ['key' => 'delivery_fee',                 'value' => '20',    'type' => 'number',  'category' => 'general'],
+            ['key' => 'free_delivery_threshold',      'value' => '200',   'type' => 'number',  'category' => 'general'],
 
-            // Working hours (24h format strings; opening time stored as "HH:MM")
-            ['key' => 'opening_time',              'value' => '08:00', 'type' => 'time',    'category' => 'hours'],
-            ['key' => 'closing_time',              'value' => '00:00', 'type' => 'time',    'category' => 'hours'],
-            ['key' => 'accept_orders_outside_hours','value' => 'false','type' => 'boolean', 'category' => 'hours'],
-            ['key' => 'store_temporarily_closed',  'value' => 'false', 'type' => 'boolean', 'category' => 'hours'],
-            ['key' => 'closure_message_en',        'value' => '',      'type' => 'string',  'category' => 'hours'],
-            ['key' => 'closure_message_ar',        'value' => '',      'type' => 'string',  'category' => 'hours'],
+            // Working hours — canonical keys read by both the admin page
+            // (StoreSettingsPage.tsx lines 65-66) and customer API
+            // (StoreSettingsController::getWorkingHours).
+            ['key' => 'store_open_time',              'value' => '08:00', 'type' => 'time',    'category' => 'working_hours'],
+            ['key' => 'store_close_time',             'value' => '00:00', 'type' => 'time',    'category' => 'working_hours'],
+            ['key' => 'accept_orders_outside_hours',  'value' => 'false', 'type' => 'boolean', 'category' => 'working_hours'],
+            ['key' => 'is_store_temporarily_closed',  'value' => 'false', 'type' => 'boolean', 'category' => 'working_hours'],
+            ['key' => 'temporary_closure_reason_en',  'value' => '',      'type' => 'string',  'category' => 'working_hours'],
+            ['key' => 'temporary_closure_reason_ar',  'value' => '',      'type' => 'string',  'category' => 'working_hours'],
         ];
 
         foreach ($defaults as $row) {
