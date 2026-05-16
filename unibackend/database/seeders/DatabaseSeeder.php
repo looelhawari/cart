@@ -25,5 +25,9 @@ class DatabaseSeeder extends Seeder
 
         $this->call(ComplaintFavoriteSeeder::class);
         $this->call(RbacSeeder::class);
+        // Store settings — idempotent, fills only missing canonical keys so
+        // the admin Settings page can save without 422'ing on a fresh DB and
+        // the customer /store/* endpoints return stored values, not defaults.
+        $this->call(StoreSettingsSeeder::class);
     }
 }

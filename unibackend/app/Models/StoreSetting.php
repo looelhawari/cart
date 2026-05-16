@@ -76,15 +76,52 @@ class StoreSetting extends Model
     {
         $setting = static::where('key', $key)->first();
 
-        if (!$setting) {
-            return false;
-        }
-
         // Convert value to string for storage
         $stringValue = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
 
-        $setting->update(['value' => $stringValue]);
+        if (!$setting) {
+            // BUGFIX: previously returned false when the row didn't exist,
+            // which made every admin save silently no-op on a freshly-deployed
+            // server where store_settings was never seeded. We now upsert —
+            // the type is inferred from the value so the JSON-cast layer later
+            // serializes it correctly.
+            $type = match (true) {
+                is_bool($value)                                     => 'boolean',
+                is_numeric($value)                                  => 'number',
+                is_array($value) || is_object($value)               => 'json',
+                default                                             => 'string',
+            };
+            // category is a non-nullable column on the table; bucket by key
+            // prefix so the admin's grouped-settings UI shows them sensibly.
+            $category = match (true) {
+                str_contains($key, 'delivery') || str_contains($key, 'order_amount')   => 'delivery',
+                str_contains($key, 'time') || str_contains($key, 'hours') || str_contains($key, 'closure') => 'hours',
+                str_contains($key, 'tax') || str_contains($key, 'currency')             => 'finance',
+                default                                                                 => 'general',
+            };
+            static::create([
+                'key'       => $key,
+                'type'      => $type,
+                'value'     => $stringValue,
+                'category'  => $category,
+                'is_public' => false,
+            ]);
+            self::flushCaches($key);
+            return true;
+        }
 
+        $setting->update(['value' => $stringValue]);
+        self::flushCaches($key);
+        return true;
+    }
+
+    /**
+     * Drop every cache layer that holds a copy of this setting. Called from
+     * both the create and update branches of setValue() so callers don't
+     * read a stale value after a successful write.
+     */
+    private static function flushCaches(string $key): void
+    {
         // Model-layer cache (legacy keys with underscores).
         Cache::forget("store_setting_{$key}");
         Cache::forget('store_settings_all');
@@ -94,8 +131,6 @@ class StoreSetting extends Model
         foreach (self::CUSTOMER_FACING_CACHE_KEYS as $cacheKey) {
             Cache::forget($cacheKey);
         }
-
-        return true;
     }
 
     /**

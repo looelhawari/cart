@@ -27,6 +27,11 @@ Thumbs.db
 *.temp
 *.backup
 *.bak
+.tmp_*
+
+# Local DB backups pulled from prod (NEVER commit dumps — they contain PII).
+backups/
+session.txt
 
 # Documentation (optional - uncomment if you don't want to track these)
 # IMPLEMENTATION_SUMMARY.md

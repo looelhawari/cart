@@ -186,10 +186,16 @@ class AdminStoreSettingsController extends Controller
      */
     public function updateSettings(Request $request)
     {
+        // BUGFIX: validator was `exists:store_settings,key` which 422'd every
+        // request on a fresh server because store_settings is empty until the
+        // first save. We now whitelist known keys instead and route writes
+        // through StoreSetting::setValue() — which upserts (creates with type
+        // inferred from value if the row is missing). Cache invalidation is
+        // handled inside setValue() so admins see fresh data immediately.
         $validated = $request->validate([
-            'settings' => 'required|array',
-            'settings.*.key' => 'required|string|exists:store_settings,key',
-            'settings.*.value' => 'required',
+            'settings'         => 'required|array',
+            'settings.*.key'   => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9_.:-]+$/'],
+            'settings.*.value' => 'present',
         ]);
 
         $updated = [];
@@ -197,18 +203,8 @@ class AdminStoreSettingsController extends Controller
         DB::beginTransaction();
         try {
             foreach ($validated['settings'] as $item) {
-                $setting = StoreSetting::where('key', $item['key'])->first();
-                if ($setting) {
-                    $value = $item['value'];
-                    if ($setting->type === 'boolean') {
-                        $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
-                    } elseif ($setting->type === 'json') {
-                        $value = is_array($value) ? json_encode($value) : $value;
-                    }
-
-                    $setting->update(['value' => (string) $value]);
-                    $updated[] = $item['key'];
-                }
+                StoreSetting::setValue($item['key'], $item['value']);
+                $updated[] = $item['key'];
             }
 
             DB::commit();
