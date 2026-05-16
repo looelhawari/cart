@@ -118,7 +118,7 @@ class OrderRefund extends Model
         $this->update(['status' => 'processing']);
     }
 
-    public function markAsCompleted(string $paymobRefundId = null, array $paymobResponse = null): void
+    public function markAsCompleted(?string $paymobRefundId = null, ?array $paymobResponse = null): void
     {
         $this->update([
             'status' => 'completed',
@@ -128,7 +128,7 @@ class OrderRefund extends Model
         ]);
     }
 
-    public function markAsFailed(string $failureReason, array $paymobResponse = null): void
+    public function markAsFailed(string $failureReason, ?array $paymobResponse = null): void
     {
         $this->update([
             'status' => 'failed',
