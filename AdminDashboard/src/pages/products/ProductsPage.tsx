@@ -312,10 +312,20 @@ export default function ProductsPage() {
                             </div>
                         </div>
                         <Select
-                            value={filters.category_id?.toString() || ''}
-                            onValueChange={(value) =>
-                                setFilters({ ...filters, category_id: value ? parseInt(value) : undefined, page: 1 })
-                            }
+                            value={filters.category_id?.toString() || 'all'}
+                            onValueChange={(value) => {
+                                // BUGFIX: the "All categories" item has value="all" — passing
+                                // that through parseInt() returned NaN, which the backend
+                                // happily treated as a filter and matched nothing. Treat
+                                // "all" (and any non-numeric value) as "no filter".
+                                const isAll = !value || value === 'all'
+                                const parsed = isAll ? undefined : parseInt(value, 10)
+                                setFilters({
+                                    ...filters,
+                                    category_id: Number.isFinite(parsed as number) ? (parsed as number) : undefined,
+                                    page: 1,
+                                })
+                            }}
                         >
                             <SelectTrigger className="bg-white">
                                 <SelectValue placeholder={t('products.allCategories')} />
@@ -330,10 +340,17 @@ export default function ProductsPage() {
                             </SelectContent>
                         </Select>
                         <Select
-                            value={filters.availability_status || ''}
-                            onValueChange={(value) =>
-                                setFilters({ ...filters, availability_status: value || undefined, page: 1 })
-                            }
+                            value={filters.availability_status || 'all'}
+                            onValueChange={(value) => {
+                                // Same fix as category — "all" must clear the filter, not be
+                                // forwarded as the literal string "all" which the backend then
+                                // tried to match in WHERE availability='all'.
+                                setFilters({
+                                    ...filters,
+                                    availability_status: !value || value === 'all' ? undefined : value,
+                                    page: 1,
+                                })
+                            }}
                         >
                             <SelectTrigger className="bg-white">
                                 <SelectValue placeholder={t('products.allStatus')} />

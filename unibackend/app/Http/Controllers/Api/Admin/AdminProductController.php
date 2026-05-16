@@ -38,8 +38,19 @@ class AdminProductController extends Controller
         }
 
         if ($request->filled('category_id')) {
-            $query->whereHas('categories', function($q) use ($request) {
-                $q->where('categories.id', $request->category_id);
+            // BUGFIX: filtering by a parent category used to match ONLY
+            // products linked directly to that category, but most products
+            // are linked to leaf subcategories. So picking "Baby Care"
+            // returned 0 hits (4 real); picking "Beverages" returned 31
+            // (208 real). We now expand the filter to include every
+            // child category, so a parent click shows the full subtree.
+            $categoryId = (int) $request->category_id;
+            $categoryIds = \App\Models\Category::where('id', $categoryId)
+                ->orWhere('parent_id', $categoryId)
+                ->pluck('id')
+                ->all();
+            $query->whereHas('categories', function ($q) use ($categoryIds) {
+                $q->whereIn('categories.id', $categoryIds);
             });
         }
 
