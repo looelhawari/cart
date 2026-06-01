@@ -165,9 +165,11 @@ class CategoryController extends Controller
             $cacheParams = [
                 'sort_by' => request()->query('sort_by'),
                 'sort_order' => request()->query('sort_order'),
+                'subcategory_id' => request()->query('subcategory_id'),
                 'search' => is_string(request()->query('search')) ? mb_substr(mb_strtolower(request()->query('search')), 0, 50) : null,
                 'min_price' => request()->query('min_price'),
                 'max_price' => request()->query('max_price'),
+                'min_rating' => request()->query('min_rating'),
                 'in_stock' => request()->boolean('in_stock') ? 1 : 0,
                 'page' => (int) request()->query('page', 1),
                 'per_page' => min((int) request()->query('per_page', 20), 100),
