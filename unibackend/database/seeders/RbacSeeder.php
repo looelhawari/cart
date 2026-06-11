@@ -46,6 +46,10 @@ class RbacSeeder extends Seeder
             }
         }
 
+        // Drop permissions that are no longer defined (e.g. the retired
+        // .create/.edit/.delete granularity). role_permissions rows cascade.
+        Permission::whereNotIn('slug', $allPermissionSlugs)->delete();
+
         // ─── 3. Assign Permissions to Roles ───
         $roleMap = RbacService::rolePermissionMap();
 
@@ -100,7 +104,10 @@ class RbacSeeder extends Seeder
         ];
 
         foreach ($accounts as $acc) {
-            User::updateOrCreate(
+            // firstOrCreate, NOT updateOrCreate: re-running the seeder must
+            // never reset the password of an account that already exists
+            // (it may have been changed in production).
+            User::firstOrCreate(
                 ['email' => $acc['email']],
                 [
                     'first_name'        => $acc['first_name'],

@@ -2,13 +2,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { orderService } from '@/services/order.service'
-import { driverService } from '@/services/driver.service'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { ArrowLeft, MapPin, User, Package, DollarSign, CheckCircle, Truck, Clock, XCircle, RefreshCw, Printer, UserCheck, Navigation, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, MapPin, User, Package, DollarSign, CheckCircle, Truck, Clock, XCircle, RefreshCw, Printer, Image as ImageIcon } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { OrderStatus } from '@/types'
 import { useState } from 'react'
@@ -33,17 +32,11 @@ export default function OrderDetailPage() {
     const isRTL = i18n.language === 'ar'
     const [showCancelDialog, setShowCancelDialog] = useState(false)
     const [cancelReason, setCancelReason] = useState('')
-    const [selectedDriverId, setSelectedDriverId] = useState<string>('')
 
     const { data: order, isLoading } = useQuery({
         queryKey: ['order', id],
         queryFn: () => orderService.getOrder(Number(id)),
         refetchInterval: 5000, // Auto-refresh every 5 seconds for real-time updates
-    })
-
-    const { data: availableDrivers } = useQuery({
-        queryKey: ['available-drivers'],
-        queryFn: () => driverService.getAvailableDrivers(),
     })
 
     const updateStatusMutation = useMutation({
@@ -73,35 +66,6 @@ export default function OrderDetailPage() {
             toast({ title: t('common.error'), description: t('orders.failedToCancelOrder'), variant: 'destructive' })
         }
     })
-
-    const assignDriverMutation = useMutation({
-        mutationFn: ({ orderId, driverId }: { orderId: number; driverId: number }) =>
-            driverService.assignDriverToOrder(orderId, driverId),
-        onSuccess: (response: any) => {
-            // Optimistically update the cache with the fresh order data from the API
-            // Backend returns { success: true, message: "...", data: orderWithDriver }
-            if (response?.data) {
-                queryClient.setQueryData(['order', id], response.data)
-            }
-            // Also invalidate to ensure consistency
-            queryClient.invalidateQueries({ queryKey: ['order', id] })
-            setSelectedDriverId('')
-            toast({ title: 'Driver assigned', description: 'Driver has been assigned to this order.' })
-        },
-        onError: (err: any) => {
-            toast({
-                title: 'Failed to assign driver',
-                description: err.response?.data?.message || 'Unknown error',
-                variant: 'destructive',
-            })
-        },
-    })
-
-    const handleAssignDriver = () => {
-        if (selectedDriverId && order) {
-            assignDriverMutation.mutate({ orderId: order.id, driverId: Number(selectedDriverId) })
-        }
-    }
 
     const handleStatusUpdate = (newStatus: OrderStatus) => {
         updateStatusMutation.mutate({ id: Number(id), status: newStatus })
@@ -273,101 +237,6 @@ export default function OrderDetailPage() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Driver Assignment Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center">
-                        <Truck className="h-5 w-5 mr-2" />
-                        Driver Assignment
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {(order as any).driver ? (
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                                <UserCheck className="h-5 w-5 text-green-600" />
-                                <div className="flex-1">
-                                    <p className="font-medium text-green-800">
-                                        {(order as any).driver.first_name} {(order as any).driver.last_name}
-                                    </p>
-                                    <p className="text-sm text-green-600">
-                                        {(order as any).driver.phone}
-                                        {(order as any).driver.vehicle_type && ` · ${(order as any).driver.vehicle_type}`}
-                                        {(order as any).driver.vehicle_plate && ` (${(order as any).driver.vehicle_plate})`}
-                                    </p>
-                                </div>
-                                {(order as any).driver.current_lat && (order as any).driver.current_lng && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            const url = `https://www.google.com/maps?q=${(order as any).driver.current_lat},${(order as any).driver.current_lng}`
-                                            window.open(url, '_blank')
-                                        }}
-                                    >
-                                        <Navigation className="h-3 w-3 mr-1" />
-                                        Track
-                                    </Button>
-                                )}
-                            </div>
-                            {/* Reassign option */}
-                            <div className="pt-2 border-t">
-                                <p className="text-sm text-muted-foreground mb-2">Reassign to another driver:</p>
-                                <div className="flex items-center gap-2">
-                                    <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                                        <SelectTrigger className="flex-1">
-                                            <SelectValue placeholder="Select driver..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {(availableDrivers || []).map((d: any) => (
-                                                <SelectItem key={d.id} value={String(d.id)}>
-                                                    {d.first_name} {d.last_name}
-                                                    {d.vehicle_type ? ` (${d.vehicle_type})` : ''}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Button
-                                        size="sm"
-                                        onClick={handleAssignDriver}
-                                        disabled={!selectedDriverId || assignDriverMutation.isPending}
-                                    >
-                                        {assignDriverMutation.isPending ? 'Assigning...' : 'Reassign'}
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            <p className="text-sm text-muted-foreground">
-                                No driver assigned yet. {order.status === 'confirmed' ? 'A driver will be auto-assigned, or you can assign one manually:' : 'Assign a driver manually:'}
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                                    <SelectTrigger className="flex-1">
-                                        <SelectValue placeholder="Select available driver..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(availableDrivers || []).map((d: any) => (
-                                            <SelectItem key={d.id} value={String(d.id)}>
-                                                {d.first_name} {d.last_name}
-                                                {d.vehicle_type ? ` (${d.vehicle_type})` : ''}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <Button
-                                    onClick={handleAssignDriver}
-                                    disabled={!selectedDriverId || assignDriverMutation.isPending}
-                                >
-                                    {assignDriverMutation.isPending ? 'Assigning...' : 'Assign Driver'}
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
 
             <Card>
                 <CardHeader>

@@ -25,8 +25,11 @@ class LogAdminActivity
     {
         $response = $next($request);
 
-        // Only log for authenticated admin users
-        if (!$request->user() || !in_array($request->user()->role, ['admin', 'super_admin', 'employee'])) {
+        // Only log for authenticated admin users.
+        // Was a hardcoded legacy-role list ('admin', 'super_admin', 'employee')
+        // that matched NONE of the live RBAC roles (owner, cashier, support,
+        // store_manager) — so admin_logs never received a single row.
+        if (!$request->user() || !$request->user()->isAdmin()) {
             return $response;
         }
 

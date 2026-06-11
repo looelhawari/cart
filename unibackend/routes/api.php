@@ -474,14 +474,14 @@ Route::prefix('v1')->group(function () {
                 Route::post('/tickets/{id}/read', [SupportController::class, 'markAsRead'])->middleware('permission:support.manage');
             });
 
-            // Canned Responses
+            // Canned Responses (C4 hardening — mutations require support.manage)
             Route::middleware('permission:support.view,support.manage')->prefix('canned-responses')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'index']);
-                Route::post('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'store']);
+                Route::post('/', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'store'])->middleware('permission:support.manage');
                 Route::get('/categories', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'categories']);
                 Route::get('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'show']);
-                Route::put('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'update']);
-                Route::delete('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'destroy']);
+                Route::put('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'update'])->middleware('permission:support.manage');
+                Route::delete('/{cannedResponse}', [\App\Http\Controllers\Api\Admin\CannedResponseController::class, 'destroy'])->middleware('permission:support.manage');
             });
 
             // Financial Management (C4 hardening)
@@ -508,16 +508,16 @@ Route::prefix('v1')->group(function () {
                 Route::post('/sync-status', [AdminPromotionController::class, 'syncStatus'])->middleware('permission:promotions.manage');
             });
 
-            // Notification Management
+            // Notification Management (C4 hardening — mutations require notifications.manage)
             Route::middleware('permission:notifications.view,notifications.manage')->prefix('notifications')->group(function () {
                 Route::get('/', [AdminNotificationController::class, 'index']);
                 Route::get('/analytics', [AdminNotificationController::class, 'analytics']);
                 Route::get('/{id}', [AdminNotificationController::class, 'show']);
-                Route::delete('/{id}', [AdminNotificationController::class, 'destroy']);
-                Route::post('/{id}/resend', [AdminNotificationController::class, 'resend']);
-                Route::post('/broadcast', [AdminNotificationController::class, 'sendBroadcast']);
-                Route::post('/send-to-users', [AdminNotificationController::class, 'sendToUsers']);
-                Route::post('/send-promotion', [AdminNotificationController::class, 'sendPromotion']);
+                Route::delete('/{id}', [AdminNotificationController::class, 'destroy'])->middleware('permission:notifications.manage');
+                Route::post('/{id}/resend', [AdminNotificationController::class, 'resend'])->middleware('permission:notifications.manage');
+                Route::post('/broadcast', [AdminNotificationController::class, 'sendBroadcast'])->middleware('permission:notifications.manage');
+                Route::post('/send-to-users', [AdminNotificationController::class, 'sendToUsers'])->middleware('permission:notifications.manage');
+                Route::post('/send-promotion', [AdminNotificationController::class, 'sendPromotion'])->middleware('permission:notifications.manage');
             });
 
             // Static Pages Management (Terms, Privacy, About) — C4 hardening
@@ -571,10 +571,10 @@ Route::prefix('v1')->group(function () {
                 Route::get('/export', [ComprehensiveAnalyticsController::class, 'exportAnalytics']);
             });
 
-            // Refunds (wallet-based)
+            // Refunds (wallet-based) — C4 hardening: issuing money requires refunds.manage
             Route::middleware('permission:refunds.view,refunds.manage')->prefix('refunds')->group(function () {
-                Route::post('/full', [AdminRefundController::class, 'fullRefund']);
-                Route::post('/partial', [AdminRefundController::class, 'partialRefund']);
+                Route::post('/full', [AdminRefundController::class, 'fullRefund'])->middleware('permission:refunds.manage');
+                Route::post('/partial', [AdminRefundController::class, 'partialRefund'])->middleware('permission:refunds.manage');
                 Route::get('/history/{orderId}', [AdminRefundController::class, 'getRefundHistory']);
             });
 
@@ -595,40 +595,40 @@ Route::prefix('v1')->group(function () {
 
             // Promo Code Analytics & Management
             Route::middleware('permission:promo_codes.view,promo_codes.manage')->prefix('promo-codes')->group(function () {
-                // CRUD operations
+                // CRUD operations (C4 hardening — mutations require promo_codes.manage)
                 Route::get('/', [AdminPromoCodeController::class, 'index']);
-                Route::post('/', [AdminPromoCodeController::class, 'store']);
+                Route::post('/', [AdminPromoCodeController::class, 'store'])->middleware('permission:promo_codes.manage');
                 Route::get('/products', [AdminPromoCodeController::class, 'getProducts']);
                 Route::get('/categories', [AdminPromoCodeController::class, 'getCategories']);
                 Route::post('/compare', [AdminPromoCodeController::class, 'compare']);
-                Route::post('/bulk-status', [AdminPromoCodeController::class, 'bulkUpdateStatus']);
+                Route::post('/bulk-status', [AdminPromoCodeController::class, 'bulkUpdateStatus'])->middleware('permission:promo_codes.manage');
                 Route::get('/export', [AdminPromoCodeController::class, 'export']);
 
                 // Single promo code operations
                 Route::get('/{id}', [AdminPromoCodeController::class, 'show']);
-                Route::put('/{id}', [AdminPromoCodeController::class, 'update']);
-                Route::delete('/{id}', [AdminPromoCodeController::class, 'destroy']);
-                Route::post('/{id}/duplicate', [AdminPromoCodeController::class, 'duplicate']);
-                Route::post('/{id}/send-notification', [AdminPromoCodeController::class, 'sendNotification']);
+                Route::put('/{id}', [AdminPromoCodeController::class, 'update'])->middleware('permission:promo_codes.manage');
+                Route::delete('/{id}', [AdminPromoCodeController::class, 'destroy'])->middleware('permission:promo_codes.manage');
+                Route::post('/{id}/duplicate', [AdminPromoCodeController::class, 'duplicate'])->middleware('permission:promo_codes.manage');
+                Route::post('/{id}/send-notification', [AdminPromoCodeController::class, 'sendNotification'])->middleware('permission:promo_codes.manage');
                 Route::get('/{id}/analytics', [AdminPromoCodeController::class, 'analytics']);
                 Route::get('/{id}/usage-history', [AdminPromoCodeController::class, 'usageHistory']);
                 Route::get('/{id}/users', [AdminPromoCodeController::class, 'users']);
                 Route::get('/{id}/user/{userId}', [AdminPromoCodeController::class, 'userUsage']);
             });
 
-            // Store Settings Management
+            // Store Settings Management (C4 hardening — mutations require settings.manage)
             Route::middleware('permission:settings.view,settings.manage')->prefix('store-settings')->group(function () {
                 Route::get('/', [AdminStoreSettingsController::class, 'index']);
                 Route::get('/status', [AdminStoreSettingsController::class, 'getStoreStatus']);
                 Route::get('/delivery', [AdminStoreSettingsController::class, 'getDeliverySettings']);
-                Route::put('/working-hours', [AdminStoreSettingsController::class, 'updateWorkingHours']);
-                Route::put('/delivery', [AdminStoreSettingsController::class, 'updateDeliverySettings']);
-                Route::post('/toggle-closure', [AdminStoreSettingsController::class, 'toggleStoreClosure']);
-                Route::put('/setting', [AdminStoreSettingsController::class, 'updateSetting']);
-                Route::put('/settings', [AdminStoreSettingsController::class, 'updateSettings']);
-                Route::post('/settings', [AdminStoreSettingsController::class, 'createSetting']);
-                Route::delete('/settings/{key}', [AdminStoreSettingsController::class, 'deleteSetting']);
-                Route::post('/clear-cache', [AdminStoreSettingsController::class, 'clearCache']);
+                Route::put('/working-hours', [AdminStoreSettingsController::class, 'updateWorkingHours'])->middleware('permission:settings.manage');
+                Route::put('/delivery', [AdminStoreSettingsController::class, 'updateDeliverySettings'])->middleware('permission:settings.manage');
+                Route::post('/toggle-closure', [AdminStoreSettingsController::class, 'toggleStoreClosure'])->middleware('permission:settings.manage');
+                Route::put('/setting', [AdminStoreSettingsController::class, 'updateSetting'])->middleware('permission:settings.manage');
+                Route::put('/settings', [AdminStoreSettingsController::class, 'updateSettings'])->middleware('permission:settings.manage');
+                Route::post('/settings', [AdminStoreSettingsController::class, 'createSetting'])->middleware('permission:settings.manage');
+                Route::delete('/settings/{key}', [AdminStoreSettingsController::class, 'deleteSetting'])->middleware('permission:settings.manage');
+                Route::post('/clear-cache', [AdminStoreSettingsController::class, 'clearCache'])->middleware('permission:settings.manage');
             });
 
             // Reviews & Ratings Management
@@ -638,23 +638,24 @@ Route::prefix('v1')->group(function () {
                 Route::get('/order/{orderId}', [AdminReviewController::class, 'orderReviews']);
                 Route::get('/{id}', [AdminReviewController::class, 'show']);
                 Route::get('/{id}/history', [AdminReviewController::class, 'history']);
-                Route::put('/{id}/status', [AdminReviewController::class, 'updateStatus']);
-                Route::post('/{id}/respond', [AdminReviewController::class, 'respond']);
-                Route::post('/bulk-status', [AdminReviewController::class, 'bulkUpdateStatus']);
-                Route::delete('/{id}', [AdminReviewController::class, 'destroy']);
+                Route::put('/{id}/status', [AdminReviewController::class, 'updateStatus'])->middleware('permission:reviews.manage');
+                Route::post('/{id}/respond', [AdminReviewController::class, 'respond'])->middleware('permission:reviews.manage');
+                Route::post('/bulk-status', [AdminReviewController::class, 'bulkUpdateStatus'])->middleware('permission:reviews.manage');
+                Route::delete('/{id}', [AdminReviewController::class, 'destroy'])->middleware('permission:reviews.manage');
             });
 
-            // Delivery Zones Management
+            // Delivery Zones Management (C4 hardening — mutations require delivery_zones.manage;
+            // check-coordinate is a read-style query so it stays view-level)
             Route::middleware('permission:delivery_zones.view,delivery_zones.manage')->prefix('delivery-zones')->group(function () {
                 Route::get('/', [AdminDeliveryZoneController::class, 'index']);
                 Route::get('/dashboard', [AdminDeliveryZoneController::class, 'dashboard']);
-                Route::post('/', [AdminDeliveryZoneController::class, 'store']);
+                Route::post('/', [AdminDeliveryZoneController::class, 'store'])->middleware('permission:delivery_zones.manage');
                 Route::post('/check-coordinate', [AdminDeliveryZoneController::class, 'checkCoordinate']);
-                Route::post('/reorder', [AdminDeliveryZoneController::class, 'reorder']);
+                Route::post('/reorder', [AdminDeliveryZoneController::class, 'reorder'])->middleware('permission:delivery_zones.manage');
                 Route::get('/{id}', [AdminDeliveryZoneController::class, 'show']);
-                Route::put('/{id}', [AdminDeliveryZoneController::class, 'update']);
-                Route::delete('/{id}', [AdminDeliveryZoneController::class, 'destroy']);
-                Route::post('/{id}/toggle-status', [AdminDeliveryZoneController::class, 'toggleStatus']);
+                Route::put('/{id}', [AdminDeliveryZoneController::class, 'update'])->middleware('permission:delivery_zones.manage');
+                Route::delete('/{id}', [AdminDeliveryZoneController::class, 'destroy'])->middleware('permission:delivery_zones.manage');
+                Route::post('/{id}/toggle-status', [AdminDeliveryZoneController::class, 'toggleStatus'])->middleware('permission:delivery_zones.manage');
                 Route::get('/{id}/analytics', [AdminDeliveryZoneController::class, 'analytics']);
             });
 

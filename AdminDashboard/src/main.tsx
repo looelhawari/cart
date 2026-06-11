@@ -22,22 +22,19 @@ import OrderReceiptPage from "@/pages/orders/OrderReceiptPage";
 import SupportPage from "@/pages/support/SupportPage";
 import TicketDetailPage from "@/pages/support/TicketDetailPage";
 import SupportAnalyticsPage from "@/pages/support/SupportAnalyticsPage";
-import FinancialPage from "@/pages/financial/FinancialPage";
-import UsersPage from "@/pages/users/UsersPage";
-import CustomersPage from "@/pages/customers/CustomersPage";
+import UserManagementPage from "@/pages/users/UserManagementPage";
 import CustomerDetailsPage from "@/pages/customers/CustomerDetailsPage";
 import ComprehensiveAnalyticsPage from "@/pages/analytics/ComprehensiveAnalyticsPage";
 import PromotionsPage from "@/pages/promotions/PromotionsPage";
 import PromoCodesPage from "@/pages/promo-codes/PromoCodesPage";
 import PromoCodeAnalyticsPage from "@/pages/promo-codes/PromoCodeAnalyticsPage";
-import ActivityLogsPage from "@/pages/ActivityLogsPage";
-import AdminLogsPage from "@/pages/AdminLogsPage";
+import LogsPage from "@/pages/LogsPage";
+import NoAccessPage from "@/pages/NoAccessPage";
 import ContentManagementPage from "@/pages/content/ContentManagementPage";
 import StoreSettingsPage from "@/pages/settings/StoreSettingsPage";
 import ReviewsPage from "@/pages/reviews/ReviewsPage";
 import RefundDashboardPage from "@/pages/refunds/RefundDashboardPage";
 import DeliveryZonesPage from "@/pages/delivery-zones/DeliveryZonesPage";
-import DriversPage from "@/pages/drivers/DriversPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -176,28 +173,16 @@ function App() {
               <Route
                 element={
                   <DashboardLayout>
-                    <FinancialPage />
-                  </DashboardLayout>
-                }
-                path="/financial"
-              />
-
-              <Route
-                element={
-                  <DashboardLayout>
-                    <UsersPage />
+                    <UserManagementPage />
                   </DashboardLayout>
                 }
                 path="/users"
               />
 
+              {/* Legacy URL: customers list now lives in /users as a tab */}
               <Route
-                element={
-                  <DashboardLayout>
-                    <CustomersPage />
-                  </DashboardLayout>
-                }
                 path="/customers"
+                element={<Navigate to="/users?tab=customers" replace />}
               />
               <Route
                 element={
@@ -220,19 +205,20 @@ function App() {
               <Route
                 element={
                   <DashboardLayout>
-                    <ActivityLogsPage />
+                    <LogsPage />
                   </DashboardLayout>
                 }
-                path="/activity-logs"
+                path="/logs"
               />
 
+              {/* Legacy URLs: both log pages now live in /logs as tabs */}
               <Route
-                element={
-                  <DashboardLayout>
-                    <AdminLogsPage />
-                  </DashboardLayout>
-                }
+                path="/activity-logs"
+                element={<Navigate to="/logs?tab=app" replace />}
+              />
+              <Route
                 path="/admin-logs"
+                element={<Navigate to="/logs?tab=admin" replace />}
               />
 
               <Route
@@ -271,14 +257,8 @@ function App() {
                 path="/delivery-zones"
               />
 
-              <Route
-                element={
-                  <DashboardLayout>
-                    <DriversPage />
-                  </DashboardLayout>
-                }
-                path="/drivers"
-              />
+              {/* Landing page for admins whose role has no permissions yet */}
+              <Route path="/no-access" element={<NoAccessPage />} />
             </Route>
 
             <Route path="/" element={<SmartRedirect />} />

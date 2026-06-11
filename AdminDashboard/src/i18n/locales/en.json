@@ -90,7 +90,21 @@
         "reviews": "Reviews & Ratings",
         "storeSettings": "Store Settings",
         "deliveryZones": "Delivery Zones",
-        "drivers": "Drivers"
+        "userManagement": "Users & Customers",
+        "logs": "Logs"
+    },
+    "noAccess": {
+        "title": "No access granted",
+        "message": "Your account ({{email}}) has no dashboard permissions yet. Ask the store owner to assign permissions to your role."
+    },
+    "rbac": {
+        "rolesTab": "Roles & Permissions",
+        "ownerNote": "The Owner role always has every permission and cannot be edited.",
+        "matrixTitle": "Permissions per role",
+        "permission": "Permission",
+        "granted": "granted",
+        "saveChanges": "Save changes",
+        "saveSuccess": "Role permissions updated"
     },
     "auth": {
         "login": "Login",
@@ -745,8 +759,9 @@
         }
     },
     "users": {
-        "title": "Users",
-        "subtitle": "Manage customer accounts",
+        "title": "Team",
+        "teamTab": "Team",
+        "subtitle": "Manage staff accounts and their roles",
         "addUser": "Add User",
         "editUser": "Edit User",
         "deleteUser": "Delete User",

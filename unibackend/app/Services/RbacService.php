@@ -98,6 +98,10 @@ class RbacService
 
     /**
      * Complete permission map: module → action definitions.
+     *
+     * Only `view` and `manage` exist: routes never checked the old
+     * .create/.edit/.delete slugs, so they only added noise to the roles
+     * editor. `view` = read-only GET access, `manage` = all mutations.
      */
     public static function permissionDefinitions(): array
     {
@@ -107,74 +111,46 @@ class RbacService
             ],
             'orders' => [
                 'view'   => 'View orders',
-                'create' => 'Create orders',
-                'edit'   => 'Edit/update order status',
-                'delete' => 'Cancel orders',
                 'manage' => 'Full order management',
             ],
             'products' => [
                 'view'   => 'View products',
-                'create' => 'Create products',
-                'edit'   => 'Edit products',
-                'delete' => 'Delete products',
                 'manage' => 'Full product management',
             ],
             'categories' => [
                 'view'   => 'View categories',
-                'create' => 'Create categories',
-                'edit'   => 'Edit categories',
-                'delete' => 'Delete categories',
                 'manage' => 'Full category management',
             ],
             'promotions' => [
                 'view'   => 'View promotions',
-                'create' => 'Create promotions',
-                'edit'   => 'Edit promotions',
-                'delete' => 'Delete promotions',
                 'manage' => 'Full promotion management',
             ],
             'promo_codes' => [
                 'view'   => 'View promo codes',
-                'create' => 'Create promo codes',
-                'edit'   => 'Edit promo codes',
-                'delete' => 'Delete promo codes',
                 'manage' => 'Full promo code management',
             ],
             'delivery_zones' => [
                 'view'   => 'View delivery zones',
-                'create' => 'Create delivery zones',
-                'edit'   => 'Edit delivery zones',
-                'delete' => 'Delete delivery zones',
                 'manage' => 'Full delivery zone management',
             ],
             'drivers' => [
                 'view'   => 'View drivers',
-                'create' => 'Create drivers',
-                'edit'   => 'Edit drivers',
-                'delete' => 'Delete drivers',
                 'manage' => 'Full driver management',
             ],
             'refunds' => [
                 'view'   => 'View refunds',
-                'create' => 'Process refunds',
                 'manage' => 'Full refund management',
             ],
             'support' => [
                 'view'   => 'View support tickets',
-                'create' => 'Create support tickets',
-                'edit'   => 'Update support tickets',
                 'manage' => 'Full support management',
             ],
             'customers' => [
                 'view'   => 'View customers',
-                'edit'   => 'Edit customers',
                 'manage' => 'Full customer management',
             ],
             'users' => [
                 'view'   => 'View admin users',
-                'create' => 'Create admin users',
-                'edit'   => 'Edit admin users',
-                'delete' => 'Delete admin users',
                 'manage' => 'Full user management',
             ],
             'analytics' => [
@@ -193,22 +169,18 @@ class RbacService
             ],
             'content' => [
                 'view'   => 'View content pages',
-                'edit'   => 'Edit content pages',
                 'manage' => 'Full content management',
             ],
             'reviews' => [
                 'view'   => 'View reviews',
-                'edit'   => 'Moderate reviews',
                 'manage' => 'Full review management',
             ],
             'settings' => [
                 'view'   => 'View store settings',
-                'edit'   => 'Edit store settings',
                 'manage' => 'Full settings management',
             ],
             'notifications' => [
                 'view'   => 'View notifications',
-                'create' => 'Send notifications',
                 'manage' => 'Full notification management',
             ],
         ];
@@ -225,21 +197,20 @@ class RbacService
 
             // ─── CASHIER: Operational day-to-day (no dashboard access) ───
             'cashier' => [
-                'orders.view', 'orders.create', 'orders.edit', 'orders.delete', 'orders.manage',
-                'products.view', 'products.create', 'products.edit', 'products.delete', 'products.manage',
-                'categories.view', 'categories.create', 'categories.edit', 'categories.delete', 'categories.manage',
-                'promotions.view', 'promotions.create', 'promotions.edit', 'promotions.delete', 'promotions.manage',
-                'promo_codes.view', 'promo_codes.create', 'promo_codes.edit', 'promo_codes.delete', 'promo_codes.manage',
-                'delivery_zones.view', 'delivery_zones.create', 'delivery_zones.edit', 'delivery_zones.delete', 'delivery_zones.manage',
-                'drivers.view', 'drivers.create', 'drivers.edit', 'drivers.delete', 'drivers.manage',
+                'orders.view', 'orders.manage',
+                'products.view', 'products.manage',
+                'categories.view', 'categories.manage',
+                'promotions.view', 'promotions.manage',
+                'promo_codes.view', 'promo_codes.manage',
+                'delivery_zones.view', 'delivery_zones.manage',
                 'customers.view',
             ],
 
             // ─── SUPPORT: Customer-facing (no dashboard access) ───
             'support' => [
-                'refunds.view', 'refunds.create', 'refunds.manage',
-                'support.view', 'support.create', 'support.edit', 'support.manage',
-                'customers.view', 'customers.edit', 'customers.manage',
+                'refunds.view', 'refunds.manage',
+                'support.view', 'support.manage',
+                'customers.view', 'customers.manage',
                 'app_logs.view',
                 'orders.view', // Read-only: support needs to see orders for context
             ],
@@ -248,11 +219,10 @@ class RbacService
             'store_manager' => [
                 'dashboard.view',
                 'analytics.view', 'analytics.manage',
-                'settings.view', 'settings.edit', 'settings.manage',
-                'reviews.view', 'reviews.edit', 'reviews.manage',
-                'content.view', 'content.edit', 'content.manage',
-                'financial.view',
-                'notifications.view', 'notifications.create', 'notifications.manage',
+                'settings.view', 'settings.manage',
+                'reviews.view', 'reviews.manage',
+                'content.view', 'content.manage',
+                'notifications.view', 'notifications.manage',
                 // Read-only access to ops data needed for the dashboard overview
                 'orders.view',
                 'products.view',
