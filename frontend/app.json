@@ -2,7 +2,7 @@
   "expo": {
     "name": "CART",
     "slug": "CART-app",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cart",
@@ -24,6 +24,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cart.hypermarket",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
@@ -45,7 +46,7 @@
       },
       "package": "com.cart.hypermarket",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
