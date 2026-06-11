@@ -14,20 +14,27 @@ use Carbon\Carbon;
 class PromotionService
 {
     /**
-     * Apply best promotion to a product
+     * Apply best promotion to a product.
+     *
+     * $excludePromotionId skips a promotion that is being deleted: it is
+     * still active in the DB at removal time, so without the exclusion it
+     * would re-apply itself and the sale would survive its own deletion.
      */
-    public function applyBestPromotionToProduct(Product $product): Product
+    public function applyBestPromotionToProduct(Product $product, ?int $excludePromotionId = null): Product
     {
         // Get all applicable promotions
-        $promotions = $this->getApplicablePromotions($product);
+        $promotions = $this->getApplicablePromotions($product, $excludePromotionId);
 
         if ($promotions->isEmpty()) {
-            // No promotions - reset to original price if it exists
+            // No promotions — always clear the sale, even when original_price
+            // was never set (e.g. legacy rows where sale_price was written
+            // directly). Guarding the reset on original_price left those
+            // stale sales permanently uncleable.
             if ($product->original_price) {
                 $product->price = $product->original_price;
-                $product->sale_price = null;
-                $product->active_promotion_id = null;
             }
+            $product->sale_price = null;
+            $product->active_promotion_id = null;
             return $product;
         }
 
@@ -66,11 +73,12 @@ class PromotionService
      * Since database schema doesn't have applies_to, we return all active promotions
      * that either have no products/categories (applies to all) or match the product
      */
-    protected function getApplicablePromotions(Product $product): Collection
+    protected function getApplicablePromotions(Product $product, ?int $excludePromotionId = null): Collection
     {
         $productCategories = $product->categories->pluck('id');
 
         return Promotion::active()
+            ->when($excludePromotionId, fn ($q) => $q->where('id', '!=', $excludePromotionId))
             ->where(function ($query) use ($product, $productCategories) {
                 // Promotions with no specific products (applies to all)
                 $query->whereDoesntHave('products')
@@ -169,12 +177,15 @@ class PromotionService
     {
         $updated = 0;
 
-        // Eager-load categories + chunk to prevent N+1 and memory overflow
+        // Eager-load categories + chunk to prevent N+1 and memory overflow.
+        // The promotion being removed is excluded from re-evaluation — at
+        // delete time it is still active in the DB and would otherwise be
+        // picked as "best promotion" again, resurrecting the sale.
         Product::where('active_promotion_id', $promotion->id)
             ->with('categories')
-            ->chunk(200, function ($products) use (&$updated) {
+            ->chunk(200, function ($products) use (&$updated, $promotion) {
                 foreach ($products as $product) {
-                    $this->applyBestPromotionToProduct($product);
+                    $this->applyBestPromotionToProduct($product, $promotion->id);
                     $product->save();
                     $updated++;
                 }

@@ -310,6 +310,10 @@ class PromotionController extends Controller
 
             // Reapply or remove promotion from products
             if ($promotion->is_currently_active) {
+                // Re-evaluate products currently carrying this promotion first:
+                // if the scope narrowed (e.g. "all" -> specific products), the
+                // ones that left the scope must lose their sale_price.
+                $this->promotionService->removePromotionFromProducts($promotion);
                 $this->promotionService->applyPromotionToProducts($promotion);
             } elseif ($wasActive && !$promotion->is_currently_active) {
                 $this->promotionService->removePromotionFromProducts($promotion);
