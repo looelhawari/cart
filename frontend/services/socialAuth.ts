@@ -28,6 +28,13 @@ const isExpoGo = Constants.appOwnership === "expo";
 const GOOGLE_WEB_CLIENT_ID =
   "113273912716-ho3k23v05dodf7gq7tpq5u782chrar3t.apps.googleusercontent.com";
 
+// iOS OAuth client (matches the iosUrlScheme registered in app.json —
+// the scheme is this ID reversed). Without it, iOS has no
+// GoogleService-Info.plist to fall back on and configure() throws
+// "failed to determine clientID".
+const GOOGLE_IOS_CLIENT_ID =
+  "113273912716-2rf483g4a0qe43kk1vo857fhp643vjv5.apps.googleusercontent.com";
+
 // ────────────────────────────────────────────────────────
 //  Conditionally load native Google Sign-In (crashes Expo Go)
 // ────────────────────────────────────────────────────────
@@ -47,6 +54,7 @@ if (!isExpoGo) {
     isErrorWithCode = gsModule.isErrorWithCode;
     GoogleSignin.configure({
       webClientId: GOOGLE_WEB_CLIENT_ID,
+      iosClientId: GOOGLE_IOS_CLIENT_ID,
       offlineAccess: false,
       forceCodeForRefreshToken: false,
     });

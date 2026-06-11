@@ -24,7 +24,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cart.hypermarket",
-      "buildNumber": "5",
+      "buildNumber": "6",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
@@ -46,7 +47,7 @@
       },
       "package": "com.cart.hypermarket",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 5,
+      "versionCode": 6,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
