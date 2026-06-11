@@ -124,16 +124,19 @@ class PromotionService
     {
         $updated = 0;
 
-        // Eager-load categories to prevent N+1, chunk to save memory
+        // Eager-load categories to prevent N+1, chunkById to save memory.
+        // chunkById (keyset pagination) — NOT chunk() — because plain chunk
+        // paginates with OFFSET and skips rows when the loop mutates columns
+        // used in the WHERE clause.
         $this->getProductQueryForPromotion($promotion)
             ->with('categories')
-            ->chunk(200, function ($products) use (&$updated) {
+            ->chunkById(200, function ($products) use (&$updated) {
                 foreach ($products as $product) {
                     $this->applyBestPromotionToProduct($product);
                     $product->save();
                     $updated++;
                 }
-            });
+            }, 'barcode');
 
         Log::info('📦 Bulk promotion applied', [
             'promotion_id' => $promotion->id,
@@ -177,19 +180,25 @@ class PromotionService
     {
         $updated = 0;
 
-        // Eager-load categories + chunk to prevent N+1 and memory overflow.
+        // Eager-load categories + chunkById to prevent N+1 and memory overflow.
         // The promotion being removed is excluded from re-evaluation — at
         // delete time it is still active in the DB and would otherwise be
         // picked as "best promotion" again, resurrecting the sale.
+        //
+        // chunkById is load-bearing: the loop nulls active_promotion_id,
+        // which is the WHERE column. Plain chunk() paginates with OFFSET, so
+        // every cleared page shifted the result set and SKIPPED the next 200
+        // products — they kept their sale_price, and the promotion's FK
+        // (ON DELETE SET NULL) then erased the only pointer back to it.
         Product::where('active_promotion_id', $promotion->id)
             ->with('categories')
-            ->chunk(200, function ($products) use (&$updated, $promotion) {
+            ->chunkById(200, function ($products) use (&$updated, $promotion) {
                 foreach ($products as $product) {
                     $this->applyBestPromotionToProduct($product, $promotion->id);
                     $product->save();
                     $updated++;
                 }
-            });
+            }, 'barcode');
 
         Log::info('🗑️ Promotion removed from products', [
             'promotion_id' => $promotion->id,
@@ -209,16 +218,16 @@ class PromotionService
     {
         $updated = 0;
 
-        // Chunk + eager-load to prevent memory overflow and N+1 queries
+        // chunkById + eager-load to prevent memory overflow and N+1 queries
         Product::where('is_active', true)
             ->with('categories')
-            ->chunk(200, function ($products) use (&$updated) {
+            ->chunkById(200, function ($products) use (&$updated) {
                 foreach ($products as $product) {
                     $this->applyBestPromotionToProduct($product);
                     $product->save();
                     $updated++;
                 }
-            });
+            }, 'barcode');
 
         Log::info('🔄 All product prices recalculated', [
             'products_updated' => $updated,
