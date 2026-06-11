@@ -6,7 +6,7 @@
  */
 
 // ─── Admin Roles ───
-export const ADMIN_ROLES = ['owner', 'cashier', 'support', 'store_manager'] as const
+export const ADMIN_ROLES = ['owner', 'admin', 'support', 'manager', 'sales', 'cashier'] as const
 export type AdminRole = (typeof ADMIN_ROLES)[number]
 
 // ─── Permission Modules ───

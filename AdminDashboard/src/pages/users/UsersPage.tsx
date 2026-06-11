@@ -90,17 +90,12 @@ export default function UsersPage() {
 
   const getRoleBadge = (role: AdminRole) => {
     const config: Record<AdminRole, string> = {
-      // Current roles
       owner: "bg-red-100 text-red-800",
-      cashier: "bg-purple-100 text-purple-800",
-      support: "bg-orange-100 text-orange-800",
-      store_manager: "bg-blue-100 text-blue-800",
-      // Legacy roles
-      super_admin: "bg-red-100 text-red-800",
       admin: "bg-purple-100 text-purple-800",
-      sales_manager: "bg-blue-100 text-blue-800",
-      accountant: "bg-green-100 text-green-800",
-      customer_support: "bg-orange-100 text-orange-800",
+      support: "bg-orange-100 text-orange-800",
+      manager: "bg-blue-100 text-blue-800",
+      sales: "bg-green-100 text-green-800",
+      cashier: "bg-yellow-100 text-yellow-800",
     };
     return config[role] || "bg-gray-100 text-gray-800";
   };
@@ -322,10 +317,11 @@ export default function UsersPage() {
                   <SelectValue placeholder={t("users.selectRole")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="owner">Owner</SelectItem>
-                  <SelectItem value="cashier">Cashier</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="support">Support</SelectItem>
-                  <SelectItem value="store_manager">Store Manager</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="cashier">Cashier</SelectItem>
                 </SelectContent>
               </Select>
             </div>

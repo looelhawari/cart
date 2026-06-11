@@ -15,15 +15,20 @@ class RbacSeeder extends Seeder
     {
         // ─── 1. Create Roles ───
         $roles = [
-            ['slug' => 'owner',         'display_name' => 'Owner',         'description' => 'Full access to all features',           'is_system' => true],
-            ['slug' => 'cashier',       'display_name' => 'Cashier',       'description' => 'Operational day-to-day management',     'is_system' => true],
-            ['slug' => 'support',       'display_name' => 'Support',       'description' => 'Customer support and refunds',          'is_system' => true],
-            ['slug' => 'store_manager', 'display_name' => 'Store Manager', 'description' => 'Strategy, content, and analytics',      'is_system' => true],
+            ['slug' => 'owner',   'display_name' => 'Owner',   'description' => 'Full access to all features (not editable)', 'is_system' => true],
+            ['slug' => 'admin',   'display_name' => 'Admin',   'description' => 'Full access, editable',                      'is_system' => true],
+            ['slug' => 'support', 'display_name' => 'Support', 'description' => 'Customer support and refunds',               'is_system' => true],
+            ['slug' => 'manager', 'display_name' => 'Manager', 'description' => 'Strategy, content, and analytics',           'is_system' => true],
+            ['slug' => 'sales',   'display_name' => 'Sales',   'description' => 'Catalog, pricing and promotions',            'is_system' => true],
+            ['slug' => 'cashier', 'display_name' => 'Cashier', 'description' => 'Day-to-day order handling',                  'is_system' => true],
         ];
 
         foreach ($roles as $roleData) {
             Role::updateOrCreate(['slug' => $roleData['slug']], $roleData);
         }
+
+        // Drop roles that are no longer part of the team structure
+        Role::whereNotIn('slug', array_column($roles, 'slug'))->delete();
 
         // ─── 2. Create Permissions ───
         $definitions = RbacService::permissionDefinitions();
@@ -67,7 +72,7 @@ class RbacSeeder extends Seeder
             }
         }
 
-        // ─── 4. Create Default Accounts for All 4 Roles ───
+        // ─── 4. Create Default Accounts (owner + one basic account per team) ───
         $accounts = [
             [
                 'email'      => 'elbaraka.owner.x9k2@elbarakamarket.com',
@@ -78,28 +83,44 @@ class RbacSeeder extends Seeder
                 'role'       => 'owner',
             ],
             [
-                'email'      => 'cashier.ops.m4v8@elbarakamarket.com',
-                'password'   => 'Cv!48mZr@Nq2xW#7jPsL',
-                'first_name' => 'Default',
-                'last_name'  => 'Cashier',
-                'phone'      => '+212700000002',
-                'role'       => 'cashier',
+                'email'      => 'admin@elbarakamarket.com',
+                'password'   => 'Admin#Cart2026',
+                'first_name' => 'Team',
+                'last_name'  => 'Admin',
+                'phone'      => '+212700000010',
+                'role'       => 'admin',
             ],
             [
-                'email'      => 'support.desk.t6y3@elbarakamarket.com',
-                'password'   => 'Tp#63kRw!Yb9sV@2mXnQ',
-                'first_name' => 'Default',
+                'email'      => 'support@elbarakamarket.com',
+                'password'   => 'Support#Cart2026',
+                'first_name' => 'Team',
                 'last_name'  => 'Support',
-                'phone'      => '+212700000003',
+                'phone'      => '+212700000011',
                 'role'       => 'support',
             ],
             [
-                'email'      => 'store.mgr.j7w5@elbarakamarket.com',
-                'password'   => 'Jw@75nFx#Qd3tM!8kRvZ',
-                'first_name' => 'Default',
-                'last_name'  => 'StoreManager',
-                'phone'      => '+212700000004',
-                'role'       => 'store_manager',
+                'email'      => 'manager@elbarakamarket.com',
+                'password'   => 'Manager#Cart2026',
+                'first_name' => 'Team',
+                'last_name'  => 'Manager',
+                'phone'      => '+212700000012',
+                'role'       => 'manager',
+            ],
+            [
+                'email'      => 'sales@elbarakamarket.com',
+                'password'   => 'Sales#Cart2026',
+                'first_name' => 'Team',
+                'last_name'  => 'Sales',
+                'phone'      => '+212700000013',
+                'role'       => 'sales',
+            ],
+            [
+                'email'      => 'cashier@elbarakamarket.com',
+                'password'   => 'Cashier#Cart2026',
+                'first_name' => 'Team',
+                'last_name'  => 'Cashier',
+                'phone'      => '+212700000014',
+                'role'       => 'cashier',
             ],
         ];
 

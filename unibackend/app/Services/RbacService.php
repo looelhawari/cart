@@ -71,9 +71,7 @@ class RbacService
     public function isAdminRole(string $role): bool
     {
         return in_array($role, [
-            'owner', 'cashier', 'support', 'store_manager',
-            // Legacy roles still work
-            'super_admin', 'admin', 'sales_manager', 'accountant', 'customer_support',
+            'owner', 'admin', 'support', 'manager', 'sales', 'cashier',
         ]);
     }
 
@@ -192,21 +190,13 @@ class RbacService
     public static function rolePermissionMap(): array
     {
         return [
-            // ─── OWNER: Full access to everything ───
-            'owner' => '*', // Special: gets ALL permissions
+            // ─── OWNER: Full access (hardcoded bypass, cannot be edited) ───
+            'owner' => '*',
 
-            // ─── CASHIER: Operational day-to-day (no dashboard access) ───
-            'cashier' => [
-                'orders.view', 'orders.manage',
-                'products.view', 'products.manage',
-                'categories.view', 'categories.manage',
-                'promotions.view', 'promotions.manage',
-                'promo_codes.view', 'promo_codes.manage',
-                'delivery_zones.view', 'delivery_zones.manage',
-                'customers.view',
-            ],
+            // ─── ADMIN: Full access, but editable in the Roles tab ───
+            'admin' => '*',
 
-            // ─── SUPPORT: Customer-facing (no dashboard access) ───
+            // ─── SUPPORT: Customer-facing ───
             'support' => [
                 'refunds.view', 'refunds.manage',
                 'support.view', 'support.manage',
@@ -215,8 +205,8 @@ class RbacService
                 'orders.view', // Read-only: support needs to see orders for context
             ],
 
-            // ─── STORE MANAGER: Strategy & content (has dashboard + read-only ops data) ───
-            'store_manager' => [
+            // ─── MANAGER: Strategy, content & analytics ───
+            'manager' => [
                 'dashboard.view',
                 'analytics.view', 'analytics.manage',
                 'settings.view', 'settings.manage',
@@ -227,6 +217,25 @@ class RbacService
                 'orders.view',
                 'products.view',
                 'promotions.view',
+            ],
+
+            // ─── SALES: Catalog, pricing & promotions ───
+            'sales' => [
+                'products.view', 'products.manage',
+                'categories.view', 'categories.manage',
+                'promotions.view', 'promotions.manage',
+                'promo_codes.view', 'promo_codes.manage',
+                'analytics.view',
+                'orders.view',
+                'customers.view',
+            ],
+
+            // ─── CASHIER: Day-to-day order handling ───
+            'cashier' => [
+                'orders.view', 'orders.manage',
+                'products.view',
+                'delivery_zones.view',
+                'customers.view',
             ],
         ];
     }

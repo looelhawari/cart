@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   ArrowLeft,
   MapPin,
@@ -40,13 +40,21 @@ export default function CheckoutAddressScreen() {
     result: CoverageResult | null;
   }>({ checking: false, result: null });
 
-  useEffect(() => {
-    fetchAddresses();
-  }, []);
+  // Refetch on every focus, not just on mount: this screen stays mounted
+  // while the user pushes the add-address screen, so a newly created
+  // address has to be picked up when focus returns here.
+  useFocusEffect(
+    useCallback(() => {
+      fetchAddresses();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
 
   const fetchAddresses = async () => {
     try {
-      setLoading(true);
+      // Full-screen loader only before the first load; focus-triggered
+      // refreshes keep the current list on screen while updating silently.
+      setLoading((prev) => prev && addresses.length === 0);
       console.log("📍 Fetching checkout addresses...");
       const response = await getAddresses();
       console.log(
@@ -60,14 +68,20 @@ export default function CheckoutAddressScreen() {
       setAddresses(addressList);
       console.log("📍 Set addresses count:", addressList.length);
 
-      // Auto-select default address
-      const defaultAddress = addressList.find(
-        (addr: CheckoutAddress) => addr.is_default,
-      );
-      if (defaultAddress) {
-        setSelectedAddressId(defaultAddress.id);
-        console.log("📍 Auto-selected default address:", defaultAddress.id);
-      }
+      // Keep the user's current selection if it still exists; otherwise
+      // auto-select the default address.
+      setSelectedAddressId((current) => {
+        if (
+          current !== null &&
+          addressList.some((addr: CheckoutAddress) => addr.id === current)
+        ) {
+          return current;
+        }
+        const defaultAddress = addressList.find(
+          (addr: CheckoutAddress) => addr.is_default,
+        );
+        return defaultAddress ? defaultAddress.id : null;
+      });
     } catch (error: any) {
       console.error("📍 Error fetching addresses:", error);
       Alert.alert(

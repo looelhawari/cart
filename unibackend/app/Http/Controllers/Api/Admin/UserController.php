@@ -45,7 +45,7 @@ class UserController extends Controller
             'email' => 'required|email|unique:users',
             'phone' => 'required|string|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:owner,cashier,support,store_manager',
+            'role' => 'required|in:owner,admin,support,manager,sales,cashier',
             'is_active' => 'boolean',
             'two_factor_enabled' => 'boolean',
         ]);
@@ -97,7 +97,7 @@ class UserController extends Controller
             'email' => 'sometimes|email|unique:users,email,' . $id,
             'phone' => 'sometimes|string|unique:users,phone,' . $id,
             'password' => 'sometimes|string|min:8',
-            'role' => 'sometimes|in:owner,cashier,support,store_manager',
+            'role' => 'sometimes|in:owner,admin,support,manager,sales,cashier',
             'is_active' => 'sometimes|boolean',
             'two_factor_enabled' => 'sometimes|boolean',
         ]);
