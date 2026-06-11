@@ -283,9 +283,11 @@ export async function registerPushToken(
   deviceName?: string,
 ): Promise<boolean> {
   try {
+    // Backend validates `device_type` (ios|android|web) — `platform` was
+    // silently dropped and every token got stored as device_type "unknown".
     const response = await api.post("/notifications/token", {
       token,
-      platform: Platform.OS,
+      device_type: Platform.OS,
       device_name: deviceName || `${Platform.OS} Device`,
     });
 

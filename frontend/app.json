@@ -44,6 +44,7 @@
         "backgroundColor": "#22C55E"
       },
       "package": "com.cart.hypermarket",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 4,
       "permissions": [
         "android.permission.CAMERA",
