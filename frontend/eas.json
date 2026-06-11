@@ -18,7 +18,8 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "android": {
@@ -29,13 +30,15 @@
       },
       "env": {
         "EXPO_NO_CAPABILITY_SYNC": "1"
-      }
+      },
+      "channel": "production"
     },
     "production-apk": {
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
