@@ -3,6 +3,7 @@
     "name": "CART",
     "slug": "CART-app",
     "version": "1.0.4",
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cart",
