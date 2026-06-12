@@ -8,13 +8,16 @@
  */
 
 // Backend API Configuration
-export const API_CONFIG = {
-  // Production URL
-  // BASE_URL: "https://cartshop.site/api/v1",
+//
+// Environment-aware so a release build can NEVER ship a localhost/LAN URL
+// again: __DEV__ is true only in the Metro dev server, false in every
+// EAS/production build. Set your machine's LAN IP in DEV_BASE_URL for
+// on-device local testing.
+const PROD_BASE_URL = "https://cartshop.site/api/v1";
+const DEV_BASE_URL = "http://192.168.100.10:8000/api/v1";
 
-  // Development URL - Uncomment for local testing
-  // Android Emulator: 10.0.2.2 | iOS Simulator: localhost | Physical device: your PC's LAN IP
-  BASE_URL: "http://192.168.100.10:8000/api/v1",
+export const API_CONFIG = {
+  BASE_URL: __DEV__ ? DEV_BASE_URL : PROD_BASE_URL,
 
   TIMEOUT: 15000, // 15 seconds
 };
