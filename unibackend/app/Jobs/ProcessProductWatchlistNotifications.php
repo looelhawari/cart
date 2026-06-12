@@ -33,7 +33,8 @@ class ProcessProductWatchlistNotifications implements ShouldQueue
             ->where('notify_back_in_stock', true)
             ->where('notified_back_in_stock', false)
             ->whereHas('product', function ($query) {
-                $query->where('stock', '>', 0)->where('is_active', true);
+                // products has `stock_quantity`, not `stock`
+                $query->where('stock_quantity', '>', 0)->where('is_active', true);
             })
             ->limit(500)
             ->get();
@@ -43,9 +44,9 @@ class ProcessProductWatchlistNotifications implements ShouldQueue
 
             $notificationService->notifyProductBackInStock(
                 $item->user_id,
-                $item->product->name,
+                $item->product->name_en,
                 $item->product_id,
-                $item->product->image_url
+                $item->product->image
             );
 
             $item->notified_back_in_stock = true;
@@ -80,7 +81,7 @@ class ProcessProductWatchlistNotifications implements ShouldQueue
             if ($currentPrice <= $item->price_threshold) {
                 $notificationService->notifyPriceDropOnWatched(
                     $item->user_id,
-                    $item->product->name,
+                    $item->product->name_en,
                     $item->product_id,
                     (float) ($item->last_known_price ?? $item->product->price),
                     (float) $currentPrice

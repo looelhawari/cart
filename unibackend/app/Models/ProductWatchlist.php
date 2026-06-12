@@ -38,7 +38,11 @@ class ProductWatchlist extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        // Explicit keys: Product's primary key is `barcode` (not `id`), so the
+        // default belongsTo would look for a non-existent `product_barcode`
+        // foreign column. The real foreign key is `product_id` referencing
+        // products.barcode.
+        return $this->belongsTo(Product::class, 'product_id', 'barcode');
     }
 
     /**

@@ -26,12 +26,12 @@ class ProcessCouponExpirationReminders implements ShouldQueue
 
         // Get coupons expiring in 24-48 hours
         $expiringCoupons = PromoCode::where('is_active', true)
-            ->where('expires_at', '>', $now->copy()->addHours(24))
-            ->where('expires_at', '<=', $now->copy()->addHours(48))
+            ->where('valid_until', '>', $now->copy()->addHours(24))
+            ->where('valid_until', '<=', $now->copy()->addHours(48))
             ->get();
 
         foreach ($expiringCoupons as $coupon) {
-            $hoursRemaining = $now->diffInHours($coupon->expires_at);
+            $hoursRemaining = $now->diffInHours($coupon->valid_until);
 
             // If coupon is user-specific
             if ($coupon->user_id) {
@@ -51,8 +51,8 @@ class ProcessCouponExpirationReminders implements ShouldQueue
 
         // Get coupons that just expired (notify users)
         $justExpired = PromoCode::where('is_active', true)
-            ->where('expires_at', '<=', $now)
-            ->where('expires_at', '>', $now->copy()->subHours(24))
+            ->where('valid_until', '<=', $now)
+            ->where('valid_until', '>', $now->copy()->subHours(24))
             ->get();
 
         foreach ($justExpired as $coupon) {
