@@ -190,26 +190,28 @@ class SearchSuggestionsController extends Controller
      */
     private function suggestOffers(string $query): array
     {
+        // promotions columns are title / description / image_url (no _en
+        // suffix, no `priority` column) — order by featured instead.
         return Promotion::where('is_active', true)
             ->where(function ($q) {
                 $q->whereNull('end_date')->orWhere('end_date', '>=', now());
             })
             ->where(function ($q) use ($query) {
-                $q->where('title_en', 'LIKE', "%{$query}%")
+                $q->where('title', 'LIKE', "%{$query}%")
                   ->orWhere('title_ar', 'LIKE', "%{$query}%")
-                  ->orWhere('description_en', 'LIKE', "%{$query}%")
+                  ->orWhere('description', 'LIKE', "%{$query}%")
                   ->orWhere('description_ar', 'LIKE', "%{$query}%");
             })
-            ->orderByDesc('priority')
+            ->orderByDesc('is_featured')
             ->limit(3)
-            ->get(['id', 'title_en', 'title_ar', 'discount_type', 'discount_value', 'image'])
+            ->get(['id', 'title', 'title_ar', 'discount_type', 'discount_value', 'image_url'])
             ->map(fn($p) => [
                 'id' => $p->id,
-                'title_en' => $p->title_en,
+                'title_en' => $p->title,
                 'title_ar' => $p->title_ar,
                 'discount_type' => $p->discount_type,
                 'discount_value' => (float) $p->discount_value,
-                'image' => $p->image,
+                'image' => $p->image_url,
             ])
             ->toArray();
     }
