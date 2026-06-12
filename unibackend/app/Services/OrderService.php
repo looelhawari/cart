@@ -290,12 +290,15 @@ class OrderService
             //     'created_by' => $userId,
             // ]);
 
-            // CRITICAL: DO NOT clear cart here for card payments
-            // Cart should only be cleared AFTER successful payment confirmation
-            // For pay-on-delivery (cash or card machine), we can clear immediately.
-            if ($isOnDelivery) {
-                $this->cartService->clearCart($cart);
-            }
+            // Clear the cart for EVERY payment method once the order exists.
+            // The order has already snapshotted line items + totals, and the
+            // Paymob intention is built from the order (not the cart), so the
+            // cart is safe to empty now. Previously online-card orders skipped
+            // this and relied on a later webhook keyed by user_id only —
+            // which left the cart full after ordering ("cart still holds my
+            // items") and risked double-orders. A failed/abandoned card
+            // payment leaves a pending order the customer can retry or reorder.
+            $this->cartService->clearCart($cart);
 
             // Load order with relationships
             $order->load(['items.product', 'deliveryAddress', 'user']);

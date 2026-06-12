@@ -90,6 +90,7 @@ interface StoreState {
   removeFromCart: (itemId: number) => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  resetCartLocal: () => void;
   applyPromoCodeToCart: (code: string) => Promise<void>;
   removePromoCodeFromCart: () => Promise<void>;
 
@@ -550,6 +551,12 @@ export const useStore = create<StoreState>()(
           throw error;
         }
       },
+
+      // Empty the local cart immediately, with no API call. Used right after
+      // an order is placed: the backend already cleared the server cart, and
+      // the fetchCart() "keep local items if API is empty" guard would
+      // otherwise hold the now-ordered items on screen indefinitely.
+      resetCartLocal: () => set({ cart: null }),
 
       applyPromoCodeToCart: async (code: string) => {
         set({ cartError: null });

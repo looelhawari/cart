@@ -231,6 +231,12 @@ export default function CheckoutConfirmationScreen() {
 
         orderId = response.data.order.id;
         orderNumber = response.data.order.order_number;
+
+        // The backend clears the server cart on order creation. Mirror that
+        // locally now so the just-ordered items don't linger on screen (the
+        // fetchCart guard would otherwise keep them) and the cart can't show
+        // "empty at checkout" from stale local/server divergence.
+        useStore.getState().resetCartLocal();
       }
 
       if (paymentType === "card") {
