@@ -28,7 +28,8 @@ class FlashSaleProduct extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        // Product PK is `barcode`; product_id holds a barcode value.
+        return $this->belongsTo(Product::class, 'product_id', 'barcode');
     }
 
     /**

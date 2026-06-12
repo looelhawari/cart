@@ -196,7 +196,7 @@ export const useStore = create<StoreState>()(
             isAuthenticated: false,
             user: null,
             pendingUser: null,
-            cart: [],
+            cart: null,
             selectedAddress: null,
             selectedPaymentMethod: null,
             promoCode: null,

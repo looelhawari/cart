@@ -146,14 +146,14 @@ class SearchSuggestionsController extends Controller
             })
             ->orderByDesc('sales_count') // best sellers first
             ->limit(8)
-            ->get(['barcode', 'name_en', 'name_ar', 'price', 'sale_price', 'image_url', 'unit'])
+            ->get(['barcode', 'name_en', 'name_ar', 'price', 'sale_price', 'image', 'unit'])
             ->map(fn($p) => [
                 'barcode' => $p->barcode,
                 'name_en' => $p->name_en,
                 'name_ar' => $p->name_ar,
                 'price' => (float) $p->price,
                 'sale_price' => $p->sale_price ? (float) $p->sale_price : null,
-                'image_url' => $p->image_url,
+                'image_url' => $p->image,
                 'unit' => $p->unit,
             ])
             ->toArray();

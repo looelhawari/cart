@@ -32,7 +32,8 @@ class UserPurchasePattern extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        // Product PK is `barcode`; product_id holds a barcode value.
+        return $this->belongsTo(Product::class, 'product_id', 'barcode');
     }
 
     /**
@@ -88,7 +89,7 @@ class UserPurchasePattern extends Model
             ->where('purchase_count', '>=', 2)
             ->where('next_predicted_purchase', '<=', now())
             ->whereHas('product', function ($query) {
-                $query->where('is_active', true)->where('stock', '>', 0);
+                $query->where('is_active', true)->where('stock_quantity', '>', 0);
             })
             ->orderBy('purchase_count', 'desc')
             ->limit($limit)

@@ -341,7 +341,7 @@ class PromoCodeApiController extends Controller
         if ($promoCode->applies_to === 'product') {
             $description .= ' ' . __('promo.on_selected_products');
         } elseif ($promoCode->applies_to === 'category') {
-            $categories = $promoCode->categories->pluck('name')->join(', ');
+            $categories = $promoCode->categories->pluck('name_en')->join(', ');
             if ($categories) {
                 $description .= " on {$categories}";
             }

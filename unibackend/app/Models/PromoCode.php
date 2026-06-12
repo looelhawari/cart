@@ -439,7 +439,7 @@ class PromoCode extends Model
                 break;
 
             case 'product':
-                $eligibleProducts = $this->products->pluck('id')->toArray();
+                $eligibleProducts = $this->products->pluck('barcode')->toArray();
                 foreach ($cartItems as $item) {
                     if (in_array($item['product_id'], $eligibleProducts)) {
                         $itemDiscount = ($item['price'] * $item['quantity']) * ($this->value / 100);
@@ -485,7 +485,7 @@ class PromoCode extends Model
                 break;
 
             case 'product':
-                $eligibleProducts = $this->products->pluck('id')->toArray();
+                $eligibleProducts = $this->products->pluck('barcode')->toArray();
                 foreach ($cartItems as $item) {
                     if (in_array($item['product_id'], $eligibleProducts)) {
                         $itemTotal = $item['price'] * $item['quantity'];
@@ -671,13 +671,13 @@ class PromoCode extends Model
         // Product-specific suggestions
         if ($this->applies_to === 'product' && $this->products->count() > 0) {
             $cartProductIds = array_column($cartItems, 'product_id');
-            $eligibleProducts = $this->products->pluck('id')->toArray();
+            $eligibleProducts = $this->products->pluck('barcode')->toArray();
             
             if (!array_intersect($cartProductIds, $eligibleProducts)) {
                 $suggestions[] = [
                     'type' => 'add_product',
                     'message' => 'Add an eligible product to your cart',
-                    'products' => $this->products->take(5)->pluck('name', 'id')->toArray(),
+                    'products' => $this->products->take(5)->pluck('name_en', 'barcode')->toArray(),
                 ];
             }
         }
@@ -699,7 +699,7 @@ class PromoCode extends Model
                 $suggestions[] = [
                     'type' => 'add_category',
                     'message' => 'Add a product from an eligible category',
-                    'categories' => $this->categories->pluck('name', 'id')->toArray(),
+                    'categories' => $this->categories->pluck('name_en', 'id')->toArray(),
                 ];
             }
         }

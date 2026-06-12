@@ -1283,7 +1283,7 @@ class PaymentController extends Controller
             // Build items array for Paymob intention (must sum to amountCents exactly)
             $items = $order->items->map(function ($item) {
                 return [
-                    'name' => $item->product->name ?? $item->product_name ?? 'Product',
+                    'name' => $item->product->name_en ?? $item->product_name ?? 'Product',
                     'amount' => (int) ($item->price * 100),
                     'description' => 'Order item',
                     'quantity' => $item->quantity ?? 1,
@@ -1461,7 +1461,7 @@ class PaymentController extends Controller
             // Build order items for fraud detection
             $items = $order->items->map(function ($item) {
                 return [
-                    'name' => $item->product->name ?? 'Product',
+                    'name' => $item->product->name_en ?? $item->product_name ?? 'Product',
                     'amount' => (int) ($item->price * 100), // Paymob expects 'amount' not 'amount_cents'
                     'quantity' => $item->quantity,
                 ];

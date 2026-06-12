@@ -44,7 +44,7 @@ class PromoCodeBogoRule extends Model
 
     public function buyProduct(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'buy_product_id');
+        return $this->belongsTo(Product::class, 'buy_product_id', 'barcode');
     }
 
     public function buyCategory(): BelongsTo
@@ -54,7 +54,7 @@ class PromoCodeBogoRule extends Model
 
     public function getProduct(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'get_product_id');
+        return $this->belongsTo(Product::class, 'get_product_id', 'barcode');
     }
 
     public function getCategory(): BelongsTo

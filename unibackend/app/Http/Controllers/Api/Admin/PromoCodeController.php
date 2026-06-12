@@ -512,8 +512,8 @@ class PromoCodeController extends Controller
             $newPromoCode->is_active = false; // Start as inactive
             $newPromoCode->save();
 
-            // Copy products
-            $newPromoCode->products()->attach($original->products->pluck('id'));
+            // Copy products (Product PK is `barcode`, not `id`)
+            $newPromoCode->products()->attach($original->products->pluck('barcode'));
 
             // Copy categories
             foreach ($original->categories as $category) {
@@ -651,8 +651,8 @@ class PromoCodeController extends Controller
                 'valid_from' => $code->valid_from?->toDateString(),
                 'valid_until' => $code->valid_until?->toDateString(),
                 'status' => $code->status,
-                'products' => $code->products->pluck('name')->join(', '),
-                'categories' => $code->categories->pluck('name')->join(', '),
+                'products' => $code->products->pluck('name_en')->join(', '),
+                'categories' => $code->categories->pluck('name_en')->join(', '),
             ];
         });
 

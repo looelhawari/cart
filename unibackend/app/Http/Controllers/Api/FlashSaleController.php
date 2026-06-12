@@ -45,7 +45,8 @@ class FlashSaleController extends Controller
     public function show(int $id): JsonResponse
     {
         $sale = FlashSale::with(['products.product' => function ($query) {
-            $query->select('id', 'name', 'name_ar', 'price', 'image_url', 'stock', 'barcode');
+            // products PK is `barcode`; columns are name_en/name_ar/image/stock_quantity
+            $query->select('barcode', 'name_en', 'name_ar', 'price', 'image', 'stock_quantity');
         }])->find($id);
 
         if (!$sale) {
