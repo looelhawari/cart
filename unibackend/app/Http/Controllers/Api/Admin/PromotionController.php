@@ -28,6 +28,18 @@ class PromotionController extends Controller
     }
 
     /**
+     * Invalidate promotion + product caches so the storefront reflects a
+     * promotion change immediately. Promotions rewrite product sale_price,
+     * so the product list/flash-deals/featured caches must clear too.
+     */
+    private function flushPromotionCaches($promotionId = null): void
+    {
+        \App\Http\Controllers\Api\PromotionController::clearCache($promotionId);
+        \App\Http\Controllers\Api\ProductController::clearCache();
+        \App\Http\Controllers\Api\Admin\AnalyticsController::clearCache();
+    }
+
+    /**
      * Get all promotions (admin)
      */
     public function index(Request $request)
@@ -164,6 +176,8 @@ class PromotionController extends Controller
             }
 
             DB::commit();
+
+            $this->flushPromotionCaches($promotion->id);
 
             return response()->json([
                 'success' => true,
@@ -321,6 +335,8 @@ class PromotionController extends Controller
 
             DB::commit();
 
+            $this->flushPromotionCaches($promotion->id);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Promotion updated successfully',
@@ -357,9 +373,12 @@ class PromotionController extends Controller
                 $this->cloudinaryService->deleteImage($promotion->banner_image_url);
             }
 
+            $promotionId = $promotion->id;
             $promotion->delete();
 
             DB::commit();
+
+            $this->flushPromotionCaches($promotionId);
 
             return response()->json([
                 'success' => true,

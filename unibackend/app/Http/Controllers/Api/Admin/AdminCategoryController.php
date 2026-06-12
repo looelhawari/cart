@@ -36,6 +36,8 @@ class AdminCategoryController extends Controller
 
         $category = Category::create($validated);
 
+        \App\Http\Controllers\Api\CategoryController::clearCache($category->id);
+
         return response()->json($category->load('parent'), 201);
     }
 
@@ -64,6 +66,8 @@ class AdminCategoryController extends Controller
 
         $category->update($validated);
 
+        \App\Http\Controllers\Api\CategoryController::clearCache($category->id);
+
         return response()->json($category->load('parent'));
     }
 
@@ -85,7 +89,10 @@ class AdminCategoryController extends Controller
             ], 422);
         }
 
+        $categoryId = $category->id;
         $category->delete();
+
+        \App\Http\Controllers\Api\CategoryController::clearCache($categoryId);
 
         return response()->json(['message' => 'Category deleted successfully']);
     }

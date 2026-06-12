@@ -207,7 +207,9 @@ class AnalyticsController extends Controller
      */
     public function quickStats()
     {
-        return Cache::remember('admin:quick-stats', 3600, function () {
+        // 2-min TTL (was 1h): the dashboard overview must not lag an hour
+        // behind today's orders/stock. clearCache() also drops it on writes.
+        return Cache::remember('admin:quick-stats', 120, function () {
             $todayStart = now()->startOfDay();
 
             return response()->json([

@@ -50,7 +50,10 @@ class ProductController extends Controller
                 'page' => (int) $request->get('page', 1),
                 'per_page' => min((int) $request->get('per_page', 20), 100),
             ];
-            $cacheKey = 'products:list:' . md5(json_encode($cacheParams));
+            // Version-stamped key: bumping the version (on any product/promo
+            // write) instantly invalidates ALL dynamic list variants, which
+            // md5 keys otherwise make impossible to enumerate/forget.
+            $cacheKey = 'products:list:v' . self::listCacheVersion() . ':' . md5(json_encode($cacheParams));
 
             $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($request) {
                 $query = Product::select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'stock_quantity', 'is_in_stock', 'weight', 'unit', 'rating', 'review_count', 'is_featured', 'sales_count', 'created_at', 'active_promotion_id')
@@ -252,19 +255,38 @@ class ProductController extends Controller
     }
 
     /**
-     * Clear product cache (call when products are updated)
+     * Monotonic version embedded in every products:list cache key.
+     * Bumping it abandons all old list entries at once.
      */
-    public static function clearCache(?int $barcode = null): void
+    private static function listCacheVersion(): int
+    {
+        $v = Cache::get('products:list:version');
+        if ($v === null) {
+            Cache::forever('products:list:version', 1);
+            return 1;
+        }
+        return (int) $v;
+    }
+
+    /**
+     * Clear product caches. Call on ANY product or promotion write so the
+     * mobile app reflects changes within seconds instead of waiting out the
+     * 5-minute TTL. $barcode accepts string barcodes (PK) too.
+     */
+    public static function clearCache($barcode = null): void
     {
         if ($barcode) {
             Cache::forget("products:single:{$barcode}");
         }
 
-        // Clear list caches
         Cache::forget('products:featured');
         Cache::forget('products:flash-deals');
 
-        // Note: For list caches with dynamic keys, consider using cache tags
-        // Cache::tags(['products'])->flush();
+        // Invalidate every dynamic products:list:* entry by bumping the
+        // version (md5-keyed entries can't be enumerated to forget).
+        if (Cache::get('products:list:version') === null) {
+            Cache::forever('products:list:version', 1);
+        }
+        Cache::increment('products:list:version');
     }
 }

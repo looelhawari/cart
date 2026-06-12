@@ -39,9 +39,14 @@ import DeliveryZonesPage from "@/pages/delivery-zones/DeliveryZonesPage";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
+      // Dashboard is an operations console — admins expect their edits and
+      // fresh data to show right away. A 5-min staleTime + no focus refetch
+      // made it feel stale ("my change didn't take effect"). Refresh on
+      // mount and on window focus, with a short staleTime.
+      refetchOnWindowFocus: true,
+      refetchOnMount: "always",
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 30 * 1000, // 30 seconds
     },
   },
 });

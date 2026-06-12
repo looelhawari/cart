@@ -24,6 +24,17 @@ class AdminProductController extends Controller
         }
     }
 
+    /**
+     * Invalidate the public product caches + analytics so the storefront and
+     * dashboard reflect this admin change immediately instead of waiting out
+     * the cache TTL.
+     */
+    private function flushProductCaches($barcode = null): void
+    {
+        \App\Http\Controllers\Api\ProductController::clearCache($barcode);
+        \App\Http\Controllers\Api\Admin\AnalyticsController::clearCache();
+    }
+
     public function index(Request $request)
     {
         $query = Product::query();
@@ -114,6 +125,8 @@ class AdminProductController extends Controller
         // Attach the category using the pivot table
         $product->categories()->attach($categoryId);
 
+        $this->flushProductCaches($product->barcode);
+
         return response()->json($product->load('categories'), 201);
     }
 
@@ -189,6 +202,8 @@ class AdminProductController extends Controller
             }
         }
 
+        $this->flushProductCaches($product->barcode);
+
         return response()->json($product->load('categories'));
     }
 
@@ -205,6 +220,8 @@ class AdminProductController extends Controller
         }
 
         $product->delete();
+
+        $this->flushProductCaches($barcode);
 
         return response()->json(['message' => 'Product deleted successfully']);
     }
@@ -271,6 +288,8 @@ class AdminProductController extends Controller
             'is_in_stock' => $request->is_in_stock,
         ]);
 
+        $this->flushProductCaches($product->barcode);
+
         return response()->json([
             'success' => true,
             'message' => $request->is_in_stock ? 'Product marked as in stock' : 'Product marked as out of stock',
@@ -296,6 +315,8 @@ class AdminProductController extends Controller
             ]);
             $updated[] = $item['barcode'];
         }
+
+        $this->flushProductCaches();
 
         return response()->json([
             'success' => true,
