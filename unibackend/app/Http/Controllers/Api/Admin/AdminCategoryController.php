@@ -37,6 +37,7 @@ class AdminCategoryController extends Controller
         $category = Category::create($validated);
 
         \App\Http\Controllers\Api\CategoryController::clearCache($category->id);
+        app(\App\Services\ContentVersionService::class)->touch('category', 'updated', $category->id);
 
         return response()->json($category->load('parent'), 201);
     }
@@ -67,6 +68,7 @@ class AdminCategoryController extends Controller
         $category->update($validated);
 
         \App\Http\Controllers\Api\CategoryController::clearCache($category->id);
+        app(\App\Services\ContentVersionService::class)->touch('category', 'updated', $category->id);
 
         return response()->json($category->load('parent'));
     }
@@ -93,6 +95,7 @@ class AdminCategoryController extends Controller
         $category->delete();
 
         \App\Http\Controllers\Api\CategoryController::clearCache($categoryId);
+        app(\App\Services\ContentVersionService::class)->touch('category', 'deleted', $categoryId);
 
         return response()->json(['message' => 'Category deleted successfully']);
     }

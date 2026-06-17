@@ -301,6 +301,7 @@ class AdminDeliveryZoneController extends Controller
         foreach (DeliveryZoneService::ZONE_CACHE_KEYS as $key) {
             \Illuminate\Support\Facades\Cache::forget($key);
         }
+        app(\App\Services\ContentVersionService::class)->touch('map', 'updated', null);
 
         return response()->json([
             'success' => true,

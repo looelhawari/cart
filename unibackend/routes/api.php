@@ -172,6 +172,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/delivery-settings', [StoreSettingsController::class, 'getDeliverySettings']);
     });
 
+    // Global content version — mobile polls this on startup/resume/reconnect
+    // to detect admin changes it may have missed while offline/closed.
+    Route::middleware('throttle:120,1')->prefix('app')->group(function () {
+        Route::get('/content-version', [\App\Http\Controllers\Api\AppContentController::class, 'version']);
+    });
+
     // Delivery zones routes (public - zone listing for mobile map) - throttled to 60/min
     Route::middleware('throttle:60,1')->prefix('delivery-zones')->group(function () {
         Route::get('/', [DeliveryZoneController::class, 'index']);

@@ -29,10 +29,12 @@ class AdminProductController extends Controller
      * dashboard reflect this admin change immediately instead of waiting out
      * the cache TTL.
      */
-    private function flushProductCaches($barcode = null): void
+    private function flushProductCaches($barcode = null, string $action = 'updated'): void
     {
         \App\Http\Controllers\Api\ProductController::clearCache($barcode);
         \App\Http\Controllers\Api\Admin\AnalyticsController::clearCache();
+        // Realtime sync: bump content version + broadcast to all apps.
+        app(\App\Services\ContentVersionService::class)->touch('product', $action, $barcode);
     }
 
     public function index(Request $request)

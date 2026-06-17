@@ -131,6 +131,14 @@ class StoreSetting extends Model
         foreach (self::CUSTOMER_FACING_CACHE_KEYS as $cacheKey) {
             Cache::forget($cacheKey);
         }
+
+        // Realtime sync: a settings write bumps the content version + broadcasts
+        // so every app refreshes its settings/app-config instantly.
+        try {
+            app(\App\Services\ContentVersionService::class)->touch('settings', 'updated', $key);
+        } catch (\Throwable $e) {
+            // never break a settings write on a sync hiccup
+        }
     }
 
     /**

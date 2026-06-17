@@ -498,5 +498,13 @@ class DeliveryZoneService
         foreach (self::ZONE_CACHE_KEYS as $key) {
             Cache::forget($key);
         }
+
+        // Realtime sync: zone/map data changed — bump version + broadcast so
+        // the mobile map screen reloads instantly.
+        try {
+            app(\App\Services\ContentVersionService::class)->touch('map', 'updated', null);
+        } catch (\Throwable $e) {
+            // never break a zone write on a sync hiccup
+        }
     }
 }

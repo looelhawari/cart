@@ -37,6 +37,11 @@ class PromotionController extends Controller
         \App\Http\Controllers\Api\PromotionController::clearCache($promotionId);
         \App\Http\Controllers\Api\ProductController::clearCache();
         \App\Http\Controllers\Api\Admin\AnalyticsController::clearCache();
+        // Realtime sync: promotions drive banners + product sale prices, so
+        // bump both 'promotion' and 'product' (each also bumps global).
+        $sync = app(\App\Services\ContentVersionService::class);
+        $sync->touch('promotion', 'updated', $promotionId);
+        $sync->touch('product', 'updated', null);
     }
 
     /**
