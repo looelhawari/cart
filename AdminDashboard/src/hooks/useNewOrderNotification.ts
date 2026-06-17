@@ -148,9 +148,14 @@ export function useNewOrderNotification() {
 
         if (!initializedRef.current) {
             initializedRef.current = true
-            if (!stored || stored < latestId) {
-                localStorage.setItem(STORAGE_KEY, String(latestId))
-            }
+            // ALWAYS (re)baseline to the current latest order on the first
+            // poll. Robust to order-ID resets — e.g. a go-live data wipe that
+            // TRUNCATEs the orders table restarts IDs at 1, but a stale,
+            // higher last_seen_order_id left in this browser's localStorage
+            // would otherwise make `latestId > stored` permanently false and
+            // silence every future alert. (The old code only updated when
+            // stored < latestId, so a stale-high value stuck forever.)
+            localStorage.setItem(STORAGE_KEY, String(latestId))
             return
         }
 
@@ -169,6 +174,11 @@ export function useNewOrderNotification() {
                         ? latestVerified.total
                         : Number(latestVerified?.total) || undefined,
             })
+        } else if (latestId < stored) {
+            // IDs went backwards while running → the orders table was reset
+            // (data wipe). Re-baseline silently so alerts resume for the next
+            // genuinely new order instead of being stuck forever.
+            localStorage.setItem(STORAGE_KEY, String(latestId))
         }
     }, [data, setPending])
 
