@@ -60,7 +60,16 @@ class CartController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $userId = $request->user()?->id;
+            // IMPORTANT: resolve via the 'sanctum' guard explicitly. The cart
+            // routes are intentionally NOT behind the auth:sanctum middleware
+            // (guests need carts too), and the app's DEFAULT auth guard is
+            // 'web' (session). Calling $request->user() with no guard would use
+            // 'web', which ignores the Bearer token — so a logged-in user's
+            // items would land in a guest (session-only) cart and never reach
+            // their user cart, making checkout see an empty cart (subtotal 0).
+            // 'sanctum' honours the Bearer token, and returns null for true
+            // guests so the X-Session-ID fallback below still works.
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
@@ -108,7 +117,7 @@ class CartController extends Controller
         }
 
         try {
-            $userId = $request->user()?->id;
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
@@ -168,7 +177,7 @@ class CartController extends Controller
         }
 
         try {
-            $userId = $request->user()?->id;
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
@@ -207,7 +216,7 @@ class CartController extends Controller
     public function removeItem(Request $request, int $id): JsonResponse
     {
         try {
-            $userId = $request->user()?->id;
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
@@ -247,7 +256,7 @@ class CartController extends Controller
     public function clear(Request $request): JsonResponse
     {
         try {
-            $userId = $request->user()?->id;
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
@@ -285,7 +294,7 @@ class CartController extends Controller
         }
 
         try {
-            $userId = $request->user()?->id;
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
@@ -357,7 +366,7 @@ class CartController extends Controller
         } catch (\Exception $e) {
             // SECURITY (audit C4): don't surface internal exception text.
             \Log::warning('Cart applyPromo failed', [
-                'user_id' => $request->user()?->id,
+                'user_id' => $request->user('sanctum')?->id,
                 'error' => $e->getMessage(),
             ]);
             return response()->json([
@@ -374,7 +383,7 @@ class CartController extends Controller
     public function removePromo(Request $request): JsonResponse
     {
         try {
-            $userId = $request->user()?->id;
+            $userId = $request->user('sanctum')?->id;
             $sessionId = $request->header('X-Session-ID') ?? $request->cookie('session_id');
 
             $cart = $this->cartService->getCart($userId, $sessionId);
