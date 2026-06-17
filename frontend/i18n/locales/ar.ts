@@ -1879,6 +1879,7 @@ export default {
     thirtyToFortyFiveMins: "30-45 دقيقة",
     quality: "جودة",
     guaranteed: "مضمونة",
+    cardAndCash: "بطاقة أو نقداً",
     getUpTo50: "احصل على خصم يصل إلى 50% على المنتجات الطازجة",
     popular: "رائج",
     // Offers page extras

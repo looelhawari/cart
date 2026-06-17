@@ -1902,6 +1902,7 @@ export default {
     thirtyToFortyFiveMins: "30-45 mins",
     quality: "Quality",
     guaranteed: "Guaranteed",
+    cardAndCash: "Card & Cash",
     getUpTo50: "Get up to 50% off fresh items",
     popular: "Popular",
     // Offers page extras
