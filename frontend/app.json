@@ -2,7 +2,7 @@
   "expo": {
     "name": "CART",
     "slug": "CART-app",
-    "version": "1.0.4",
+    "version": "1.0.7",
     "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
