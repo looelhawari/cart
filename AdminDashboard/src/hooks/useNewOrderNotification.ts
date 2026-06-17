@@ -70,6 +70,8 @@ export function useNewOrderNotification() {
                     audio.pause()
                     audio.currentTime = 0
                     audio.volume = previousVolume
+                    // Unlock CONFIRMED — only now stop listening for gestures.
+                    removeListeners()
                     // If a banner is already showing because the order
                     // arrived before the cashier clicked, kick the loop now.
                     if (playOnUnlockRef.current) {
@@ -82,11 +84,12 @@ export function useNewOrderNotification() {
                 })
                 .catch(() => {
                     audio.volume = previousVolume
-                    // First gesture didn't unlock; keep listening.
+                    // First gesture didn't unlock; keep listening so the NEXT
+                    // gesture retries. (Previously removeListeners() ran
+                    // synchronously below, so a single failed silent-play left
+                    // audio permanently locked → banner showed but never rang.)
                     unlockedRef.current = false
                 })
-
-            removeListeners()
         }
 
         const removeListeners = () => {
