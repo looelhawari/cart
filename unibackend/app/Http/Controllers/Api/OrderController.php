@@ -202,6 +202,18 @@ class OrderController extends Controller
                 $promoCode
             );
 
+            // Belt-and-suspenders: also empty any guest/session cart tied to
+            // this device's X-Session-ID. The user cart is cleared inside
+            // createOrderFromCart, but if the app briefly lacked its auth
+            // token, items may have landed in a session cart that the cart
+            // screen would otherwise still show after ordering.
+            if ($sessionId) {
+                \App\Models\Cart::where('session_id', $sessionId)
+                    ->whereNull('user_id')
+                    ->get()
+                    ->each(fn ($guestCart) => $this->cartService->clearCart($guestCart));
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => __('order.order_placed'),
