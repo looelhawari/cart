@@ -26,7 +26,12 @@ import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import { Typography } from "@/constants/Typography";
 import { Spacing } from "@/constants/Spacing";
-import { getDeliverySlots, DeliverySlot } from "@/services/api/checkoutApi";
+import {
+  getDeliverySlots,
+  DeliverySlot,
+  calculateSummary,
+  type OrderSummary,
+} from "@/services/api/checkoutApi";
 import { createOrder } from "@/services/api/orderApi";
 import { initiatePayment } from "@/services/paymentMethodsApi";
 import { savePendingPayment } from "@/services/payment/paymentRecovery";
@@ -70,14 +75,48 @@ export default function CheckoutConfirmationScreen() {
   // Promo code is now handled only on cart page
   // The cart.discount already includes any applied promo code discount
 
-  const subtotal = cart?.subtotal || 0;
-  const deliveryFee = cart?.delivery_fee || 0;
-  const discount = cart?.discount || 0; // Total discount (promotions + promo code from cart)
-  const total = cart?.total || 0; // Already calculated with discount applied
+  // Zone-aware order summary for the chosen address. Delivery fee is set per
+  // delivery ZONE, so the authoritative fee + total come from the server
+  // summary (not the cart, whose delivery_fee is always 0 pre-address).
+  const [summary, setSummary] = useState<OrderSummary | null>(null);
+
+  const subtotal = summary?.subtotal ?? cart?.subtotal ?? 0;
+  const deliveryFee = summary?.delivery_fee ?? cart?.delivery_fee ?? 0;
+  const discount = summary?.discount ?? cart?.discount ?? 0;
+  const total = summary?.total ?? cart?.total ?? 0;
+  const zone = summary?.zone ?? null;
+  // Address resolved but outside every delivery zone → cannot deliver.
+  const notDeliverable = !!zone && zone.is_deliverable === false;
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Fetch the zone-based delivery fee + total for the selected address.
+  // Re-runs if the address or the cart's promo code changes.
+  useEffect(() => {
+    if (!addressId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await calculateSummary(cart?.promo_code || undefined, addressId);
+        if (!cancelled) {
+          setSummary(res.data.summary);
+          console.log(
+            "[Checkout] zone summary: fee=",
+            res.data.summary?.delivery_fee,
+            "deliverable=",
+            res.data.summary?.zone?.is_deliverable,
+          );
+        }
+      } catch (e) {
+        console.log("[Checkout] summary fetch failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [addressId, cart?.promo_code]);
 
   const NOW_SLOT_VALUE = "Now";
 
@@ -610,6 +649,15 @@ export default function CheckoutConfirmationScreen() {
           </View>
         )}
 
+        {notDeliverable && (
+          <View style={styles.outOfZoneBanner}>
+            <Text style={styles.outOfZoneText}>
+              {zone?.error ||
+                "We don't deliver to this address yet. Please choose a different address."}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.checkout.priceSummary}</Text>
           <View style={styles.priceSummary}>
@@ -620,16 +668,21 @@ export default function CheckoutConfirmationScreen() {
               </Text>
             </View>
             <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>{t.checkout.deliveryFee}</Text>
+              <Text style={styles.priceLabel}>
+                {t.checkout.deliveryFee}
+                {zone?.zone_name ? ` · ${zone.zone_name}` : ""}
+              </Text>
               <Text
                 style={[
                   styles.priceValue,
                   deliveryFee === 0 && styles.freeText,
                 ]}
               >
-                {deliveryFee === 0
-                  ? t.common.free
-                  : `${deliveryFee.toFixed(2)} ${t.common.currency}`}
+                {notDeliverable
+                  ? "—"
+                  : deliveryFee === 0
+                    ? t.common.free
+                    : `${deliveryFee.toFixed(2)} ${t.common.currency}`}
               </Text>
             </View>
             {discount > 0 && (
@@ -671,10 +724,10 @@ export default function CheckoutConfirmationScreen() {
         <TouchableOpacity
           style={[
             styles.placeOrderButton,
-            isPlacingOrder && styles.buttonDisabled,
+            (isPlacingOrder || notDeliverable) && styles.buttonDisabled,
           ]}
           onPress={handlePlaceOrder}
-          disabled={isPlacingOrder}
+          disabled={isPlacingOrder || notDeliverable}
         >
           <Text style={styles.placeOrderText}>
             {isPlacingOrder ? t.checkout.placingOrder : t.checkout.placeOrder}
@@ -944,6 +997,20 @@ const styles = StyleSheet.create({
   },
   discountText: {
     color: Colors.primary700,
+  },
+  outOfZoneBanner: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: 12,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  outOfZoneText: {
+    color: "#B91C1C",
+    fontSize: 13,
+    lineHeight: 18,
   },
   totalRow: {
     borderTopWidth: 1,

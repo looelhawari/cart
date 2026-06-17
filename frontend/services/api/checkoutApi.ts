@@ -42,15 +42,31 @@ export interface CheckoutPaymentMethod {
   updated_at: string;
 }
 
+export interface DeliveryZoneInfo {
+  is_deliverable: boolean;
+  zone_id?: number | null;
+  zone_name?: string | null;
+  zone_name_ar?: string | null;
+  delivery_fee?: number;
+  minimum_order?: number;
+  meets_minimum?: boolean;
+  estimated_delivery_time?: string | null;
+  error?: string;
+}
+
 export interface OrderSummary {
   subtotal: number;
   delivery_fee: number;
   tax: number;
   discount: number;
   total: number;
-  applied_promo: string | null;
-  free_delivery_threshold: number;
-  tax_rate: number;
+  applied_promo?: string | null;
+  promo_code?: any;
+  // Zone-based delivery info for the selected address. is_deliverable=false
+  // means the address is outside all delivery zones.
+  zone?: DeliveryZoneInfo | null;
+  free_delivery_threshold?: number;
+  tax_rate?: number;
 }
 
 export const checkoutApi = {
