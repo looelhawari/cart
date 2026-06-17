@@ -28,7 +28,7 @@ import {
   Lock as LockIcon,
   Fingerprint,
 } from "lucide-react-native";
-import { signInWithGoogle } from "@/services/socialAuth";
+import { signInWithGoogle, isAppleAuthAvailable } from "@/services/socialAuth";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { authApi } from "@/services/api";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
@@ -65,11 +65,9 @@ export default function LoginScreen() {
   });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
-  // Check biometric support.
-  // Sign in with Apple is intentionally hidden (kept disabled) per request —
-  // leave appleAvailable=false so the Apple button never renders on iOS.
-  // (To re-enable: restore isAppleAuthAvailable().then(setAppleAvailable).)
+  // Check Apple availability and biometric support
   useEffect(() => {
+    isAppleAuthAvailable().then(setAppleAvailable);
     checkBiometricSupport().then(setBiometricSupport);
     isBiometricLoginEnabled().then(setBiometricEnabled);
   }, []);

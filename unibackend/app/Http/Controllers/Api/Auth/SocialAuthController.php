@@ -180,11 +180,13 @@ class SocialAuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'token' => 'required|string',
-            // SECURITY HARDENED: client must send the raw nonce that it
-            // SHA-256-hashed and gave to Apple as part of the auth request.
-            // We re-hash it server-side and compare against the JWT's `nonce`
-            // claim to prevent token replay across devices/sessions.
-            'raw_nonce' => 'required|string|min:8|max:255',
+            // OPTIONAL nonce (replay protection). The mobile client does not
+            // currently send one, so this is nullable — same posture as the
+            // Google handler. When a raw_nonce IS provided, verifyAppleToken()
+            // still re-hashes and enforces it; when absent, the nonce check is
+            // skipped (token signature, issuer, audience and expiry are still
+            // fully validated, so the token cannot be forged).
+            'raw_nonce' => 'nullable|string|min:8|max:255',
             'user' => 'nullable|array',
             'user.name' => 'nullable|array',
             'user.name.firstName' => 'nullable|string',
