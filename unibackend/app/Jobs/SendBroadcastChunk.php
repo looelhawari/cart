@@ -154,6 +154,13 @@ class SendBroadcastChunk implements ShouldQueue
                 ->delay(now()->addMinutes(5));
         }
 
+        // Flip the parent broadcast from 'processing' to 'sent' once a chunk
+        // has dispatched its pushes. Without this, broadcasts stayed stuck at
+        // 'processing' forever in the admin dashboard even after delivery.
+        if (($result['sent_count'] ?? 0) > 0 && $notification->push_status !== 'sent') {
+            $notification->update(['push_status' => 'sent', 'sent_at' => now()]);
+        }
+
         Log::info('SendBroadcastChunk: Processed', [
             'notification_id' => $this->notificationId,
             'users_in_chunk' => count($this->userIds),
