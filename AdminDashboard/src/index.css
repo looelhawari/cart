@@ -204,6 +204,9 @@ body {
     border-radius: 10px;
     padding: 14px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    /* On-screen preview shown 25% smaller (print is reset to full size in
+       the @media print block below, where sizes are thermal-tuned). */
+    zoom: 0.75;
 }
 
 .receipt {
@@ -381,6 +384,7 @@ body {
         box-shadow: none !important;
         padding: 0 !important;
         background: #fff !important;
+        zoom: 1 !important;              /* print stays full thermal size */
     }
 
     .receipt {
