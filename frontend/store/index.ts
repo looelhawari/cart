@@ -94,6 +94,11 @@ interface StoreState {
   applyPromoCodeToCart: (code: string) => Promise<void>;
   removePromoCodeFromCart: () => Promise<void>;
 
+  // Realtime content sync — bumped whenever admin content changes so screens
+  // that fetch manually (not via react-query) can refetch by depending on it.
+  contentVersion: number;
+  bumpContentVersion: () => void;
+
   // Favorites
   favorites: string[];
   favoritesLoading: boolean;
@@ -583,6 +588,11 @@ export const useStore = create<StoreState>()(
           throw error;
         }
       },
+
+      // Realtime content sync signal
+      contentVersion: 0,
+      bumpContentVersion: () =>
+        set((s: any) => ({ contentVersion: (s.contentVersion || 0) + 1 })),
 
       // Favorites
       favorites: [],

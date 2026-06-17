@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppState, AppStateStatus, View } from "react-native";
 import AnimatedSplash from "@/components/AnimatedSplash";
 import { useStore } from "@/store";
+import { useContentSync } from "@/hooks/useContentSync";
 import { I18nProvider } from "@/i18n";
 import {
   hasPendingPayment,
@@ -56,6 +57,10 @@ function RootLayoutNav() {
   );
   const checkAuthStatus = useStore((state) => state.checkAuthStatus);
   const fetchCart = useStore((state) => state.fetchCart);
+
+  // Global admin→customer realtime content sync (instant Pusher events +
+  // version reconciliation on startup/resume/reconnect).
+  useContentSync();
 
   const notificationListener =
     useRef<ReturnType<typeof addNotificationReceivedListener>>();
