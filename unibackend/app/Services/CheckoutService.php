@@ -345,14 +345,10 @@ class CheckoutService
             $subtotal = $baseTotals['subtotal'];
         }
 
-        // Calculate delivery fee from store settings (DB) — admin-editable
-        $freeDeliveryThreshold = (float) \App\Models\StoreSetting::getValue('free_delivery_threshold', 200);
-        $defaultDeliveryFee = (float) \App\Models\StoreSetting::getValue('delivery_fee', 20);
-
-        // FREE DELIVERY OVERRIDE: if subtotal >= threshold, delivery is ALWAYS free
-        // This overrides zone fees, surge multipliers, and everything else
-        $freeByThreshold = ($freeDeliveryThreshold > 0 && $subtotal >= $freeDeliveryThreshold);
-        $deliveryFee = $freeByThreshold ? 0 : $defaultDeliveryFee;
+        // Delivery fee comes SOLELY from the delivery zone of the chosen
+        // address. No global flat fee / free-delivery threshold. Until an
+        // address is selected the fee is 0 ("calculated at checkout").
+        $deliveryFee = 0.0;
         $zoneInfo = null;
 
         if ($addressId) {
@@ -365,13 +361,14 @@ class CheckoutService
                         $address->longitude,
                         $subtotal
                     );
+                    $zoneInfo = $zoneFee;
                     if ($zoneFee['is_deliverable']) {
-                        // Free threshold overrides zone fee — forced rule
-                        $deliveryFee = $freeByThreshold ? 0 : $zoneFee['delivery_fee'];
-                        $zoneInfo = $zoneFee;
+                        $deliveryFee = (float) $zoneFee['delivery_fee'];
                     }
+                    // If not deliverable, $zoneInfo carries is_deliverable=false
+                    // + error so the app can block checkout for this address.
                 } catch (\Exception $e) {
-                    Log::debug('Zone delivery fee calc failed, using default', ['error' => $e->getMessage()]);
+                    Log::debug('Zone delivery fee calc failed', ['error' => $e->getMessage()]);
                 }
             }
         }
@@ -387,7 +384,12 @@ class CheckoutService
                 $totals = $this->cartService->calculateTotals($cart, $validatedPromo);
 
                 $discount = $totals['discount'];
-                $deliveryFee = $totals['delivery_fee'];
+                // Keep the ZONE-derived delivery fee; only a free_delivery promo
+                // may waive it. (CartService delivery is always 0 now, so we must
+                // not copy it over the zone fee.)
+                if ($validatedPromo->type === 'free_delivery') {
+                    $deliveryFee = 0;
+                }
 
                 $promoCodeData = $totals['promo_summary'] ?? [
                     'applied_code' => $validatedPromo->code,

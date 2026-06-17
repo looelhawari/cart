@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { useTranslation } from 'react-i18next'
 import {
     Clock, Store, DollarSign, Truck, AlertTriangle, CheckCircle,
-    XCircle, RefreshCw, Save, Settings2
+    XCircle, RefreshCw, Save, Settings2, MapPin
 } from 'lucide-react'
 import {
     AlertDialog,
@@ -39,8 +39,6 @@ export default function StoreSettingsPage() {
     const [closureReasonEn, setClosureReasonEn] = useState('')
     const [closureReasonAr, setClosureReasonAr] = useState('')
     const [minOrderAmount, setMinOrderAmount] = useState('50')
-    const [deliveryFee, setDeliveryFee] = useState('20')
-    const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState('200')
 
     // Confirm dialog
     const [showCloseConfirm, setShowCloseConfirm] = useState(false)
@@ -72,8 +70,6 @@ export default function StoreSettingsPage() {
         if (settings?.grouped?.general) {
             const gen = settings.grouped.general
             setMinOrderAmount(String(gen.minimum_order_amount?.value || '50'))
-            setDeliveryFee(String(gen.delivery_fee?.value || '20'))
-            setFreeDeliveryThreshold(String(gen.free_delivery_threshold?.value || '200'))
         }
     }, [settings])
 
@@ -181,10 +177,9 @@ export default function StoreSettingsPage() {
     }
 
     const handleSaveDeliverySettings = () => {
+        // Delivery fee is set per delivery zone, not globally.
         updateSettingsMutation.mutate([
             { key: 'minimum_order_amount', value: parseFloat(minOrderAmount) },
-            { key: 'delivery_fee', value: parseFloat(deliveryFee) },
-            { key: 'free_delivery_threshold', value: parseFloat(freeDeliveryThreshold) },
         ])
     }
 
@@ -360,7 +355,7 @@ export default function StoreSettingsPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-6">
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-4 md:grid-cols-2">
                             <div>
                                 <Label htmlFor="minOrder">{t('settings.minimumOrderAmount')}</Label>
                                 <div className="relative mt-1">
@@ -376,36 +371,12 @@ export default function StoreSettingsPage() {
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">EGP</p>
                             </div>
-                            <div>
-                                <Label htmlFor="deliveryFee">{t('settings.deliveryFee')}</Label>
-                                <div className="relative mt-1">
-                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="deliveryFee"
-                                        type="number"
-                                        value={deliveryFee}
-                                        onChange={(e) => setDeliveryFee(e.target.value)}
-                                        className="pl-9"
-                                        min="0"
-                                    />
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">EGP</p>
-                            </div>
-                            <div>
-                                <Label htmlFor="freeThreshold">{t('settings.freeDeliveryThreshold')}</Label>
-                                <div className="relative mt-1">
-                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="freeThreshold"
-                                        type="number"
-                                        value={freeDeliveryThreshold}
-                                        onChange={(e) => setFreeDeliveryThreshold(e.target.value)}
-                                        className="pl-9"
-                                        min="0"
-                                    />
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">EGP</p>
-                            </div>
+                        </div>
+
+                        {/* Delivery fees are set PER ZONE — not globally. */}
+                        <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                            <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+                            <span>{t('settings.deliveryFeeMovedToZones')}</span>
                         </div>
 
                         <Button

@@ -320,13 +320,12 @@ class CartService
         // Tax removed from system
         $tax = 0;
 
-        // Get delivery fee from store settings (DB) — admin-editable
-        $freeDeliveryThreshold = (float) \App\Models\StoreSetting::getValue('free_delivery_threshold', 200);
-        $defaultDeliveryFee = (float) \App\Models\StoreSetting::getValue('delivery_fee', 20);
-
-        // FREE DELIVERY OVERRIDE: if subtotal >= threshold, delivery is ALWAYS free
-        // This overrides zone fees and everything else
-        $deliveryFee = ($freeDeliveryThreshold > 0 && $subtotal >= $freeDeliveryThreshold) ? 0.00 : $defaultDeliveryFee;
+        // Delivery fee is set PER DELIVERY ZONE and resolved at checkout once
+        // the delivery address (lat/lng → zone) is known. The cart preview has
+        // no address, so it shows 0 here; CheckoutService/OrderService apply
+        // the real zone fee. (There is no global flat fee / free-delivery
+        // threshold any more — zones are the single source of delivery price.)
+        $deliveryFee = 0.00;
 
         // Apply promo code discount
         $discount = 0;

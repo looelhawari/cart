@@ -114,31 +114,30 @@ class OrderService
                     throw new \Exception(__('delivery_zone.zone_at_capacity'), 422);
                 }
 
-                $freeDeliveryThreshold = (float) \App\Models\StoreSetting::getValue('free_delivery_threshold', 200);
-                $freeByThreshold = $freeDeliveryThreshold > 0 && $cartTotals['subtotal'] >= $freeDeliveryThreshold;
-
-                if (! $freeByThreshold && isset($zoneFeeResult['delivery_fee'])) {
-                    $oldFee = $deliveryFee;
+                // Delivery fee comes SOLELY from the address's delivery zone —
+                // the single source of truth. No global flat fee / free
+                // threshold any more.
+                if (isset($zoneFeeResult['delivery_fee'])) {
                     $deliveryFee = (float) $zoneFeeResult['delivery_fee'];
-                    // SECURITY: clamp recomputed total at zero. A discount
-                    // larger than (subtotal + zone fee + tax) would
-                    // otherwise produce a negative total which Order::create
-                    // would store as owing money on a paid order.
-                    $total = max(0.0, $cartTotals['subtotal'] + $deliveryFee - $discount + $tax);
-                    Log::info('🗺️ Zone delivery fee applied', [
-                        'zone_id' => $zoneFeeResult['zone_id'],
-                        'zone_name' => $zoneFeeResult['zone_name'],
-                        'flat_fee' => $oldFee,
-                        'zone_fee' => $deliveryFee,
-                        'new_total' => $total,
-                    ]);
-                } elseif ($freeByThreshold) {
-                    Log::info('🚚 Free-delivery threshold honored over zone fee', [
-                        'subtotal' => $cartTotals['subtotal'],
-                        'threshold' => $freeDeliveryThreshold,
-                        'zone_id' => $zoneFeeResult['zone_id'] ?? null,
-                    ]);
                 }
+
+                // The only thing that waives the zone fee is a free_delivery
+                // promo code.
+                if ($promoCode && $promoCode->type === 'free_delivery') {
+                    $deliveryFee = 0.0;
+                }
+
+                // SECURITY: clamp recomputed total at zero. A discount larger
+                // than (subtotal + zone fee + tax) would otherwise produce a
+                // negative total which Order::create would store as owing
+                // money on a paid order.
+                $total = max(0.0, $cartTotals['subtotal'] + $deliveryFee - $discount + $tax);
+                Log::info('🗺️ Zone delivery fee applied', [
+                    'zone_id' => $zoneFeeResult['zone_id'] ?? null,
+                    'zone_name' => $zoneFeeResult['zone_name'] ?? null,
+                    'zone_fee' => $deliveryFee,
+                    'new_total' => $total,
+                ]);
             } elseif ($address && (! $address->latitude || ! $address->longitude)) {
                 // No coordinates and we couldn't recover them: refuse rather
                 // than send a driver without a destination.
