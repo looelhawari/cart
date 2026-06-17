@@ -32,6 +32,10 @@ export const ProductCard = memo(function ProductCard({
 }: ProductCardProps) {
   const { favorites, toggleFavorite, addToCart, cart, updateQuantity, removeFromCart } = useStore();
   const [cachedImageUri, setCachedImageUri] = useState<string | undefined>();
+  // When the (locally-cached) image fails to decode/render, fall back to the
+  // original remote URL — exactly what the dashboard <img> uses. Without this
+  // a corrupt/extensionless cache file shows a blank tile on mobile only.
+  const [imageFailed, setImageFailed] = useState(false);
   const productId = product.barcode || Number(product.id) || 0;
   const isFavorite = favorites.includes(productId.toString());
   const { getName } = useLocalizedValue();
@@ -78,6 +82,7 @@ export const ProductCard = memo(function ProductCard({
 
   // Cache product image
   useEffect(() => {
+    setImageFailed(false); // reset when the product (image) changes
     if (product.image) {
       getCachedImage(product.image).then((uri) => {
         if (uri) {
@@ -152,8 +157,12 @@ export const ProductCard = memo(function ProductCard({
       />
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: cachedImageUri || displayImage }}
+          source={{ uri: imageFailed ? displayImage : (cachedImageUri || displayImage) }}
           style={styles.image}
+          onError={() => {
+            // Local/cached uri failed to render — fall back to the remote URL.
+            if (!imageFailed) setImageFailed(true);
+          }}
         />
         <TouchableOpacity
           style={styles.favoriteButton}
