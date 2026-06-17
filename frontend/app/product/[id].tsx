@@ -482,8 +482,8 @@ export default function ProductDetailScreen() {
           onPress={async () => {
             try {
               const productName = getName(product) || "Product";
-              const productUrl = `https://elbaraka.com/product/${product.barcode}`;
-              const deepLinkUrl = `elbaraka://product/${product.barcode}`;
+              const productUrl = `https://cartshop.site/product/${product.barcode}`;
+              const deepLinkUrl = `cart://product/${product.barcode}`;
 
               // Build dynamic share message with pricing info
               let shareMessage = `🛒 ${productName}\n`;

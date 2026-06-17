@@ -1,12 +1,12 @@
 /**
  * payment-return.tsx — Deep Link Safety Net
  *
- * This screen handles the `elbaraka://payment-return` deep link that fires
+ * This screen handles the `cart://payment-return` deep link that fires
  * when the OS intercepts the custom scheme URL from the Paymob redirect page.
  *
  * On Android, even though payment-webview.tsx intercepts the deep link via
  * onShouldStartLoadWithRequest, the OS may also fire an intent for the
- * `elbaraka://` scheme — which Expo Router receives as a navigation event.
+ * `cart://` scheme — which Expo Router receives as a navigation event.
  * Without this file, that navigation hits +not-found.tsx.
  *
  * This handler reads the pending payment data from AsyncStorage and navigates

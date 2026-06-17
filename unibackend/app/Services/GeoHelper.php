@@ -23,7 +23,7 @@ class GeoHelper
     private string $nominatimUrl;
     private const CACHE_TTL = 86400; // 24 hours
     private const EARTH_RADIUS_KM = 6371;
-    private const USER_AGENT = 'CART-App/1.0 (https://elbaraka.com)';
+    private const USER_AGENT = 'CART-App/1.0 (https://cartshop.site)';
 
     public function __construct()
     {

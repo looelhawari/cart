@@ -70,7 +70,7 @@ class SmartBotService
             self::INTENT_UNKNOWN => "I'm not sure I understood that correctly. 🤔\n\nHere's what I can help you with:\n• 📦 Order status & tracking\n• 💳 Payment issues\n• 🚚 Delivery questions\n• 🔄 Refunds & returns\n\nOr type \"agent\" to speak with a human.",
         ],
         'ar' => [
-            self::INTENT_GREETING => "أهلاً! 👋 مرحباً بك في دعم البركة! أنا مساعدك الافتراضي وأنا هنا لمساعدتك.\n\nكيف يمكنني مساعدتك اليوم؟\n\n• 📦 تتبع طلبك\n• 💳 مشاكل الدفع\n• 🚚 أسئلة التوصيل\n• 📞 التحدث مع موظف",
+            self::INTENT_GREETING => "أهلاً! 👋 مرحباً بك في دعم CART! أنا مساعدك الافتراضي وأنا هنا لمساعدتك.\n\nكيف يمكنني مساعدتك اليوم؟\n\n• 📦 تتبع طلبك\n• 💳 مشاكل الدفع\n• 🚚 أسئلة التوصيل\n• 📞 التحدث مع موظف",
             self::INTENT_ORDER_STATUS => "يسعدني مساعدتك في حالة طلبك! 📦\n\nهل يمكنك إخباري برقم الطلب؟ يمكنك العثور عليه في إيميل تأكيد الطلب أو في قسم \"طلباتي\" في التطبيق.",
             self::INTENT_TRACK_ORDER => "دعني أساعدك في تتبع طلبك! 🔍\n\nيرجى تزويدي برقم الطلب وسأحصل على آخر حالة لك.",
             self::INTENT_REFUND => "أفهم أنك تريد استرداد المبلغ. 💰\n\nعادة ما يتم معالجة طلبات الاسترداد خلال 3-5 أيام عمل. للمتابعة، سأحتاج إلى:\n\n1. رقم طلبك\n2. سبب الاسترداد\n\nأو يمكنني توصيلك بموظف يمكنه المساعدة بشكل أسرع.",
@@ -84,7 +84,7 @@ class SmartBotService
             self::INTENT_CONTACT => "إليك كيفية الوصول إلينا 📞\n\n• 📱 الهاتف: 01036909533\n• 📧 البريد الإلكتروني: Cart.shopegy@gmail.com\n• 💬 هذه المحادثة (متاحة 24/7)\n\nهل تريد التحدث مع موظف الآن؟",
             self::INTENT_ESCALATE => "سأوصلك بموظف دعم فوراً! 🎧\n\nسيرد موظف على رسالتك قريباً. متوسط وقت الرد لدينا أقل من 5 دقائق خلال ساعات العمل.\n\nيرجى وصف مشكلتك وسيساعدك موظف.",
             self::INTENT_THANKS => "على الرحب والسعة! 😊 أنا سعيد أنني استطعت المساعدة.\n\nهل هناك أي شيء آخر تود معرفته؟",
-            self::INTENT_GOODBYE => "شكراً لتواصلك مع البركة! 👋\n\nيوماً سعيداً! لا تنسى تقييم تجربتك إذا وجدت خدمتنا مفيدة. 🌟",
+            self::INTENT_GOODBYE => "شكراً لتواصلك مع CART! 👋\n\nيوماً سعيداً! لا تنسى تقييم تجربتك إذا وجدت خدمتنا مفيدة. 🌟",
             self::INTENT_UNKNOWN => "لست متأكداً أنني فهمت ذلك بشكل صحيح. 🤔\n\nإليك ما يمكنني مساعدتك فيه:\n• 📦 حالة الطلب والتتبع\n• 💳 مشاكل الدفع\n• 🚚 أسئلة التوصيل\n• 🔄 الاسترداد والإرجاع\n\nأو اكتب \"موظف\" للتحدث مع إنسان.",
         ],
     ];
@@ -340,7 +340,7 @@ class SmartBotService
 
         $welcomeMessages = [
             'en' => "Hello! 👋 I'm your CART support assistant.\n\nI can see you've submitted a ticket about: **{$complaint->subject}**\n\nI'll try to help you resolve this quickly. If I can't solve your issue, I'll connect you with one of our support agents.\n\nHow can I assist you?",
-            'ar' => "مرحباً! 👋 أنا مساعد دعم البركة.\n\nأرى أنك قدمت تذكرة بخصوص: **{$complaint->subject}**\n\nسأحاول مساعدتك في حل هذا بسرعة. إذا لم أتمكن من حل مشكلتك، سأوصلك بأحد موظفي الدعم لدينا.\n\nكيف يمكنني مساعدتك؟",
+            'ar' => "مرحباً! 👋 أنا مساعد دعم CART.\n\nأرى أنك قدمت تذكرة بخصوص: **{$complaint->subject}**\n\nسأحاول مساعدتك في حل هذا بسرعة. إذا لم أتمكن من حل مشكلتك، سأوصلك بأحد موظفي الدعم لدينا.\n\nكيف يمكنني مساعدتك؟",
         ];
 
         return $this->createBotMessage($complaint, $welcomeMessages[$lang], self::INTENT_GREETING);

@@ -300,7 +300,7 @@ class SocialAuthController extends Controller
             // for any other app — full account-takeover surface.
             $validAudiences = array_filter([
                 config('services.apple.client_id'),
-                'app.rork.elbaraka_hypermarket_app',
+                'com.cart.hypermarket',
             ]);
 
             $tokenAud = $payload['aud'] ?? '';

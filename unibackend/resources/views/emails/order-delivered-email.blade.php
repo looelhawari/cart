@@ -8,7 +8,7 @@
 <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
 @php
-$appName = config('app.name', 'Elbaraka');
+$appName = config('app.name', 'CART');
 $customer = $order->user;
 $items = $order->items;
 $deliveredAt = $order->updated_at ?? $order->created_at;
@@ -109,7 +109,7 @@ $deliveredAt = $order->updated_at ?? $order->created_at;
 
             <p style="font-size:13px;color:#6b7280;margin:20px 0 0;line-height:1.6;">
               Had an issue with your delivery? Contact us at 
-              <a href="mailto:support@elbaraka.com" style="color:#166534;font-weight:600;text-decoration:none;">support@elbaraka.com</a> and we'll make it right.
+              <a href="mailto:Cart.shopegy@gmail.com" style="color:#166534;font-weight:600;text-decoration:none;">Cart.shopegy@gmail.com</a> and we'll make it right.
             </p>
 
           </td>

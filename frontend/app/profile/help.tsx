@@ -18,9 +18,9 @@ import Colors from "@/constants/Colors";
 
 // Support Contact Info
 const SUPPORT_INFO = {
-  phone: "+20 1144689191",
-  email: "kareemhesham105@gmail.com",
-  whatsapp: "+20 1144689191",
+  phone: "01036909533",
+  email: "Cart.shopegy@gmail.com",
+  whatsapp: "01036909533",
   workingHours: "Saturday - Thursday: 9 AM - 10 PM",
   responseTime: "Within 24 hours",
 };

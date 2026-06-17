@@ -29,7 +29,7 @@ const FALLBACK_CONTENT = `
 
 <h2>Contact Information</h2>
 <ul>
-<li><strong>Email:</strong> kareemhesham105@gmail.com</li>
+<li><strong>Email:</strong> Cart.shopegy@gmail.com</li>
 <li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
 </ul>
 
@@ -64,7 +64,7 @@ const FALLBACK_CONTENT_AR = `
 
 <h2>معلومات الاتصال</h2>
 <ul>
-<li><strong>البريد الإلكتروني:</strong> kareemhesham105@gmail.com</li>
+<li><strong>البريد الإلكتروني:</strong> Cart.shopegy@gmail.com</li>
 <li><strong>داخل التطبيق:</strong> الملف الشخصي → المساعدة والدعم → اتصل بالدعم</li>
 </ul>
 

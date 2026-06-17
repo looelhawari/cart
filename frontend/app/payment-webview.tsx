@@ -6,7 +6,7 @@
  * FLOW:
  * 1. WebView loads Paymob Unified Checkout URL
  * 2. User enters card info and completes 3DS
- * 3. Paymob redirects to `elbaraka://payment-return` (deep link)
+ * 3. Paymob redirects to `cart://payment-return` (deep link)
  * 4. WebView intercepts the redirect (handleShouldStartLoadWithRequest)
  * 5. THEN we start polling GET /api/v1/payments/status/{paymentId}
  * 6. Webhook on backend has already updated status (usually ~1s earlier)
@@ -165,7 +165,7 @@ export default function PaymentWebViewScreen() {
    * Intercept navigation — detect redirect from Paymob after 3DS.
    *
    * Paymob redirects to PAYMOB_REDIRECT_URL after payment.
-   * We set that to `elbaraka://payment-return` (deep link).
+   * We set that to `cart://payment-return` (deep link).
    * The WebView can't load a deep link, so we intercept it here
    * and start polling instead.
    */
@@ -175,8 +175,8 @@ export default function PaymentWebViewScreen() {
 
       // Detect deep link redirect from Paymob
       if (
-        url.startsWith("elbaraka://payment-return") ||
-        url.startsWith("elbaraka://payment")
+        url.startsWith("cart://payment-return") ||
+        url.startsWith("cart://payment")
       ) {
         console.log(
           "[PaymentWebView] 🎯 Deep link redirect detected — starting verification",

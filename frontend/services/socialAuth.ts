@@ -24,7 +24,7 @@ const isExpoGo = Constants.appOwnership === "expo";
 // whose audience (aud) matches the web client ID — the backend verifies this.
 //
 // Google Cloud Project: cart-486910
-// Package: app.rork.elbaraka_hypermarket_app
+// Package: com.cart.hypermarket
 const GOOGLE_WEB_CLIENT_ID =
   "113273912716-ho3k23v05dodf7gq7tpq5u782chrar3t.apps.googleusercontent.com";
 

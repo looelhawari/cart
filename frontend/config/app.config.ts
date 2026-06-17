@@ -26,7 +26,7 @@ export const API_CONFIG = {
 export const APP_CONFIG = {
   APP_NAME: "CART",
   VERSION: "1.0.0",
-  SUPPORT_EMAIL: "kareemhesham105@gmail.com",
+  SUPPORT_EMAIL: "Cart.shopegy@gmail.com",
 };
 
 // Map Configuration (Leaflet + OpenStreetMap - 100% free, no API keys)

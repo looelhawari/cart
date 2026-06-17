@@ -113,7 +113,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               )}
             >
               <div className="h-10 w-10 rounded-lg bg-elbaraka-primary flex items-center justify-center text-white text-lg font-bold">
-                EB
+                C
               </div>
               <div>
                 <h1 className="text-lg font-bold text-elbaraka-primary">

@@ -58,7 +58,7 @@ Route::get('/payment-return', function () {
 
     $queryString = http_build_query($sanitizedParams);
     // HTML-encode the deep link before injection into JS string
-    $deepLink = htmlspecialchars("elbaraka://payment-return?" . $queryString, ENT_QUOTES, 'UTF-8');
+    $deepLink = htmlspecialchars("cart://payment-return?" . $queryString, ENT_QUOTES, 'UTF-8');
 
     return <<<HTML
 <!DOCTYPE html>

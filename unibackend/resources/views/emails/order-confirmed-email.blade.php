@@ -8,7 +8,7 @@
 <body style="margin:0;padding:0;background-color:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
 @php
-$appName = config('app.name', 'Elbaraka');
+$appName = config('app.name', 'CART');
 $customer = $order->user;
 $items = $order->items;
 $address = $order->delivery_address_snapshot ?? ($order->deliveryAddress ? $order->deliveryAddress->toArray() : null);
@@ -197,7 +197,7 @@ $paymentLabel = match ($order->payment_method) {
         <tr>
           <td style="background:#f9fafb;border-top:1px solid #e5e7eb;border-radius:0 0 16px 16px;padding:24px 40px;text-align:center;">
             <p style="font-size:13px;font-weight:700;color:#166534;margin:0 0 6px;">Thank you for shopping with {{ $appName }}! 🎉</p>
-            <p style="font-size:12px;color:#9ca3af;margin:0;">Questions? Contact us at <a href="mailto:support@elbaraka.com" style="color:#166534;text-decoration:none;">support@elbaraka.com</a></p>
+            <p style="font-size:12px;color:#9ca3af;margin:0;">Questions? Contact us at <a href="mailto:Cart.shopegy@gmail.com" style="color:#166534;text-decoration:none;">Cart.shopegy@gmail.com</a></p>
             <p style="font-size:11px;color:#d1d5db;margin:10px 0 0;">&copy; {{ date('Y') }} {{ $appName }}. All rights reserved. · Cairo, Egypt</p>
           </td>
         </tr>

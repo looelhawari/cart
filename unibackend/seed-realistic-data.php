@@ -9,7 +9,7 @@ $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
-echo "=== ElBaraka Realistic Data Seeder ===\n\n";
+echo "=== CART Realistic Data Seeder ===\n\n";
 
 // 1. Ensure ALL products have stock for load testing
 $updated = DB::table('products')

@@ -134,7 +134,7 @@ export const exportDashboardPDF = (dashboardData: DashboardData) => {
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(28)
     doc.setFont('helvetica', 'bold')
-    doc.text('El Baraka', 14, 20)
+    doc.text('CART', 14, 20)
 
     // Report subtitle
     doc.setFontSize(14)
@@ -443,7 +443,7 @@ export const exportDashboardPDF = (dashboardData: DashboardData) => {
         // Footer text
         doc.setFontSize(8)
         doc.setTextColor(100, 100, 100)
-        doc.text('El Baraka - Analytics Dashboard Report', 14, pageHeight - 10)
+        doc.text('CART - Analytics Dashboard Report', 14, pageHeight - 10)
         doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, pageHeight - 10, { align: 'right' })
     }
 

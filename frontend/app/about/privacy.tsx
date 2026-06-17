@@ -141,7 +141,7 @@ const FALLBACK_CONTENT = `
 <h2>11. Contact Us</h2>
 <p>If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:</p>
 <ul>
-<li><strong>Email:</strong> kareemhesham105@gmail.com</li>
+<li><strong>Email:</strong> Cart.shopegy@gmail.com</li>
 <li><strong>In-App:</strong> Profile → Help & Support → Contact Support</li>
 <li><strong>Developer:</strong> CART</li>
 </ul>
@@ -284,7 +284,7 @@ const FALLBACK_CONTENT_AR = `
 <h2>11. اتصل بنا</h2>
 <p>إذا كان لديك أي أسئلة أو مخاوف أو طلبات بخصوص سياسة الخصوصية هذه أو ممارسات البيانات لدينا، يرجى التواصل معنا:</p>
 <ul>
-<li><strong>البريد الإلكتروني:</strong> kareemhesham105@gmail.com</li>
+<li><strong>البريد الإلكتروني:</strong> Cart.shopegy@gmail.com</li>
 <li><strong>داخل التطبيق:</strong> الملف الشخصي → المساعدة والدعم → اتصل بالدعم</li>
 <li><strong>المطور:</strong> CART</li>
 </ul>

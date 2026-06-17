@@ -241,9 +241,9 @@ export default function LoginPage() {
       <div className="lg:hidden absolute top-6 left-1/2 -translate-x-1/2 z-20">
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-xl bg-white/10 backdrop-blur-lg flex items-center justify-center border border-white/20">
-            <span className="text-white text-xl font-bold">EB</span>
+            <span className="text-white text-xl font-bold">C</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">El Baraka</h1>
+          <h1 className="text-2xl font-bold text-white">CART</h1>
         </div>
       </div>
     </div>

@@ -690,10 +690,10 @@ class PushNotificationService
         return $this->sendToUser(
             $userId,
             'account',
-            '👋 Welcome to El Baraka!',
+            '👋 Welcome to CART!',
             "Hi {$firstName}! Thank you for joining us. Explore our fresh products and great deals!",
             ['event' => 'welcome'],
-            '👋 أهلاً بك في البركة!',
+            '👋 أهلاً بك في CART!',
             "مرحباً {$firstName}! شكراً لانضمامك إلينا. استكشف منتجاتنا الطازجة وعروضنا الرائعة!",
             '/(tabs)/home'
         );
