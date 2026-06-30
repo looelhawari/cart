@@ -19,6 +19,7 @@ export interface ComplaintMessage {
   is_admin_reply: boolean;
   is_bot_reply?: boolean;
   bot_intent?: string;
+  attachments?: ComplaintAttachment[] | null;
   user?: {
     id: number;
     first_name: string;
@@ -29,6 +30,7 @@ export interface ComplaintMessage {
 
 export interface ComplaintAttachment {
   id: number;
+  message_id?: number | null;
   file_name: string;
   file_path: string;
   file_type: string;
@@ -89,11 +91,13 @@ export interface CreateComplaintPayload {
   priority?: string;
   description: string;
   order_id?: number | null;
-  attachments?: Array<{
-    uri: string;
-    name: string;
-    mimeType: string;
-  }>;
+  attachments?: ComplaintUploadFile[];
+}
+
+export interface ComplaintUploadFile {
+  uri: string;
+  name: string;
+  mimeType: string;
 }
 
 const authHeaders = async (): Promise<HeadersInit> => {
@@ -174,9 +178,6 @@ export const createComplaint = async (
 
   return await apiRequest<ComplaintResponse>("/complaints", {
     method: "POST",
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
     body: formData,
     invalidatePrefixes: COMPLAINTS_INVALIDATE,
   });
@@ -185,7 +186,34 @@ export const createComplaint = async (
 export const replyToComplaint = async (
   complaintId: number,
   message: string,
+  attachments: ComplaintUploadFile[] = [],
 ): Promise<ReplyResponse> => {
+  if (attachments.length > 0) {
+    const formData = new FormData();
+    const trimmedMessage = message.trim();
+
+    if (trimmedMessage) {
+      formData.append("message", trimmedMessage);
+    }
+
+    attachments.forEach((file) => {
+      formData.append("attachments[]", {
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType,
+      } as any);
+    });
+
+    return await apiRequest<ReplyResponse>(
+      `/complaints/${complaintId}/messages`,
+      {
+        method: "POST",
+        body: formData,
+        invalidatePrefixes: COMPLAINTS_INVALIDATE,
+      },
+    );
+  }
+
   return await apiRequest<ReplyResponse>(`/complaints/${complaintId}/messages`, {
     method: "POST",
     body: JSON.stringify({ message }),

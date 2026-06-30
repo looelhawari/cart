@@ -14,7 +14,9 @@ class StoreComplaintReplyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'message' => 'required|string|max:2000',
+            'message' => 'nullable|required_without:attachments|string|max:2000',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ];
     }
 

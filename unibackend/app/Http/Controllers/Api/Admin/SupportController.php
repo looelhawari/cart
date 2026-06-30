@@ -73,6 +73,7 @@ class SupportController extends Controller
             'order',
             'assignedTo',
             'messages.user',
+            'messages.attachments',
             'attachments'
         ])->findOrFail($id);
 
@@ -230,6 +231,8 @@ class SupportController extends Controller
             $ticket->update(['status' => 'in_progress']);
         }
         
+        $message->load(['user', 'attachments']);
+
         broadcast(new \App\Events\ComplaintMessageSent($message))->toOthers();
 
         // Send push notification for admin reply
@@ -241,7 +244,7 @@ class SupportController extends Controller
             $validated['message']
         );
 
-        return response()->json($message->load('user'), 201);
+        return response()->json($message, 201);
     }
 
     /**

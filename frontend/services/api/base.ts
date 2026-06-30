@@ -229,9 +229,11 @@ export const apiRequest = async <T>(
   // cache so its lifetime doesn't surprise us. Mutating verbs aren't cached
   // anyway, so the override is harmless there.
   const cacheDefaults: RequestInit = isReadOnly ? { cache: "no-store" } : {};
+  const isFormDataBody =
+    typeof FormData !== "undefined" && fetchInit.body instanceof FormData;
 
   const headers: HeadersInit = {
-    ...getCommonHeaders(),
+    ...getCommonHeaders(!isFormDataBody),
     ...(isReadOnly ? { "Cache-Control": "no-cache" } : {}),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...fetchInit.headers,

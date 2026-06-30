@@ -6,6 +6,7 @@ return [
     'not_found' => 'Complaint not found',
     'closed' => 'This complaint is closed',
     'reply_sent' => 'Reply sent successfully',
+    'attachment_sent' => 'Attachment sent',
     'already_closed' => 'Complaint already closed',
     'closed_successfully' => 'Complaint closed successfully',
     'already_escalated' => 'Already escalated to agent',

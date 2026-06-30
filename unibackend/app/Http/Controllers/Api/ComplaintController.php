@@ -82,62 +82,7 @@ class ComplaintController extends Controller
                     'escalated_to_agent' => false,
                 ]);
 
-                if ($request->hasFile('attachments')) {
-                    foreach ($request->file('attachments') as $file) {
-                        // SECURITY HARDENED (audit C1):
-                        //   - Verify MIME via the SERVER (Symfony guesses
-                        //     from file headers), NOT from client.
-                        //   - Sanitize the stored filename to prevent path-
-                        //     traversal / XSS in the admin viewer.
-                        //   - Whitelist only image types and pdf.
-                        $serverMime = $file->getMimeType();
-                        $allowedMimes = [
-                            'image/jpeg' => 'image',
-                            'image/png'  => 'image',
-                            'image/webp' => 'image',
-                            'application/pdf' => 'pdf',
-                        ];
-
-                        if (!isset($allowedMimes[$serverMime])) {
-                            throw new \RuntimeException('Unsupported attachment type.');
-                        }
-                        $fileType = $allowedMimes[$serverMime];
-                        $isImage = $fileType === 'image';
-
-                        // Sanitize filename: strip directory traversal, control
-                        // chars, HTML; cap to a safe length; preserve extension.
-                        $rawName = $file->getClientOriginalName();
-                        $extension = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
-                        $safeStem = \Illuminate\Support\Str::slug(
-                            pathinfo($rawName, PATHINFO_FILENAME),
-                            '-',
-                        );
-                        $safeStem = $safeStem === '' ? 'attachment' : substr($safeStem, 0, 80);
-                        $safeName = $safeStem . ($extension ? '.' . preg_replace('/[^a-z0-9]/', '', $extension) : '');
-
-                        $uploadResult = $this->cloudinaryService->uploadFile(
-                            $file,
-                            'complaints',
-                            $isImage ? 'image' : 'raw'
-                        );
-
-                        if (!($uploadResult['success'] ?? false)) {
-                            throw new \RuntimeException($uploadResult['error'] ?? 'Attachment upload failed');
-                        }
-
-                        ComplaintAttachment::create([
-                            'complaint_id' => $complaint->id,
-                            'user_id' => $user->id,
-                            'file_name' => $safeName,        // sanitized
-                            'file_path' => $uploadResult['url'],
-                            'file_type' => $fileType,
-                            'mime_type' => $serverMime,      // server-detected
-                            'size_bytes' => $file->getSize(),
-                            'storage_provider' => 'cloudinary',
-                            'public_id' => $uploadResult['public_id'] ?? null,
-                        ]);
-                    }
-                }
+                $this->storeAttachments($request, $complaint, $user->id);
 
                 return $complaint;
             });
@@ -181,7 +126,7 @@ class ComplaintController extends Controller
 
         $complaint = Complaint::where('id', $id)
             ->where('user_id', $userId)
-            ->with(['messages.user', 'attachments'])
+            ->with(['messages.user', 'messages.attachments', 'attachments'])
             ->first();
 
         if (!$complaint) {
@@ -206,6 +151,8 @@ class ComplaintController extends Controller
     public function addMessage(StoreComplaintReplyRequest $request, int $id): JsonResponse
     {
         $userId = $request->user()->id;
+        $messageText = trim((string) $request->input('message', ''));
+        $hasAttachments = $request->hasFile('attachments');
 
         $complaint = Complaint::where('id', $id)
             ->where('user_id', $userId)
@@ -225,29 +172,42 @@ class ComplaintController extends Controller
             ], 422, [], JSON_UNESCAPED_UNICODE);
         }
 
-        // Create user message
-        $message = ComplaintMessage::create([
-            'complaint_id' => $complaint->id,
-            'user_id' => $userId,
-            'message' => $request->message,
-            'is_admin_reply' => false,
-            'is_bot_reply' => false,
-        ]);
+        if ($messageText === '' && ! $hasAttachments) {
+            return response()->json([
+                'success' => false,
+                'message' => __('validation.required', ['attribute' => 'message']),
+            ], 422, [], JSON_UNESCAPED_UNICODE);
+        }
+
+        $message = DB::transaction(function () use ($request, $complaint, $userId, $messageText) {
+            $message = ComplaintMessage::create([
+                'complaint_id' => $complaint->id,
+                'user_id' => $userId,
+                'message' => $messageText !== '' ? $messageText : __('complaint.attachment_sent'),
+                'is_admin_reply' => false,
+                'is_bot_reply' => false,
+            ]);
+
+            $this->storeAttachments($request, $complaint, $userId, $message);
+
+            return $message->load(['user', 'attachments']);
+        });
 
         broadcast(new \App\Events\ComplaintMessageSent($message))->toOthers();
 
         // If bot is handling and not yet escalated, process through bot
         $botResponse = null;
-        if ($complaint->bot_handled && !$complaint->escalated_to_agent) {
+        if ($messageText !== '' && $complaint->bot_handled && !$complaint->escalated_to_agent) {
             $lang = $request->header('Accept-Language', 'en');
             $lang = str_contains($lang, 'ar') ? 'ar' : 'en';
-            $botResponse = $this->smartBotService->processMessage($complaint, $request->message, $lang);
+            $botResponse = $this->smartBotService->processMessage($complaint, $messageText, $lang);
         }
 
         return response()->json([
             'success' => true,
             'message' => __('complaint.reply_sent'),
             'data' => [
+                'message' => new \App\Http\Resources\ComplaintMessageResource($message),
                 'bot_response' => $botResponse,
             ],
         ], 201, [], JSON_UNESCAPED_UNICODE);
@@ -413,5 +373,76 @@ class ComplaintController extends Controller
         return response()->json([
             'success' => true,
         ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Persist complaint attachments using server-detected MIME and safe names.
+     *
+     * @return array<int, ComplaintAttachment>
+     */
+    private function storeAttachments(
+        Request $request,
+        Complaint $complaint,
+        int $userId,
+        ?ComplaintMessage $message = null
+    ): array {
+        if (! $request->hasFile('attachments')) {
+            return [];
+        }
+
+        $attachments = [];
+        $files = $request->file('attachments');
+        $files = is_array($files) ? $files : [$files];
+
+        foreach ($files as $file) {
+            $serverMime = $file->getMimeType();
+            $allowedMimes = [
+                'image/jpeg' => 'image',
+                'image/png' => 'image',
+                'image/webp' => 'image',
+                'application/pdf' => 'pdf',
+            ];
+
+            if (! isset($allowedMimes[$serverMime])) {
+                throw new \RuntimeException('Unsupported attachment type.');
+            }
+
+            $fileType = $allowedMimes[$serverMime];
+            $isImage = $fileType === 'image';
+
+            $rawName = $file->getClientOriginalName();
+            $extension = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
+            $safeStem = \Illuminate\Support\Str::slug(
+                pathinfo($rawName, PATHINFO_FILENAME),
+                '-',
+            );
+            $safeStem = $safeStem === '' ? 'attachment' : substr($safeStem, 0, 80);
+            $safeName = $safeStem . ($extension ? '.' . preg_replace('/[^a-z0-9]/', '', $extension) : '');
+
+            $uploadResult = $this->cloudinaryService->uploadFile(
+                $file,
+                'complaints',
+                $isImage ? 'image' : 'raw'
+            );
+
+            if (! ($uploadResult['success'] ?? false)) {
+                throw new \RuntimeException($uploadResult['error'] ?? 'Attachment upload failed');
+            }
+
+            $attachments[] = ComplaintAttachment::create([
+                'complaint_id' => $complaint->id,
+                'message_id' => $message?->id,
+                'user_id' => $userId,
+                'file_name' => $safeName,
+                'file_path' => $uploadResult['url'],
+                'file_type' => $fileType,
+                'mime_type' => $serverMime,
+                'size_bytes' => $file->getSize(),
+                'storage_provider' => 'cloudinary',
+                'public_id' => $uploadResult['public_id'] ?? null,
+            ]);
+        }
+
+        return $attachments;
     }
 }

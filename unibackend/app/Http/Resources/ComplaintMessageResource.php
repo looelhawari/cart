@@ -15,6 +15,7 @@ class ComplaintMessageResource extends JsonResource
     public function toArray(Request $request): array
     {
         $user = $this->whenLoaded('user');
+        $attachments = $this->whenLoaded('attachments');
 
         return [
             'id' => $this->id,
@@ -27,6 +28,7 @@ class ComplaintMessageResource extends JsonResource
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
             ] : null,
+            'attachments' => $attachments ? ComplaintAttachmentResource::collection($attachments) : null,
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

@@ -9,6 +9,7 @@ class ComplaintAttachment extends Model
 {
     protected $fillable = [
         'complaint_id',
+        'message_id',
         'user_id',
         'file_name',
         'file_path',
@@ -31,6 +32,14 @@ class ComplaintAttachment extends Model
     public function complaint(): BelongsTo
     {
         return $this->belongsTo(Complaint::class);
+    }
+
+    /**
+     * The chat message this attachment was sent with, when applicable.
+     */
+    public function message(): BelongsTo
+    {
+        return $this->belongsTo(ComplaintMessage::class, 'message_id');
     }
 
     /**

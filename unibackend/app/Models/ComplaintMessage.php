@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ComplaintMessage extends Model
 {
@@ -61,5 +62,13 @@ class ComplaintMessage extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Attachments sent with this message.
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ComplaintAttachment::class, 'message_id');
     }
 }

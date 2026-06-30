@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Http\Resources\ComplaintMessageResource;
 use App\Models\ComplaintMessage;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -39,7 +40,7 @@ class ComplaintMessageSent implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'message' => $this->message->load('user'),
+            'message' => (new ComplaintMessageResource($this->message->load(['user', 'attachments'])))->resolve(),
         ];
     }
 

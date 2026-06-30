@@ -16,6 +16,7 @@ class ComplaintAttachmentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'message_id' => $this->message_id,
             'file_name' => $this->file_name,
             'file_path' => $this->file_path,
             'file_type' => $this->file_type,
