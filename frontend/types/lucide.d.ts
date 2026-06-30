@@ -11,6 +11,15 @@ declare module 'lucide-react-native' {
     export type Icon = ComponentType<IconProps>;
 
     export const ArrowLeft: Icon;
+    export const Calendar: Icon;
+    export const Eye: Icon;
+    export const EyeOff: Icon;
+    export const Fingerprint: Icon;
+    export const Lock: Icon;
+    export const Mail: Icon;
+    export const MapPin: Icon;
+    export const Phone: Icon;
+    export const User: Icon;
     export const Plus: Icon;
     export const AlertCircle: Icon;
     export const ChevronRight: Icon;

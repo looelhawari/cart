@@ -1,4 +1,5 @@
 ﻿import { API_BASE_URL, safeJsonParse, getAuthToken } from "./base";
+import { normalizeApiErrorPayload } from "./errors";
 
 // ─── Types ─────────────────────────────────────────
 
@@ -82,7 +83,7 @@ const driverGet = async <T>(endpoint: string, params?: Record<string, string>): 
         headers,
     });
     const data = await safeJsonParse(response);
-    if (!response.ok) throw new Error(data?.message || `HTTP ${response.status}`);
+    if (!response.ok) throw normalizeApiErrorPayload(data, response.status, "Action failed. Please try again.");
     return data.data as T;
 };
 
@@ -94,7 +95,7 @@ const driverPost = async <T>(endpoint: string, body?: any): Promise<T> => {
         body: body ? JSON.stringify(body) : undefined,
     });
     const data = await safeJsonParse(response);
-    if (!response.ok) throw new Error(data?.message || `HTTP ${response.status}`);
+    if (!response.ok) throw normalizeApiErrorPayload(data, response.status, "Action failed. Please try again.");
     return data.data as T;
 };
 
@@ -112,7 +113,7 @@ export const driverApi = {
             headers,
         });
         const data = await safeJsonParse(response);
-        if (!response.ok) throw new Error(data?.message || `HTTP ${response.status}`);
+        if (!response.ok) throw normalizeApiErrorPayload(data, response.status, "Action failed. Please try again.");
         return { is_available: data.data.is_available, message: data.message };
     },
 

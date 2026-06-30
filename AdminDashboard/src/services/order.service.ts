@@ -1,6 +1,8 @@
 import { apiClient } from '@/lib/api-client'
 import type { Order, OrderStatus, PaginatedResponse } from '@/types'
 
+const DEBUG_ORDER_SERVICE = import.meta.env.DEV
+
 export interface OrderFilters {
     page?: number
     per_page?: number
@@ -22,11 +24,11 @@ export const orderService = {
 
     getOrder: async (id: number): Promise<Order> => {
         const response = await apiClient.get(`/admin/orders/${id}`) as any
-        console.log('Order API Response:', JSON.stringify(response, null, 2))
+        if (DEBUG_ORDER_SERVICE) console.debug('Order API Response:', response)
 
         // Extract from data wrapper if it exists
         let orderData = response.data || response
-        console.log('Extracted order data:', JSON.stringify(orderData, null, 2))
+        if (DEBUG_ORDER_SERVICE) console.debug('Extracted order data:', orderData)
 
         // Process delivery address - keep both string and structured format
         let deliveryAddressString = ''
@@ -52,7 +54,7 @@ export const orderService = {
                 addr.area,
                 addr.city
             ].filter(Boolean).join(', ')
-            console.log('Converted from delivery_address object:', deliveryAddressString)
+            if (DEBUG_ORDER_SERVICE) console.debug('Converted from delivery_address object')
         } else if (orderData.deliveryAddress && typeof orderData.deliveryAddress === 'object') {
             const addr = orderData.deliveryAddress
             deliveryAddressDetails = {
@@ -73,10 +75,10 @@ export const orderService = {
                 addr.area,
                 addr.city
             ].filter(Boolean).join(', ')
-            console.log('Converted from deliveryAddress object:', deliveryAddressString)
+            if (DEBUG_ORDER_SERVICE) console.debug('Converted from deliveryAddress object')
         } else if (typeof orderData.delivery_address === 'string') {
             deliveryAddressString = orderData.delivery_address
-            console.log('Using delivery_address string:', deliveryAddressString)
+            if (DEBUG_ORDER_SERVICE) console.debug('Using delivery_address string')
         }
 
         // Map backend fields to frontend expected fields - create completely new object
@@ -140,9 +142,10 @@ export const orderService = {
             }))
         }
 
-        console.log('Clean order data:', JSON.stringify(cleanOrder, null, 2))
-        console.log('delivery_address type:', typeof cleanOrder.delivery_address)
-        console.log('delivery_address value:', cleanOrder.delivery_address)
+        if (DEBUG_ORDER_SERVICE) {
+            console.debug('Clean order data:', cleanOrder)
+            console.debug('delivery_address type:', typeof cleanOrder.delivery_address)
+        }
         return cleanOrder
     },
 

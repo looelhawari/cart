@@ -1,12 +1,30 @@
 // API Types
 export interface RegisterData {
+  full_name?: string;
   first_name: string;
   last_name: string;
   email: string;
   phone: string;
+  date_of_birth: string;
+  gender: "male" | "female" | "other";
   password: string;
   password_confirmation: string;
   language: "en" | "ar";
+  address?: {
+    label: "Home" | "Work" | "Other";
+    street: string;
+    city: string;
+    recipient_name?: string;
+    phone?: string;
+    building?: string;
+    floor?: string;
+    apartment?: string;
+    area?: string;
+    postal_code?: string;
+    landmark?: string;
+    notes?: string;
+    is_default?: boolean;
+  } | null;
 }
 
 export interface LoginData {
@@ -37,6 +55,8 @@ export interface User {
   full_name: string;
   email: string;
   phone: string;
+  date_of_birth: string | null;
+  gender: "male" | "female" | "other" | null;
   avatar: string | null;
   language: "en" | "ar";
   role: "customer" | "admin" | "super_admin";

@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\PaymentTransaction;
 use App\Models\PaymobPayment;
 use App\Jobs\ProcessOrderAsync;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**

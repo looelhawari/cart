@@ -238,7 +238,7 @@ export default function EditPromotionForm({ promotion, onClose }: EditPromotionF
                                 <Textarea
                                     id="edit_description"
                                     {...register('description')}
-                                    placeholder="Get up to 50% off on selected items"
+                                    placeholder={t('promotions.form.descriptionEnglishPlaceholder')}
                                     className="min-h-[100px] resize-none"
                                 />
                             </div>

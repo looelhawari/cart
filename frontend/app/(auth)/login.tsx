@@ -19,7 +19,7 @@ import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { useResponsive } from "@/hooks/useResponsive";
-import { useTranslation } from "@/i18n";
+import { useI18n } from "@/i18n";
 import { StatusBar } from "expo-status-bar";
 import {
   Eye,
@@ -44,7 +44,7 @@ import {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { t, isRTL } = useTranslation();
+  const { t, isRTL, language, setLanguage } = useI18n();
   const { login, socialLogin } = useStore();
   const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
 
@@ -286,6 +286,38 @@ export default function LoginScreen() {
     header: {
       marginBottom: isSmallDevice ? Spacing.lg : Spacing.xxl,
     },
+    headerTop: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginBottom: Spacing.lg,
+    },
+    languageToggle: {
+      flexDirection: "row",
+      backgroundColor: Colors.neutralCloud,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: Colors.neutralGray,
+      padding: 4,
+    },
+    languageOption: {
+      minWidth: 58,
+      minHeight: 36,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: Spacing.sm,
+    },
+    languageOptionActive: {
+      backgroundColor: Colors.primary900,
+    },
+    languageText: {
+      fontSize: Typography.bodySmall,
+      fontFamily: "Poppins_700Bold",
+      color: Colors.neutralMedium,
+    },
+    languageTextActive: {
+      color: Colors.neutralWhite,
+    },
     title: {
       fontSize: isSmallDevice ? Typography.h2 : Typography.h1,
       fontFamily: "Poppins_700Bold",
@@ -506,6 +538,44 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <View style={styles.languageToggle}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageOption,
+                    language === "en" && styles.languageOptionActive,
+                  ]}
+                  onPress={() => void setLanguage("en")}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.languageText,
+                      language === "en" && styles.languageTextActive,
+                    ]}
+                  >
+                    EN
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageOption,
+                    language === "ar" && styles.languageOptionActive,
+                  ]}
+                  onPress={() => void setLanguage("ar")}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.languageText,
+                      language === "ar" && styles.languageTextActive,
+                    ]}
+                  >
+                    عربي
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <Text style={styles.title}>{t.login.welcomeBack}</Text>
             <Text style={styles.subtitle}>{t.login.signInToAccount}</Text>
           </View>
@@ -605,7 +675,7 @@ export default function LoginScreen() {
                 disabled={loading}
                 activeOpacity={0.8}
               >
-                <Fingerprint size={24} color={Colors.primary} />
+                <Fingerprint size={24} color={Colors.primary900} />
                 <Text style={styles.biometricButtonText}>
                   {t.login.loginWithBiometric.replace(
                     "{type}",

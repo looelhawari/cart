@@ -19,6 +19,7 @@ import {
     ShoppingCart, Image as ImageIcon, FileText, Gift, Sparkles, Star, Search
 } from 'lucide-react'
 import { PromotionFormData, defaultFormValues, ProductForSelection, CategoryForSelection } from './types'
+import { formatFieldErrors, getSafeErrorMessage } from '@/lib/error-utils'
 
 interface CreatePromotionFormProps {
     isOpen: boolean
@@ -104,13 +105,11 @@ export default function CreatePromotionForm({ isOpen, onClose }: CreatePromotion
         onError: (error: any) => {
             // Extract validation errors if available
             const validationErrors = error?.response?.data?.errors
-            let errorMessage = error?.response?.data?.message || t('promotions.createError')
+            let errorMessage = getSafeErrorMessage(error, t('promotions.createError'))
 
             // If we have specific field errors, show them
             if (validationErrors) {
-                const errorList = Object.entries(validationErrors)
-                    .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-                    .join('\n')
+                const errorList = formatFieldErrors(validationErrors)
                 errorMessage = errorList || errorMessage
             }
 
@@ -120,8 +119,7 @@ export default function CreatePromotionForm({ isOpen, onClose }: CreatePromotion
                 variant: 'destructive',
             })
 
-            // Also log to console for debugging
-            console.error('Promotion creation error:', error?.response?.data)
+            if (import.meta.env.DEV) console.error('Promotion creation error:', error)
         },
     })
 
@@ -232,7 +230,7 @@ export default function CreatePromotionForm({ isOpen, onClose }: CreatePromotion
                                 <Textarea
                                     id="description"
                                     {...register('description')}
-                                    placeholder="Get up to 50% off on selected items"
+                                    placeholder={t('promotions.form.descriptionEnglishPlaceholder')}
                                     className="min-h-[100px] resize-none"
                                 />
                             </div>

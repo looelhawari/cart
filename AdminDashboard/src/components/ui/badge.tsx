@@ -52,9 +52,11 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus | undefin
 
     const config: Record<PaymentStatus, { labelKey: string; className: string }> = {
         pending: { labelKey: 'orders.paymentStatus.pending', className: 'bg-yellow-100 text-yellow-800' },
+        completed: { labelKey: 'orders.paymentStatus.completed', className: 'bg-green-100 text-green-800' },
         paid: { labelKey: 'orders.paymentStatus.paid', className: 'bg-green-100 text-green-800' },
         failed: { labelKey: 'orders.paymentStatus.failed', className: 'bg-red-100 text-red-800' },
         refunded: { labelKey: 'orders.paymentStatus.refunded', className: 'bg-gray-100 text-gray-800' },
+        partially_refunded: { labelKey: 'orders.paymentStatus.partiallyRefunded', className: 'bg-blue-100 text-blue-800' },
     }
 
     // Handle undefined or unknown statuses

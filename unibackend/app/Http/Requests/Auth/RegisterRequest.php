@@ -2,94 +2,235 @@
 
 namespace App\Http\Requests\Auth;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
-use Illuminate\Validation\Rule;
 use App\Models\User;
+use App\Support\EgyptianMobilePhone;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class RegisterRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Prepare the data for validation.
-     * Sanitize inputs before validation per project-instructions.md
-     */
     protected function prepareForValidation(): void
     {
-        $this->merge([
-            'email' => strtolower(trim($this->email ?? '')),
-            'phone' => $this->sanitizePhone($this->phone ?? ''),
-            'first_name' => strip_tags(trim($this->first_name ?? '')),
-            'last_name' => strip_tags(trim($this->last_name ?? '')),
-        ]);
+        $fullName = $this->cleanName(
+            $this->input('full_name')
+                ?? trim((string) $this->input('first_name', '') . ' ' . (string) $this->input('last_name', ''))
+        );
 
-        // Delete any previous unverified records with the same email or phone.
-        // This handles the case where a user started signup, went back from OTP,
-        // changed email/phone, and is re-registering. Must run BEFORE validation
-        // so the unique checks don't collide with our own stale record.
-        //
-        // SAFETY: Only delete records older than 15 minutes to avoid nuking a user
-        // who is actively typing their OTP (OTP expires in 10 min).
-        $email = strtolower(trim($this->email ?? ''));
-        $phone = $this->sanitizePhone($this->phone ?? '');
+        [$firstName, $lastName] = $this->splitFullName($fullName);
 
-        User::where('is_verified', false)
-            ->where('created_at', '<', now()->subMinutes(15))
-            ->where(function ($query) use ($email, $phone) {
-                $query->where('email', $email)
-                      ->orWhere('phone', $phone);
-            })
-            ->delete();
+        $phone = EgyptianMobilePhone::normalize($this->input('phone'));
+        $address = $this->cleanAddress($this->input('address'));
+
+        $data = [
+            'full_name' => $fullName,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => strtolower(trim((string) $this->input('email', ''))),
+            'phone' => $phone ?? trim((string) $this->input('phone', '')),
+            'date_of_birth' => trim((string) $this->input('date_of_birth', '')),
+            'gender' => strtolower(trim((string) $this->input('gender', ''))),
+            'language' => $this->input('language', 'en'),
+        ];
+
+        if ($address !== null) {
+            $data['address'] = $address;
+        }
+
+        $this->merge($data);
     }
 
-    /**
-     * Remove non-numeric characters from phone except +
-     */
-    private function sanitizePhone(string $phone): string
-    {
-        return preg_replace('/[^0-9+]/', '', $phone);
-    }
-
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
+            'full_name' => ['required', 'string', 'min:2', 'max:120'],
+            'first_name' => ['required', 'string', 'min:2', 'max:80'],
+            'last_name' => ['nullable', 'string', 'max:80'],
             'email' => [
-                'required', 'string', 'email:rfc,dns', 'max:255',
-                Rule::unique('users', 'email')->where(function ($query) {
-                    $query->where('is_verified', true);
-                }),
+                'required',
+                'string',
+                'email:rfc',
+                'max:255',
+                Rule::unique('users', 'email'),
             ],
             'phone' => [
-                'required', 'string', 'regex:/^\+?[0-9]{10,15}$/',
-                Rule::unique('users', 'phone')->where(function ($query) {
-                    $query->where('is_verified', true);
-                }),
+                'required',
+                'string',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (EgyptianMobilePhone::normalize((string) $value) === null) {
+                        $fail(__('auth.invalid_egyptian_mobile'));
+                    }
+                },
             ],
+            'date_of_birth' => ['required', 'date', 'before:today', 'after:1900-01-01'],
+            'gender' => ['required', 'in:male,female,other'],
             'password' => [
                 'required',
                 'string',
                 'confirmed',
-                Password::min(8)
-                    ->mixedCase()      // At least one uppercase and one lowercase letter
-                    ->numbers()        // At least one number
-                    ->symbols()        // At least one symbol
-                    ->uncompromised(), // Check haveibeenpwned.com
+                Password::min(8)->mixedCase()->numbers()->symbols(),
             ],
             'language' => ['required', 'in:en,ar'],
+            'address' => ['sometimes', 'nullable', 'array'],
+            'address.label' => ['required_with:address', 'string', 'max:100', 'in:Home,Work,Other'],
+            'address.recipient_name' => ['nullable', 'string', 'max:255'],
+            'address.phone' => ['nullable', 'string', 'max:20'],
+            'address.street' => ['required_with:address', 'string', 'max:1000'],
+            'address.building' => ['nullable', 'string', 'max:255'],
+            'address.floor' => ['nullable', 'string', 'max:255'],
+            'address.apartment' => ['nullable', 'string', 'max:255'],
+            'address.city' => ['required_with:address', 'string', 'max:100'],
+            'address.area' => ['nullable', 'string', 'max:255'],
+            'address.postal_code' => ['nullable', 'string', 'max:20'],
+            'address.landmark' => ['nullable', 'string', 'max:255'],
+            'address.notes' => ['nullable', 'string', 'max:500'],
+            'address.is_default' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            if ($validator->errors()->has('phone')) {
+                return;
+            }
+
+            $normalized = EgyptianMobilePhone::normalize($this->input('phone'));
+
+            if ($normalized === null) {
+                return;
+            }
+
+            $existingUser = User::whereIn('phone', EgyptianMobilePhone::variants($normalized))->first();
+
+            if (! $existingUser) {
+                return;
+            }
+
+            if (! $existingUser->is_active) {
+                $validator->errors()->add('phone', __('auth.account_cannot_be_used_contact_support'));
+                return;
+            }
+
+            $validator->errors()->add('phone', __('auth.phone_already_registered_login'));
+        });
+    }
+
+    public function messages(): array
+    {
+        return [
+            'full_name.required' => __('auth.full_name_required'),
+            'full_name.min' => __('auth.full_name_too_short'),
+            'full_name.max' => __('auth.full_name_too_long'),
+            'first_name.required' => __('auth.full_name_required'),
+            'email.unique' => __('auth.email_already_exists'),
+            'phone.required' => __('auth.phone_required'),
+            'date_of_birth.required' => __('auth.date_of_birth_required'),
+            'date_of_birth.date' => __('auth.date_of_birth_invalid'),
+            'date_of_birth.before' => __('auth.date_of_birth_must_be_past'),
+            'date_of_birth.after' => __('auth.date_of_birth_invalid'),
+            'gender.required' => __('auth.gender_required'),
+            'gender.in' => __('auth.gender_invalid'),
+            'password.confirmed' => __('auth.password_confirmation_mismatch'),
+            'address.label.required_with' => __('auth.address_label_required'),
+            'address.label.in' => __('auth.address_label_invalid'),
+            'address.street.required_with' => __('auth.address_street_required'),
+            'address.city.required_with' => __('auth.address_city_required'),
+        ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(response()->json([
+            'success' => false,
+            'message' => __('auth.validation_failed'),
+            'errors' => $validator->errors(),
+        ], 422));
+    }
+
+    private function cleanName(?string $name): string
+    {
+        $cleaned = strip_tags(trim((string) $name));
+
+        return preg_replace('/\s+/u', ' ', $cleaned) ?? '';
+    }
+
+    private function cleanAddress(mixed $address): ?array
+    {
+        if ($address === null || $address === '') {
+            return null;
+        }
+
+        if (! is_array($address)) {
+            return null;
+        }
+
+        $allowed = [
+            'label',
+            'recipient_name',
+            'phone',
+            'street',
+            'building',
+            'floor',
+            'apartment',
+            'city',
+            'area',
+            'postal_code',
+            'landmark',
+            'notes',
+            'is_default',
+        ];
+
+        $cleaned = [];
+
+        foreach ($allowed as $key) {
+            if (! array_key_exists($key, $address)) {
+                continue;
+            }
+
+            if ($key === 'is_default') {
+                $cleaned[$key] = filter_var($address[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
+                continue;
+            }
+
+            $value = strip_tags(trim((string) $address[$key]));
+            $cleaned[$key] = preg_replace('/\s+/u', ' ', $value) ?? '';
+        }
+
+        if (isset($cleaned['label'])) {
+            $labels = [
+                'home' => 'Home',
+                'work' => 'Work',
+                'other' => 'Other',
+            ];
+            $cleaned['label'] = $labels[strtolower($cleaned['label'])] ?? $cleaned['label'];
+        }
+
+        return $cleaned === [] ? null : $cleaned;
+    }
+
+    /**
+     * Preserve the existing users.first_name/users.last_name schema while the
+     * mobile signup UI collects a single full name.
+     */
+    private function splitFullName(string $fullName): array
+    {
+        if ($fullName === '') {
+            return ['', ''];
+        }
+
+        $parts = preg_split('/\s+/u', $fullName, 2);
+
+        return [
+            $parts[0] ?? '',
+            $parts[1] ?? '',
         ];
     }
 }

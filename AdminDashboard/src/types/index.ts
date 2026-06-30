@@ -274,7 +274,7 @@ export interface Category {
 // Order Types
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready_for_delivery' | 'out_for_delivery' | 'delivered' | 'cancelled'
 export type PaymentMethod = 'cash_on_delivery' | 'online_paymob' | 'online_stripe'
-export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded'
+export type PaymentStatus = 'pending' | 'completed' | 'paid' | 'failed' | 'refunded' | 'partially_refunded'
 
 export interface Order {
     id: number

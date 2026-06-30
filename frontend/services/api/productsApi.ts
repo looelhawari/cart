@@ -108,12 +108,12 @@ export const getProduct = async (
       });
 
       if (!response.ok) {
-        throw new Error(`Product not found: ${barcode}`);
+        throw new Error("Product is currently unavailable.");
       }
 
       const data = await safeResponseJson(response);
       if (!data.success) {
-        throw new Error(`Failed to load product: ${barcode}`);
+        throw new Error("Product is currently unavailable.");
       }
       return data;
     } catch (error) {

@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { getSafeErrorMessage } from '@/lib/error-utils'
 
 interface Props {
     children: ReactNode
@@ -22,7 +23,9 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('Uncaught error:', error, errorInfo)
+        if (import.meta.env.DEV) {
+            console.error('Uncaught error:', error, errorInfo)
+        }
     }
 
     private handleReset = () => {
@@ -43,8 +46,8 @@ class ErrorBoundary extends Component<Props, State> {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                                <p className="font-mono text-sm text-red-800">
-                                    {this.state.error?.message || 'Unknown error'}
+                                <p className="text-sm text-red-800">
+                                    {getSafeErrorMessage(this.state.error)}
                                 </p>
                             </div>
                             <div className="flex gap-2">

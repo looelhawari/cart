@@ -37,11 +37,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Return JSON 401 for unauthenticated API requests instead of redirecting to login route
-        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated. Please log in.',
-            ], 401);
+        $exceptions->render(function (\Throwable $e, $request) {
+            if (! \App\Support\SafeApiExceptionResponse::shouldHandle($request)) {
+                return null;
+            }
+
+            if ($e instanceof \Illuminate\Http\Exceptions\HttpResponseException) {
+                return $e->getResponse();
+            }
+
+            return \App\Support\SafeApiExceptionResponse::render($e, $request);
         });
     })->create();

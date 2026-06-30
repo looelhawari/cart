@@ -2,9 +2,10 @@
 
 return [
     // Registration
-    'registration_successful' => 'تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني.',
+    'registration_successful' => 'تم إنشاء الحساب بنجاح.',
     'registration_pending_verification' => 'أرسلنا رمز التحقق إلى بريدك الإلكتروني. أدخل الرمز لإكمال إنشاء الحساب.',
     'registration_otp_send_failed' => 'تعذر إرسال بريد التحقق. يرجى المحاولة مرة أخرى بعد قليل.',
+    'signup_failed_try_later' => 'حدث خطأ ما. يرجى المحاولة لاحقاً.',
 
     // OTP / Verification
     'invalid_or_expired_otp' => 'رمز التحقق غير صالح أو منتهي الصلاحية.',
@@ -48,11 +49,28 @@ return [
     'validation_failed' => 'فشل التحقق',
     'incorrect_password' => 'كلمة المرور غير صحيحة',
     'password_confirmed_successfully' => 'تم تأكيد كلمة المرور بنجاح',
+    'full_name_required' => 'يرجى إدخال الاسم الكامل.',
+    'full_name_too_short' => 'يجب أن يكون الاسم الكامل حرفين على الأقل.',
+    'full_name_too_long' => 'يجب ألا يتجاوز الاسم الكامل 120 حرفاً.',
+    'phone_required' => 'يرجى إدخال رقم الهاتف.',
+    'invalid_egyptian_mobile' => 'يرجى إدخال رقم موبايل مصري صحيح.',
+    'date_of_birth_required' => 'يرجى اختيار تاريخ الميلاد.',
+    'date_of_birth_invalid' => 'يرجى إدخال تاريخ ميلاد صحيح.',
+    'date_of_birth_must_be_past' => 'يجب أن يكون تاريخ الميلاد في الماضي.',
+    'gender_required' => 'يرجى اختيار النوع.',
+    'gender_invalid' => 'يرجى اختيار نوع صحيح.',
+    'password_confirmation_mismatch' => 'كلمة المرور وتأكيدها غير متطابقين.',
+    'address_label_required' => 'يرجى اختيار نوع العنوان.',
+    'address_label_invalid' => 'نوع العنوان يجب أن يكون المنزل أو العمل أو آخر.',
+    'address_street_required' => 'عنوان الشارع مطلوب.',
+    'address_city_required' => 'المدينة مطلوبة.',
 
     // Check availability
     'email_already_exists' => 'البريد الإلكتروني مستخدم بالفعل',
     'email_available' => 'البريد الإلكتروني متاح',
     'phone_already_exists' => 'رقم الهاتف مستخدم بالفعل',
+    'phone_already_registered_login' => 'رقم الهاتف هذا مسجل بالفعل. يرجى تسجيل الدخول بدلاً من ذلك.',
+    'account_cannot_be_used_contact_support' => 'لا يمكن استخدام هذا الحساب. يرجى التواصل مع الدعم.',
     'phone_available' => 'رقم الهاتف متاح',
 
     // Email change

@@ -2804,33 +2804,58 @@ export default function PromoCodesPage() {
 
                               {/* Preview */}
                               <div className="text-sm font-medium text-blue-700 bg-blue-50 rounded p-2 border border-blue-200">
-                                📋 <strong>Rule:</strong> Buy{" "}
+                                📋 <strong>{t("promoCodes.bogo.previewRule")}:</strong>{" "}
+                                {t("promoCodes.bogo.buy")}{" "}
                                 {watch(`bogo_rules.${index}.buy_qty`) || 2}{" "}
                                 {watch(`bogo_rules.${index}.buy_scope`) ===
                                 "any"
-                                  ? "of any product"
+                                  ? t("promoCodes.bogo.ofAnyProduct")
                                   : watch(`bogo_rules.${index}.buy_scope`) ===
                                       "product"
-                                    ? `of product #${watch(`bogo_rules.${index}.buy_product_id`) || "?"}`
-                                    : "from selected category"}{" "}
-                                → Get{" "}
+                                    ? t("promoCodes.bogo.ofProduct", {
+                                        id:
+                                          watch(
+                                            `bogo_rules.${index}.buy_product_id`,
+                                          ) || "?",
+                                      })
+                                    : t(
+                                        "promoCodes.bogo.fromSelectedCategory",
+                                      )}{" "}
+                                → {t("promoCodes.bogo.getLabel")}{" "}
                                 {watch(`bogo_rules.${index}.get_qty`) || 1}{" "}
                                 {watch(`bogo_rules.${index}.get_scope`) ===
                                 "same"
-                                  ? "of same product"
+                                  ? t("promoCodes.bogo.ofSameProduct")
                                   : watch(`bogo_rules.${index}.get_scope`) ===
                                       "product"
-                                    ? `of product #${watch(`bogo_rules.${index}.get_product_id`) || "?"}`
-                                    : "from selected category"}{" "}
+                                    ? t("promoCodes.bogo.ofProduct", {
+                                        id:
+                                          watch(
+                                            `bogo_rules.${index}.get_product_id`,
+                                          ) || "?",
+                                      })
+                                    : t(
+                                        "promoCodes.bogo.fromSelectedCategory",
+                                      )}{" "}
                                 {watch(
                                   `bogo_rules.${index}.get_discount_type`,
                                 ) === "free"
-                                  ? "FREE!"
+                                  ? t("promoCodes.bogo.freeLabel")
                                   : watch(
                                         `bogo_rules.${index}.get_discount_type`,
                                       ) === "percentage"
-                                    ? `at ${watch(`bogo_rules.${index}.get_discount_value`) || 0}% off`
-                                    : `with EGP ${watch(`bogo_rules.${index}.get_discount_value`) || 0} off`}
+                                    ? t("promoCodes.bogo.percentOff", {
+                                        value:
+                                          watch(
+                                            `bogo_rules.${index}.get_discount_value`,
+                                          ) || 0,
+                                      })
+                                    : t("promoCodes.bogo.egpOff", {
+                                        value:
+                                          watch(
+                                            `bogo_rules.${index}.get_discount_value`,
+                                          ) || 0,
+                                      })}
                               </div>
                             </Card>
                           ))}

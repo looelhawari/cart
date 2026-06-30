@@ -57,6 +57,7 @@ import {
     AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getSafeErrorMessage } from '@/lib/error-utils'
 
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -190,7 +191,7 @@ export default function DeliveryZonesPage() {
         onError: (error: any) => {
             toast({
                 title: isRTL ? 'فشل في إنشاء المنطقة' : 'Failed to create zone',
-                description: error?.response?.data?.message || error.message,
+                description: getSafeErrorMessage(error),
                 variant: 'destructive',
             })
         },
@@ -208,7 +209,7 @@ export default function DeliveryZonesPage() {
         onError: (error: any) => {
             toast({
                 title: isRTL ? 'فشل في تحديث المنطقة' : 'Failed to update zone',
-                description: error?.response?.data?.message || error.message,
+                description: getSafeErrorMessage(error),
                 variant: 'destructive',
             })
         },
@@ -225,7 +226,7 @@ export default function DeliveryZonesPage() {
         onError: (error: any) => {
             toast({
                 title: isRTL ? 'فشل في حذف المنطقة' : 'Failed to delete zone',
-                description: error?.response?.data?.message || error.message,
+                description: getSafeErrorMessage(error),
                 variant: 'destructive',
             })
         },

@@ -2,9 +2,10 @@
 
 return [
     // Registration
-    'registration_successful' => 'Registration successful. Please verify your email address.',
+    'registration_successful' => 'Account created successfully.',
     'registration_pending_verification' => 'We have sent a verification code to your email. Enter it to complete sign-up.',
     'registration_otp_send_failed' => 'We could not send the verification email. Please try again in a moment.',
+    'signup_failed_try_later' => 'Something went wrong. Please try again later.',
 
     // OTP / Verification
     'invalid_or_expired_otp' => 'Invalid or expired OTP.',
@@ -48,11 +49,28 @@ return [
     'validation_failed' => 'Validation failed',
     'incorrect_password' => 'Incorrect password',
     'password_confirmed_successfully' => 'Password confirmed successfully',
+    'full_name_required' => 'Please enter your full name.',
+    'full_name_too_short' => 'Full name must be at least 2 characters.',
+    'full_name_too_long' => 'Full name must not exceed 120 characters.',
+    'phone_required' => 'Please enter your phone number.',
+    'invalid_egyptian_mobile' => 'Please enter a valid Egyptian mobile number.',
+    'date_of_birth_required' => 'Please select your date of birth.',
+    'date_of_birth_invalid' => 'Please provide a valid date of birth.',
+    'date_of_birth_must_be_past' => 'Date of birth must be in the past.',
+    'gender_required' => 'Please select your gender.',
+    'gender_invalid' => 'Please select a valid gender.',
+    'password_confirmation_mismatch' => 'Password and confirmation password do not match.',
+    'address_label_required' => 'Please select an address type.',
+    'address_label_invalid' => 'Address type must be Home, Work, or Other.',
+    'address_street_required' => 'Street address is required.',
+    'address_city_required' => 'City is required.',
 
     // Check availability
     'email_already_exists' => 'Email already exists',
     'email_available' => 'Email is available',
     'phone_already_exists' => 'Phone number already exists',
+    'phone_already_registered_login' => 'This phone number is already registered. Please log in instead.',
+    'account_cannot_be_used_contact_support' => 'This account cannot be used. Please contact support.',
     'phone_available' => 'Phone number is available',
 
     // Email change

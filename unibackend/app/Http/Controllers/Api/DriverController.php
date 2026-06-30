@@ -248,20 +248,19 @@ class DriverController extends Controller
         }
 
         DB::transaction(function () use ($order, $driver) {
-            $order->update([
+            $updates = [
                 'status' => 'delivered',
                 'actual_delivered_at' => now(),
-            ]);
+            ];
+
+            if ($order->completePaymentOnDelivery()) {
+                $updates['payment_status'] = $order->payment_status;
+            }
+
+            $order->update($updates);
 
             // Update driver stats
             $driver->increment('total_deliveries');
-
-            // Mark on-delivery payments (cash or card machine) as completed.
-            // COD path is gated above by the confirmation code check; card-on-delivery
-            // is gated by the card terminal transaction itself.
-            if (Order::isOnDeliveryPayment($order->payment_method)) {
-                $order->update(['payment_status' => 'completed']);
-            }
         });
 
         return response()->json([

@@ -6,17 +6,41 @@ import {
   saveTokens,
   clearAuthData,
   API_BASE_URL,
+  safeResponseJson,
 } from "./api/base";
+import {
+  createSafeApiError,
+  isNetworkError,
+  normalizeApiErrorPayload,
+} from "./api/errors";
 
 // Types
 export interface RegisterData {
+  full_name?: string;
   first_name: string;
   last_name: string;
   email: string;
   phone: string;
+  date_of_birth: string;
+  gender: "male" | "female" | "other";
   password: string;
   password_confirmation: string;
   language: "en" | "ar";
+  address?: {
+    label: "Home" | "Work" | "Other";
+    street: string;
+    city: string;
+    recipient_name?: string;
+    phone?: string;
+    building?: string;
+    floor?: string;
+    apartment?: string;
+    area?: string;
+    postal_code?: string;
+    landmark?: string;
+    notes?: string;
+    is_default?: boolean;
+  } | null;
 }
 
 export interface LoginData {
@@ -104,10 +128,10 @@ const internalRefreshToken = async (): Promise<AuthResponse> => {
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
 
-  const data = await response.json();
+  const data = await safeResponseJson(response);
 
   if (!response.ok) {
-    throw data as ApiError;
+    throw normalizeApiErrorPayload(data, response.status) as ApiError;
   }
 
   await saveTokens(data.data.access_token, data.data.refresh_token);
@@ -144,15 +168,12 @@ const apiRequest = async <T>(
       headers,
     });
 
-    const data = await response.json();
+    const data = await safeResponseJson(response);
 
     // Handle token expiration - try to refresh
     if (response.status === 401 && retryCount === 0) {
       // Check if it's a token expiration issue
-      if (
-        data.message?.includes("expired") ||
-        data.message?.includes("Unauthenticated")
-      ) {
+      if (token && !endpoint.includes("/auth/")) {
         // Snapshot the token that was used for THIS request.
         // If a concurrent socialLogin has since written a NEW token,
         // we must NOT clear it — we should retry with the new token instead.
@@ -194,22 +215,18 @@ const apiRequest = async <T>(
     }
 
     if (!response.ok) {
-      throw data as ApiError;
+      throw normalizeApiErrorPayload(data, response.status) as ApiError;
     }
 
     return data as T;
   } catch (error: any) {
     // Network errors
-    if (
-      error.message === "Network request failed" ||
-      error.name === "TypeError"
-    ) {
-      throw {
-        success: false,
-        message:
-          "Cannot connect to server. Please check your internet connection and ensure the server is running.",
-        error_code: "NETWORK_ERROR",
-      } as ApiError;
+    if (isNetworkError(error) || error.name === "TypeError") {
+      throw createSafeApiError(
+        "Please check your internet connection and try again.",
+        0,
+        "NETWORK_ERROR",
+      ) as ApiError;
     }
     throw error;
   }
@@ -497,8 +514,12 @@ export const authApi = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Avatar upload failed");
+      const error = await safeResponseJson(response);
+      throw normalizeApiErrorPayload(
+        error,
+        response.status,
+        "Could not upload your avatar. Please try again.",
+      ) as ApiError;
     }
 
     return response.json();

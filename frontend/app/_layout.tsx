@@ -70,7 +70,7 @@ function RootLayoutNav() {
   // Check authentication status on app startup
   useEffect(() => {
     checkAuthStatus().catch((error) => {
-      console.log("Auth check failed on startup:", error);
+      if (__DEV__) console.log("Auth check failed on startup:", error);
     });
   }, []);
 
@@ -81,8 +81,8 @@ function RootLayoutNav() {
       if (isPushNotificationsSupported()) {
         // Initialize push notifications and register token
         initializePushNotifications().then((token) => {
-          if (token) {
-            console.log("Push notifications initialized with token:", token);
+          if (token && __DEV__) {
+            console.log("Push notifications initialized");
           }
         });
 
@@ -92,7 +92,7 @@ function RootLayoutNav() {
         // Check if app was opened from notification (when app was killed)
         getLastNotificationResponse().then((response) => {
           if (response) {
-            console.log("App opened from notification:", response);
+            if (__DEV__) console.log("App opened from notification");
             const data = response.notification.request.content.data;
             if (data) {
               // Small delay to ensure router is ready
@@ -111,9 +111,11 @@ function RootLayoutNav() {
           setBadgeCount(count);
         });
       } else {
-        console.log(
-          "Push notifications not supported in this environment (Expo Go or simulator)",
-        );
+        if (__DEV__) {
+          console.log(
+            "Push notifications not supported in this environment (Expo Go or simulator)",
+          );
+        }
       }
     }
   }, [isAuthenticated]);
@@ -129,8 +131,8 @@ function RootLayoutNav() {
     (async () => {
       // Handle notifications received while app is foregrounded
       notificationListener.current = await addNotificationReceivedListener(
-        (notification) => {
-          console.log("Notification received in foreground:", notification);
+        (_notification) => {
+          if (__DEV__) console.log("Notification received in foreground");
           // Update badge count
           getUnreadCount().then((count) => {
             setBadgeCount(count);
@@ -141,7 +143,7 @@ function RootLayoutNav() {
       // Handle notification taps (user clicks on notification)
       responseListener.current = await addNotificationResponseListener(
         (response) => {
-          console.log("Notification tapped:", response);
+          if (__DEV__) console.log("Notification tapped");
           const data = response.notification.request.content.data;
           if (data) {
             handleNotificationAction(data as Record<string, unknown>, router);
@@ -164,7 +166,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchCart().catch((error) => {
-        console.log("Failed to fetch cart on startup:", error);
+        if (__DEV__) console.log("Failed to fetch cart on startup:", error);
       });
     }
   }, [isAuthenticated]);

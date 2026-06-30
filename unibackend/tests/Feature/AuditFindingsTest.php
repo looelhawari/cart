@@ -1193,40 +1193,37 @@ class AuditFindingsTest extends TestCase
     // -----------------------------------------------------------------------
 
     /** @test */
-    public function test_registration_does_not_auto_verify_or_issue_tokens(): void
+    public function test_registration_is_otp_free_and_issues_tokens_immediately(): void
     {
-        // C1: register() must NOT hard-code is_verified=true or return access
-        // tokens. The OTP-gated flow is the only legitimate path.
+        // Signup OTP is intentionally disabled. Registration must create an
+        // active account and issue tokens immediately.
         $src = file_get_contents(base_path('app/Http/Controllers/Api/Auth/AuthController.php'));
 
-        // Extract just the register() method body — verifyEmail() legitimately
-        // sets is_verified=true so we can't grep the whole file.
         $start = strpos($src, 'public function register(RegisterRequest $request)');
         $this->assertNotFalse($start, 'register() method not found.');
-        // The method runs until the next "public function" or end of class.
         $afterStart = substr($src, $start);
         $end = strpos($afterStart, "\n    public function ", 10);
         $body = $end !== false ? substr($afterStart, 0, $end) : $afterStart;
 
-        $this->assertDoesNotMatchRegularExpression(
-            "#'is_verified'\\s*=>\\s*true,\\s*\\n\\s*'email_verified_at'\\s*=>\\s*Carbon::now\\(\\)#",
-            $body,
-            'AuthController::register must not hard-code is_verified=true — registration OTP bypass is closed.'
-        );
         $this->assertStringNotContainsString(
-            "createToken('access_token'",
-            $body,
-            'AuthController::register must not issue access tokens directly — verification must come first.'
-        );
-        $this->assertStringContainsString(
             'createEmailVerificationOtp',
             $body,
-            'AuthController::register must create an email-verification OTP — restored verification flow.'
+            'AuthController::register must not create signup OTPs.'
         );
-        $this->assertStringContainsString(
+        $this->assertStringNotContainsString(
             'requires_verification',
             $body,
-            'AuthController::register response must signal requires_verification=true to the mobile client.'
+            'AuthController::register must not block signup behind OTP verification.'
+        );
+        $this->assertStringContainsString(
+            "createToken(\n            'access_token'",
+            $body,
+            'AuthController::register must issue an access token immediately.'
+        );
+        $this->assertStringContainsString(
+            "'is_verified'       => true",
+            $body,
+            'AuthController::register must create active verified app sessions while OTP is disabled.'
         );
     }
 

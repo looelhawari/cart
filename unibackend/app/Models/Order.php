@@ -13,6 +13,12 @@ class Order extends Model
     public const PAYMENT_CARD = 'card';
     public const PAYMENT_WALLET = 'wallet';
 
+    public const PAYMENT_STATUS_PENDING = 'pending';
+    public const PAYMENT_STATUS_COMPLETED = 'completed';
+    public const PAYMENT_STATUS_FAILED = 'failed';
+    public const PAYMENT_STATUS_REFUNDED = 'refunded';
+    public const PAYMENT_STATUS_PARTIALLY_REFUNDED = 'partially_refunded';
+
     public const ON_DELIVERY_PAYMENT_METHODS = [
         self::PAYMENT_CASH_ON_DELIVERY,
         self::PAYMENT_CARD_ON_DELIVERY,
@@ -21,6 +27,27 @@ class Order extends Model
     public static function isOnDeliveryPayment(?string $method): bool
     {
         return in_array($method, self::ON_DELIVERY_PAYMENT_METHODS, true);
+    }
+
+    public function shouldCompletePaymentOnDelivery(): bool
+    {
+        return self::isOnDeliveryPayment($this->payment_method)
+            && ! in_array($this->payment_status, [
+                self::PAYMENT_STATUS_COMPLETED,
+                self::PAYMENT_STATUS_REFUNDED,
+                self::PAYMENT_STATUS_PARTIALLY_REFUNDED,
+            ], true);
+    }
+
+    public function completePaymentOnDelivery(): bool
+    {
+        if (! $this->shouldCompletePaymentOnDelivery()) {
+            return false;
+        }
+
+        $this->payment_status = self::PAYMENT_STATUS_COMPLETED;
+
+        return true;
     }
 
     /**

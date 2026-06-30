@@ -267,7 +267,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       projectId,
     });
 
-    console.log("✅ Push token obtained:", tokenData.data);
+    if (__DEV__) console.log("✅ Push token obtained");
     return tokenData.data;
   } catch (error) {
     console.error("Error getting push token:", error);

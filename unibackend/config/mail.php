@@ -118,8 +118,13 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', 'Example'),
+        'address' => env('MAIL_FROM_ADDRESS', 'noreply@cartshop.site'),
+        'name' => 'CART',
+    ],
+
+    'reply_to' => [
+        'address' => env('MAIL_REPLY_TO_ADDRESS', env('MAIL_FROM_ADDRESS', 'support@cartshop.site')),
+        'name' => env('MAIL_REPLY_TO_NAME', 'CART'),
     ],
 
 ];

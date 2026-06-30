@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import type { Product, Category } from '@/types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Switch } from '@/components/ui/switch'
+import { formatFieldErrors, getSafeErrorMessage } from '@/lib/error-utils'
 
 const FormLabelWithTooltip = ({ htmlFor, label, tooltip, required }: { htmlFor?: string, label: string, tooltip: string, required?: boolean }) => (
     <div className="flex items-center gap-2 mb-1.5">
@@ -68,7 +69,7 @@ export default function ProductsPage() {
         onError: (error: any) => {
             toast({
                 title: t('common.error'),
-                description: error?.response?.data?.message || t('common.error'),
+                description: getSafeErrorMessage(error, t('common.error')),
                 variant: 'destructive'
             })
         }
@@ -101,10 +102,10 @@ export default function ProductsPage() {
             })
         },
         onError: (error: any) => {
-            console.error('Product creation error:', error)
-            const errorMessage = error?.response?.data?.message ||
-                JSON.stringify(error?.response?.data?.errors) ||
-                t('products.createError')
+            if (import.meta.env.DEV) console.error('Product creation error:', error)
+            const errorMessage =
+                formatFieldErrors(error?.response?.data?.errors) ||
+                getSafeErrorMessage(error, t('products.createError'))
             toast({
                 title: t('common.error'),
                 description: errorMessage,
@@ -135,7 +136,7 @@ export default function ProductsPage() {
         onError: (error: any) => {
             toast({
                 title: t('common.error'),
-                description: error?.response?.data?.message || t('products.updateError'),
+                description: getSafeErrorMessage(error, t('products.updateError')),
                 variant: 'destructive'
             })
         }
@@ -154,7 +155,7 @@ export default function ProductsPage() {
         onError: (error: any) => {
             toast({
                 title: t('common.error'),
-                description: error?.response?.data?.message || t('products.deleteError'),
+                description: getSafeErrorMessage(error, t('products.deleteError')),
                 variant: 'destructive'
             })
         }
@@ -195,7 +196,7 @@ export default function ProductsPage() {
             payload.is_in_stock = !!data.is_in_stock
         }
 
-        console.log('Form data being submitted:', payload)
+        if (import.meta.env.DEV) console.debug('Form data being submitted:', payload)
 
         if (editingProduct) {
             updateMutation.mutate({ barcode: editingProduct.barcode, data: payload })

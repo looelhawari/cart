@@ -330,10 +330,23 @@ class PaymentController extends Controller
                 );
             }
 
-            // Update order payment status
-            $order->update([
-                'payment_status' => 'pending',
-            ]);
+            $paymentCompleted = false;
+            if (($result['flow'] ?? null) === 'moto' && !($result['requires_redirect'] ?? true)) {
+                $payment = PaymobPayment::where('id', $result['payment_id'] ?? null)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($payment) {
+                    $paymentCompleted = $this->confirmMotoPaymentIfCaptured($payment, $result);
+                    $order->refresh();
+                }
+            }
+
+            if (! $paymentCompleted) {
+                $order->update([
+                    'payment_status' => 'pending',
+                ]);
+            }
 
             DB::commit();
 
@@ -356,8 +369,9 @@ class PaymentController extends Controller
                     'data' => [
                         'payment_id' => $result['payment_id'],
                         'flow' => 'moto',
-                        'status' => 'processing',
+                        'status' => $paymentCompleted ? 'confirmed' : 'processing',
                         'message' => __('payment.processing_saved_card'),
+                        'order_payment_status' => $order->payment_status,
                         'amount' => $order->total,
                         'currency' => 'EGP',
                     ],
@@ -1060,11 +1074,6 @@ class PaymentController extends Controller
                 'moto_attempted_at' => now(),
             ]);
 
-            // Update order payment status
-            $order->update([
-                'payment_status' => 'pending',
-            ]);
-
             Log::info('✅ Saved card MOTO payment initiated', [
                 'payment_id' => $payment->id,
                 'order_id' => $order->id,
@@ -1116,14 +1125,24 @@ class PaymentController extends Controller
                 ], 400);
             }
 
+            $paymentCompleted = $this->confirmMotoPaymentIfCaptured($payment, $motoResult);
+            if (! $paymentCompleted) {
+                $order->update([
+                    'payment_status' => 'pending',
+                ]);
+            } else {
+                $order->refresh();
+            }
+
             // MOTO SUCCESS! No redirect needed
             return response()->json([
                 'success' => true,
                 'data' => [
                     'payment_id' => $payment->id,
                     'flow' => 'moto',
-                    'status' => 'processing',
+                    'status' => $paymentCompleted ? 'confirmed' : 'processing',
                     'transaction_id' => $motoResult['transaction_id'] ?? null,
+                    'order_payment_status' => $order->payment_status,
                     'amount' => $order->total,
                     'currency' => 'EGP',
                     'card_last_four' => $paymentMethod->card_last_four,
@@ -1252,6 +1271,25 @@ class PaymentController extends Controller
     // ═══════════════════════════════════════════════════════════════
     // DUAL-FLOW PAYMENT HANDLERS (MOTO + Unified Checkout)
     // ═══════════════════════════════════════════════════════════════
+
+    private function confirmMotoPaymentIfCaptured(PaymobPayment $payment, array $gatewayResult): bool
+    {
+        if (!($gatewayResult['success'] ?? false)
+            || !($gatewayResult['is_capture'] ?? false)
+            || empty($gatewayResult['transaction_id'])
+            || !$payment->isPending()) {
+            return false;
+        }
+
+        $this->confirmationService->confirmPayment(
+            $payment,
+            (string) $gatewayResult['transaction_id'],
+            $gatewayResult['gateway_response'] ?? $gatewayResult['data'] ?? [],
+            'moto'
+        );
+
+        return true;
+    }
 
     /**
      * Initiate MOTO (Mail Order / Telephone Order) payment.
@@ -1417,6 +1455,9 @@ class PaymentController extends Controller
                 'flow' => 'moto',
                 'requires_redirect' => false,
                 'transaction_id' => $motoResult['transaction_id'],
+                'is_capture' => $motoResult['is_capture'] ?? false,
+                'pending' => $motoResult['pending'] ?? false,
+                'gateway_response' => $motoResult['data'] ?? [],
             ];
 
         } catch (Exception $e) {

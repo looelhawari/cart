@@ -86,9 +86,10 @@ export default function OrdersPage() {
                             <SelectContent>
                                 <SelectItem value="all">{t('orders.allPayments')}</SelectItem>
                                 <SelectItem value="pending">{t('orders.paymentStatus.pending')}</SelectItem>
-                                <SelectItem value="paid">{t('orders.paymentStatus.paid')}</SelectItem>
+                                <SelectItem value="completed">{t('orders.paymentStatus.completed')}</SelectItem>
                                 <SelectItem value="failed">{t('orders.paymentStatus.failed')}</SelectItem>
                                 <SelectItem value="refunded">{t('orders.paymentStatus.refunded')}</SelectItem>
+                                <SelectItem value="partially_refunded">{t('orders.paymentStatus.partiallyRefunded')}</SelectItem>
                             </SelectContent>
                         </Select>
                         {/* Wave 5 — Task 4: scheduled-vs-instant filter.
@@ -130,7 +131,7 @@ export default function OrdersPage() {
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.total')}</th>
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.paymentMethod')}</th>
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.status')}</th>
-                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.payment')}</th>
+                                            <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('orders.paymentStatus.title')}</th>
                                             <th className={`${isRTL ? 'text-right' : 'text-left'} p-3`}>{t('common.date')}</th>
                                             <th className={`${isRTL ? 'text-left' : 'text-right'} p-3`}>{t('common.actions')}</th>
                                         </tr>
@@ -187,7 +188,7 @@ export default function OrdersPage() {
                                                             className={isRTL ? 'ml-2' : 'mr-2'}
                                                         >
                                                             <Printer className={`h-4 w-4 ${isRTL ? 'ml-1' : 'mr-1'}`} />
-                                                            Print Receipt
+                                                            {t('orders.printReceipt')}
                                                         </Button>
                                                         <Link to={`/orders/${order.id}`}>
                                                             <Button size="sm" variant="outline">

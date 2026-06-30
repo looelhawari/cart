@@ -17,6 +17,10 @@ import {
   API_BASE_URL,
   getCommonHeaders,
 } from "./api/base";
+import {
+  createSafeApiError,
+  normalizeApiErrorPayload,
+} from "./api/errors";
 
 /**
  * Enhanced fetch wrapper with auth and error handling
@@ -37,10 +41,19 @@ async function httpRequest<T>(
     ? endpoint
     : `${API_BASE_URL}${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw createSafeApiError(
+      "Please check your internet connection and try again.",
+      0,
+      "NETWORK_ERROR",
+    );
+  }
 
   // Handle 401 Unauthorized - session expired
   if (response.status === 401) {
@@ -53,24 +66,29 @@ async function httpRequest<T>(
       await clearAuthData();
     }
 
-    throw new Error("Session expired. Please login again.");
+    throw createSafeApiError(
+      "Your session has expired. Please log in again.",
+      401,
+      "TOKEN_EXPIRED",
+    );
   }
 
   // Handle other HTTP errors
   if (!response.ok) {
-    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    let errorData: unknown = {};
     try {
-      const errorData = await response.json();
-      errorMessage = errorData.message || errorMessage;
+      errorData = await response.json();
     } catch {
-      // If parsing fails, use default message
+      errorData = {};
     }
 
-    throw new Error(errorMessage);
+    throw normalizeApiErrorPayload(errorData, response.status);
   }
 
   // Parse successful response
-  const data = await response.json();
+  const data = await response.json().catch(() => {
+    throw createSafeApiError("Something went wrong. Please try again later.", response.status);
+  });
   return data as T;
 }
 

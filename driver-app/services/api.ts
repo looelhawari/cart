@@ -1,6 +1,51 @@
 import * as SecureStore from "expo-secure-store";
 import { API_CONFIG, STORAGE_KEYS } from "@/config/app.config";
 
+const TECHNICAL_MESSAGE_PATTERNS = [
+    /sqlstate/i,
+    /queryexception/i,
+    /axioserror/i,
+    /network error/i,
+    /syntaxerror/i,
+    /typeerror/i,
+    /stack trace/i,
+    /\bline\s+\d+\b/i,
+    /\/app\//i,
+    /\\app\\/i,
+    /http\s+\d{3}/i,
+    /invalid json/i,
+    /empty response/i,
+    /server returned html/i,
+    /backend/i,
+    /env\b/i,
+    /paymob/i,
+];
+
+const messageForStatus = (status?: number) => {
+    if (!status || status === 0) return "Please check your internet connection and try again.";
+    if (status === 401) return "Your session has expired. Please log in again.";
+    if (status === 403) return "You do not have permission to perform this action.";
+    if (status === 404) return "The requested item could not be found.";
+    if (status === 422) return "Please check the entered data.";
+    if (status === 429) return "Too many requests. Please wait a moment.";
+    if (status >= 500) return "Something went wrong. Please try again later.";
+    return "Action failed. Please try again.";
+};
+
+const safeMessage = (message: unknown, status?: number) => {
+    if (typeof message === "string") {
+        const normalized = message.trim();
+        const isTechnical =
+            !normalized ||
+            normalized.length > 240 ||
+            TECHNICAL_MESSAGE_PATTERNS.some((pattern) => pattern.test(normalized));
+
+        if (!isTechnical) return normalized;
+    }
+
+    return messageForStatus(status);
+};
+
 // ─── Token Management ──────────────────────────────────────────
 
 let _cachedToken: string | null = null;
@@ -13,7 +58,7 @@ export const getToken = async (): Promise<string | null> => {
 
 export const setToken = async (token: string) => {
     if (!token || typeof token !== "string") {
-        throw new Error("Token must be a non-empty string");
+        throw new ApiError("We could not complete your request right now.", 0);
     }
     _cachedToken = token;
     await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, token);
@@ -41,12 +86,16 @@ const headers = async (includeAuth = true): Promise<HeadersInit> => {
 
 const parseResponse = async (res: Response) => {
     const text = await res.text();
-    if (!text || text.trim().length === 0) throw new Error("Empty response");
-    if (text.trim().startsWith("<")) throw new Error("Server returned HTML – check backend");
+    if (!text || text.trim().length === 0) {
+        throw new ApiError(messageForStatus(res.status), res.status);
+    }
+    if (text.trim().startsWith("<")) {
+        throw new ApiError(messageForStatus(res.status), res.status);
+    }
     try {
         return JSON.parse(text);
     } catch {
-        throw new Error("Invalid JSON response");
+        throw new ApiError(messageForStatus(res.status), res.status);
     }
 };
 
@@ -54,7 +103,7 @@ export class ApiError extends Error {
     status: number;
     errors?: Record<string, string[]>;
     constructor(message: string, status: number, errors?: Record<string, string[]>) {
-        super(message);
+        super(safeMessage(message, status));
         this.status = status;
         this.errors = errors;
     }
@@ -79,7 +128,7 @@ async function request<T>(method: string, endpoint: string, body?: any): Promise
 
         if (!res.ok) {
             throw new ApiError(
-                data?.message || `HTTP ${res.status}`,
+                data?.message || messageForStatus(res.status),
                 res.status,
                 data?.errors,
             );
@@ -87,8 +136,11 @@ async function request<T>(method: string, endpoint: string, body?: any): Promise
 
         return data as T;
     } catch (err: any) {
-        if (err.name === "AbortError") throw new Error("Request timed out");
-        throw err;
+        if (err instanceof ApiError) throw err;
+        if (err.name === "AbortError") {
+            throw new ApiError("Connection lost. Please try again.", 0);
+        }
+        throw new ApiError("Please check your internet connection and try again.", 0);
     } finally {
         clearTimeout(timeout);
     }

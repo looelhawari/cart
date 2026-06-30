@@ -1,130 +1,320 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   ActivityIndicator,
   Alert,
-  Animated,
   I18nManager,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  ArrowLeft,
+  Calendar,
+  Check,
+  Eye,
+  EyeOff,
+  Lock as LockIcon,
+  Mail,
+  MapPin,
+  Phone,
+  User,
+} from "lucide-react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
-import { useResponsive } from "@/hooks/useResponsive";
-import { StatusBar } from "expo-status-bar";
-import {
-  Eye,
-  EyeOff,
-  User,
-  Mail,
-  Phone,
-  ArrowLeft,
-  Check,
-  Lock as LockIcon,
-  Edit3,
-  RefreshCw,
-  ShieldCheck,
-  CheckCircle,
-} from "lucide-react-native";
-import { useTranslation } from "@/i18n";
+import { useI18n } from "@/i18n";
 import { API_CONFIG } from "@/config/app.config";
-import { getCommonHeaders } from "@/services/api/base";
 
 type Step = 1 | 2 | 3 | 4;
+type Gender = "male" | "female" | "other";
+type AddressLabel = "Home" | "Work" | "Other";
+
+type SignupAddress = {
+  label: AddressLabel;
+  street: string;
+  city: string;
+  building?: string;
+  floor?: string;
+  apartment?: string;
+  area?: string;
+  landmark?: string;
+  is_default: true;
+};
+
+type AddressErrors = {
+  street?: string;
+  city?: string;
+};
+
+type PhoneValidationResult = {
+  normalized: string | null;
+  error: string | null;
+};
+
+const normalizeEgyptianMobile = (
+  value: string,
+  invalidMessage: string,
+): PhoneValidationResult => {
+  const raw = value.trim();
+
+  if (!raw || /\p{L}/u.test(raw)) {
+    return { normalized: null, error: invalidMessage };
+  }
+
+  const compact = raw
+    .replace(/\s+/g, "")
+    .replace(/-/g, "")
+    .replace(/\(/g, "")
+    .replace(/\)/g, "")
+    .replace(/\[/g, "")
+    .replace(/\]/g, "")
+    .replace(/\./g, "");
+
+  if (!/^\+?\d+$/.test(compact)) {
+    return { normalized: null, error: invalidMessage };
+  }
+
+  if ((compact.match(/\+/g) || []).length > 1 || (compact.includes("+") && !compact.startsWith("+"))) {
+    return { normalized: null, error: invalidMessage };
+  }
+
+  const digits = compact.replace(/^\+/, "");
+  let local = digits;
+
+  if (digits.startsWith("20")) {
+    local = digits.slice(2);
+  } else if (digits.startsWith("0")) {
+    local = digits.slice(1);
+  }
+
+  if (!/^(10|11|12|15)\d{8}$/.test(local)) {
+    return { normalized: null, error: invalidMessage };
+  }
+
+  const subscriberDigits = local.slice(2).split("");
+  if (new Set(subscriberDigits).size === 1) {
+    return { normalized: null, error: invalidMessage };
+  }
+
+  return { normalized: `+20${local}`, error: null };
+};
+
+const sanitizeEgyptianMobileInput = (value: string, fallback = "") => {
+  const digits = value.replace(/\D/g, "");
+  let local = digits;
+
+  if (local.startsWith("20")) {
+    local = local.slice(2);
+  }
+
+  if (local.startsWith("0")) {
+    local = local.slice(1);
+  }
+
+  if (local.length >= 1 && local[0] !== "1") {
+    return fallback;
+  }
+
+  if (local.length >= 2 && !["0", "1", "2", "5"].includes(local[1])) {
+    return fallback;
+  }
+
+  return local.slice(0, 10);
+};
+
+const splitFullName = (fullName: string) => {
+  const [firstName = "", lastName = ""] = fullName.trim().replace(/\s+/g, " ").split(/\s+(.+)/);
+
+  return {
+    firstName,
+    lastName,
+  };
+};
+
+const formatDateForApi = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const compactOptionalAddressFields = (address: SignupAddress): SignupAddress => {
+  const cleaned = { ...address };
+
+  (["building", "floor", "apartment", "area", "landmark"] as const).forEach(
+    (key) => {
+      if (!cleaned[key]?.trim()) {
+        delete cleaned[key];
+      }
+    },
+  );
+
+  return cleaned;
+};
 
 export default function SignupScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const register = useStore((state) => state.register);
-  const { wp, hp, isSmallDevice, isLargeDevice } = useResponsive();
-  const { t } = useTranslation();
+  const { t, language, setLanguage: setAppLanguage } = useI18n();
 
-  const [step, setStep] = useState<Step>(
-    params.step ? (parseInt(params.step as string) as Step) : 1,
-  );
+  const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState((params.email as string) || "");
   const [phone, setPhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [addressEnabled, setAddressEnabled] = useState(false);
+  const [addressLabel, setAddressLabel] = useState<AddressLabel>("Home");
+  const [addressStreet, setAddressStreet] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressArea, setAddressArea] = useState("");
+  const [addressBuilding, setAddressBuilding] = useState("");
+  const [addressFloor, setAddressFloor] = useState("");
+  const [addressApartment, setAddressApartment] = useState("");
+  const [addressLandmark, setAddressLandmark] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [language, setLanguage] = useState<"en" | "ar">("en");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [otpTimer, setOtpTimer] = useState(30);
-  const [canResend, setCanResend] = useState(false);
-  const [isResending, setIsResending] = useState(false);
+
+  const [fullNameError, setFullNameError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [dateOfBirthError, setDateOfBirthError] = useState("");
+  const [genderError, setGenderError] = useState("");
+  const [addressErrors, setAddressErrors] = useState<AddressErrors>({});
+  const [passwordError, setPasswordError] = useState("");
+
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
-  const [otpDigits, setOtpDigits] = useState<string[]>([
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-  ]);
-  const otpInputRefs = useRef<(TextInput | null)[]>([]);
-  const [resendToast, setResendToast] = useState(false);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Track the email/phone that were used in a successful register() call
-  // so we can skip "already taken" checks for our own unverified record
-  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
-  const [registeredPhone, setRegisteredPhone] = useState<string | null>(null);
+  const clearServerErrors = () => {
+    setEmailError("");
+    setPhoneError("");
+    setDateOfBirthError("");
+    setGenderError("");
+    setAddressErrors({});
+    setPasswordError("");
+  };
 
-  // OTP BYPASS: Auto-start OTP timer / resend logic (commented out)
-  // useEffect(() => {
-  //   if (params.autoVerify === "true" && params.verifyEmail) {
-  //     setEmail(params.verifyEmail as string);
-  //     setStep(3);
-  //     startOtpTimer();
-  //     return;
-  //   }
-  //   if (params.step === "3") {
-  //     startOtpTimer();
-  //     if (params.email) {
-  //       (async () => {
-  //         try {
-  //           await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-  //             method: "POST",
-  //             headers: getCommonHeaders(),
-  //             body: JSON.stringify({ email: params.email }),
-  //           });
-  //         } catch (error) {
-  //           console.warn("Auto-send OTP error:", error);
-  //         }
-  //       })();
-  //     }
-  //   }
-  // }, []);
-  const checkEmailAvailability = async (emailToCheck: string) => {
-    // Skip check if this email belongs to our own pending registration
-    if (
-      registeredEmail &&
-      emailToCheck.trim().toLowerCase() === registeredEmail.toLowerCase()
-    ) {
-      setEmailError("");
-      return;
+  const validateFullName = () => {
+    const trimmed = fullName.trim().replace(/\s+/g, " ");
+
+    if (!trimmed) return t.signup.enterFullName;
+    if (trimmed.length < 2) return t.signup.fullNameTooShort;
+    if (trimmed.length > 120) return t.signup.fullNameTooLong;
+
+    return "";
+  };
+
+  const validateEmail = () => {
+    const trimmed = email.trim();
+
+    if (!trimmed) return t.signup.enterEmail;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      return t.signup.invalidEmail;
     }
-    try {
-      setIsCheckingEmail(true);
-      setEmailError("");
 
+    return "";
+  };
+
+  const validatePhone = () => {
+    if (!phone.trim()) return t.signup.enterPhone;
+
+    return normalizeEgyptianMobile(phone, t.signup.invalidEgyptPhone).error ?? "";
+  };
+
+  const validateDateOfBirth = () => {
+    if (!dateOfBirth) return t.signup.selectDateOfBirth;
+    if (dateOfBirth >= new Date()) return t.signup.invalidDateOfBirth;
+    if (dateOfBirth < new Date(1900, 0, 1)) return t.signup.invalidDateOfBirth;
+
+    return "";
+  };
+
+  const validateGender = () => {
+    if (!gender) return t.signup.selectGender;
+
+    return "";
+  };
+
+  const validateStep1 = () => {
+    const nextFullNameError = validateFullName();
+    const nextEmailError = validateEmail();
+    const nextPhoneError = validatePhone();
+    const nextDateOfBirthError = validateDateOfBirth();
+    const nextGenderError = validateGender();
+
+    setFullNameError(nextFullNameError);
+    setEmailError(nextEmailError);
+    setPhoneError(nextPhoneError);
+    setDateOfBirthError(nextDateOfBirthError);
+    setGenderError(nextGenderError);
+
+    return (
+      !nextFullNameError &&
+      !nextEmailError &&
+      !nextPhoneError &&
+      !nextDateOfBirthError &&
+      !nextGenderError
+    );
+  };
+
+  const validateStep2 = () => {
+    if (!addressEnabled) {
+      setAddressErrors({});
+      return true;
+    }
+
+    const nextAddressErrors: AddressErrors = {};
+
+    if (!addressStreet.trim()) {
+      nextAddressErrors.street = t.signup.enterStreetAddress;
+    }
+
+    if (!addressCity.trim()) {
+      nextAddressErrors.city = t.signup.enterCity;
+    }
+
+    setAddressErrors(nextAddressErrors);
+
+    return Object.keys(nextAddressErrors).length === 0;
+  };
+
+  const validateStep3 = () => {
+    if (!password.trim()) return t.signup.enterPassword;
+    if (password.length < 8) return t.signup.passwordMinLength;
+    if (!/[A-Z]/.test(password)) return t.signup.passwordNeedsUppercase;
+    if (!/[a-z]/.test(password)) return t.signup.passwordNeedsLowercase;
+    if (!/[0-9]/.test(password)) return t.signup.passwordNeedsNumber;
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      return t.signup.passwordNeedsSpecialChar;
+    }
+    if (!confirmPassword) return t.signup.enterConfirmPassword;
+    if (password !== confirmPassword) return t.signup.passwordsNotMatch;
+
+    return "";
+  };
+
+  const checkEmailAvailability = async (emailToCheck: string) => {
+    setIsCheckingEmail(true);
+
+    try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/check-email`, {
         method: "POST",
         headers: {
@@ -133,31 +323,32 @@ export default function SignupScreen() {
           "ngrok-skip-browser-warning": "true",
           "User-Agent": "CART-Mobile-App",
         },
-        body: JSON.stringify({ email: emailToCheck }),
+        body: JSON.stringify({ email: emailToCheck.trim().toLowerCase() }),
       });
+      const data = await response.json().catch(() => null);
 
-      const data = await response.json();
-
-      if (!response.ok && data.errors?.email) {
+      if (!response.ok && data?.errors?.email?.[0]) {
         setEmailError(data.errors.email[0]);
+        return false;
       }
-    } catch (error) {
-      console.log("Email check error:", error);
+
+      return true;
     } finally {
       setIsCheckingEmail(false);
     }
   };
 
   const checkPhoneAvailability = async (phoneToCheck: string) => {
-    // Skip check if this phone belongs to our own pending registration
-    if (registeredPhone && phoneToCheck.trim() === registeredPhone.trim()) {
-      setPhoneError("");
-      return;
-    }
-    try {
-      setIsCheckingPhone(true);
-      setPhoneError("");
+    const phoneValidation = normalizeEgyptianMobile(
+      phoneToCheck,
+      t.signup.invalidEgyptPhone,
+    );
 
+    if (!phoneValidation.normalized) return false;
+
+    setIsCheckingPhone(true);
+
+    try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/check-phone`, {
         method: "POST",
         headers: {
@@ -166,418 +357,215 @@ export default function SignupScreen() {
           "ngrok-skip-browser-warning": "true",
           "User-Agent": "CART-Mobile-App",
         },
-        body: JSON.stringify({ phone: phoneToCheck }),
+        body: JSON.stringify({ phone: phoneValidation.normalized }),
       });
+      const data = await response.json().catch(() => null);
 
-      const data = await response.json();
-
-      if (!response.ok && data.errors?.phone) {
+      if (!response.ok && data?.errors?.phone?.[0]) {
         setPhoneError(data.errors.phone[0]);
+        return false;
       }
-    } catch (error) {
-      console.log("Phone check error:", error);
+
+      return true;
     } finally {
       setIsCheckingPhone(false);
     }
   };
 
-  const validateStep1 = () => {
-    if (!firstName.trim()) {
-      Alert.alert(t.common.error, t.signup.enterFirstName);
-      return false;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!email.trim() || validateEmail()) return;
+
+      checkEmailAvailability(email).catch(() => {
+        // Passive availability checks should not interrupt typing.
+      });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const phoneValidation = normalizeEgyptianMobile(
+        phone,
+        t.signup.invalidEgyptPhone,
+      );
+
+      if (!phoneValidation.normalized) return;
+
+      checkPhoneAvailability(phoneValidation.normalized).catch(() => {
+        // Passive availability checks should not interrupt typing.
+      });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [phone]);
+
+  const onDateChange = (_event: unknown, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
+
+    if (selectedDate) {
+      setDateOfBirth(selectedDate);
+      setDateOfBirthError("");
     }
-    if (!lastName.trim()) {
-      Alert.alert(t.common.error, t.signup.enterLastName);
-      return false;
-    }
-    if (!email.trim()) {
-      Alert.alert(t.common.error, t.signup.enterEmail);
-      return false;
-    }
-    if (emailError) {
-      Alert.alert(t.common.error, emailError);
-      return false;
-    }
-    if (!phone.trim()) {
-      Alert.alert(t.common.error, t.signup.enterPhone);
-      return false;
-    }
-    if (phoneError) {
-      Alert.alert(t.common.error, phoneError);
-      return false;
-    }
-    return true;
   };
 
-  const validateStep2 = () => {
-    if (!password) {
-      Alert.alert(t.common.error, t.signup.enterPassword);
-      return false;
-    }
-    if (password.length < 8) {
-      Alert.alert(t.common.error, t.signup.passwordMinLength);
-      return false;
-    }
-    if (!/[A-Z]/.test(password)) {
-      Alert.alert(t.common.error, t.signup.passwordNeedsUppercase);
-      return false;
-    }
-    if (!/[0-9]/.test(password)) {
-      Alert.alert(t.common.error, t.signup.passwordNeedsNumber);
-      return false;
-    }
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      Alert.alert(t.common.error, t.signup.passwordNeedsSpecialChar);
-      return false;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert(t.common.error, t.signup.passwordsNotMatch);
-      return false;
-    }
-    return true;
+  const buildAddressPayload = (): SignupAddress | null => {
+    if (!addressEnabled) return null;
+
+    return compactOptionalAddressFields({
+      label: addressLabel,
+      street: addressStreet.trim(),
+      city: addressCity.trim(),
+      building: addressBuilding.trim(),
+      floor: addressFloor.trim(),
+      apartment: addressApartment.trim(),
+      area: addressArea.trim(),
+      landmark: addressLandmark.trim(),
+      is_default: true,
+    });
   };
 
   const handleNext = async () => {
+    if (loading) return;
+
     if (step === 1) {
       if (!validateStep1()) return;
 
-      // Actively verify email & phone are not already registered
       setLoading(true);
       try {
-        let hasError = false;
-        const headers = {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "CART-Mobile-App",
-        };
+        const phoneValidation = normalizeEgyptianMobile(
+          phone,
+          t.signup.invalidEgyptPhone,
+        );
+        const [emailAvailable, phoneAvailable] = await Promise.all([
+          checkEmailAvailability(email),
+          checkPhoneAvailability(phoneValidation.normalized ?? phone),
+        ]);
 
-        // Skip check for email/phone that belong to our own unverified record
-        const skipEmailCheck =
-          registeredEmail &&
-          email.trim().toLowerCase() === registeredEmail.toLowerCase();
-        const skipPhoneCheck =
-          registeredPhone && phone.trim() === registeredPhone.trim();
-
-        if (!skipEmailCheck) {
-          const emailRes = await fetch(
-            `${API_CONFIG.BASE_URL}/auth/check-email`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ email: email.trim() }),
-            },
-          );
-          const emailData = await emailRes.json();
-          if (!emailRes.ok && emailData.errors?.email) {
-            setEmailError(emailData.errors.email[0]);
-            hasError = true;
-          }
-        }
-
-        if (!skipPhoneCheck) {
-          const phoneRes = await fetch(
-            `${API_CONFIG.BASE_URL}/auth/check-phone`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ phone: phone.trim() }),
-            },
-          );
-          const phoneData = await phoneRes.json();
-          if (!phoneRes.ok && phoneData.errors?.phone) {
-            setPhoneError(phoneData.errors.phone[0]);
-            hasError = true;
-          }
-        }
-
-        if (hasError) {
+        if (!emailAvailable || !phoneAvailable) {
           Alert.alert(t.signup.validationError, t.signup.checkInputData);
           return;
         }
 
         setStep(2);
-      } catch (error) {
+      } catch {
         Alert.alert(t.common.error, t.alerts.networkError);
       } finally {
         setLoading(false);
       }
-    } else if (step === 2) {
-      if (!validateStep2()) return;
-
-      // OTP BYPASS: Register user and redirect directly to home (skip OTP step 3).
-      //
-      // BUGFIX: previously this fired-and-forgot the navigation 2s after
-      // register() resolved, but `register()` resolves as soon as the HTTP
-      // response is parsed — saveTokens() runs synchronously after that on
-      // the same microtask but AsyncStorage.multiSet() is async. If the
-      // user's network was fast OR the user tapped Next quickly, the first
-      // authenticated request (orders/profile) could fire BEFORE
-      // multiSet() had flushed, returning 401.
-      //
-      // We now: (1) await register() — which now also awaits the multiSet —
-      // and (2) verify a token is actually visible in the in-memory cache
-      // before navigating. If somehow the backend didn't return tokens, we
-      // surface the error instead of dumping the user into /(tabs) where
-      // every API call would 401.
-      setLoading(true);
-      try {
-        await register({
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          phone,
-          password,
-          password_confirmation: confirmPassword,
-          language,
-        });
-
-        // Defensive double-check: token must be persisted before we send
-        // the user to authenticated screens. getAuthToken() reads the
-        // in-memory cache that saveTokens() populates synchronously, so
-        // this is effectively a "did the backend actually return tokens?"
-        // assertion.
-        const { getAuthToken } = await import("@/services/api/base");
-        const token = await getAuthToken();
-        if (!token) {
-          throw new Error(
-            "Registration succeeded but no session token was issued. Please log in.",
-          );
-        }
-
-        // Track what we registered so we can skip checks if user edits and comes back
-        setRegisteredEmail(email.trim());
-        setRegisteredPhone(phone.trim());
-
-        // OTP BYPASS: Skip step 3 (OTP), go directly to step 4 (success) then home
-        setStep(4);
-        setTimeout(() => {
-          router.replace("/(tabs)");
-        }, 2000);
-
-        // ---- OTP VERIFICATION FLOW (commented out) ----
-        // setStep(3);
-        // startOtpTimer();
-        // if (result?.emailSent === false) {
-        //   console.warn("[Signup] Initial OTP email failed, auto-resending...");
-        //   try {
-        //     await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-        //       method: "POST",
-        //       headers: getCommonHeaders(),
-        //       body: JSON.stringify({ email }),
-        //     });
-        //   } catch (retryError) {
-        //     console.warn("[Signup] Auto-resend also failed:", retryError);
-        //   }
-        // }
-        // ---- END OTP VERIFICATION FLOW ----
-      } catch (error: any) {
-        if (error.errors) {
-          if (error.errors.email) {
-            setEmailError(error.errors.email[0]);
-          }
-          if (error.errors.phone) {
-            setPhoneError(error.errors.phone[0]);
-          }
-          setStep(1);
-          Alert.alert(
-            t.signup.validationError,
-            error.message || t.signup.checkInputData,
-          );
-        } else {
-          Alert.alert(
-            t.common.error,
-            error.message || t.signup.registrationFailed,
-          );
-        }
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  // ---- OTP VERIFICATION FLOW (commented out) ----
-  // const verifyEmail = useStore((state) => state.verifyEmail);
-
-  // OTP timer effect (commented out - OTP step bypassed)
-  // useEffect(() => {
-  //   let interval: NodeJS.Timeout | undefined;
-  //   if (step === 3 && otpTimer > 0) {
-  //     interval = setInterval(() => {
-  //       setOtpTimer((prev) => {
-  //         if (prev <= 1) {
-  //           setCanResend(true);
-  //           return 0;
-  //         }
-  //         return prev - 1;
-  //       });
-  //     }, 1000);
-  //   }
-  //   return () => {
-  //     if (interval) clearInterval(interval);
-  //   };
-  // }, [step, otpTimer]);
-
-  // const startOtpTimer = () => {
-  //   setOtpTimer(30);
-  //   setCanResend(false);
-  // };
-  // ---- END OTP VERIFICATION FLOW ----
-
-  // Placeholder so the rest of code that references startOtpTimer doesn't break
-  const startOtpTimer = () => {};
-
-  // Email validation effect (preserved - not OTP related)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (email && email.includes("@")) {
-        checkEmailAvailability(email);
-      }
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [email]);
-
-  // Phone validation effect (preserved - not OTP related)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (phone && phone.length >= 10) {
-        checkPhoneAvailability(phone);
-      }
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [phone]);
-
-  const showResendToast = useCallback(() => {
-    setResendToast(true);
-    Animated.sequence([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.delay(2500),
-      Animated.timing(toastOpacity, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start(() => setResendToast(false));
-  }, [toastOpacity]);
-
-  const handleOtpDigitChange = (text: string, index: number) => {
-    const newDigits = [...otpDigits];
-    // Handle paste of full OTP
-    if (text.length > 1) {
-      const pastedDigits = text
-        .replace(/[^0-9]/g, "")
-        .slice(0, 6)
-        .split("");
-      for (let i = 0; i < 6; i++) {
-        newDigits[i] = pastedDigits[i] || "";
-      }
-      setOtpDigits(newDigits);
-      setOtp(newDigits.join(""));
-      const lastFilledIndex = Math.min(pastedDigits.length - 1, 5);
-      otpInputRefs.current[lastFilledIndex]?.focus();
       return;
     }
-    newDigits[index] = text.replace(/[^0-9]/g, "");
-    setOtpDigits(newDigits);
-    setOtp(newDigits.join(""));
-    // Auto-advance to next input
-    if (text && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
+
+    if (step === 2) {
+      if (!validateStep2()) {
+        Alert.alert(t.signup.validationError, t.signup.checkInputData);
+        return;
+      }
+
+      setStep(3);
+      return;
     }
-  };
 
-  const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && !otpDigits[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-      const newDigits = [...otpDigits];
-      newDigits[index - 1] = "";
-      setOtpDigits(newDigits);
-      setOtp(newDigits.join(""));
+    const nextPasswordError = validateStep3();
+    setPasswordError(nextPasswordError);
+
+    if (nextPasswordError) {
+      Alert.alert(t.common.error, nextPasswordError);
+      return;
     }
-  };
 
-  const handleResendOtp = async () => {
-    if (!canResend || isResending) return;
-
-    setIsResending(true);
-    startOtpTimer();
-
+    setLoading(true);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/resend-otp`, {
-        method: "POST",
-        headers: getCommonHeaders(),
-        body: JSON.stringify({ email }),
+      const normalizedPhone = normalizeEgyptianMobile(
+        phone,
+        t.signup.invalidEgyptPhone,
+      ).normalized;
+
+      if (!normalizedPhone) {
+        setStep(1);
+        setPhoneError(t.signup.invalidEgyptPhone);
+        return;
+      }
+
+      if (!dateOfBirth || !gender) {
+        setStep(1);
+        setDateOfBirthError(!dateOfBirth ? t.signup.selectDateOfBirth : "");
+        setGenderError(!gender ? t.signup.selectGender : "");
+        return;
+      }
+
+      const normalizedName = fullName.trim().replace(/\s+/g, " ");
+      const { firstName, lastName } = splitFullName(normalizedName);
+
+      await register({
+        full_name: normalizedName,
+        first_name: firstName,
+        last_name: lastName,
+        email: email.trim().toLowerCase(),
+        phone: normalizedPhone,
+        date_of_birth: formatDateForApi(dateOfBirth),
+        gender,
+        password,
+        password_confirmation: confirmPassword,
+        language,
+        address: buildAddressPayload(),
       });
 
-      if (response.ok) {
-        showResendToast();
-      } else {
-        const data = await response.json().catch(() => null);
-        Alert.alert(
-          t.common.error,
-          data?.message || t.signup.failedToResendOtp,
-        );
+      const { getAuthToken } = await import("@/services/api/base");
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error(t.signup.missingSessionToken);
       }
+
+      setStep(4);
+      setTimeout(() => {
+        router.replace("/(tabs)");
+      }, 1600);
     } catch (error: any) {
-      Alert.alert(
-        t.common.error,
-        t.alerts.networkError || "Network error. Please check your connection.",
-      );
+      if (error?.errors) {
+        setFullNameError(
+          error.errors.full_name?.[0] ||
+          error.errors.first_name?.[0] ||
+          error.errors.last_name?.[0] ||
+          "",
+        );
+        setEmailError(error.errors.email?.[0] || "");
+        setPhoneError(error.errors.phone?.[0] || "");
+        setDateOfBirthError(error.errors.date_of_birth?.[0] || "");
+        setGenderError(error.errors.gender?.[0] || "");
+        setAddressErrors({
+          street: error.errors["address.street"]?.[0] || "",
+          city: error.errors["address.city"]?.[0] || "",
+        });
+        setPasswordError(error.errors.password?.[0] || "");
+
+        if (error.errors["address.street"] || error.errors["address.city"] || error.errors["address.label"]) {
+          setStep(2);
+        } else if (error.errors.password) {
+          setStep(3);
+        } else {
+          setStep(1);
+        }
+
+        Alert.alert(t.signup.validationError, error.message || t.signup.checkInputData);
+      } else {
+        Alert.alert(t.common.error, error?.message || t.signup.registrationFailed);
+      }
     } finally {
-      setIsResending(false);
+      setLoading(false);
     }
   };
-
-  const handleEditEmail = () => {
-    Alert.alert(t.signup.editEmail, t.signup.editEmailConfirm, [
-      {
-        text: t.common.cancel,
-        style: "cancel",
-      },
-      {
-        text: t.signup.yesEdit,
-        onPress: () => {
-          setStep(1);
-          setOtp("");
-        },
-      },
-    ]);
-  };
-
-  // ---- OTP VERIFICATION FLOW (commented out) ----
-  // const handleVerify = async () => {
-  //   const otpCode = otpDigits.join("");
-  //   if (!otpCode || otpCode.length !== 6) {
-  //     Alert.alert(t.common.error, t.signup.enterOtpCode);
-  //     return;
-  //   }
-  //   try {
-  //     setLoading(true);
-  //     await verifyEmail({ email, otp: otpDigits.join("") });
-  //     setStep(4);
-  //     setTimeout(() => {
-  //       router.replace("/(tabs)");
-  //     }, 2000);
-  //   } catch (error: any) {
-  //     Alert.alert(t.common.error, error.message || t.signup.verificationFailed);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-  // ---- END OTP VERIFICATION FLOW ----
-  const handleVerify = async () => {}; // OTP bypassed - placeholder to avoid reference errors
-
 
   const renderProgressBar = () => (
     <View style={styles.progressBar}>
-      {[1, 2, 3, 4].map((s) => (
+      {[1, 2, 3, 4].map((progressStep) => (
         <View
-          key={s}
-          style={[styles.progressStep, step >= s && styles.progressStepActive]}
+          key={progressStep}
+          style={[
+            styles.progressStep,
+            step >= progressStep && styles.progressStepActive,
+          ]}
         />
       ))}
     </View>
@@ -590,51 +578,29 @@ export default function SignupScreen() {
 
       <View style={styles.form}>
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>{t.signup.firstName}</Text>
-          <View style={styles.inputWrapper}>
-            <User
-              size={20}
-              color={Colors.neutralMedium}
-              style={styles.inputIcon}
-            />
+          <Text style={styles.label}>{t.signup.fullName}</Text>
+          <View style={[styles.inputWrapper, fullNameError && styles.inputError]}>
+            <User size={20} color={Colors.neutralMedium} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder={t.signup.enterFirstNamePlaceholder}
+              placeholder={t.signup.enterFullNamePlaceholder}
               placeholderTextColor={Colors.neutralMedium}
-              value={firstName}
-              onChangeText={setFirstName}
+              value={fullName}
+              onChangeText={(text) => {
+                setFullName(text);
+                setFullNameError("");
+              }}
               autoCapitalize="words"
+              textContentType="name"
             />
           </View>
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>{t.signup.lastName}</Text>
-          <View style={styles.inputWrapper}>
-            <User
-              size={20}
-              color={Colors.neutralMedium}
-              style={styles.inputIcon}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={t.signup.enterLastNamePlaceholder}
-              placeholderTextColor={Colors.neutralMedium}
-              value={lastName}
-              onChangeText={setLastName}
-              autoCapitalize="words"
-            />
-          </View>
+          {fullNameError ? <Text style={styles.errorText}>{fullNameError}</Text> : null}
         </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>{t.signup.email}</Text>
           <View style={[styles.inputWrapper, emailError && styles.inputError]}>
-            <Mail
-              size={20}
-              color={Colors.neutralMedium}
-              style={styles.inputIcon}
-            />
+            <Mail size={20} color={Colors.neutralMedium} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               placeholder={t.signup.enterEmailPlaceholder}
@@ -642,54 +608,124 @@ export default function SignupScreen() {
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
-                setEmailError(""); // Clear error when user types
+                setEmailError("");
               }}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
             />
             {isCheckingEmail && (
-              <ActivityIndicator
-                size="small"
-                color={Colors.primary900}
-                style={styles.inputLoader}
-              />
+              <ActivityIndicator size="small" color={Colors.primary900} />
             )}
           </View>
-          {emailError ? (
-            <Text style={styles.errorText}>{emailError}</Text>
-          ) : null}
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
         </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>{t.signup.phoneNumber}</Text>
           <View style={[styles.inputWrapper, phoneError && styles.inputError]}>
-            <Phone
+            <Phone size={20} color={Colors.neutralMedium} style={styles.inputIcon} />
+            <View style={styles.countryCodePill}>
+              <Text style={styles.countryCodeText}>+20</Text>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="1012345678"
+              placeholderTextColor={Colors.neutralMedium}
+              value={phone}
+              onChangeText={(text) => {
+                setPhone((current) =>
+                  sanitizeEgyptianMobileInput(text, current),
+                );
+                setPhoneError("");
+              }}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+            />
+            {isCheckingPhone && (
+              <ActivityIndicator size="small" color={Colors.primary900} />
+            )}
+          </View>
+          <Text style={phoneError ? styles.errorText : styles.helperText}>
+            {phoneError || t.signup.phoneHelper}
+          </Text>
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>{t.signup.dateOfBirth}</Text>
+          <TouchableOpacity
+            style={[
+              styles.inputWrapper,
+              styles.dateInputWrapper,
+              dateOfBirthError && styles.inputError,
+            ]}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.75}
+          >
+            <Calendar
               size={20}
               color={Colors.neutralMedium}
               style={styles.inputIcon}
             />
-            <TextInput
-              style={styles.input}
-              placeholder="+20 123 456 7890"
-              placeholderTextColor={Colors.neutralMedium}
-              value={phone}
-              onChangeText={(text) => {
-                setPhone(text);
-                setPhoneError(""); // Clear error when user types
-              }}
-              keyboardType="phone-pad"
-            />
-            {isCheckingPhone && (
-              <ActivityIndicator
-                size="small"
-                color={Colors.primary900}
-                style={styles.inputLoader}
-              />
-            )}
-          </View>
-          {phoneError ? (
-            <Text style={styles.errorText}>{phoneError}</Text>
+            <Text
+              style={[
+                styles.dateText,
+                !dateOfBirth && styles.placeholderText,
+              ]}
+            >
+              {dateOfBirth
+                ? dateOfBirth.toLocaleDateString()
+                : t.signup.selectDateOfBirth}
+            </Text>
+          </TouchableOpacity>
+          {dateOfBirthError ? (
+            <Text style={styles.errorText}>{dateOfBirthError}</Text>
           ) : null}
+          {showDatePicker && (
+            <DateTimePicker
+              value={dateOfBirth || new Date(2000, 0, 1)}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={onDateChange}
+              maximumDate={new Date()}
+              minimumDate={new Date(1900, 0, 1)}
+            />
+          )}
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>{t.signup.gender}</Text>
+          <View style={styles.segmentedControl}>
+            {(["male", "female", "other"] as const).map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.segmentedOption,
+                  gender === option && styles.segmentedOptionActive,
+                ]}
+                onPress={() => {
+                  setGender(option);
+                  setGenderError("");
+                }}
+                activeOpacity={0.75}
+              >
+                <Text
+                  style={[
+                    styles.segmentedText,
+                    gender === option && styles.segmentedTextActive,
+                  ]}
+                >
+                  {option === "male"
+                    ? t.signup.male
+                    : option === "female"
+                      ? t.signup.female
+                      : t.signup.other}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {genderError ? <Text style={styles.errorText}>{genderError}</Text> : null}
         </View>
 
         <View style={styles.inputContainer}>
@@ -700,7 +736,7 @@ export default function SignupScreen() {
                 styles.languageOption,
                 language === "en" && styles.languageOptionActive,
               ]}
-              onPress={() => setLanguage("en")}
+              onPress={() => void setAppLanguage("en")}
             >
               <Text
                 style={[
@@ -708,7 +744,7 @@ export default function SignupScreen() {
                   language === "en" && styles.languageTextActive,
                 ]}
               >
-                English
+                {t.ui.english}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -716,7 +752,7 @@ export default function SignupScreen() {
                 styles.languageOption,
                 language === "ar" && styles.languageOptionActive,
               ]}
-              onPress={() => setLanguage("ar")}
+              onPress={() => void setAppLanguage("ar")}
             >
               <Text
                 style={[
@@ -724,7 +760,7 @@ export default function SignupScreen() {
                   language === "ar" && styles.languageTextActive,
                 ]}
               >
-                العربية
+                {t.ui.arabic}
               </Text>
             </TouchableOpacity>
           </View>
@@ -735,29 +771,235 @@ export default function SignupScreen() {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>{t.signup.deliveryAddress}</Text>
+      <Text style={styles.stepSubtitle}>{t.signup.addressOptionalSubtitle}</Text>
+
+      <View style={styles.form}>
+        <TouchableOpacity
+          style={styles.addressToggleRow}
+          onPress={() => {
+            setAddressEnabled((enabled) => !enabled);
+            setAddressErrors({});
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.addressToggleCopy}>
+            <View style={styles.addressIconCircle}>
+              <MapPin size={20} color={Colors.primary900} />
+            </View>
+            <View style={styles.addressToggleTextWrap}>
+              <Text style={styles.addressToggleTitle}>
+                {t.signup.addAddressNow}
+              </Text>
+              <Text style={styles.addressToggleSubtitle}>
+                {t.signup.skipAddressHelper}
+              </Text>
+            </View>
+          </View>
+          <View
+            style={[
+              styles.switchTrack,
+              addressEnabled && styles.switchTrackActive,
+            ]}
+          >
+            <View
+              style={[
+                styles.switchThumb,
+                addressEnabled && styles.switchThumbActive,
+              ]}
+            />
+          </View>
+        </TouchableOpacity>
+
+        {addressEnabled ? (
+          <>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>{t.signup.addressLabel}</Text>
+              <View style={styles.segmentedControl}>
+                {(["Home", "Work", "Other"] as const).map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.segmentedOption,
+                      addressLabel === option && styles.segmentedOptionActive,
+                    ]}
+                    onPress={() => setAddressLabel(option)}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentedText,
+                        addressLabel === option && styles.segmentedTextActive,
+                      ]}
+                    >
+                      {option === "Home"
+                        ? t.signup.home
+                        : option === "Work"
+                          ? t.signup.work
+                          : t.signup.other}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>{t.signup.streetAddress}</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  styles.textAreaWrapper,
+                  addressErrors.street && styles.inputError,
+                ]}
+              >
+                <TextInput
+                  style={[styles.input, styles.textAreaInput]}
+                  placeholder={t.signup.enterStreetAddressPlaceholder}
+                  placeholderTextColor={Colors.neutralMedium}
+                  value={addressStreet}
+                  onChangeText={(text) => {
+                    setAddressStreet(text);
+                    setAddressErrors((errors) => ({ ...errors, street: "" }));
+                  }}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+              {addressErrors.street ? (
+                <Text style={styles.errorText}>{addressErrors.street}</Text>
+              ) : null}
+            </View>
+
+            <View style={styles.rowFields}>
+              <View style={styles.rowField}>
+                <Text style={styles.label}>{t.signup.city}</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    addressErrors.city && styles.inputError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.signup.enterCityPlaceholder}
+                    placeholderTextColor={Colors.neutralMedium}
+                    value={addressCity}
+                    onChangeText={(text) => {
+                      setAddressCity(text);
+                      setAddressErrors((errors) => ({ ...errors, city: "" }));
+                    }}
+                  />
+                </View>
+                {addressErrors.city ? (
+                  <Text style={styles.errorText}>{addressErrors.city}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.rowField}>
+                <Text style={styles.label}>{t.signup.area}</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.signup.enterAreaPlaceholder}
+                    placeholderTextColor={Colors.neutralMedium}
+                    value={addressArea}
+                    onChangeText={setAddressArea}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.rowFields}>
+              <View style={styles.rowField}>
+                <Text style={styles.label}>{t.signup.building}</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.signup.enterBuildingPlaceholder}
+                    placeholderTextColor={Colors.neutralMedium}
+                    value={addressBuilding}
+                    onChangeText={setAddressBuilding}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.rowField}>
+                <Text style={styles.label}>{t.signup.floor}</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={t.signup.enterFloorPlaceholder}
+                    placeholderTextColor={Colors.neutralMedium}
+                    value={addressFloor}
+                    onChangeText={setAddressFloor}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>{t.signup.apartment}</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t.signup.enterApartmentPlaceholder}
+                  placeholderTextColor={Colors.neutralMedium}
+                  value={addressApartment}
+                  onChangeText={setAddressApartment}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>{t.signup.landmark}</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t.signup.enterLandmarkPlaceholder}
+                  placeholderTextColor={Colors.neutralMedium}
+                  value={addressLandmark}
+                  onChangeText={setAddressLandmark}
+                />
+              </View>
+            </View>
+          </>
+        ) : (
+          <View style={styles.skipAddressBox}>
+            <Text style={styles.skipAddressText}>
+              {t.signup.skipAddressConfirmation}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => (
+    <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>{t.signup.createPassword}</Text>
       <Text style={styles.stepSubtitle}>{t.signup.chooseStrongPassword}</Text>
 
       <View style={styles.form}>
         <View style={styles.inputContainer}>
           <Text style={styles.label}>{t.signup.password}</Text>
-          <View style={styles.inputWrapper}>
-            <LockIcon
-              size={20}
-              color={Colors.neutralMedium}
-              style={styles.inputIcon}
-            />
+          <View style={[styles.inputWrapper, passwordError && styles.inputError]}>
+            <LockIcon size={20} color={Colors.neutralMedium} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.passwordInput]}
               placeholder={t.signup.enterPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                setPasswordError("");
+              }}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
             />
             <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
+              onPress={() => setShowPassword((visible) => !visible)}
               style={styles.eyeIcon}
             >
               {showPassword ? (
@@ -771,23 +1013,24 @@ export default function SignupScreen() {
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>{t.signup.confirmPassword}</Text>
-          <View style={styles.inputWrapper}>
-            <LockIcon
-              size={20}
-              color={Colors.neutralMedium}
-              style={styles.inputIcon}
-            />
+          <View style={[styles.inputWrapper, passwordError && styles.inputError]}>
+            <LockIcon size={20} color={Colors.neutralMedium} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, styles.passwordInput]}
               placeholder={t.signup.confirmPasswordPlaceholder}
               placeholderTextColor={Colors.neutralMedium}
               value={confirmPassword}
-              onChangeText={setConfirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                setPasswordError("");
+              }}
               secureTextEntry={!showConfirmPassword}
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
             />
             <TouchableOpacity
-              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              onPress={() => setShowConfirmPassword((visible) => !visible)}
               style={styles.eyeIcon}
             >
               {showConfirmPassword ? (
@@ -797,175 +1040,28 @@ export default function SignupScreen() {
               )}
             </TouchableOpacity>
           </View>
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
         </View>
 
         <View style={styles.requirementsContainer}>
           <Text style={styles.requirementsTitle}>
             {t.signup.passwordMustContain}
           </Text>
-          <View style={styles.requirementRow}>
-            <Check
-              size={16}
-              color={
-                password.length >= 8 ? Colors.primary700 : Colors.neutralMedium
-              }
-            />
-            <Text
-              style={[
-                styles.requirementText,
-                password.length >= 8 && styles.requirementMet,
-              ]}
-            >
-              {t.signup.atLeast8Chars}
-            </Text>
-          </View>
-          <View style={styles.requirementRow}>
-            <Check
-              size={16}
-              color={
-                /[A-Z]/.test(password)
-                  ? Colors.primary700
-                  : Colors.neutralMedium
-              }
-            />
-            <Text
-              style={[
-                styles.requirementText,
-                /[A-Z]/.test(password) && styles.requirementMet,
-              ]}
-            >
-              {t.signup.oneUppercase}
-            </Text>
-          </View>
-          <View style={styles.requirementRow}>
-            <Check
-              size={16}
-              color={
-                /[0-9]/.test(password)
-                  ? Colors.primary700
-                  : Colors.neutralMedium
-              }
-            />
-            <Text
-              style={[
-                styles.requirementText,
-                /[0-9]/.test(password) && styles.requirementMet,
-              ]}
-            >
-              {t.signup.oneNumber}
-            </Text>
-          </View>
-          <View style={styles.requirementRow}>
-            <Check
-              size={16}
-              color={
-                /[!@#$%^&*(),.?":{}|<>]/.test(password)
-                  ? Colors.primary700
-                  : Colors.neutralMedium
-              }
-            />
-            <Text
-              style={[
-                styles.requirementText,
-                /[!@#$%^&*(),.?":{}|<>]/.test(password) &&
-                styles.requirementMet,
-              ]}
-            >
-              {t.signup.oneSpecialChar}
-            </Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderStep3 = () => (
-    <View style={styles.stepContainer}>
-      {/* Toast notification */}
-      {resendToast && (
-        <Animated.View style={[styles.toast, { opacity: toastOpacity }]}>
-          <CheckCircle size={18} color={Colors.neutralWhite} />
-          <Text style={styles.toastText}>{t.signup.otpResent}</Text>
-        </Animated.View>
-      )}
-
-      {/* Header icon */}
-      <View style={styles.otpHeaderIcon}>
-        <View style={styles.otpIconCircle}>
-          <ShieldCheck size={32} color={Colors.primary900} />
-        </View>
-      </View>
-
-      <Text style={[styles.stepTitle, styles.otpTitle]}>
-        {t.signup.verifyAccount}
-      </Text>
-      <Text style={styles.otpSubtitle}>{t.signup.enterCodeSentTo}</Text>
-
-      {/* Email display card */}
-      <View style={styles.emailCard}>
-        <View style={styles.emailCardLeft}>
-          <Mail size={18} color={Colors.primary900} />
-          <Text
-            style={styles.emailCardText}
-            numberOfLines={1}
-            ellipsizeMode="middle"
-          >
-            {email}
-          </Text>
-        </View>
-        <TouchableOpacity onPress={handleEditEmail} style={styles.editChip}>
-          <Edit3 size={13} color={Colors.primary900} />
-          <Text style={styles.editChipText}>{t.common.edit}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Individual digit inputs */}
-      <View style={styles.otpDigitsRow}>
-        {otpDigits.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref) => {
-              otpInputRefs.current[index] = ref;
-            }}
-            style={[styles.otpDigitInput, digit ? styles.otpDigitFilled : null]}
-            value={digit}
-            onChangeText={(text) => handleOtpDigitChange(text, index)}
-            onKeyPress={(e) => handleOtpKeyPress(e, index)}
-            keyboardType="number-pad"
-            maxLength={1}
-            autoFocus={index === 0}
-            selectTextOnFocus
+          <RequirementRow met={password.length >= 8} text={t.signup.atLeast8Chars} />
+          <RequirementRow met={/[A-Z]/.test(password)} text={t.signup.oneUppercase} />
+          <RequirementRow met={/[a-z]/.test(password)} text={t.signup.oneLowercase} />
+          <RequirementRow met={/[0-9]/.test(password)} text={t.signup.oneNumber} />
+          <RequirementRow
+            met={/[!@#$%^&*(),.?":{}|<>]/.test(password)}
+            text={t.signup.oneSpecialChar}
           />
-        ))}
-      </View>
-
-      {/* Timer / resend */}
-      <View style={styles.resendRow}>
-        {isResending ? (
-          <ActivityIndicator size="small" color={Colors.primary900} />
-        ) : canResend ? (
-          <TouchableOpacity
-            onPress={handleResendOtp}
-            style={styles.resendTouchable}
-          >
-            <RefreshCw size={16} color={Colors.primary900} />
-            <Text style={styles.resendActiveText}>{t.signup.resendCode}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.resendTimerRow}>
-            <RefreshCw size={16} color={Colors.neutralMedium} />
-            <Text style={styles.resendTimerText}>
-              {t.signup.resendIn} {otpTimer}s
-            </Text>
-          </View>
-        )}
+        </View>
       </View>
     </View>
   );
 
   const renderStep4 = () => (
     <View style={styles.successContainer}>
-      {/* Outer glow ring */}
       <View style={styles.successRingOuter}>
         <View style={styles.successRingInner}>
           <View style={styles.successCircle}>
@@ -974,15 +1070,13 @@ export default function SignupScreen() {
         </View>
       </View>
       <Text style={styles.successTitle}>{t.signup.accountCreated}</Text>
-      <Text style={styles.successMessage}>
-        {t.signup.accountCreatedSuccess}
-      </Text>
+      <Text style={styles.successMessage}>{t.signup.accountCreatedSuccess}</Text>
       <View style={styles.successDivider} />
       <Text style={styles.successRedirecting}>{t.ui.redirectingToHome}</Text>
       <ActivityIndicator
         size="small"
         color={Colors.primary900}
-        style={{ marginTop: Spacing.md }}
+        style={styles.successLoader}
       />
     </View>
   );
@@ -997,7 +1091,10 @@ export default function SignupScreen() {
         <View style={styles.header}>
           {step > 1 && step < 4 && (
             <TouchableOpacity
-              onPress={() => setStep((prev) => (prev - 1) as Step)}
+              onPress={() => {
+                clearServerErrors();
+                setStep((current) => (current > 1 ? ((current - 1) as Step) : current));
+              }}
               style={styles.backButton}
             >
               <ArrowLeft size={24} color={Colors.neutralCharcoal} />
@@ -1016,7 +1113,7 @@ export default function SignupScreen() {
           {step === 3 && renderStep3()}
           {step === 4 && renderStep4()}
 
-          {step < 3 && (
+          {step < 4 && (
             <TouchableOpacity
               style={[styles.nextButton, loading && styles.buttonDisabled]}
               onPress={handleNext}
@@ -1026,22 +1123,13 @@ export default function SignupScreen() {
               {loading ? (
                 <ActivityIndicator color={Colors.neutralWhite} />
               ) : (
-                <Text style={styles.nextButtonText}>{t.common.next}</Text>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {step === 3 && (
-            <TouchableOpacity
-              style={[styles.nextButton, loading && styles.buttonDisabled]}
-              onPress={handleVerify}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color={Colors.neutralWhite} />
-              ) : (
-                <Text style={styles.nextButtonText}>{t.signup.verify}</Text>
+                <Text style={styles.nextButtonText}>
+                  {step === 3
+                    ? t.signup.createAccountButton
+                    : step === 2 && !addressEnabled
+                      ? t.signup.skipAddressButton
+                      : t.common.next}
+                </Text>
               )}
             </TouchableOpacity>
           )}
@@ -1059,6 +1147,17 @@ export default function SignupScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function RequirementRow({ met, text }: { met: boolean; text: string }) {
+  return (
+    <View style={styles.requirementRow}>
+      <Check size={16} color={met ? Colors.primary700 : Colors.neutralMedium} />
+      <Text style={[styles.requirementText, met && styles.requirementMet]}>
+        {text}
+      </Text>
+    </View>
   );
 }
 
@@ -1147,6 +1246,31 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     fontFamily: "Poppins_400Regular",
     color: Colors.neutralCharcoal,
+    minHeight: 52,
+  },
+  dateInputWrapper: {
+    justifyContent: "flex-start",
+  },
+  dateText: {
+    flex: 1,
+    fontSize: Typography.bodyBase,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralCharcoal,
+  },
+  placeholderText: {
+    color: Colors.neutralMedium,
+  },
+  countryCodePill: {
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 8,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    marginRight: Spacing.sm,
+  },
+  countryCodeText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.primary900,
   },
   passwordInput: {
     paddingRight: I18nManager.isRTL ? undefined : Spacing.xxl,
@@ -1157,6 +1281,168 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: I18nManager.isRTL ? undefined : Spacing.sm,
     left: I18nManager.isRTL ? Spacing.sm : undefined,
+  },
+  inputError: {
+    borderColor: Colors.accentRed,
+  },
+  errorText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.accentRed,
+    marginTop: Spacing.xs,
+  },
+  helperText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+    marginTop: Spacing.xs,
+  },
+  segmentedControl: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  segmentedOption: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.neutralGray,
+    backgroundColor: Colors.neutralCloud,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xs,
+  },
+  segmentedOptionActive: {
+    borderColor: Colors.primary900,
+    backgroundColor: Colors.primary900,
+  },
+  segmentedText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.neutralCharcoal,
+    textAlign: "center",
+  },
+  segmentedTextActive: {
+    color: Colors.neutralWhite,
+  },
+  addressToggleRow: {
+    minHeight: 78,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.neutralGray,
+    backgroundColor: Colors.neutralCloud,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  addressToggleCopy: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  addressIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.neutralWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addressToggleTextWrap: {
+    flex: 1,
+  },
+  addressToggleTitle: {
+    fontSize: Typography.bodyBase,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.neutralCharcoal,
+  },
+  addressToggleSubtitle: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  switchTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.neutralGray,
+    padding: 3,
+    justifyContent: "center",
+  },
+  switchTrackActive: {
+    backgroundColor: Colors.primary900,
+  },
+  switchThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.neutralWhite,
+  },
+  switchThumbActive: {
+    alignSelf: "flex-end",
+  },
+  skipAddressBox: {
+    borderRadius: 12,
+    backgroundColor: Colors.neutralCloud,
+    borderWidth: 1,
+    borderColor: Colors.neutralGray,
+    padding: Spacing.md,
+  },
+  skipAddressText: {
+    fontSize: Typography.bodyMedium,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.neutralMedium,
+    lineHeight: 22,
+  },
+  textAreaWrapper: {
+    alignItems: "flex-start",
+    minHeight: 94,
+    paddingVertical: Spacing.sm,
+  },
+  textAreaInput: {
+    minHeight: 76,
+    paddingTop: 0,
+  },
+  rowFields: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  rowField: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.xs,
+  },
+  languageToggle: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  languageOption: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.neutralGray,
+    backgroundColor: Colors.neutralCloud,
+    alignItems: "center",
+  },
+  languageOptionActive: {
+    borderColor: Colors.primary900,
+    backgroundColor: Colors.primary900,
+  },
+  languageText: {
+    fontSize: Typography.bodyBase,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.neutralCharcoal,
+  },
+  languageTextActive: {
+    color: Colors.neutralWhite,
   },
   requirementsContainer: {
     backgroundColor: Colors.neutralCloud,
@@ -1182,142 +1468,6 @@ const styles = StyleSheet.create({
   },
   requirementMet: {
     color: Colors.primary700,
-  },
-  otpHeaderIcon: {
-    alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  otpIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.primary100,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  otpSubtitle: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.neutralMedium,
-    textAlign: "center",
-    marginBottom: Spacing.md,
-    lineHeight: 22,
-  },
-  emailCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.primary100,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: 12,
-    marginBottom: Spacing.xl,
-  },
-  emailCardLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    marginRight: Spacing.sm,
-  },
-  emailCardText: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.primary800,
-    marginLeft: Spacing.xs,
-    flexShrink: 1,
-  },
-  editChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: Colors.neutralWhite,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  editChipText: {
-    fontSize: Typography.bodySmall,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.primary900,
-  },
-  otpDigitsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-    marginBottom: Spacing.lg,
-  },
-  otpTitle: {
-    textAlign: "center",
-  },
-  otpDigitInput: {
-    width: 48,
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    backgroundColor: Colors.neutralCloud,
-    textAlign: "center",
-    textAlignVertical: "center",
-    fontSize: 22,
-    lineHeight: 28,
-    fontFamily: "Poppins_700Bold",
-    color: Colors.neutralCharcoal,
-    paddingTop: 0,
-    paddingBottom: 0,
-    includeFontPadding: false,
-  } as any,
-  otpDigitFilled: {
-    borderColor: Colors.primary900,
-    backgroundColor: Colors.primary100,
-  },
-  resendRow: {
-    alignItems: "center",
-    marginTop: Spacing.sm,
-    minHeight: 40,
-    justifyContent: "center",
-  },
-  resendTouchable: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-  },
-  resendActiveText: {
-    fontSize: Typography.bodyBase,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.primary900,
-  },
-  resendTimerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  resendTimerText: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.neutralMedium,
-  },
-  toast: {
-    position: "absolute",
-    top: -8,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    backgroundColor: Colors.primary900,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: 12,
-    marginHorizontal: Spacing.md,
-  },
-  toastText: {
-    fontSize: Typography.bodyMedium,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.neutralWhite,
   },
   successContainer: {
     flex: 1,
@@ -1379,6 +1529,9 @@ const styles = StyleSheet.create({
     color: Colors.neutralMedium,
     marginTop: Spacing.xs,
   },
+  successLoader: {
+    marginTop: Spacing.md,
+  },
   nextButton: {
     backgroundColor: Colors.primary900,
     paddingVertical: Spacing.md,
@@ -1416,44 +1569,5 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     fontFamily: "Poppins_700Bold",
     color: Colors.primary900,
-  },
-  languageToggle: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  languageOption: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.neutralGray,
-    backgroundColor: Colors.neutralCloud,
-    alignItems: "center",
-  },
-  languageOptionActive: {
-    borderColor: Colors.primary900,
-    backgroundColor: Colors.primary900,
-  },
-  languageText: {
-    fontSize: Typography.bodyBase,
-    fontFamily: "Poppins_600SemiBold",
-    color: Colors.neutralCharcoal,
-  },
-  languageTextActive: {
-    color: Colors.neutralWhite,
-  },
-  inputError: {
-    borderColor: Colors.accentRed,
-  },
-  errorText: {
-    fontSize: Typography.bodySmall,
-    fontFamily: "Poppins_400Regular",
-    color: Colors.accentRed,
-    marginTop: Spacing.xs,
-  },
-
-  inputLoader: {
-    marginLeft: Spacing.xs,
   },
 });

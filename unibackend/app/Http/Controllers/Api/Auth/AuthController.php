@@ -14,6 +14,8 @@ use App\Http\Requests\Auth\VerifyPhoneRequest;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Models\UserLoginHistory;
+use App\Support\EgyptianMobilePhone;
+use App\Services\AddressService;
 use App\Services\OtpService;
 use App\Services\CartService;
 use App\Services\PushNotificationService;
@@ -27,6 +29,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\QueryException;
 use App\Services\CloudinaryService;
 use Carbon\Carbon;
 
@@ -35,16 +38,19 @@ class AuthController extends Controller
     protected OtpService $otpService;
     protected CartService $cartService;
     protected PushNotificationService $pushNotificationService;
+    protected AddressService $addressService;
     protected ?EnterpriseNotificationService $enterpriseNotificationService;
 
     public function __construct(
         OtpService $otpService,
         CartService $cartService,
-        PushNotificationService $pushNotificationService
+        PushNotificationService $pushNotificationService,
+        AddressService $addressService
     ) {
         $this->otpService = $otpService;
         $this->cartService = $cartService;
         $this->pushNotificationService = $pushNotificationService;
+        $this->addressService = $addressService;
         try {
             $this->enterpriseNotificationService = app(EnterpriseNotificationService::class);
         } catch (\Exception $e) {
@@ -76,33 +82,79 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): JsonResponse
     {
-        // Cleanup of stale unverified records happens in
-        // RegisterRequest::prepareForValidation() before unique validation runs.
+        $validated = $request->validated();
+        $addressData = $validated['address'] ?? null;
 
-        $user = DB::transaction(function () use ($request) {
-            $u = User::create([
-                'first_name' => $request->first_name,
-                'last_name'  => $request->last_name,
-                'email'      => $request->email,
-                'phone'      => $request->phone,
-                'password'   => Hash::make($request->password),
-                'language'   => $request->language,
+        try {
+            $user = DB::transaction(function () use ($validated) {
+                $u = User::create([
+                    'first_name'    => $validated['first_name'],
+                    'last_name'     => $validated['last_name'] ?? '',
+                    'email'         => $validated['email'],
+                    'phone'         => $validated['phone'],
+                    'date_of_birth' => $validated['date_of_birth'],
+                    'gender'        => $validated['gender'],
+                    'password'      => Hash::make($validated['password']),
+                    'language'      => $validated['language'],
+                ]);
+
+                // OTP is intentionally disabled for signup. Users are active
+                // immediately; phone ownership can be reviewed operationally.
+                $u->forceFill([
+                    'role'              => 'customer',
+                    'is_active'         => true,
+                    'is_verified'       => true,
+                    'email_verified_at' => Carbon::now(),
+                ])->save();
+
+                return $u;
+            });
+        } catch (QueryException $e) {
+            if ($this->isDuplicateKeyException($e)) {
+                return $this->duplicateSignupResponse($e);
+            }
+
+            Log::error('register: failed to create account', [
+                'email_hash' => hash('sha256', $validated['email']),
+                'phone_hash' => hash('sha256', $validated['phone']),
+                'error' => $e->getMessage(),
             ]);
-            // Privileged columns aren't on $fillable; use forceFill explicitly.
-            // OTP bypass: mark verified at registration time (see policy note above).
-            $u->forceFill([
-                'role'              => 'customer',
-                'is_active'         => true,
-                'is_verified'       => true,
-                'email_verified_at' => Carbon::now(),
-            ])->save();
-            return $u;
-        });
+
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.signup_failed_try_later'),
+            ], 500);
+        }
+
+        $address = null;
+
+        if (! empty($addressData) && is_array($addressData)) {
+            try {
+                if (empty($addressData['recipient_name'])) {
+                    $addressData['recipient_name'] = $user->full_name;
+                }
+
+                if (empty($addressData['phone'])) {
+                    $addressData['phone'] = $user->phone;
+                }
+
+                $addressData['is_default'] = true;
+
+                $address = $this->addressService->createForUser($user, $addressData);
+                ActivityLog::log('address_created', $user->id, 'Address', $address->id);
+            } catch (\Throwable $e) {
+                Log::warning('register: optional address creation failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         ActivityLog::log('user_registered', $user->id, 'User', $user->id, [
             'email' => $user->email,
             'phone' => $user->phone,
             'otp_bypass' => true,
+            'address_added' => $address !== null,
         ]);
 
         // Issue tokens immediately. Matches the shape the mobile app's
@@ -134,27 +186,36 @@ class AuthController extends Controller
             ]);
         }
 
+        $responseData = [
+            'user' => [
+                'id'            => $user->id,
+                'first_name'    => $user->first_name,
+                'last_name'     => $user->last_name,
+                'full_name'     => $user->full_name,
+                'email'         => $user->email,
+                'phone'         => $user->phone,
+                'date_of_birth' => $user->date_of_birth?->format('Y-m-d'),
+                'gender'        => $user->gender,
+                'avatar'        => $user->avatar,
+                'language'      => $user->language,
+                'role'          => $user->role,
+                'is_verified'   => true,
+                'status'        => 'active',
+            ],
+            'access_token'  => $accessToken,
+            'refresh_token' => $refreshToken,
+            'token_type'    => 'Bearer',
+            'expires_in'    => 86400, // 24h
+        ];
+
+        if ($address !== null) {
+            $responseData['address'] = $address->fresh();
+        }
+
         return response()->json([
             'success' => true,
             'message' => __('auth.registration_successful'),
-            'data' => [
-                'user' => [
-                    'id'           => $user->id,
-                    'first_name'   => $user->first_name,
-                    'last_name'    => $user->last_name,
-                    'full_name'    => $user->full_name,
-                    'email'        => $user->email,
-                    'phone'        => $user->phone,
-                    'avatar'       => $user->avatar,
-                    'language'     => $user->language,
-                    'role'         => $user->role,
-                    'is_verified'  => true,
-                ],
-                'access_token'  => $accessToken,
-                'refresh_token' => $refreshToken,
-                'token_type'    => 'Bearer',
-                'expires_in'    => 86400, // 24h
-            ],
+            'data' => $responseData,
         ], 201);
     }
 
@@ -870,10 +931,11 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Check if email exists and is verified
+        // Signup creates active accounts immediately, so any existing email is
+        // unavailable regardless of old verification flags.
         $user = User::where('email', $request->email)->first();
 
-        if ($user && $user->is_verified) {
+        if ($user) {
             return response()->json([
                 'success' => false,
                 'message' => __('auth.email_already_exists'),
@@ -883,7 +945,6 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // If user exists but not verified, it's okay (they can re-register)
         return response()->json([
             'success' => true,
             'message' => __('auth.email_available'),
@@ -896,7 +957,15 @@ class AuthController extends Controller
     public function checkPhone(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string',
+            'phone' => [
+                'required',
+                'string',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (EgyptianMobilePhone::normalize((string) $value) === null) {
+                        $fail(__('auth.invalid_egyptian_mobile'));
+                    }
+                },
+            ],
         ]);
 
         if ($validator->fails()) {
@@ -907,24 +976,60 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Check if phone exists and is verified
-        $user = User::where('phone', $request->phone)->first();
+        $phone = EgyptianMobilePhone::normalize($request->phone);
+        $user = User::whereIn('phone', EgyptianMobilePhone::variants($phone))->first();
 
-        if ($user && $user->is_verified) {
+        if ($user) {
+            $message = $user->is_active
+                ? __('auth.phone_already_registered_login')
+                : __('auth.account_cannot_be_used_contact_support');
+
             return response()->json([
                 'success' => false,
-                'message' => __('auth.phone_already_exists'),
+                'message' => $message,
                 'errors' => [
-                    'phone' => ['The phone number has already been taken.'],
+                    'phone' => [$message],
                 ],
             ], 422);
         }
 
-        // If user exists but not verified, it's okay (they can re-register)
         return response()->json([
             'success' => true,
             'message' => __('auth.phone_available'),
+            'data' => [
+                'phone' => $phone,
+            ],
         ]);
+    }
+
+    private function isDuplicateKeyException(QueryException $e): bool
+    {
+        return in_array((string) $e->getCode(), ['23000', '23505'], true)
+            || in_array((int) ($e->errorInfo[1] ?? 0), [1062, 19, 2067], true);
+    }
+
+    private function duplicateSignupResponse(QueryException $e): JsonResponse
+    {
+        $detail = strtolower((string) ($e->errorInfo[2] ?? $e->getMessage()));
+        $isEmail = str_contains($detail, 'email');
+
+        if ($isEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => __('auth.validation_failed'),
+                'errors' => [
+                    'email' => [__('auth.email_already_exists')],
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => __('auth.phone_already_registered_login'),
+            'errors' => [
+                'phone' => [__('auth.phone_already_registered_login')],
+            ],
+        ], 422);
     }
 
     /**

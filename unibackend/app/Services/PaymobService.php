@@ -826,6 +826,7 @@ class PaymobService
             $data = $response->json();
             $success = ($data['success'] ?? 'false') === 'true' || ($data['success'] ?? false) === true;
             $pending = ($data['pending'] ?? 'false') === 'true' || ($data['pending'] ?? false) === true;
+            $isCapture = ($data['is_capture'] ?? 'false') === 'true' || ($data['is_capture'] ?? false) === true;
 
             // Check if redirection required even on "success"
             $requiresRedirect = $this->requiresRedirection($data);
@@ -850,11 +851,13 @@ class PaymobService
                 'transaction_id' => $data['id'] ?? null,
                 'success' => $success,
                 'pending' => $pending,
+                'is_capture' => $isCapture,
             ]);
 
             return [
                 'success' => $success,
                 'pending' => $pending,
+                'is_capture' => $isCapture,
                 'transaction_id' => $data['id'] ?? null,
                 'requires_3ds' => false,
                 'data' => $data,
@@ -1165,4 +1168,3 @@ class PaymobService
         }
     }
 }
-

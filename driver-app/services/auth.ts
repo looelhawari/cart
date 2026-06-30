@@ -50,7 +50,7 @@ export const authService = {
         });
 
         if (!res || typeof res !== "object") {
-            throw new Error("Invalid response from server");
+            throw new Error("We could not complete your request right now.");
         }
 
         if (!res.success) {
@@ -59,17 +59,17 @@ export const authService = {
 
         // Validate response structure
         if (!res.data || typeof res.data !== "object") {
-            throw new Error("Invalid login response format");
+            throw new Error("We could not complete your request right now.");
         }
 
         const { user, access_token } = res.data;
 
         // Validate required fields
         if (!access_token || typeof access_token !== "string") {
-            throw new Error("Invalid access token received from server");
+            throw new Error("We could not complete your request right now.");
         }
         if (!user || typeof user !== "object") {
-            throw new Error("Invalid user data received from server");
+            throw new Error("We could not complete your request right now.");
         }
 
         // Only allow driver role

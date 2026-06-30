@@ -12,17 +12,54 @@ import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
-import { useTranslation } from "@/i18n";
+import { useI18n } from "@/i18n";
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, language, setLanguage } = useI18n();
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
 
       <View style={styles.content}>
+        <View style={styles.languageToggle}>
+          <TouchableOpacity
+            style={[
+              styles.languageOption,
+              language === "en" && styles.languageOptionActive,
+            ]}
+            onPress={() => void setLanguage("en")}
+            activeOpacity={0.75}
+          >
+            <Text
+              style={[
+                styles.languageText,
+                language === "en" && styles.languageTextActive,
+              ]}
+            >
+              EN
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.languageOption,
+              language === "ar" && styles.languageOptionActive,
+            ]}
+            onPress={() => void setLanguage("ar")}
+            activeOpacity={0.75}
+          >
+            <Text
+              style={[
+                styles.languageText,
+                language === "ar" && styles.languageTextActive,
+              ]}
+            >
+              عربي
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
             <Text style={styles.logoEmoji}>🛒</Text>
@@ -74,6 +111,34 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.xxxl,
+  },
+  languageToggle: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    backgroundColor: Colors.neutralWhite,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.neutralGray,
+    padding: 4,
+  },
+  languageOption: {
+    minWidth: 58,
+    minHeight: 36,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.sm,
+  },
+  languageOptionActive: {
+    backgroundColor: Colors.primary900,
+  },
+  languageText: {
+    fontSize: Typography.bodySmall,
+    fontFamily: "Poppins_700Bold",
+    color: Colors.neutralMedium,
+  },
+  languageTextActive: {
+    color: Colors.neutralWhite,
   },
   logoContainer: {
     flex: 1,

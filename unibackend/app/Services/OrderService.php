@@ -490,10 +490,15 @@ class OrderService
     public function markCodOrderDelivered(Order $order): Order
     {
         return DB::transaction(function () use ($order) {
-            $order->update([
+            $updates = [
                 'status' => 'delivered',
-                'payment_status' => 'completed',
-            ]);
+            ];
+
+            if ($order->completePaymentOnDelivery()) {
+                $updates['payment_status'] = $order->payment_status;
+            }
+
+            $order->update($updates);
 
             $this->finalizePromoUsage($order);
 

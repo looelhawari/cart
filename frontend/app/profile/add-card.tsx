@@ -48,13 +48,6 @@ export default function AddCardScreen() {
   };
 
   const handleAddCard = () => {
-    console.log("Adding card:", {
-      cardNumber,
-      cardHolder,
-      expiry,
-      cvv,
-      saveCard,
-    });
     router.back();
   };
 

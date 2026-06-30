@@ -160,12 +160,12 @@ export const getCategory = async (
       });
 
       if (!response.ok) {
-        throw new Error(`Category not found: ${categoryId}`);
+        throw new Error("The requested item could not be found.");
       }
 
       const data = await safeResponseJson(response);
       if (!data.success) {
-        throw new Error(`Failed to load category: ${categoryId}`);
+        throw new Error("Could not load products. Please try again.");
       }
       return data;
     } catch (error) {
@@ -231,7 +231,7 @@ export const getCategoryProducts = async (
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        throw new Error("Could not load products. Please try again.");
       }
 
       const data = await safeResponseJson(response);

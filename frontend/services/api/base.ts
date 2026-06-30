@@ -5,6 +5,10 @@ import {
   setCacheData,
   removeCacheByPrefix,
 } from "../cache/apiCache";
+import {
+  createSafeApiError,
+  normalizeApiErrorPayload,
+} from "./errors";
 
 /** Default TTL for cached responses — 24h. Pull-to-refresh always bypasses. */
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -55,7 +59,7 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
       return {
         success: false,
         data: {},
-        message: "Empty response from server",
+        message: "Something went wrong. Please try again later.",
       };
     }
 
@@ -64,7 +68,7 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
       return {
         success: false,
         data: {},
-        message: "Server error - received HTML instead of JSON",
+        message: "Something went wrong. Please try again later.",
       };
     }
 
@@ -80,14 +84,14 @@ export const safeResponseJson = async (response: Response): Promise<any> => {
       return {
         success: false,
         data: {},
-        message: "Invalid JSON response from server",
+        message: "Something went wrong. Please try again later.",
       };
     }
   } catch (error) {
     return {
       success: false,
       data: {},
-      message: "Failed to read server response",
+      message: "Something went wrong. Please try again later.",
     };
   }
 };
@@ -97,12 +101,12 @@ export const safeJsonParse = async (response: Response): Promise<any> => {
   const text = await response.text();
 
   if (!text || text.trim().length === 0) {
-    throw new Error("Empty response from server");
+    throw createSafeApiError("Something went wrong. Please try again later.", response.status);
   }
 
   // Check if response is HTML (error page)
   if (text.trim().startsWith("<") || text.trim().startsWith("<!DOCTYPE")) {
-    throw new Error("Server error - please check if the backend is running");
+    throw createSafeApiError("Something went wrong. Please try again later.", response.status);
   }
 
   try {
@@ -115,7 +119,7 @@ export const safeJsonParse = async (response: Response): Promise<any> => {
         text.substring(0, 200) + "...",
       );
     }
-    throw new Error("Invalid JSON response from server");
+    throw createSafeApiError("Something went wrong. Please try again later.", response.status);
   }
 };
 
@@ -233,11 +237,20 @@ export const apiRequest = async <T>(
     ...fetchInit.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...cacheDefaults,
-    ...fetchInit,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...cacheDefaults,
+      ...fetchInit,
+      headers,
+    });
+  } catch {
+    throw createSafeApiError(
+      "Please check your internet connection and try again.",
+      0,
+      "NETWORK_ERROR",
+    );
+  }
 
   // Log request for debugging (only in development)
   if (__DEV__) {
@@ -249,12 +262,10 @@ export const apiRequest = async <T>(
   }
 
   if (!response.ok) {
-    let error;
-    try {
-      error = await safeJsonParse(response);
-    } catch {
-      error = { message: `HTTP ${response.status}: ${response.statusText}` };
-    }
+    const error = normalizeApiErrorPayload(
+      await safeResponseJson(response),
+      response.status,
+    );
 
     // Log authentication errors
     if (__DEV__ && response.status === 401) {

@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import axios, { AxiosInstance, AxiosError } from "axios";
+import { normalizeAdminApiError } from "@/lib/error-utils";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -112,7 +113,7 @@ class ApiClient {
           }
         }
 
-        return Promise.reject(error);
+        return Promise.reject(normalizeAdminApiError(error));
       },
     );
   }
