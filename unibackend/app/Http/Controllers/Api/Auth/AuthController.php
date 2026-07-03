@@ -695,6 +695,8 @@ class AuthController extends Controller
         $user = $request->user();
 
         $data = $request->validated();
+        $phoneChanged = isset($data['phone'])
+            && EgyptianMobilePhone::normalize($data['phone']) !== EgyptianMobilePhone::normalize($user->phone);
 
         // ─── EMAIL PROTECTION ────────────────────────────────────────────
         // Email changes are NEVER allowed through the regular profile update.
@@ -719,7 +721,20 @@ class AuthController extends Controller
 
         $user->update($data);
 
-        ActivityLog::log('profile_updated', $user->id, 'User', $user->id);
+        ActivityLog::log('profile_updated', $user->id, 'User', $user->id, [
+            'phone_changed' => $phoneChanged,
+        ]);
+
+        if ($phoneChanged && $this->enterpriseNotificationService) {
+            try {
+                $this->enterpriseNotificationService->notifyPhoneChanged($user->id, $user->phone);
+            } catch (\Throwable $e) {
+                Log::warning('profile update: phone-change notification failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -729,6 +744,7 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'first_name' => $user->first_name,
                     'last_name' => $user->last_name,
+                    'full_name' => $user->full_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'date_of_birth' => $user->date_of_birth,
@@ -739,6 +755,7 @@ class AuthController extends Controller
                     'has_google' => !empty($user->google_id),
                     'has_apple' => !empty($user->apple_id),
                     'email_verified_at' => $user->email_verified_at,
+                    'phone_verified_at' => $user->phone_verified_at,
                     'registration_source' => $user->registration_source,
                     'is_verified' => $user->is_verified,
                 ],

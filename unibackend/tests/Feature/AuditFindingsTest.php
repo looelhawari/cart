@@ -542,15 +542,21 @@ class AuditFindingsTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    //  Wave A2 — UpdateProfileRequest no email/phone change
+    //  Wave A2 — UpdateProfileRequest email protected, phone validated
     // -----------------------------------------------------------------------
 
     /** @test */
-    public function test_profile_update_does_not_accept_email_or_phone(): void
+    public function test_profile_update_protects_email_and_validates_phone(): void
     {
         $rules = (new \App\Http\Requests\Auth\UpdateProfileRequest())->rules();
         $this->assertArrayNotHasKey('email', $rules, 'UpdateProfileRequest must not allow email change here — must go through OTP-verified flow.');
-        $this->assertArrayNotHasKey('phone', $rules, 'UpdateProfileRequest must not allow phone change here — must go through OTP-verified flow.');
+        $this->assertArrayHasKey('phone', $rules, 'Profile phone edits must be accepted and validated instead of silently ignored.');
+
+        $source = file_get_contents(app_path('Http/Requests/Auth/UpdateProfileRequest.php'));
+        $this->assertStringContainsString("\$this->offsetUnset('email')", $source);
+        $this->assertStringNotContainsString("\$this->offsetUnset('phone')", $source);
+        $this->assertStringContainsString('EgyptianMobilePhone::normalize', $source);
+        $this->assertStringContainsString("User::whereIn('phone'", $source);
     }
 
     // -----------------------------------------------------------------------

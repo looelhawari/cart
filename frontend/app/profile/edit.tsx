@@ -29,6 +29,7 @@ import { useTranslation } from "@/i18n";
 import { Toast } from "@/components/Toast";
 import { profileApi } from "@/services/api/profileApi";
 import Constants from "expo-constants";
+import { normalizeEgyptianMobile } from "@/utils/egyptianMobile";
 
 // Guard: @react-native-google-signin crashes Expo Go
 const isExpoGo = Constants.appOwnership === "expo";
@@ -41,6 +42,18 @@ if (!isExpoGo) {
     console.warn("Google Sign-In not available:", e);
   }
 }
+
+const cleanText = (value?: string | null) => (value || "").trim();
+
+const formatDateForApi = (date: Date | null) => {
+  if (!date) return null;
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+};
 
 export default function EditProfileScreen() {
   const { user, updateProfile, fetchProfile } = useStore();
@@ -155,33 +168,75 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = async () => {
-    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
-      showToast(t.editProfile.fillAllFields, "error");
+    const currentFirstName = cleanText(user?.first_name);
+    const currentLastName = cleanText(user?.last_name);
+    const currentPhone = cleanText(user?.phone);
+    const currentDateOfBirth = user?.date_of_birth || null;
+    const currentGender = user?.gender || null;
+
+    const nextFirstName = cleanText(firstName);
+    const nextLastName = cleanText(lastName);
+    const nextPhone = cleanText(phone);
+    const nextDateOfBirth = formatDateForApi(dateOfBirth);
+
+    const updateData: any = {};
+
+    if (nextFirstName !== currentFirstName) {
+      if (!nextFirstName) {
+        showToast(t.editProfile.fillAllFields, "error");
+        return;
+      }
+
+      updateData.first_name = nextFirstName;
+    }
+
+    if (nextLastName !== currentLastName) {
+      updateData.last_name = nextLastName;
+    }
+
+    const currentPhoneValidation = currentPhone
+      ? normalizeEgyptianMobile(currentPhone, t.signup.invalidEgyptPhone)
+      : null;
+    const currentNormalizedPhone =
+      currentPhoneValidation?.normalized || currentPhone;
+
+    if (nextPhone !== currentPhone) {
+      if (!nextPhone) {
+        showToast(t.editProfile.fillAllFields, "error");
+        return;
+      }
+
+      const phoneValidation = normalizeEgyptianMobile(
+        nextPhone,
+        t.signup.invalidEgyptPhone,
+      );
+
+      if (!phoneValidation.normalized) {
+        showToast(phoneValidation.error || t.signup.invalidEgyptPhone, "error");
+        return;
+      }
+
+      if (phoneValidation.normalized !== currentNormalizedPhone) {
+        updateData.phone = phoneValidation.normalized;
+      }
+    }
+
+    if (nextDateOfBirth !== currentDateOfBirth) {
+      updateData.date_of_birth = nextDateOfBirth;
+    }
+
+    if (gender !== currentGender) {
+      updateData.gender = gender;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      showToast(t.editProfile.profileUpdated, "success");
+      setTimeout(() => router.back(), 600);
       return;
     }
 
     setLoading(true);
     try {
-      const updateData: any = {
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-      };
-
-      // Only include date_of_birth if it has a value
-      if (dateOfBirth) {
-        // Format using local date parts to avoid UTC timezone shift
-        const y = dateOfBirth.getFullYear();
-        const m = String(dateOfBirth.getMonth() + 1).padStart(2, "0");
-        const d = String(dateOfBirth.getDate()).padStart(2, "0");
-        updateData.date_of_birth = `${y}-${m}-${d}`;
-      }
-
-      // Only include gender if it has a value
-      if (gender) {
-        updateData.gender = gender;
-      }
-
       await updateProfile(updateData);
       await fetchProfile();
 
@@ -247,7 +302,7 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>{t.editProfile.lastName} *</Text>
+            <Text style={styles.label}>{t.editProfile.lastName}</Text>
             <TextInput
               style={styles.input}
               value={lastName}
@@ -315,7 +370,7 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>{t.auth.phone} *</Text>
+            <Text style={styles.label}>{t.auth.phone}</Text>
             <TextInput
               style={styles.input}
               value={phone}

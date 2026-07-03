@@ -83,16 +83,37 @@ export function toSafeMessage(
   return status ? messageForStatus(status) : fallback;
 }
 
+function firstFieldError(errors: unknown): string | undefined {
+  if (!errors || typeof errors !== "object") return undefined;
+
+  for (const value of Object.values(errors as Record<string, unknown>)) {
+    if (Array.isArray(value)) {
+      const first = value.find(
+        (item): item is string => typeof item === "string" && item.trim() !== "",
+      );
+
+      if (first) return first;
+    }
+
+    if (typeof value === "string" && value.trim() !== "") {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 export function normalizeApiErrorPayload(
   payload: unknown,
   status?: number,
   fallback: string = FALLBACK_MESSAGE,
 ): SafeApiError {
   const body = payload && typeof payload === "object" ? (payload as any) : {};
+  const validationMessage = status === 422 ? firstFieldError(body.errors) : undefined;
 
   return {
     success: false,
-    message: toSafeMessage(body.message, status, fallback),
+    message: toSafeMessage(validationMessage || body.message, status, fallback),
     status,
     errors:
       body.errors && typeof body.errors === "object"

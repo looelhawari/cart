@@ -2,8 +2,9 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use App\Support\EgyptianMobilePhone;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends FormRequest
 {
@@ -19,18 +20,14 @@ class UpdateProfileRequest extends FormRequest
      * Prepare the data for validation.
      *
      * SECURITY HARDENED (audit Chain C item 4 — account takeover):
-     * `email` and `phone` are stripped here before validation. Changing these
-     * requires the dedicated email-change/phone-change OTP flow. Without this,
-     * a stolen access token could change the account's email to attacker-
-     * controlled, then trigger password-reset and lock the legit user out.
+     * `email` is stripped here before validation. Changing email requires the
+     * dedicated email-change OTP flow. Phone is still editable from the mobile
+     * profile screen, but it is normalized and duplicate-checked below.
      */
     protected function prepareForValidation(): void
     {
-        // Drop attempts to change email/phone via the profile-edit endpoint.
-        // The legitimate path is /auth/email-change/start + /auth/email-change/verify
-        // (sends OTP to the new email; commits only after Hash::check OK).
+        // Drop attempts to change email via the profile-edit endpoint.
         $this->offsetUnset('email');
-        $this->offsetUnset('phone');
 
         $data = [];
 
@@ -50,20 +47,48 @@ class UpdateProfileRequest extends FormRequest
             $data['gender'] = strtolower(trim($this->gender));
         }
 
+        if ($this->has('phone')) {
+            $normalized = EgyptianMobilePhone::normalize($this->input('phone'));
+            $data['phone'] = $normalized ?? trim((string) $this->input('phone', ''));
+        }
+
         $this->merge($data);
     }
 
     /**
      * Get the validation rules that apply to the request.
      *
-     * SECURITY: `email` and `phone` are intentionally ABSENT — they're not
-     * settable from this endpoint. See prepareForValidation().
+     * SECURITY: `email` is intentionally ABSENT — it is not settable from
+     * this endpoint. See prepareForValidation().
      */
     public function rules(): array
     {
         return [
             'first_name'    => 'sometimes|required|string|max:255',
-            'last_name'     => 'sometimes|required|string|max:255',
+            'last_name'     => 'sometimes|nullable|string|max:255',
+            'phone'         => [
+                'sometimes',
+                'required',
+                'string',
+                'max:20',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $normalized = EgyptianMobilePhone::normalize((string) $value);
+
+                    if ($normalized === null) {
+                        $fail(__('auth.invalid_egyptian_mobile'));
+                        return;
+                    }
+
+                    $userId = $this->user()?->id;
+                    $phoneExists = User::whereIn('phone', EgyptianMobilePhone::variants($normalized))
+                        ->when($userId !== null, fn ($query) => $query->where('id', '!=', $userId))
+                        ->exists();
+
+                    if ($phoneExists) {
+                        $fail(__('auth.phone_already_registered_login'));
+                    }
+                },
+            ],
             'date_of_birth' => 'sometimes|nullable|date|before:today|after:1900-01-01',
             'gender'        => 'sometimes|nullable|in:male,female,other',
             'language'      => 'sometimes|in:en,ar',
@@ -74,7 +99,7 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'first_name.required' => 'First name is required.',
-            'last_name.required'  => 'Last name is required.',
+            'phone.required' => __('auth.phone_required'),
             'date_of_birth.date'  => 'Please provide a valid date of birth.',
             'date_of_birth.before' => 'Date of birth must be in the past.',
             'date_of_birth.after' => 'Please provide a valid date of birth.',
