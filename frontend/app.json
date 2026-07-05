@@ -2,7 +2,7 @@
   "expo": {
     "name": "CART",
     "slug": "CART-app",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -25,7 +25,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cart.hypermarket",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -48,7 +48,7 @@
       },
       "package": "com.cart.hypermarket",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 7,
+      "versionCode": 8,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -61,10 +61,7 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ],
+          "category": ["BROWSABLE", "DEFAULT"],
           "data": {
             "scheme": "com.googleusercontent.apps.113273912716-dcbh50mmcreap5m1ugee133st09s7bjd"
           }
@@ -72,10 +69,7 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ],
+          "category": ["BROWSABLE", "DEFAULT"],
           "data": {
             "scheme": "https",
             "host": "cart.com",
@@ -103,9 +97,7 @@
           "photosPermission": "The app accesses your photos to let you share them with your friends."
         }
       ],
-      [
-        "expo-apple-authentication"
-      ],
+      ["expo-apple-authentication"],
       [
         "expo-notifications",
         {
