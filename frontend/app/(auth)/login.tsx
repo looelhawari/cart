@@ -18,6 +18,7 @@ import { useStore } from "@/store";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
 import Spacing from "@/constants/Spacing";
+import { AUTH_CONFIG } from "@/config/app.config";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useI18n } from "@/i18n";
 import { StatusBar } from "expo-status-bar";
@@ -70,7 +71,11 @@ export default function LoginScreen() {
 
   // Check Apple availability and biometric support
   useEffect(() => {
-    isAppleAuthAvailable().then(setAppleAvailable);
+    if (AUTH_CONFIG.SHOW_APPLE_SIGN_IN_BUTTON) {
+      isAppleAuthAvailable().then(setAppleAvailable);
+    } else {
+      setAppleAvailable(false);
+    }
     checkBiometricSupport().then(setBiometricSupport);
     isBiometricLoginEnabled().then(setBiometricEnabled);
   }, []);
@@ -714,7 +719,7 @@ export default function LoginScreen() {
                 )}
               </TouchableOpacity>
 
-              {appleAvailable && (
+              {AUTH_CONFIG.SHOW_APPLE_SIGN_IN_BUTTON && appleAvailable && (
                 <TouchableOpacity
                   style={[
                     styles.socialButton,

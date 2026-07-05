@@ -32,6 +32,7 @@ export const APP_CONFIG = {
 // Auth feature flags
 export const AUTH_CONFIG = {
   ENABLE_APPLE_SIGN_IN: true,
+  SHOW_APPLE_SIGN_IN_BUTTON: false,
 };
 
 // Map Configuration (Leaflet + OpenStreetMap - 100% free, no API keys)
