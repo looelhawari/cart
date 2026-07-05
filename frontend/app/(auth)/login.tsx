@@ -28,10 +28,13 @@ import {
   Lock as LockIcon,
   Fingerprint,
 } from "lucide-react-native";
-import { signInWithGoogle, isAppleAuthAvailable } from "@/services/socialAuth";
-import * as AppleAuthentication from "expo-apple-authentication";
-import { authApi } from "@/services/api";
+import {
+  signInWithApple,
+  signInWithGoogle,
+  isAppleAuthAvailable,
+} from "@/services/socialAuth";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
+import { hasRequiredCheckoutPhone } from "@/utils/checkoutPhone";
 import {
   checkBiometricSupport,
   getSavedCredentials,
@@ -97,6 +100,16 @@ export default function LoginScreen() {
       // and sets isAuthenticated + user in Zustand state.
       await socialLogin("google", idToken);
 
+      const signedInUser = useStore.getState().user;
+      if (!hasRequiredCheckoutPhone(signedInUser)) {
+        Alert.alert(
+          t.auth.phoneRequiredTitle,
+          t.auth.googlePhoneRequiredMessage,
+        );
+        router.replace("/profile/edit" as any);
+        return;
+      }
+
       // Login successful — go straight to home
       router.replace("/(tabs)");
     } catch (error: any) {
@@ -124,34 +137,9 @@ export default function LoginScreen() {
     try {
       setAppleLoading(true);
 
-      // Get Apple credential (identity token JWT + user info)
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      if (!credential.identityToken) {
-        Alert.alert(t.common.error, t.ui.noAppleIdentityToken);
-        return;
-      }
-
-      // Use store's socialLogin — the authApi.socialApple will be called
-      // which sends the token + user data to backend
-      const result = await authApi.socialApple({
-        token: credential.identityToken,
-        user: {
-          name: {
-            firstName: credential.fullName?.givenName || "User",
-            lastName: credential.fullName?.familyName || "",
-          },
-        },
-      });
+      const result = await signInWithApple();
 
       if (result.data?.access_token && result.data?.refresh_token) {
-        // Tokens are already saved by authApi.socialApple
-        // Update store state
         useStore.setState({
           isAuthenticated: true,
           user: result.data.user,
@@ -159,11 +147,20 @@ export default function LoginScreen() {
         });
       }
 
-      // Login successful — go straight to home
+      const signedInUser = useStore.getState().user;
+      if (!hasRequiredCheckoutPhone(signedInUser)) {
+        Alert.alert(
+          t.auth.phoneRequiredTitle,
+          t.auth.googlePhoneRequiredMessage,
+        );
+        router.replace("/profile/edit" as any);
+        return;
+      }
+
       router.replace("/(tabs)");
     } catch (error: any) {
-      if (error.message !== "Apple Sign-In was canceled") {
-        Alert.alert(t.common.error, error.message || t.login.appleSignInFailed);
+      if (error?.message !== "Apple Sign-In was canceled") {
+        Alert.alert(t.common.error, error?.message || t.login.appleSignInFailed);
       }
     } finally {
       setAppleLoading(false);

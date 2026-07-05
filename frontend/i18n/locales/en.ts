@@ -79,6 +79,10 @@ export default {
     rememberMe: "Remember me",
     continueWithGoogle: "Continue with Google",
     continueWithApple: "Continue with Apple",
+    phoneRequiredTitle: "Add your phone number",
+    googlePhoneRequiredMessage:
+      "Please add your phone number before placing an order.",
+    addPhoneNumber: "Add Phone Number",
     orContinueWith: "or continue with",
     name: "Full Name",
     phone: "Phone Number",
@@ -779,6 +783,10 @@ export default {
     enterPromoCode: "Enter promo code",
     apply: "Apply",
     signInToCheckout: "Please sign in to proceed with checkout",
+    phoneRequiredTitle: "Phone number required",
+    phoneRequiredMessage:
+      "Please add your phone number before continuing to checkout.",
+    addPhoneNumber: "Add Phone Number",
     addToCart: "Add to Cart",
     updateCart: "Update Cart",
     itemAdded: "Item added to cart",

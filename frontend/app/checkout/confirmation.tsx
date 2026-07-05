@@ -37,6 +37,7 @@ import { initiatePayment } from "@/services/paymentMethodsApi";
 import { savePendingPayment } from "@/services/payment/paymentRecovery";
 import { getStoreStatus } from "@/services/api/storeApi";
 import { useTranslation, useLocalizedValue } from "@/i18n";
+import { hasRequiredCheckoutPhone } from "@/utils/checkoutPhone";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
@@ -225,6 +226,18 @@ export default function CheckoutConfirmationScreen() {
       return;
     }
 
+    const checkoutPhone = user?.phone?.trim() || "";
+    if (!hasRequiredCheckoutPhone(user)) {
+      Alert.alert(t.cart.phoneRequiredTitle, t.cart.phoneRequiredMessage, [
+        { text: t.common.cancel, style: "cancel" },
+        {
+          text: t.cart.addPhoneNumber,
+          onPress: () => router.push("/profile/edit" as any),
+        },
+      ]);
+      return;
+    }
+
     setIsPlacingOrder(true);
 
     try {
@@ -293,7 +306,7 @@ export default function CheckoutConfirmationScreen() {
                 first_name: user?.first_name || "Customer",
                 last_name: user?.last_name || "",
                 email: user?.email || "customer@example.com",
-                phone_number: user?.phone || "+201234567890",
+                phone_number: checkoutPhone,
                 city: "Cairo",
                 street: "Unknown",
               },
@@ -310,7 +323,7 @@ export default function CheckoutConfirmationScreen() {
                 first_name: user?.first_name || "Customer",
                 last_name: user?.last_name || "",
                 email: user?.email || "customer@example.com",
-                phone_number: user?.phone || "+201234567890",
+                phone_number: checkoutPhone,
                 city: "Cairo",
                 street: "Unknown",
               },

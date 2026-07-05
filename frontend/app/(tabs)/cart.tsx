@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Plus, X, ChevronRight } from "lucide-react-native";
@@ -25,6 +26,7 @@ import { GuestModal } from "@/components/GuestModal";
 import { Toast } from "@/components/Toast";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { getMaxPerOrder } from "@/utils/quantityLimits";
+import { hasRequiredCheckoutPhone } from "@/utils/checkoutPhone";
 
 const { width } = Dimensions.get("window");
 
@@ -109,6 +111,16 @@ export default function CartScreen() {
   const handleCheckout = () => {
     if (!user) {
       setShowGuestModal(true);
+      return;
+    }
+    if (!hasRequiredCheckoutPhone(user)) {
+      Alert.alert(t.cart.phoneRequiredTitle, t.cart.phoneRequiredMessage, [
+        { text: t.common.cancel, style: "cancel" },
+        {
+          text: t.cart.addPhoneNumber,
+          onPress: () => router.push("/profile/edit" as any),
+        },
+      ]);
       return;
     }
     router.push("/checkout/address" as any);

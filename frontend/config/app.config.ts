@@ -29,6 +29,11 @@ export const APP_CONFIG = {
   SUPPORT_EMAIL: "Cart.shopegy@gmail.com",
 };
 
+// Auth feature flags
+export const AUTH_CONFIG = {
+  ENABLE_APPLE_SIGN_IN: true,
+};
+
 // Map Configuration (Leaflet + OpenStreetMap - 100% free, no API keys)
 export const MAP_CONFIG = {
   // Optional: Self-hosted Nominatim URL for geocoding (falls back to public server)
@@ -54,6 +59,7 @@ export const OTP_CONFIG = {
 export default {
   API_CONFIG,
   APP_CONFIG,
+  AUTH_CONFIG,
   MAP_CONFIG,
   TOKEN_CONFIG,
   OTP_CONFIG,

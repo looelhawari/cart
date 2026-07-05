@@ -5,6 +5,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import Constants from "expo-constants";
 import { Platform, Alert } from "react-native";
 import { authApi } from "./api";
+import { AUTH_CONFIG } from "@/config/app.config";
 
 // ────────────────────────────────────────────────────────
 //  Expo Go Detection
@@ -140,8 +141,12 @@ export async function signOutGoogle(): Promise<void> {
  * Only available on iOS 13+ and macOS 10.15+
  */
 export async function signInWithApple(): Promise<any> {
-  if (Platform.OS !== "ios" && Platform.OS !== "android") {
-    throw new Error("Apple Sign-In is only available on iOS and Android");
+  if (!AUTH_CONFIG.ENABLE_APPLE_SIGN_IN) {
+    throw new Error("Apple Sign-In is temporarily unavailable");
+  }
+
+  if (Platform.OS !== "ios") {
+    throw new Error("Apple Sign-In is only available on iOS");
   }
 
   try {
@@ -180,6 +185,10 @@ export async function signInWithApple(): Promise<any> {
  * Check if Apple Sign-In is available
  */
 export async function isAppleAuthAvailable(): Promise<boolean> {
+  if (!AUTH_CONFIG.ENABLE_APPLE_SIGN_IN) {
+    return false;
+  }
+
   if (Platform.OS === "ios") {
     return await AppleAuthentication.isAvailableAsync();
   }
