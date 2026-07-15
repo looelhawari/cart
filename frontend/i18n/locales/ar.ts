@@ -779,6 +779,7 @@ export default {
     phoneRequiredMessage: "يرجى إضافة رقم هاتفك قبل متابعة إتمام الشراء.",
     addPhoneNumber: "إضافة رقم الهاتف",
     addToCart: "أضف للسلة",
+    viewCart: "عرض السلة",
     updateCart: "تحديث السلة",
     itemAdded: "تمت إضافة المنتج للسلة",
     freeDeliveryUnlocked: "🎉 حصلت على توصيل مجاني!",

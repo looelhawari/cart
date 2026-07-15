@@ -26,6 +26,7 @@ import { useTranslation, useLocalizedValue } from "@/i18n";
 import Colors from "@/constants/Colors";
 import Spacing from "@/constants/Spacing";
 import { ProductCard } from "@/components/ProductCard";
+import FloatingCartBar from "@/components/FloatingCartBar";
 import { Toast } from "@/components/Toast";
 import { getCategoryProducts } from "@/services/api/categoryApi";
 import type { Product, Category, SortOption, SortOrder } from "@/types";
@@ -478,7 +479,7 @@ export default function CategoryDetailScreen() {
           keyExtractor={(item, index) => `${item.barcode}-${index}`}
           numColumns={2}
           columnWrapperStyle={styles.productRow}
-          contentContainerStyle={styles.productsGrid}
+          contentContainerStyle={[styles.productsGrid, { paddingBottom: 96 }]}
           showsVerticalScrollIndicator={false}
           style={{ opacity: refreshing ? 0.6 : 1 }}
           onEndReached={loadMoreProducts}
@@ -519,6 +520,7 @@ export default function CategoryDetailScreen() {
         type={toastType}
         onHide={() => setShowToast(false)}
       />
+      <FloatingCartBar />
     </SafeAreaView>
   );
 }

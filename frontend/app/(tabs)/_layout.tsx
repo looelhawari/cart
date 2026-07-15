@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { Tabs, usePathname } from "expo-router";
 import {
   Home,
   Grid,
@@ -14,6 +14,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/Colors";
 import { useTranslation } from "@/i18n";
 import { useStore } from "@/store";
+import FloatingCartBar from "@/components/FloatingCartBar";
+
+// Height of the tab bar (excluding the bottom safe-area inset, which the
+// floating bar adds itself). Keep in sync with tabBarStyle.height below.
+const TAB_BAR_BASE_HEIGHT = 60;
 
 function CartTabIcon({ color, size }: { color: string; size: number }) {
   const { cart } = useStore();
@@ -88,17 +93,14 @@ const cartStyles = StyleSheet.create({
 
 export default function TabLayout() {
   const { t } = useTranslation();
-  const { cart } = useStore();
   const insets = useSafeAreaInsets();
-
-  // Calculate cart items count
-  const cartItemsCount = cart?.items?.reduce(
-    (total: number, item: any) => total + item.quantity,
-    0
-  ) || 0;
+  const pathname = usePathname();
+  // The cart tab already shows its own checkout footer — don't double up.
+  const onCartTab = pathname === "/cart" || pathname?.endsWith("/cart") === true;
 
   return (
-    <Tabs
+    <View style={{ flex: 1 }}>
+      <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors.primary900,
         tabBarInactiveTintColor: Colors.neutralMedium,
@@ -163,26 +165,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />
-    </Tabs>
+      </Tabs>
+
+      <FloatingCartBar
+        bottomOffset={TAB_BAR_BASE_HEIGHT}
+        suppressed={onCartTab}
+      />
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    position: 'absolute',
-    top: -8,
-    right: -12,
-    backgroundColor: Colors.accentRed,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: Colors.neutralWhite,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});

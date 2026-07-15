@@ -15,6 +15,7 @@ import {
   Alert,
 } from "react-native";
 import { WebView } from "react-native-webview";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 // @ts-ignore — lucide-react-native types not resolved under bundler moduleResolution
 import { MapPin, Navigation, X, Check } from "lucide-react-native";
@@ -151,6 +152,10 @@ export default function MapAddressPicker({
   onClose,
 }: MapAddressPickerProps) {
   const { t } = useTranslation();
+  // This picker renders inside a full-screen RN Modal, which does NOT inherit
+  // the parent SafeAreaView — so read the insets here and push the top controls
+  // (including the "detect location" button) below the status bar / notch.
+  const insets = useSafeAreaInsets();
   const webViewRef = useRef<WebView>(null);
   const [mapLoading, setMapLoading] = useState(true);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -482,8 +487,12 @@ export default function MapAddressPicker({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.headerButton}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.headerButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <X size={20} color={Colors.neutralCharcoal} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
@@ -493,6 +502,7 @@ export default function MapAddressPicker({
           onPress={getCurrentLocation}
           style={styles.headerButton}
           disabled={gpsLoading}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           {gpsLoading ? (
             <ActivityIndicator size="small" color={Colors.primary900} />

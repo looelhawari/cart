@@ -147,7 +147,9 @@ export default function PhoneNumberModal({
               onPress={handleClose}
               disabled={loading}
             >
-              <Text style={styles.cancelButtonText}>{t.common.cancel}</Text>
+              <Text style={styles.cancelButtonText} numberOfLines={1}>
+                {t.common.cancel}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -158,7 +160,9 @@ export default function PhoneNumberModal({
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.confirmButtonText}>{t.cart.addPhoneNumber}</Text>
+                <Text style={styles.confirmButtonText} numberOfLines={1}>
+                  {t.common.save}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -258,7 +262,9 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+    minHeight: 48,
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -276,10 +282,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodyBase,
     fontWeight: Typography.semibold,
     color: Colors.neutralCharcoal,
+    textAlign: "center",
   },
   confirmButtonText: {
     fontSize: Typography.bodyBase,
     fontWeight: Typography.semibold,
     color: "#fff",
+    textAlign: "center",
   },
 });

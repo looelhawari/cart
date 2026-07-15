@@ -788,6 +788,7 @@ export default {
       "Please add your phone number before continuing to checkout.",
     addPhoneNumber: "Add Phone Number",
     addToCart: "Add to Cart",
+    viewCart: "View Cart",
     updateCart: "Update Cart",
     itemAdded: "Item added to cart",
     freeDeliveryUnlocked: "🎉 You've unlocked FREE delivery!",

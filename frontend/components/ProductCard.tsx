@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef, memo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Animated,
+} from "react-native";
 import { Heart } from "lucide-react-native";
 import Colors from "@/constants/Colors";
 import Typography from "@/constants/Typography";
@@ -12,6 +19,7 @@ import { SaleBadge } from "./SaleBadge";
 import { useLocalizedValue, useTranslation } from "@/i18n";
 import { Toast } from "@/components/Toast";
 import type { ProductOfferPricing } from "@/utils/offerPricing";
+import { findCartItem, getCartItemQuantity } from "@/utils/cart";
 
 interface ProductCardProps {
   product: Product;
@@ -30,14 +38,20 @@ export const ProductCard = memo(function ProductCard({
   onAddToCart,
   offerPricing,
 }: ProductCardProps) {
-  const { favorites, toggleFavorite, addToCart, cart, updateQuantity, removeFromCart } = useStore();
+  // Subscribe with narrow selectors so a card only re-renders when ITS OWN
+  // quantity or favorite state changes — not on every unrelated cart mutation.
+  // Store actions are stable references, safe to select individually.
+  const addToCart = useStore((s) => s.addToCart);
+  const updateQuantity = useStore((s) => s.updateQuantity);
+  const removeFromCart = useStore((s) => s.removeFromCart);
+  const toggleFavorite = useStore((s) => s.toggleFavorite);
   const [cachedImageUri, setCachedImageUri] = useState<string | undefined>();
   // When the (locally-cached) image fails to decode/render, fall back to the
   // original remote URL — exactly what the dashboard <img> uses. Without this
   // a corrupt/extensionless cache file shows a blank tile on mobile only.
   const [imageFailed, setImageFailed] = useState(false);
   const productId = product.barcode || Number(product.id) || 0;
-  const isFavorite = favorites.includes(productId.toString());
+  const isFavorite = useStore((s) => s.favorites.includes(productId.toString()));
   const { getName } = useLocalizedValue();
   const { t } = useTranslation();
 
@@ -55,29 +69,53 @@ export const ProductCard = memo(function ProductCard({
     product.is_in_stock === false || (product.stock_quantity || 0) <= 0;
   const isLowStock = !isOutOfStock && (product.stock_quantity || 0) <= 3;
 
-  // Find this product in cart
-  const cartItem = cart?.items?.find((item: any) => item.product_id === productId);
-  const cartQuantity = cartItem?.quantity || 0;
+  // Find this product's quantity in the cart via a primitive selector, so the
+  // card re-renders only when this specific quantity changes.
+  const cartQuantity = useStore((s) => getCartItemQuantity(s.cart, productId));
   const inCart = cartQuantity > 0;
 
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error" | "info">("info");
 
-  // Stepper auto-revert: show the +/- stepper only briefly after interaction,
-  // then revert to the "Add to Cart" button so the user can quickly add other
-  // items without each card sticking in stepper mode.
-  const STEPPER_VISIBLE_MS = 1500;
-  const [stepperVisible, setStepperVisible] = useState(false);
-  const stepperTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Quantity interaction (Talabat-style):
+  //   not in cart        -> "Add to Cart" button
+  //   in cart, collapsed -> [ n ] badge (quantity always visible)
+  //   in cart, expanded  -> [ − ] n [ + ] controls, auto-collapse after idle
+  const AUTO_COLLAPSE_MS = 2500;
+  const [expanded, setExpanded] = useState(false);
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showStepperBriefly = () => {
-    setStepperVisible(true);
-    if (stepperTimerRef.current) clearTimeout(stepperTimerRef.current);
-    stepperTimerRef.current = setTimeout(() => {
-      setStepperVisible(false);
-      stepperTimerRef.current = null;
-    }, STEPPER_VISIBLE_MS);
+  const clearCollapseTimer = () => {
+    if (collapseTimerRef.current) {
+      clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+  };
+
+  // Expand the controls and (re)start the idle timer that collapses them back
+  // to the quantity badge after a short period of inactivity.
+  const expandWithTimer = () => {
+    setExpanded(true);
+    clearCollapseTimer();
+    collapseTimerRef.current = setTimeout(() => {
+      setExpanded(false);
+      collapseTimerRef.current = null;
+    }, AUTO_COLLAPSE_MS);
+  };
+
+  // Subtle "pop" whenever the quantity changes — tactile feedback with no
+  // layout shift (native driver, so it never blocks the JS thread while
+  // scrolling a long list).
+  const popAnim = useRef(new Animated.Value(1)).current;
+  const pop = () => {
+    popAnim.setValue(0.9);
+    Animated.spring(popAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 140,
+      useNativeDriver: true,
+    }).start();
   };
 
   // Cache product image
@@ -92,12 +130,24 @@ export const ProductCard = memo(function ProductCard({
     }
   }, [product.image]);
 
-  // Cleanup the stepper timer on unmount
+  // Cleanup the collapse timer on unmount
+  useEffect(() => clearCollapseTimer, []);
+
+  // Keep the UI coherent when the quantity changes from anywhere (this card,
+  // the cart screen, another card for the same product, etc.): pop for
+  // feedback, and once the product leaves the cart, drop back to the
+  // "Add to Cart" button and stop any pending collapse.
+  const prevQtyRef = useRef(cartQuantity);
   useEffect(() => {
-    return () => {
-      if (stepperTimerRef.current) clearTimeout(stepperTimerRef.current);
-    };
-  }, []);
+    if (cartQuantity !== prevQtyRef.current) {
+      pop();
+      prevQtyRef.current = cartQuantity;
+    }
+    if (cartQuantity === 0 && expanded) {
+      setExpanded(false);
+      clearCollapseTimer();
+    }
+  }, [cartQuantity, expanded]);
 
   const handleAddToCart = (e: any) => {
     e.stopPropagation();
@@ -112,7 +162,6 @@ export const ProductCard = memo(function ProductCard({
       return;
     }
 
-    showStepperBriefly();
     addToCart(productId, 1).catch((error: any) => {
       const msg =
         error?.message ||
@@ -129,22 +178,33 @@ export const ProductCard = memo(function ProductCard({
     });
   };
 
+  // Tap the collapsed [ n ] badge to reveal the − / + controls.
+  const handleExpand = (e: any) => {
+    e.stopPropagation();
+    expandWithTimer();
+  };
+
   const handleDecrease = (e: any) => {
     e.stopPropagation();
-    if (!cartItem) return;
-    showStepperBriefly();
-    if (cartQuantity === 1) {
-      removeFromCart(cartItem.id).catch(() => {});
+    const item = findCartItem(useStore.getState().cart, productId);
+    if (!item) return;
+    if ((item.quantity || 0) <= 1) {
+      // Quantity hits zero -> remove and return to the "Add to Cart" button.
+      clearCollapseTimer();
+      setExpanded(false);
+      removeFromCart(item.id).catch(() => {});
     } else {
-      updateQuantity(cartItem.id, cartQuantity - 1).catch(() => {});
+      expandWithTimer();
+      updateQuantity(item.id, (item.quantity || 0) - 1).catch(() => {});
     }
   };
 
   const handleIncrease = (e: any) => {
     e.stopPropagation();
-    if (!cartItem) return;
-    showStepperBriefly();
-    updateQuantity(cartItem.id, cartQuantity + 1).catch(() => {});
+    const item = findCartItem(useStore.getState().cart, productId);
+    if (!item) return;
+    expandWithTimer();
+    updateQuantity(item.id, (item.quantity || 0) + 1).catch(() => {});
   };
 
   return (
@@ -245,33 +305,45 @@ export const ProductCard = memo(function ProductCard({
           )}
         </View>
 
-        {inCart && stepperVisible ? (
-          <View style={styles.quantityContainer}>
+        <Animated.View style={{ transform: [{ scale: popAnim }] }}>
+          {!inCart ? (
             <TouchableOpacity
-              style={styles.quantityBtn}
-              onPress={handleDecrease}
-              activeOpacity={0.7}
+              style={[styles.addButton, isOutOfStock && styles.addButtonDisabled]}
+              onPress={handleAddToCart}
+              disabled={isOutOfStock}
             >
-              <Text style={styles.quantityBtnText}>−</Text>
+              <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
             </TouchableOpacity>
-            <Text style={styles.quantityText}>{cartQuantity}</Text>
+          ) : expanded ? (
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={styles.quantityBtn}
+                onPress={handleDecrease}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.quantityBtnText}>−</Text>
+              </TouchableOpacity>
+              <Text style={styles.quantityText}>{cartQuantity}</Text>
+              <TouchableOpacity
+                style={styles.quantityBtn}
+                onPress={handleIncrease}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.quantityBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <TouchableOpacity
-              style={styles.quantityBtn}
-              onPress={handleIncrease}
-              activeOpacity={0.7}
+              style={styles.quantityBadge}
+              onPress={handleExpand}
+              activeOpacity={0.8}
             >
-              <Text style={styles.quantityBtnText}>+</Text>
+              <Text style={styles.quantityBadgeText}>{cartQuantity}</Text>
             </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.addButton, isOutOfStock && styles.addButtonDisabled]}
-            onPress={handleAddToCart}
-            disabled={isOutOfStock}
-          >
-            <Text style={styles.addButtonText}>{t.cart.addToCart}</Text>
-          </TouchableOpacity>
-        )}
+          )}
+        </Animated.View>
       </View>
     </TouchableOpacity>
   );
@@ -397,6 +469,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     height: 40,
+  },
+  quantityBadge: {
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary900,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quantityBadgeText: {
+    fontSize: Typography.bodyMedium,
+    fontWeight: Typography.bold,
+    color: Colors.neutralWhite,
   },
   quantityBtn: {
     width: 40,
