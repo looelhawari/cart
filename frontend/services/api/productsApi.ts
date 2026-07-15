@@ -26,8 +26,19 @@ export interface ProductFilters {
   category_id?: number;
   search?: string;
   on_sale?: boolean;
-  sort_by?: "created_at" | "price" | "name_en";
+  // Backend whitelist (ProductController@index): price, rating, name_en,
+  // name_ar, popularity, created_at, sales_count. Kept in sync here so the
+  // home-page collections can request rating/popularity sorts type-safely.
+  sort_by?:
+    | "created_at"
+    | "price"
+    | "name_en"
+    | "name_ar"
+    | "rating"
+    | "popularity"
+    | "sales_count";
   sort_order?: "asc" | "desc";
+  min_rating?: number;
   per_page?: number;
   page?: number;
 }

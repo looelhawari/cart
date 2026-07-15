@@ -30,7 +30,11 @@ import OfflineIndicator from "@/components/OfflineIndicator";
 import { HeroBanner } from "@/components/HeroBanner";
 import { Toast } from "@/components/Toast";
 import { getUnreadCount } from "@/services/notificationService";
-import { getFeaturedProducts, getFlashDeals } from "@/services/api/productsApi";
+import {
+  getFeaturedProducts,
+  getFlashDeals,
+  getProducts,
+} from "@/services/api/productsApi";
 import {
   getFeaturedCategoriesWithProducts,
   getCategories,
@@ -38,6 +42,10 @@ import {
 import type { Product, Category } from "@/types";
 import type { CategoryWithProducts } from "@/services/api/categoryApi";
 import { fetchActiveOffersCached } from "@/utils/offerPricing";
+import {
+  buildProductCollections,
+  type CollectionId,
+} from "@/utils/homeCollections";
 import { useTranslation } from "@/i18n";
 
 // Section components
@@ -48,9 +56,11 @@ import {
   FlashDealsSection,
   PromoBannerSection,
   CategoryProductSection,
+  CollectionLaneSection,
   FeaturedGridSection,
   BrowseCTASection,
 } from "@/components/home";
+import type { CollectionLaneSectionProps } from "@/components/home/CollectionLaneSection";
 
 // ─── Section types ────────────────────────────────────────────────────────────
 type SectionType =
@@ -61,6 +71,7 @@ type SectionType =
   | "flash-deals"
   | "promo-banner"
   | "category-products"
+  | "collection"
   | "featured-grid"
   | "browse-cta";
 
@@ -83,6 +94,12 @@ export default function HomeScreen() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [quickCategories, setQuickCategories] = useState<Category[]>([]);
   const [flashDeals, setFlashDeals] = useState<Product[]>([]);
+  // Sorted pools that feed the dynamic home-page collections. Fetched via the
+  // generic /products endpoint (existing sort params) and blended/deduped by
+  // buildProductCollections.
+  const [popularProducts, setPopularProducts] = useState<Product[]>([]);
+  const [newArrivals, setNewArrivals] = useState<Product[]>([]);
+  const [topRatedProducts, setTopRatedProducts] = useState<Product[]>([]);
   const [categoriesWithProducts, setCategoriesWithProducts] = useState<
     CategoryWithProducts[]
   >([]);
@@ -192,13 +209,33 @@ export default function HomeScreen() {
     try {
       if (!force) setLoading(true);
 
-      const [categoriesRes, allCategoriesRes, featuredRes, flashDealsRes] =
-        await Promise.all([
-          getFeaturedCategoriesWithProducts({ forceRefresh: force }),
-          getCategories({ forceRefresh: force }),
-          getFeaturedProducts({ forceRefresh: force }),
-          getFlashDeals({ forceRefresh: force }),
-        ]);
+      const [
+        categoriesRes,
+        allCategoriesRes,
+        featuredRes,
+        flashDealsRes,
+        popularRes,
+        newArrivalsRes,
+        topRatedRes,
+      ] = await Promise.all([
+        getFeaturedCategoriesWithProducts({ forceRefresh: force }),
+        getCategories({ forceRefresh: force }),
+        getFeaturedProducts({ forceRefresh: force }),
+        getFlashDeals({ forceRefresh: force }),
+        // Collection pools — existing /products sort params, cached network-first.
+        getProducts(
+          { sort_by: "sales_count", sort_order: "desc", per_page: 24 },
+          { forceRefresh: force },
+        ),
+        getProducts(
+          { sort_by: "created_at", sort_order: "desc", per_page: 24 },
+          { forceRefresh: force },
+        ),
+        getProducts(
+          { sort_by: "rating", sort_order: "desc", per_page: 24 },
+          { forceRefresh: force },
+        ),
+      ]);
 
       if (categoriesRes.success) {
         setCategoriesWithProducts(categoriesRes.data.categories);
@@ -213,6 +250,15 @@ export default function HomeScreen() {
       }
       if (flashDealsRes.success) {
         setFlashDeals(flashDealsRes.data.products);
+      }
+      if (popularRes.success) {
+        setPopularProducts(popularRes.data.products);
+      }
+      if (newArrivalsRes.success) {
+        setNewArrivals(newArrivalsRes.data.products);
+      }
+      if (topRatedRes.success) {
+        setTopRatedProducts(topRatedRes.data.products);
       }
     } catch (error) {
       console.error("Error loading home data:", error);
@@ -300,7 +346,75 @@ export default function HomeScreen() {
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SECTION LIST — build the array once per render
+  // DYNAMIC COLLECTIONS — synthesized + deduped from the sorted product pools
+  // ═══════════════════════════════════════════════════════════════════════════
+  const collections = useMemo(() => {
+    // Display metadata per collection id (title/icon/accent). Adding a new
+    // collection = add an id in homeCollections.ts + an entry here. No new
+    // component or layout code.
+    const meta: Record<
+      CollectionId,
+      Pick<
+        CollectionLaneSectionProps,
+        "title" | "iconName" | "iconColor" | "seeAllRoute"
+      >
+    > = {
+      recommended: {
+        title: t.homeCollections?.recommendedForYou || "Recommended For You",
+        iconName: "sparkles",
+        iconColor: Colors.primary900,
+      },
+      trending: {
+        title: t.homeCollections?.trending || "Trending Now",
+        iconName: "flame",
+        iconColor: Colors.accentOrange,
+      },
+      new_arrivals: {
+        title: t.homeCollections?.newArrivals || "New Arrivals",
+        iconName: "leaf",
+        iconColor: Colors.success700,
+      },
+      popular: {
+        title: t.homeCollections?.popular || "Popular Products",
+        iconName: "trophy",
+        iconColor: Colors.accentYellow,
+      },
+      top_rated: {
+        title: t.homeCollections?.topRated || "Top Rated",
+        iconName: "star",
+        iconColor: Colors.accentYellow,
+      },
+      fresh: {
+        title: t.homeCollections?.freshPicks || "Fresh Picks",
+        iconName: "pricetag",
+        iconColor: Colors.accentRed,
+        seeAllRoute: "/(tabs)/offers",
+      },
+    };
+
+    return buildProductCollections({
+      featured: featuredProducts,
+      popular: popularProducts,
+      newArrivals,
+      topRated: topRatedProducts,
+      flashDeals,
+    }).map((c) => ({
+      key: `collection-${c.id}`,
+      props: { ...meta[c.id], products: c.products } as CollectionLaneSectionProps,
+    }));
+  }, [
+    featuredProducts,
+    popularProducts,
+    newArrivals,
+    topRatedProducts,
+    flashDeals,
+    t,
+  ]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION LIST — build the array once per render.
+  // Collections are interleaved BETWEEN category lanes so the feed never shows
+  // several sparse categories in a row — the user keeps discovering products.
   // ═══════════════════════════════════════════════════════════════════════════
   const sections: HomeSection[] = useMemo(() => {
     const s: HomeSection[] = [
@@ -314,16 +428,34 @@ export default function HomeScreen() {
       s.push({ key: "flash-deals", type: "flash-deals" });
     }
 
+    // Lead with the first collection (Recommended) high in the feed.
+    const [firstCollection, ...restCollections] = collections;
+    if (firstCollection) {
+      s.push({
+        key: firstCollection.key,
+        type: "collection",
+        data: firstCollection.props,
+      });
+    }
+
     s.push({ key: "promo-banner", type: "promo-banner" });
 
-    // Dynamic category lanes
-    categoriesWithProducts.forEach((cat) => {
-      s.push({
-        key: `cat-${cat.id}`,
-        type: "category-products",
-        data: cat,
-      });
-    });
+    // Interleave category lanes with the remaining collections, appending
+    // whichever list is longer once the other runs out.
+    const laneCount = Math.max(
+      categoriesWithProducts.length,
+      restCollections.length,
+    );
+    for (let i = 0; i < laneCount; i++) {
+      const cat = categoriesWithProducts[i];
+      if (cat) {
+        s.push({ key: `cat-${cat.id}`, type: "category-products", data: cat });
+      }
+      const col = restCollections[i];
+      if (col) {
+        s.push({ key: col.key, type: "collection", data: col.props });
+      }
+    }
 
     if (featuredProducts.length > 0) {
       s.push({ key: "featured-grid", type: "featured-grid" });
@@ -332,7 +464,7 @@ export default function HomeScreen() {
     s.push({ key: "browse-cta", type: "browse-cta" });
 
     return s;
-  }, [flashDeals, categoriesWithProducts, featuredProducts]);
+  }, [flashDeals, categoriesWithProducts, featuredProducts, collections]);
 
   // ─── Render each section ──────────────────────────────────────────────────
   const renderSection = useCallback(
@@ -365,6 +497,17 @@ export default function HomeScreen() {
 
         case "promo-banner":
           return <PromoBannerSection />;
+
+        case "collection": {
+          const props = item.data as CollectionLaneSectionProps;
+          return (
+            <CollectionLaneSection
+              {...props}
+              seeAllLabel={props.seeAllLabel ?? t.common?.seeAll}
+              onAddToCart={handleCardAddToCart}
+            />
+          );
+        }
 
         case "category-products":
           return (
@@ -400,6 +543,7 @@ export default function HomeScreen() {
       featuredProducts,
       handleCardAddToCart,
       sections,
+      t,
     ],
   );
 

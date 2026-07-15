@@ -63,7 +63,7 @@ class CategoryController extends Controller
                     ->withCount('products')
                     ->orderBy('products_count', 'desc')
                     ->orderBy('sort_order')
-                    ->limit(6)
+                    ->limit(10)
                     ->get();
 
                 // Batch-load products for ALL categories in ONE query (eliminates N+1)
@@ -71,7 +71,7 @@ class CategoryController extends Controller
 
                 // Single query: get all products for all featured categories
                 $allProducts = \App\Models\Product::query()
-                    ->select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'rating', 'sales_count', 'stock_quantity', 'is_in_stock', 'unit')
+                    ->select('barcode', 'name_en', 'name_ar', 'slug', 'image', 'price', 'sale_price', 'rating', 'sales_count', 'stock_quantity', 'is_in_stock', 'unit', 'packaging')
                     ->where('is_active', true)
                     ->whereHas('categories', function ($q) use ($categoryIds) {
                         $q->whereIn('categories.id', $categoryIds);
@@ -85,7 +85,7 @@ class CategoryController extends Controller
                 foreach ($categoryIds as $catId) {
                     $productsByCategory[$catId] = $allProducts
                         ->filter(fn($p) => $p->categories->contains('id', $catId))
-                        ->take(6)
+                        ->take(12)
                         ->values();
                 }
 

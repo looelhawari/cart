@@ -1021,6 +1021,16 @@ export default {
     upToOff: "Up to {value}% OFF",
   },
 
+  // Home page product collections
+  homeCollections: {
+    recommendedForYou: "Recommended For You",
+    trending: "Trending Now",
+    newArrivals: "New Arrivals",
+    popular: "Popular Products",
+    topRated: "Top Rated",
+    freshPicks: "Fresh Picks",
+  },
+
   // Search
   search: {
     recentSearches: "Recent Searches",

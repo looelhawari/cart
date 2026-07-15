@@ -1007,6 +1007,16 @@ export default {
     upToOff: "خصم حتى {value}%",
   },
 
+  // Home page product collections
+  homeCollections: {
+    recommendedForYou: "موصى به لك",
+    trending: "الأكثر رواجًا",
+    newArrivals: "وصل حديثًا",
+    popular: "منتجات شائعة",
+    topRated: "الأعلى تقييمًا",
+    freshPicks: "اختيارات طازجة",
+  },
+
   // Search
   search: {
     recentSearches: "عمليات بحث سابقة",
