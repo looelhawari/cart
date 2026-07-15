@@ -424,6 +424,11 @@ export default function ProfileScreen() {
               <Text style={styles.profileEmail} numberOfLines={1}>
                 {user?.email}
               </Text>
+              {user?.phone ? (
+                <Text style={styles.profilePhone} numberOfLines={1}>
+                  {user.phone}
+                </Text>
+              ) : null}
             </View>
           </View>
 

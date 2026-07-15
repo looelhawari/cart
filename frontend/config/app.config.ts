@@ -14,7 +14,7 @@
 // EAS/production build. Set your machine's LAN IP in DEV_BASE_URL for
 // on-device local testing.
 const PROD_BASE_URL = "https://cartshop.site/api/v1";
-const DEV_BASE_URL = "http://192.168.100.10:8000/api/v1";
+const DEV_BASE_URL = "http://192.168.100.16:8000/api/v1";
 
 export const API_CONFIG = {
   BASE_URL: __DEV__ ? DEV_BASE_URL : PROD_BASE_URL,

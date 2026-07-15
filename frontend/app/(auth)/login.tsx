@@ -35,7 +35,6 @@ import {
   isAppleAuthAvailable,
 } from "@/services/socialAuth";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
-import { hasRequiredCheckoutPhone } from "@/utils/checkoutPhone";
 import {
   checkBiometricSupport,
   getSavedCredentials,
@@ -105,17 +104,8 @@ export default function LoginScreen() {
       // and sets isAuthenticated + user in Zustand state.
       await socialLogin("google", idToken);
 
-      const signedInUser = useStore.getState().user;
-      if (!hasRequiredCheckoutPhone(signedInUser)) {
-        Alert.alert(
-          t.auth.phoneRequiredTitle,
-          t.auth.googlePhoneRequiredMessage,
-        );
-        router.replace("/profile/edit" as any);
-        return;
-      }
-
-      // Login successful — go straight to home
+      // Google users may not have a phone yet — that's fine. We let them into
+      // the app immediately and only require a phone number at checkout.
       router.replace("/(tabs)");
     } catch (error: any) {
       // User cancelled — don't show error
@@ -152,16 +142,8 @@ export default function LoginScreen() {
         });
       }
 
-      const signedInUser = useStore.getState().user;
-      if (!hasRequiredCheckoutPhone(signedInUser)) {
-        Alert.alert(
-          t.auth.phoneRequiredTitle,
-          t.auth.googlePhoneRequiredMessage,
-        );
-        router.replace("/profile/edit" as any);
-        return;
-      }
-
+      // Apple users may not have a phone yet — same as Google, we require the
+      // phone number at checkout rather than blocking sign-in.
       router.replace("/(tabs)");
     } catch (error: any) {
       if (error?.message !== "Apple Sign-In was canceled") {

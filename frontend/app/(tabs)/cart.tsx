@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Plus, X, ChevronRight } from "lucide-react-native";
@@ -23,6 +22,7 @@ import Spacing from "@/constants/Spacing";
 import { Button } from "@/components/Button";
 import { useStore } from "@/store";
 import { GuestModal } from "@/components/GuestModal";
+import PhoneNumberModal from "@/components/PhoneNumberModal";
 import { Toast } from "@/components/Toast";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { getMaxPerOrder } from "@/utils/quantityLimits";
@@ -47,6 +47,7 @@ export default function CartScreen() {
   const [promoCode, setPromoCode] = useState("");
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
@@ -114,13 +115,7 @@ export default function CartScreen() {
       return;
     }
     if (!hasRequiredCheckoutPhone(user)) {
-      Alert.alert(t.cart.phoneRequiredTitle, t.cart.phoneRequiredMessage, [
-        { text: t.common.cancel, style: "cancel" },
-        {
-          text: t.cart.addPhoneNumber,
-          onPress: () => router.push("/profile/edit" as any),
-        },
-      ]);
+      setShowPhoneModal(true);
       return;
     }
     router.push("/checkout/address" as any);
@@ -518,6 +513,16 @@ export default function CartScreen() {
         visible={showGuestModal}
         onClose={() => setShowGuestModal(false)}
         message={t.cart?.signInToCheckout || "Sign in to checkout"}
+      />
+      <PhoneNumberModal
+        visible={showPhoneModal}
+        title={t.cart.phoneRequiredTitle}
+        message={t.cart.phoneRequiredMessage}
+        onClose={() => setShowPhoneModal(false)}
+        onSuccess={() => {
+          setShowPhoneModal(false);
+          router.push("/checkout/address" as any);
+        }}
       />
       <Toast
         visible={showToast}

@@ -38,6 +38,7 @@ import { savePendingPayment } from "@/services/payment/paymentRecovery";
 import { getStoreStatus } from "@/services/api/storeApi";
 import { useTranslation, useLocalizedValue } from "@/i18n";
 import { hasRequiredCheckoutPhone } from "@/utils/checkoutPhone";
+import PhoneNumberModal from "@/components/PhoneNumberModal";
 
 export default function CheckoutConfirmationScreen() {
   const router = useRouter();
@@ -72,6 +73,7 @@ export default function CheckoutConfirmationScreen() {
   const [deliveryNotes, setDeliveryNotes] = useState<string>("");
   const [accepted, setAccepted] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
 
   // Promo code is now handled only on cart page
   // The cart.discount already includes any applied promo code discount
@@ -210,7 +212,7 @@ export default function CheckoutConfirmationScreen() {
     }
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = () => {
     if (!accepted) {
       Alert.alert(t.checkout.termsAndConditions, t.checkout.pleaseAcceptTerms);
       return;
@@ -226,17 +228,21 @@ export default function CheckoutConfirmationScreen() {
       return;
     }
 
-    const checkoutPhone = user?.phone?.trim() || "";
+    // Mandatory phone gate: Google/social users may not have a phone yet.
+    // Instead of dead-ending on the profile screen, present a modal that
+    // collects + saves the number, then resumes the order automatically.
     if (!hasRequiredCheckoutPhone(user)) {
-      Alert.alert(t.cart.phoneRequiredTitle, t.cart.phoneRequiredMessage, [
-        { text: t.common.cancel, style: "cancel" },
-        {
-          text: t.cart.addPhoneNumber,
-          onPress: () => router.push("/profile/edit" as any),
-        },
-      ]);
+      setShowPhoneModal(true);
       return;
     }
+
+    submitOrder();
+  };
+
+  const submitOrder = async () => {
+    // Read the phone fresh from the store: when resuming right after the
+    // phone modal saves, the component's `user` closure may still be stale.
+    const checkoutPhone = useStore.getState().user?.phone?.trim() || "";
 
     setIsPlacingOrder(true);
 
@@ -732,6 +738,17 @@ export default function CheckoutConfirmationScreen() {
 
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      <PhoneNumberModal
+        visible={showPhoneModal}
+        title={t.cart.phoneRequiredTitle}
+        message={t.cart.phoneRequiredMessage}
+        onClose={() => setShowPhoneModal(false)}
+        onSuccess={() => {
+          setShowPhoneModal(false);
+          submitOrder();
+        }}
+      />
 
       <View style={styles.bottomBar}>
         <TouchableOpacity
