@@ -6,6 +6,10 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
   ActivityIndicator,
 } from "react-native";
 import { Phone, X } from "lucide-react-native";
@@ -18,6 +22,9 @@ import {
   normalizeEgyptianMobile,
   sanitizeEgyptianMobileInput,
 } from "@/utils/egyptianMobile";
+import KeyboardDoneAccessory, {
+  PHONE_INPUT_ACCESSORY_ID,
+} from "@/components/KeyboardDoneAccessory";
 
 interface PhoneNumberModalProps {
   visible: boolean;
@@ -63,6 +70,10 @@ export default function PhoneNumberModal({
   const handleSave = async () => {
     if (loading) return;
 
+    // Dismiss the keyboard before validating so the result (error text or the
+    // resumed checkout flow) is fully visible and the primary action feels final.
+    Keyboard.dismiss();
+
     const trimmed = phone.trim();
     if (!trimmed) {
       setError(t.signup.enterPhone);
@@ -99,8 +110,17 @@ export default function PhoneNumberModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
+      {/* Tapping the backdrop dismisses the keyboard (an intuitive iOS escape
+          hatch) without closing the mandatory modal. */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          style={styles.overlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Absorb card taps so they don't bubble to the backdrop; tapping a
+              non-interactive part of the card also dismisses the keyboard. */}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={styles.modal}>
           <TouchableOpacity
             style={styles.closeButton}
             onPress={handleClose}
@@ -132,6 +152,7 @@ export default function PhoneNumberModal({
                 }}
                 keyboardType="phone-pad"
                 textContentType="telephoneNumber"
+                inputAccessoryViewID={PHONE_INPUT_ACCESSORY_ID}
                 editable={!loading}
                 autoFocus
               />
@@ -166,8 +187,12 @@ export default function PhoneNumberModal({
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+            </View>
+          </TouchableWithoutFeedback>
+
+          <KeyboardDoneAccessory nativeID={PHONE_INPUT_ACCESSORY_ID} />
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

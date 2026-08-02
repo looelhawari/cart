@@ -30,6 +30,9 @@ import { Toast } from "@/components/Toast";
 import { profileApi } from "@/services/api/profileApi";
 import Constants from "expo-constants";
 import { normalizeEgyptianMobile } from "@/utils/egyptianMobile";
+import KeyboardDoneAccessory, {
+  PHONE_INPUT_ACCESSORY_ID,
+} from "@/components/KeyboardDoneAccessory";
 
 // Guard: @react-native-google-signin crashes Expo Go
 const isExpoGo = Constants.appOwnership === "expo";
@@ -378,6 +381,7 @@ export default function EditProfileScreen() {
               placeholder={t.editProfile.enterPhone}
               placeholderTextColor={Colors.neutralMedium}
               keyboardType="phone-pad"
+              inputAccessoryViewID={PHONE_INPUT_ACCESSORY_ID}
             />
           </View>
 
@@ -490,6 +494,8 @@ export default function EditProfileScreen() {
         type={toast.type}
         onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
+
+      <KeyboardDoneAccessory nativeID={PHONE_INPUT_ACCESSORY_ID} />
     </SafeAreaView>
   );
 }

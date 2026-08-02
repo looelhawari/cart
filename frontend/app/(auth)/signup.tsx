@@ -38,6 +38,9 @@ import {
   normalizeEgyptianMobile,
   sanitizeEgyptianMobileInput,
 } from "@/utils/egyptianMobile";
+import KeyboardDoneAccessory, {
+  PHONE_INPUT_ACCESSORY_ID,
+} from "@/components/KeyboardDoneAccessory";
 
 type Step = 1 | 2 | 3 | 4;
 type Gender = "male" | "female" | "other";
@@ -570,6 +573,7 @@ export default function SignupScreen() {
               }}
               keyboardType="phone-pad"
               textContentType="telephoneNumber"
+              inputAccessoryViewID={PHONE_INPUT_ACCESSORY_ID}
             />
             {isCheckingPhone && (
               <ActivityIndicator size="small" color={Colors.primary900} />
@@ -1074,6 +1078,8 @@ export default function SignupScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <KeyboardDoneAccessory nativeID={PHONE_INPUT_ACCESSORY_ID} />
     </SafeAreaView>
   );
 }
