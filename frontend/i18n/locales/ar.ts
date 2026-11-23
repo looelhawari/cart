@@ -81,6 +81,9 @@ export default {
     continueWithApple: "المتابعة عبر Apple",
     phoneRequiredTitle: "أضف رقم الهاتف",
     googlePhoneRequiredMessage: "يرجى إضافة رقم هاتفك قبل تأكيد أي طلب.",
+    completeSignupTitle: "أكمل ملفك الشخصي",
+    completeSignupMessage:
+      "يرجى إضافة رقم الهاتف وتاريخ الميلاد والجنس لإكمال التسجيل.",
     addPhoneNumber: "إضافة رقم الهاتف",
     orContinueWith: "أو المتابعة عبر",
     name: "الاسم الكامل",
@@ -325,6 +328,12 @@ export default {
     other: "آخر",
     saveChanges: "حفظ التغييرات",
     fillAllFields: "يرجى ملء جميع الحقول المطلوبة",
+    completeSignupInfoRequired:
+      "يرجى إكمال رقم الهاتف وتاريخ الميلاد والجنس.",
+    phoneNotSaved:
+      "لم يتم حفظ رقم الهاتف. يرجى المحاولة مرة أخرى أو التواصل مع الدعم.",
+    profileNotSaved:
+      "لم يتم حفظ بيانات الملف الشخصي. يرجى المحاولة مرة أخرى.",
     profileUpdated: "تم تحديث الملف الشخصي بنجاح",
     failedToUpdate: "فشل تحديث الملف الشخصي. يرجى المحاولة مرة أخرى.",
     permissionRequired: "إذن مطلوب",

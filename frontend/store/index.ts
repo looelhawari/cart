@@ -319,8 +319,10 @@ export const useStore = create<StoreState>()(
             return;
           }
 
-          // Try to fetch profile - this will auto-refresh token if expired
-          const response = await authApi.getProfile();
+          // Try to fetch profile - this will auto-refresh token if expired.
+          // Force refresh here so a previous account's cached profile cannot
+          // make auth restore think the current user has completed signup.
+          const response = await authApi.getProfile({ forceRefresh: true });
           set({
             isAuthenticated: true,
             user: response.data,
@@ -382,9 +384,12 @@ export const useStore = create<StoreState>()(
           console.log("[socialLogin] User set:", response.data.user?.email);
         }
 
-        // Fetch fresh profile to ensure everything is in sync
+        // Fetch fresh profile to ensure everything is in sync. This must
+        // bypass the 24h profile cache because social login can switch users.
         try {
-          const profileResponse = await authApi.getProfile();
+          const profileResponse = await authApi.getProfile({
+            forceRefresh: true,
+          });
           set({
             user: profileResponse.data,
           });

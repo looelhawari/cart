@@ -720,6 +720,7 @@ class AuthController extends Controller
         }
 
         $user->update($data);
+        $user->refresh();
 
         ActivityLog::log('profile_updated', $user->id, 'User', $user->id, [
             'phone_changed' => $phoneChanged,
@@ -747,7 +748,7 @@ class AuthController extends Controller
                     'full_name' => $user->full_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
-                    'date_of_birth' => $user->date_of_birth,
+                    'date_of_birth' => $user->date_of_birth?->format('Y-m-d'),
                     'gender' => $user->gender,
                     'avatar' => $user->avatar,
                     'language' => $user->language,

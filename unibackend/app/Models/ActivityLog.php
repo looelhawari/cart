@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 class ActivityLog extends Model
 {
@@ -37,14 +38,24 @@ class ActivityLog extends Model
      */
     public static function log(string $action, ?int $userId = null, ?string $entityType = null, ?int $entityId = null, array $metadata = []): void
     {
-        self::create([
-            'user_id' => $userId,
-            'action' => $action,
-            'entity_type' => $entityType,
-            'entity_id' => $entityId,
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'metadata' => $metadata,
-        ]);
+        try {
+            self::create([
+                'user_id' => $userId,
+                'action' => $action,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'metadata' => $metadata,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('activity log write failed', [
+                'action' => $action,
+                'user_id' => $userId,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

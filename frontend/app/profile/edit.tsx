@@ -33,6 +33,7 @@ import { normalizeEgyptianMobile } from "@/utils/egyptianMobile";
 import KeyboardDoneAccessory, {
   PHONE_INPUT_ACCESSORY_ID,
 } from "@/components/KeyboardDoneAccessory";
+import { needsSignupInfoCompletion } from "@/utils/checkoutPhone";
 
 // Guard: @react-native-google-signin crashes Expo Go
 const isExpoGo = Constants.appOwnership === "expo";
@@ -63,6 +64,15 @@ export default function EditProfileScreen() {
   const { t } = useTranslation();
 
   const isSocialOnly = user?.is_social_only === true;
+  const requiresSignupCompletion =
+    isSocialOnly && needsSignupInfoCompletion(user);
+  const returnAfterSave = () => {
+    if (requiresSignupCompletion) {
+      router.replace("/(tabs)" as any);
+    } else {
+      router.back();
+    }
+  };
 
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
@@ -156,7 +166,7 @@ export default function EditProfileScreen() {
       }
 
       await profileApi.relinkGoogle({ id_token: idToken });
-      await fetchProfile();
+      await fetchProfile({ forceRefresh: true });
       showToast(t.editProfile.relinkSuccess, "success");
     } catch (error: any) {
       if (error?.code === "SIGN_IN_CANCELLED" || error?.code === "12501") {
@@ -184,12 +194,19 @@ export default function EditProfileScreen() {
 
     const updateData: any = {};
 
-    if (nextFirstName !== currentFirstName) {
-      if (!nextFirstName) {
-        showToast(t.editProfile.fillAllFields, "error");
+    if (requiresSignupCompletion) {
+      if (!nextFirstName || !nextPhone || !nextDateOfBirth || !gender) {
+        showToast(t.editProfile.completeSignupInfoRequired, "error");
         return;
       }
+    }
 
+    if (!nextFirstName) {
+      showToast(t.editProfile.fillAllFields, "error");
+      return;
+    }
+
+    if (requiresSignupCompletion || nextFirstName !== currentFirstName) {
       updateData.first_name = nextFirstName;
     }
 
@@ -197,13 +214,15 @@ export default function EditProfileScreen() {
       updateData.last_name = nextLastName;
     }
 
+    const shouldValidatePhone =
+      requiresSignupCompletion || nextPhone !== currentPhone;
     const currentPhoneValidation = currentPhone
       ? normalizeEgyptianMobile(currentPhone, t.signup.invalidEgyptPhone)
       : null;
     const currentNormalizedPhone =
       currentPhoneValidation?.normalized || currentPhone;
 
-    if (nextPhone !== currentPhone) {
+    if (shouldValidatePhone) {
       if (!nextPhone) {
         showToast(t.editProfile.fillAllFields, "error");
         return;
@@ -219,32 +238,58 @@ export default function EditProfileScreen() {
         return;
       }
 
-      if (phoneValidation.normalized !== currentNormalizedPhone) {
+      if (
+        requiresSignupCompletion ||
+        phoneValidation.normalized !== currentNormalizedPhone
+      ) {
         updateData.phone = phoneValidation.normalized;
       }
     }
 
-    if (nextDateOfBirth !== currentDateOfBirth) {
+    if (requiresSignupCompletion || nextDateOfBirth !== currentDateOfBirth) {
       updateData.date_of_birth = nextDateOfBirth;
     }
 
-    if (gender !== currentGender) {
+    if (requiresSignupCompletion || gender !== currentGender) {
       updateData.gender = gender;
     }
 
     if (Object.keys(updateData).length === 0) {
       showToast(t.editProfile.profileUpdated, "success");
-      setTimeout(() => router.back(), 600);
+      setTimeout(returnAfterSave, 600);
       return;
     }
 
     setLoading(true);
     try {
       await updateProfile(updateData);
-      await fetchProfile();
+      await fetchProfile({ forceRefresh: true });
+
+      const refreshedUser = useStore.getState().user;
+      const savedPhone = cleanText(refreshedUser?.phone);
+      const savedPhoneValidation = savedPhone
+        ? normalizeEgyptianMobile(savedPhone, t.signup.invalidEgyptPhone)
+        : null;
+      const expectedPhone = updateData.phone as string | undefined;
+
+      if (
+        expectedPhone &&
+        savedPhoneValidation?.normalized !== expectedPhone
+      ) {
+        showToast(t.editProfile.phoneNotSaved, "error");
+        return;
+      }
+
+      if (
+        requiresSignupCompletion &&
+        needsSignupInfoCompletion(refreshedUser)
+      ) {
+        showToast(t.editProfile.profileNotSaved, "error");
+        return;
+      }
 
       showToast(t.editProfile.profileUpdated, "success");
-      setTimeout(() => router.back(), 1200);
+      setTimeout(returnAfterSave, 1200);
     } catch (error: any) {
       showToast(error.message || t.editProfile.failedToUpdate, "error");
     } finally {

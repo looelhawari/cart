@@ -35,6 +35,7 @@ import {
   isAppleAuthAvailable,
 } from "@/services/socialAuth";
 import { GoogleIcon, AppleIcon } from "@/components/SocialIcons";
+import { needsSignupInfoCompletion } from "@/utils/checkoutPhone";
 import {
   checkBiometricSupport,
   getSavedCredentials,
@@ -104,8 +105,17 @@ export default function LoginScreen() {
       // and sets isAuthenticated + user in Zustand state.
       await socialLogin("google", idToken);
 
-      // Google users may not have a phone yet — that's fine. We let them into
-      // the app immediately and only require a phone number at checkout.
+      const signedInUser = useStore.getState().user;
+      if (needsSignupInfoCompletion(signedInUser)) {
+        Alert.alert(
+          t.auth.completeSignupTitle,
+          t.auth.completeSignupMessage,
+        );
+        router.replace("/profile/edit" as any);
+        return;
+      }
+
+      // Login successful — go straight to home
       router.replace("/(tabs)");
     } catch (error: any) {
       // User cancelled — don't show error
@@ -140,10 +150,19 @@ export default function LoginScreen() {
           user: result.data.user,
           pendingUser: null,
         });
+        await useStore.getState().fetchProfile({ forceRefresh: true });
       }
 
-      // Apple users may not have a phone yet — same as Google, we require the
-      // phone number at checkout rather than blocking sign-in.
+      const signedInUser = useStore.getState().user;
+      if (needsSignupInfoCompletion(signedInUser)) {
+        Alert.alert(
+          t.auth.completeSignupTitle,
+          t.auth.completeSignupMessage,
+        );
+        router.replace("/profile/edit" as any);
+        return;
+      }
+
       router.replace("/(tabs)");
     } catch (error: any) {
       if (error?.message !== "Apple Sign-In was canceled") {

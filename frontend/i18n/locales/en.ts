@@ -82,6 +82,9 @@ export default {
     phoneRequiredTitle: "Add your phone number",
     googlePhoneRequiredMessage:
       "Please add your phone number before placing an order.",
+    completeSignupTitle: "Complete your profile",
+    completeSignupMessage:
+      "Please add your phone number, date of birth, and gender to finish signup.",
     addPhoneNumber: "Add Phone Number",
     orContinueWith: "or continue with",
     name: "Full Name",
@@ -325,6 +328,12 @@ export default {
     other: "Other",
     saveChanges: "Save Changes",
     fillAllFields: "Please fill in all required fields",
+    completeSignupInfoRequired:
+      "Please complete your phone number, date of birth, and gender.",
+    phoneNotSaved:
+      "Your phone number was not saved. Please try again or contact support.",
+    profileNotSaved:
+      "Your profile information was not saved. Please try again.",
     profileUpdated: "Profile updated successfully",
     failedToUpdate: "Failed to update profile. Please try again.",
     permissionRequired: "Permission Required",
