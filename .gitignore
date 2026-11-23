@@ -37,3 +37,6 @@ session.txt
 # IMPLEMENTATION_SUMMARY.md
 # TESTING_CHECKLIST.md
 # SETUP_AND_TESTING_GUIDE.md
+
+# Claude Code local settings (contain machine-specific permissions; never commit)
+.claude/
